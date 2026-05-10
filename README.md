@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GYMBET 🏋️‍♂️💰
 
-## Getting Started
+Gym Bet is a social fitness platform where users form leagues, stake points/credits, and compete for prize pools through verified gym workouts.
 
-First, run the development server:
+## 🚀 Getting Started
 
+### Prerequisites
+
+- Node.js 18.x or later
+- npm or yarn
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Development
+
+Run the development server:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## 🚢 Deployment
+
+### Vercel (Recommended)
+
+Next.js projects are best deployed on [Vercel](https://vercel.com).
+
+1. Push your code to a GitHub/GitLab/Bitbucket repository.
+2. Import the project into Vercel.
+3. Vercel will automatically detect Next.js and handle the build and deployment.
+
+### Manual Production Build
+
+If you want to run the production build locally or on your own server:
+
+1. Build the application:
+   ```bash
+   npm run build
+   ```
+2. Start the production server:
+   ```bash
+   npm start
+   ```
+
+### Docker
+
+You can also containerize the application:
+
+1. Create a `Dockerfile` in the root (standard Next.js Dockerfile).
+2. Build and run:
+   ```bash
+   docker build -t gymbet .
+   docker run -p 3000:3000 gymbet
+   ```
+
+## 🛠 Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Styling**: Tailwind CSS 4
+- **Language**: TypeScript
+- **State Management**: React Context
+- **Testing**: Jest & Playwright
+
+## 🧪 Testing
+
+Run unit tests for staking and GPS logic:
+```bash
+npx jest
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔐 Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Leagues**: Create or join leagues with custom stakes and rules.
+- **Staking**: Points are deducted upon joining and pooled for the winner.
+- **GPS Verification**: Workouts must be verified using the browser's Geolocation API within 200m of the league's "Home Gym".
+- **Trash Talk**: Interactive social feed for league participants.
+- **Leaderboards**: Dynamic ranking based on workout consistency.
