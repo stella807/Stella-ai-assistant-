@@ -20,7 +20,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 175 tests
+pnpm test         # 227 tests
 pnpm typecheck
 pnpm build
 ```
@@ -60,6 +60,21 @@ by hand, since they are sober and paying.
 
 **Plans.** A plan picker with monthly and annual pricing. Billing is not
 connected in this build: no card form, no charge, and the screen says so.
+
+**Games.** Five of them — First Worried Text, Check-In Roulette, Guess the Tab,
+Last One Standing, Ride Home Race. Every one scores on checking in, pacing,
+water or getting home; none score on how much anyone drank, and a test asserts
+no forfeit involves drinking more. Rounds are played with your crew.
+
+**Party supply.** Chairs, tables, catering, drinks, decorations, entertainment
+and the essentials everyone forgets. Give it a headcount and it builds a cart
+you can edit; rentals are quoted separately from purchases, and coverage is
+reported by the thinnest category, so twelve chairs and food for forty still
+says it seats twelve.
+
+**Food, confirmed sober.** Delivery ordered at 1am is queued, not charged.
+Safehubby puts the question when the estimate says you can actually answer it —
+usually the next morning. Unanswered orders expire rather than lingering.
 
 **Points and games.** Points for checking in, logging water, and getting home
 without driving — never for drinking. Redeemable at partner venues. The
@@ -127,6 +142,12 @@ before the drinking does: you arm the pharmacy run while sober, set a cap, and
 the API refuses to accept an authorization once the estimate says you are
 impaired. One automatic order per night, and every order records why it was
 sent.
+
+**No confirming a purchase while impaired.** Food ordered at 1am is queued and
+asked about later; a confirmation taken while the estimate says someone is
+impaired is refused outright, and nothing is charged. An "are you sure?" tapped
+by someone too drunk to read it is not consent, it is a formality with a charge
+attached.
 
 **No fake checkout.** The plan picker never asks for card details, because
 billing is not wired up. A realistic-looking payment step for a charge that

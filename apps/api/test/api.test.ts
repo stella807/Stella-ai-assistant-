@@ -374,11 +374,11 @@ describe("extras", () => {
     expect(res.json.error).toMatch(/not enough/i);
   });
 
-  it("runs the worried-text game and keeps the first result", async () => {
+  it("runs a game round and keeps the first result", async () => {
     const players = [{ id: samId, displayName: "Sam" }, { id: jordanId, displayName: "Jordan" }];
-    const round = (await call("POST", "/api/games/worried-text", { players }, sam)).json;
-    await call("POST", `/api/games/worried-text/${round.id}/report`, { playerId: jordanId }, sam);
-    const flipped = (await call("POST", `/api/games/worried-text/${round.id}/report`, { playerId: samId }, sam)).json;
+    const round = (await call("POST", "/api/games/rounds", { gameId: "worried-text", players }, sam)).json;
+    await call("POST", `/api/games/rounds/${round.id}/settle`, { loserId: jordanId }, sam);
+    const flipped = (await call("POST", `/api/games/rounds/${round.id}/settle`, { loserId: samId }, sam)).json;
     expect(flipped.loserId).toBe(jordanId);
   });
 });
@@ -603,5 +603,155 @@ describe("resuming a night", () => {
 
   it("requires a session", async () => {
     expect((await call("GET", "/api/nights/current")).status).toBe(401);
+  });
+});
+
+describe("games", () => {
+  const players = () => [{ id: samId, displayName: "Sam" }, { id: jordanId, displayName: "Jordan" }];
+
+  it("lists the catalogue with rules and forfeits", async () => {
+    const { games } = (await call("GET", "/api/games")).json;
+    expect(games.length).toBeGreaterThanOrEqual(5);
+    for (const g of games) {
+      expect(g.howItWorks.length).toBeGreaterThan(40);
+      expect(g.forfeit.toLowerCase()).not.toMatch(/\b(shot|shots|chug|pint)\b/);
+    }
+  });
+
+  it("needs the plan that includes games", async () => {
+    expect((await call("POST", "/api/games/rounds", { gameId: "worried-text", players: players() }, jordan)).status).toBe(402);
+  });
+
+  it("enforces the minimum player count", async () => {
+    const res = await call("POST", "/api/games/rounds", { gameId: "check-in-roulette", players: players() }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/at least 3/);
+  });
+
+  it("settles a race on a winner and pays them", async () => {
+    const round = (await call("POST", "/api/games/rounds", { gameId: "ride-home-race", players: players() }, sam)).json;
+    const before = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
+    const settled = (await call("POST", `/api/games/rounds/${round.id}/settle`, { winnerId: samId }, sam)).json;
+    expect(settled.winnerId).toBe(samId);
+    const after = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("takes guesses and settles closest-wins", async () => {
+    const round = (await call("POST", "/api/games/rounds", { gameId: "guess-the-tab", players: players() }, sam)).json;
+    await call("POST", `/api/games/rounds/${round.id}/guess`, { guess: 10 }, sam);
+    await call("POST", `/api/games/rounds/${round.id}/guess`, { guess: 25 }, jordan);
+    const settled = (await call("POST", `/api/games/rounds/${round.id}/settle`, { actualStandardDrinks: 12 }, sam)).json;
+    expect(settled.winnerId).toBe(samId);
+    expect(settled.loserId).toBe(jordanId);
+  });
+
+  it("keeps non-players out", async () => {
+    const round = (await call("POST", "/api/games/rounds", { gameId: "worried-text", players: players() }, sam)).json;
+    const mallory = await signup("game-mal@example.com", "Mallory");
+    expect((await call("POST", `/api/games/rounds/${round.id}/settle`, { loserId: samId }, mallory.token)).status).toBe(404);
+  });
+});
+
+describe("food orders confirmed sober", () => {
+  const queue = () => call("POST", "/api/orders", {
+    provider: "uber-eats", vendorName: "Marisol Cantina", deliverTo: "142 Rowan St",
+    lines: [{ sku: "burrito", name: "Burrito", priceCents: 1450, qty: 2 }],
+    queuedBecause: "You wanted tacos at 1am.",
+  }, sam);
+
+  it("queues without charging", async () => {
+    const order = (await queue()).json;
+    expect(order.status).toBe("waiting");
+    expect(order.totalCents).toBe(2900);
+  });
+
+  it("does NOT ask while the person is impaired", async () => {
+    const nightId = (await startNight()).json.night.id;
+    for (const d of ["shot-whiskey", "shot-tequila", "beer-ipa", "shot-whiskey"]) {
+      advance(4);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    await queue();
+    const pending = (await call("GET", "/api/orders/pending", undefined, sam)).json;
+    expect(["moderate", "high", "severe"]).toContain(pending.band);
+    expect(pending.askNow).toEqual([]);
+    expect(pending.waiting).toHaveLength(1);
+  });
+
+  it("refuses a confirmation taken while impaired, and charges nothing", async () => {
+    const nightId = (await startNight()).json.night.id;
+    for (const d of ["shot-whiskey", "shot-tequila", "beer-ipa", "shot-whiskey"]) {
+      advance(4);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    const order = (await queue()).json;
+    const res = await call("POST", `/api/orders/${order.id}/confirm`, {}, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/nothing has been charged/i);
+  });
+
+  it("asks once they have sobered up, and confirms then", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: "shot-whiskey" }, sam);
+    const order = (await queue()).json;
+
+    advance(9 * 60);
+    const pending = (await call("GET", "/api/orders/pending", undefined, sam)).json;
+    expect(pending.askNow.map((o: any) => o.id)).toEqual([order.id]);
+
+    const confirmed = (await call("POST", `/api/orders/${order.id}/confirm`, {}, sam)).json;
+    expect(confirmed.status).toBe("confirmed");
+  });
+
+  it("lets them decline, and expires anything nobody answers", async () => {
+    const order = (await queue()).json;
+    expect((await call("POST", `/api/orders/${order.id}/decline`, {}, sam)).json.status).toBe("declined");
+
+    const stale = (await queue()).json;
+    advance(30 * 60);
+    const pending = (await call("GET", "/api/orders/pending", undefined, sam)).json;
+    expect(pending.askNow.find((o: any) => o.id === stale.id)).toBeUndefined();
+  });
+
+  it("never shows one user another's orders", async () => {
+    const order = (await queue()).json;
+    expect((await call("GET", "/api/orders/pending", undefined, jordan)).json.waiting).toEqual([]);
+    expect((await call("POST", `/api/orders/${order.id}/confirm`, {}, jordan)).status).toBe(404);
+  });
+});
+
+describe("party supply", () => {
+  it("serves a catalogue across every category", async () => {
+    const { categories, items } = (await call("GET", "/api/party/catalog")).json;
+    expect(categories.length).toBe(6);
+    for (const c of categories) {
+      expect(items.some((i: any) => i.category === c.id)).toBe(true);
+    }
+  });
+
+  it("suggests a cart that covers the headcount", async () => {
+    const res = (await call("GET", "/api/party/suggest?guests=20")).json;
+    expect(res.summary.coversGuests).toBeGreaterThanOrEqual(20);
+    expect(res.summary.subtotalCents).toBeGreaterThan(0);
+  });
+
+  it("saves a cart and splits rentals from purchases", async () => {
+    const res = (await call("POST", "/api/party/cart", {
+      lines: [{ sku: "pt-chair", qty: 10 }, { sku: "pt-cups", qty: 1 }],
+    }, sam)).json;
+    expect(res.summary.rentalCents).toBe(2500);
+    expect(res.summary.purchaseCents).toBe(2800);
+    expect((await call("GET", "/api/party/cart", undefined, sam)).json.summary.subtotalCents).toBe(5300);
+  });
+
+  it("rejects an unknown sku rather than storing a broken cart", async () => {
+    expect((await call("POST", "/api/party/cart", { lines: [{ sku: "pt-unicorn", qty: 1 }] }, sam)).status).toBe(400);
+    expect((await call("GET", "/api/party/cart", undefined, sam)).json.lines).toEqual([]);
+  });
+
+  it("keeps carts per account", async () => {
+    await call("POST", "/api/party/cart", { lines: [{ sku: "pt-chair", qty: 4 }] }, sam);
+    expect((await call("GET", "/api/party/cart", undefined, jordan)).json.lines).toEqual([]);
   });
 });

@@ -3,10 +3,13 @@ import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account } from "./api.ts";
 import { AuthScreen } from "./components/AuthScreen.tsx";
 import { PlansScreen } from "./components/PlansScreen.tsx";
+import { GamesScreen } from "./components/GamesScreen.tsx";
+import { PartyScreen } from "./components/PartyScreen.tsx";
+import { PendingOrderPrompt } from "./components/PendingOrderPrompt.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 
-type Role = "out" | "watching" | "plans";
+type Role = "out" | "watching" | "games" | "party" | "plans";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -48,11 +51,20 @@ export function App() {
         <>
           <div className="tabs" role="tablist">
             <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>Tonight</button>
-            <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>Watching</button>
+            <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>Watch</button>
+            <button role="tab" aria-selected={role === "games"} onClick={() => setRole("games")}>Games</button>
+            <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>Party</button>
             <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Plan</button>
           </div>
+
+          {/* The sober ask outranks whatever tab you are on: it is a question
+              about your money that has been waiting for you to be able to
+              answer it. */}
+          <PendingOrderPrompt />
           {role === "out" && <TravelerScreen drinks={drinks} account={account} />}
           {role === "watching" && <GuardianScreen />}
+          {role === "games" && <GamesScreen account={account} />}
+          {role === "party" && <PartyScreen />}
           {role === "plans" && (
             <PlansScreen
               currentPlanId={account.planId}

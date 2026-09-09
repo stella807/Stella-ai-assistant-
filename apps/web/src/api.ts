@@ -27,6 +27,38 @@ export interface CarePackageState {
   orders: { id: string; basketId: string; totalCents: number; deliverTo: string; reason: string; etaMinutes: number }[];
 }
 
+export interface GameDef {
+  id: string;
+  name: string;
+  tagline: string;
+  howItWorks: string;
+  forfeit: string;
+  reward: number;
+  minPlayers: number;
+}
+
+export interface PendingOrder {
+  id: string;
+  provider: string;
+  vendorName: string;
+  lines: { sku: string; name: string; priceCents: number; qty: number }[];
+  totalCents: number;
+  deliverTo: string;
+  queuedBecause: string;
+  status: string;
+}
+
+export interface PartyCategory { id: string; name: string; blurb: string }
+export interface PartyItem {
+  sku: string; name: string; category: string; vendor: string;
+  priceCents: number; unit: string; rental: boolean; serves?: number;
+}
+export interface CartLine { sku: string; qty: number }
+export interface CartSummary {
+  lines: { item: PartyItem; qty: number; lineTotalCents: number }[];
+  subtotalCents: number; rentalCents: number; purchaseCents: number; coversGuests: number | null;
+}
+
 export interface NightSummary {
   night: NightOut;
   bac: BacEstimate;
@@ -132,6 +164,25 @@ export const api = {
     request<CarePackageState>("POST", `/api/nights/${nightId}/care-package/cancel`, {}),
   sendCarePackage: (nightId: string, basketId: string) =>
     request<any>("POST", `/api/nights/${nightId}/care-package/send`, { basketId }),
+
+  games: () => request<{ games: GameDef[] }>("GET", "/api/games"),
+  startRound: (gameId: string, players: { id: string; displayName: string }[]) =>
+    request<any>("POST", "/api/games/rounds", { gameId, players }),
+  rounds: () => request<any[]>("GET", "/api/games/rounds"),
+  settleRound: (roundId: string, body: Record<string, unknown>) =>
+    request<any>("POST", `/api/games/rounds/${roundId}/settle`, body),
+  guess: (roundId: string, guess: number) =>
+    request<any>("POST", `/api/games/rounds/${roundId}/guess`, { guess }),
+
+  pendingOrders: () => request<{ band: string; askNow: PendingOrder[]; waiting: PendingOrder[] }>("GET", "/api/orders/pending"),
+  queueOrder: (body: Record<string, unknown>) => request<PendingOrder>("POST", "/api/orders", body),
+  confirmOrder: (id: string) => request<PendingOrder>("POST", `/api/orders/${id}/confirm`, {}),
+  declineOrder: (id: string) => request<PendingOrder>("POST", `/api/orders/${id}/decline`, {}),
+
+  partyCatalog: () => request<{ categories: PartyCategory[]; items: PartyItem[] }>("GET", "/api/party/catalog"),
+  partySuggest: (guests: number) => request<{ guests: number; lines: CartLine[]; summary: CartSummary }>("GET", `/api/party/suggest?guests=${guests}`),
+  partyCart: () => request<{ lines: CartLine[]; summary: CartSummary }>("GET", "/api/party/cart"),
+  savePartyCart: (lines: CartLine[]) => request<{ lines: CartLine[]; summary: CartSummary }>("POST", "/api/party/cart", { lines }),
 
   subscribe: (planId: string, cadence: "monthly" | "annual") =>
     request<{ plan: any; cadence: string; trialDays: number; billingConnected: boolean; note: string }>(

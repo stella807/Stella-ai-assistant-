@@ -253,3 +253,29 @@
 
 /* Range input for the spending cap. */
 .field input[type="range"] { min-height: 32px; padding: 0; box-shadow: none; background: transparent; accent-color: var(--primary); }
+
+/* ---------- Games ---------- */
+.game { gap: 10px; }
+.forfeit { border-left: 2px solid var(--line); padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
+
+/* ---------- The sober ask ---------- */
+.ask { box-shadow: inset 0 0 0 2px var(--text); background: var(--surface); }
+
+/* ---------- Party ---------- */
+.cat {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font); color: var(--text); text-align: left; min-height: 44px;
+}
+.cat > .grow { display: flex; flex-direction: column; gap: 2px; }
+.cat strong { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.chev { font-size: 20px; font-weight: 600; color: var(--muted); width: 20px; text-align: center; }
+
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper span { min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+.stepper .btn { min-width: 36px; padding: 0; font-size: 18px; }
+
+.total { border-top: 1px solid var(--line); padding-top: 12px; font-size: 17px; }
+
+/* Five tabs on a phone: tighter type and padding so nothing wraps. */
+.tabs button { padding: 13px 4px; font-size: 13.5px; }

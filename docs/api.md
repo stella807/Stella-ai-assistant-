@@ -72,6 +72,19 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/games/worried-text/:roundId/report` | — |
 | `GET` | `/api/games/leaderboard` | — |
 
+## Venue data
+
+`GET /api/venues` resolves through Yelp Fusion, then Google Places, then the
+mock, so the app runs with no keys. Set `YELP_API_KEY` or
+`GOOGLE_PLACES_API_KEY` to use the real sources; `GET /api/health` reports which
+one is live as `venueSource`.
+
+Neither API returns a bar's structured drink menu — Places returns place details
+and Yelp returns business details plus, on some plans, a menu URL. So the drink
+list is inferred from the venue's categories and mapped onto our own catalogue,
+and anything unclassified falls back to the full catalogue rather than a guess.
+Yelp's terms restrict caching, so nothing venue-derived is written to our store.
+
 ## Swapping in real providers
 
 `packages/core/src/ports.ts` defines `RidePort`, `DeliveryPort`, `VenuePort`,

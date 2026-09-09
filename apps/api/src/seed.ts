@@ -19,4 +19,6 @@ export const SEED: Db = {
   points: {},
   redemptions: {},
   rounds: [],
+  pendingOrders: {},
+  partyCarts: {},
 };

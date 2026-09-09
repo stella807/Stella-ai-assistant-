@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Alert, CarePackageAuth, CarePackageOrder, Crew, NightOut, ShareGrant, WorriedTextRound } from "@safehubby/core";
+import type { Alert, CarePackageAuth, CarePackageOrder, Crew, GameRound, NightOut, PendingOrder, ShareGrant } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
 
 export interface Traveler {
@@ -37,11 +37,13 @@ export interface Db {
   alerts: Alert[];
   points: Record<string, PointEntry[]>;
   redemptions: Record<string, Redemption[]>;
-  rounds: WorriedTextRound[];
+  rounds: GameRound[];
+  pendingOrders: Record<string, PendingOrder[]>;
+  partyCarts: Record<string, { sku: string; qty: number }[]>;
 }
 
 const EMPTY: Db = {
-  travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [],
+  travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
 };
 
 /**

@@ -2,16 +2,20 @@ import {
   PLANS, REWARD_CATALOG, DRINK_CATALOG,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
   canRead, createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
-  reportWorriedText, retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert, startWorriedTextRound,
+  retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
   canActOnNight, canReadAccount, canReadScope, canRevokeGrant, canSeeGrant, claimGrant,
   BASKETS, DEFAULT_CAP_CENTS, authorizeCarePackage, basketTotalCents, buildOrder, findBasket,
   shouldSendAutomatically,
   activeMembers, createCrew, crewView, everyoneHome, isCrewActive, isMember, joinCrew, leaveCrew,
   setSharesCount, findPlan, TRIAL_DAYS,
+  GAMES, findGame, recordGuess, settleGuessTheTab, settleRound, settleWithWinner, startRound,
+  PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
+  askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
 } from "@safehubby/core";
-import type { CrewMemberFacts, Feature, NightOut, PlanId, TriggerBand } from "@safehubby/core";
-import { mockDelivery, mockRides, mockRoutes, mockVenues } from "./adapters/mock-providers.ts";
+import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvider, PlanId, TriggerBand } from "@safehubby/core";
+import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
+import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import { newId, type Store } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
@@ -175,7 +179,7 @@ export type Params = Record<string, string | undefined>;
 type Handler = (ctx: Ctx, params: Params, body: any) => Promise<unknown> | unknown;
 
 export const routes: Record<string, Handler> = {
-  "GET /api/health": () => ({ ok: true }),
+  "GET /api/health": () => ({ ok: true, venueSource }),
 
   "POST /api/auth/signup": async (ctx, _p, body) => {
     if (ctx.limiters.signup.hit(ctx.clientKey)) throw new HttpError(429, "Too many sign-up attempts. Try again later.");
@@ -644,7 +648,7 @@ export const routes: Record<string, Handler> = {
   "GET /api/venues": async (ctx, _p, _b) => {
     const lat = Number(_p.lat ?? 40.714);
     const lng = Number(_p.lng ?? -74.003);
-    return mockVenues.nearby({ lat, lng });
+    return venuePort.nearby({ lat, lng });
   },
 
   "POST /api/rides/quote": async (ctx, _p, body) => {
@@ -688,25 +692,177 @@ export const routes: Record<string, Handler> = {
     return { redemption: r, balance: balance(entries, [...redemptions, r]) };
   },
 
-  "POST /api/games/worried-text": (ctx, _p, body) => {
+  /* ---------------- games ---------------- */
+
+  "GET /api/games": () => ({ games: GAMES }),
+
+  "POST /api/games/rounds": (ctx, _p, body) => {
     requireFeature(ctx, actor(ctx), "group-games");
-    const round = startWorriedTextRound(newId("round"), body?.players ?? [], ctx.now(), body?.forfeit);
+    const round = startRound(newId("round"), body?.gameId as GameId, body?.players ?? [], ctx.now());
     ctx.store.update((db) => void db.rounds.push(round));
     return round;
   },
 
-  "POST /api/games/worried-text/:roundId/report": (ctx, p, body) => {
-    const round = ctx.store.data.rounds.find((r) => r.id === req(p, "roundId"));
-    if (!round) throw notFound("Round");
-    const updated = reportWorriedText(round, body?.playerId, ctx.now());
+  "GET /api/games/rounds": (ctx) => {
+    const me = actor(ctx);
+    return ctx.store.data.rounds.filter((r) => r.players.some((p) => p.id === me));
+  },
+
+  /** Settles on the first report; later reports are ignored, not applied. */
+  "POST /api/games/rounds/:roundId/settle": (ctx, p, body) => {
+    const me = actor(ctx);
+    const roundId = req(p, "roundId");
+    const round = ctx.store.data.rounds.find((r) => r.id === roundId);
+    if (!round || !round.players.some((x) => x.id === me)) throw notFound("Round");
+
+    const game = findGame(round.gameId);
+    let updated = round;
+    if (round.gameId === "guess-the-tab") {
+      updated = settleGuessTheTab(round, Number(body?.actualStandardDrinks ?? 0), ctx.now());
+    } else if (game.id === "ride-home-race" || game.id === "last-one-standing") {
+      updated = settleWithWinner(round, String(body?.winnerId ?? ""), ctx.now());
+    } else {
+      updated = settleRound(round, String(body?.loserId ?? ""), ctx.now());
+    }
+
     ctx.store.update((db) => {
-      const i = db.rounds.findIndex((r) => r.id === req(p, "roundId"));
+      const i = db.rounds.findIndex((r) => r.id === roundId);
+      db.rounds[i] = updated;
+      // The winner takes the game's reward; nobody is ever paid for drinking.
+      if (updated.winnerId) {
+        (db.points[updated.winnerId] ??= []).push(
+          award(newId("pt"), "completedNightUnderLimit", ctx.now(), `Won ${game.name}`),
+        );
+      }
+    });
+    return updated;
+  },
+
+  "POST /api/games/rounds/:roundId/guess": (ctx, p, body) => {
+    const me = actor(ctx);
+    const roundId = req(p, "roundId");
+    const round = ctx.store.data.rounds.find((r) => r.id === roundId);
+    if (!round || !round.players.some((x) => x.id === me)) throw notFound("Round");
+
+    const night = ctx.store.data.nights
+      .filter((n) => n.travelerId === me)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    const drinksLogged = night ? alcoholicDrinks(night.drinks).length : 0;
+
+    const updated = recordGuess(round, me, Number(body?.guess), drinksLogged);
+    ctx.store.update((db) => {
+      const i = db.rounds.findIndex((r) => r.id === roundId);
       db.rounds[i] = updated;
     });
     return updated;
   },
 
-  /** Only the signed-in player and the people they share a live round with. */
+  /* ---------------- food orders, confirmed sober ---------------- */
+
+  /**
+   * Queues a delivery order. Nothing is charged here: the order sits until the
+   * estimate says the person can actually decide about spending money, which in
+   * practice means the next morning.
+   */
+  "POST /api/orders": (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "supply-delivery");
+    const order = queueOrder({
+      id: newId("ord"),
+      provider: (body?.provider ?? "doordash") as OrderProvider,
+      vendorName: String(body?.vendorName ?? "Local kitchen"),
+      lines: body?.lines ?? [],
+      deliverTo: String(body?.deliverTo ?? "Home"),
+      now: ctx.now(),
+      queuedBecause: String(body?.queuedBecause ?? "You lined this up during a night out."),
+    });
+    ctx.store.update((db) => void (db.pendingOrders[me] ??= []).push(order));
+    return order;
+  },
+
+  /**
+   * The notification payload: what to ask, and whether now is the moment. The
+   * client polls this; a production build pushes it instead.
+   */
+  "GET /api/orders/pending": (ctx) => {
+    const me = actor(ctx);
+    const now = ctx.now();
+    ctx.store.update((db) => {
+      db.pendingOrders[me] = sweepExpired(db.pendingOrders[me] ?? [], now);
+    });
+
+    const night = ctx.store.data.nights
+      .filter((n) => n.travelerId === me)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    const band = night
+      ? estimateBac({ body: night.body, drinks: night.drinks, now }).band
+      : "none";
+
+    const all = ctx.store.data.pendingOrders[me] ?? [];
+    return { band, askNow: askableOrders(all, band, now), waiting: all.filter((o) => o.status === "waiting") };
+  },
+
+  "POST /api/orders/:orderId/confirm": (ctx, p) => {
+    const me = actor(ctx);
+    const orderId = req(p, "orderId");
+    const orders = ctx.store.data.pendingOrders[me] ?? [];
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) throw notFound("Order");
+
+    const now = ctx.now();
+    const night = ctx.store.data.nights
+      .filter((n) => n.travelerId === me)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    const band = night ? estimateBac({ body: night.body, drinks: night.drinks, now }).band : "none";
+
+    const updated = confirmOrder(order, band, now);
+    ctx.store.update((db) => {
+      const list = db.pendingOrders[me]!;
+      list[list.findIndex((o) => o.id === orderId)] = updated;
+    });
+    return updated;
+  },
+
+  "POST /api/orders/:orderId/decline": (ctx, p) => {
+    const me = actor(ctx);
+    const orderId = req(p, "orderId");
+    const orders = ctx.store.data.pendingOrders[me] ?? [];
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) throw notFound("Order");
+    const updated = declineOrder(order, ctx.now());
+    ctx.store.update((db) => {
+      const list = db.pendingOrders[me]!;
+      list[list.findIndex((o) => o.id === orderId)] = updated;
+    });
+    return updated;
+  },
+
+  /* ---------------- party supply ---------------- */
+
+  "GET /api/party/catalog": () => ({ categories: PARTY_CATEGORIES, items: PARTY_CATALOG }),
+
+  "GET /api/party/suggest": (ctx, p) => {
+    const guests = Number(p.guests ?? 12);
+    const lines = suggestForGuests(guests);
+    return { guests, lines, summary: summarizeCart(lines) };
+  },
+
+  "GET /api/party/cart": (ctx) => {
+    const me = actor(ctx);
+    const lines = ctx.store.data.partyCarts[me] ?? [];
+    return { lines, summary: summarizeCart(lines) };
+  },
+
+  "POST /api/party/cart": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const lines = (body?.lines ?? []) as CartLine[];
+    // summarizeCart validates every sku, so a bad cart is rejected before it is
+    // stored rather than blowing up on the next read.
+    const summary = summarizeCart(lines);
+    ctx.store.update((db) => { db.partyCarts[me] = lines; });
+    return { lines, summary };
+  },
+
   "GET /api/games/leaderboard": (ctx) => {
     const me = actor(ctx);
     const ids = new Set<string>([me]);
