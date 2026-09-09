@@ -5,11 +5,12 @@ import { AuthScreen } from "./components/AuthScreen.tsx";
 import { PlansScreen } from "./components/PlansScreen.tsx";
 import { GamesScreen } from "./components/GamesScreen.tsx";
 import { PartyScreen } from "./components/PartyScreen.tsx";
+import { AccountScreen } from "./components/AccountScreen.tsx";
 import { PendingOrderPrompt } from "./components/PendingOrderPrompt.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 
-type Role = "out" | "watching" | "games" | "party" | "plans";
+type Role = "out" | "watching" | "games" | "party" | "plans" | "account";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -31,9 +32,12 @@ export function App() {
       <header className="row-between">
         <h1>Safehubby</h1>
         {account ? (
-          <button className="btn btn-sm btn-ghost" onClick={() => api.logout().then(() => setAccount(null))}>
-            Sign out
-          </button>
+          <div className="row" style={{ gap: 6 }}>
+            <button className="btn btn-sm btn-ghost" onClick={() => setRole("account")}>Account</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => api.logout().then(() => setAccount(null))}>
+              Sign out
+            </button>
+          </div>
         ) : (
           <span className="tiny muted">Get home safe</span>
         )}
@@ -65,6 +69,9 @@ export function App() {
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
           {role === "party" && <PartyScreen />}
+          {role === "account" && (
+            <AccountScreen account={account} onDeleted={() => { setAccount(null); setRole("out"); }} />
+          )}
           {role === "plans" && (
             <PlansScreen
               currentPlanId={account.planId}

@@ -10,6 +10,8 @@ import { SosButton } from "./SosButton.tsx";
 import { CrewPanel } from "./CrewPanel.tsx";
 import { PharmacyPanel } from "./PharmacyPanel.tsx";
 import { EmergencyPanel } from "./EmergencyPanel.tsx";
+import { currentFix, requestPermission, watchLocation, type StopWatching } from "../native/location.ts";
+import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } from "../native/notify.ts";
 
 export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[]; account: Account }) {
   const TRAVELER_ID = account.id;
@@ -25,6 +27,7 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sos, setSos] = useState<string | null>(null);
+  const [locationState, setLocationState] = useState<"unknown" | "granted" | "denied" | "unavailable">("unknown");
 
   const refreshTraveler = useCallback(async () => {
     const t = await api.traveler(TRAVELER_ID);
@@ -48,6 +51,41 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
       .then((res) => { if ("night" in res && res.night) setSummary(res as NightSummary); })
       .catch(() => {});
   }, [refreshTraveler]);
+
+  /**
+   * Real device location, once a night is running. Sharing a stale fix is worse
+   * than sharing none — someone reads it as where they are now — so the watch
+   * runs for the life of the night and stops the moment it ends.
+   */
+  useEffect(() => {
+    if (!summary || summary.night.status === "home-safe" || summary.night.status === "ended") return;
+    const nightId = summary.night.id;
+    let stop: StopWatching | null = null;
+    let cancelled = false;
+
+    (async () => {
+      const permission = await requestPermission();
+      setLocationState(permission);
+      if (permission !== "granted") return;
+
+      const first = await currentFix();
+      if (first && !cancelled) await api.ping(nightId, first.lat, first.lng).catch(() => {});
+
+      stop = await watchLocation((fix) => {
+        api.ping(nightId, fix.lat, fix.lng).catch(() => {});
+      });
+      if (cancelled) stop();
+    })();
+
+    return () => { cancelled = true; stop?.(); };
+  }, [summary?.night.id, summary?.night.status]);
+
+  /** A reminder that fires with no signal, which is where a miss matters most. */
+  useEffect(() => {
+    const pending = summary?.pendingCheckIn;
+    if (!pending) { void cancelCheckInReminder(); return; }
+    void requestNotifications().then((ok) => { if (ok) void scheduleCheckInReminder(pending.dueAt); });
+  }, [summary?.pendingCheckIn?.id, summary?.pendingCheckIn?.dueAt]);
 
   // Poll so alerts and missed check-ins surface without a manual refresh.
   useEffect(() => {
@@ -110,6 +148,13 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
         </div>
         <span className={ended ? "pill pill-safe" : "pill"}>{night.status}</span>
       </div>
+
+      {locationState === "denied" && (
+        <div className="banner">
+          Location is off, so nobody can see where you are — check-ins and SOS still work, but an alert
+          will not carry a place. Turn it on in Settings if you want that.
+        </div>
+      )}
 
       {alerts.filter((a) => a.severity !== "info").slice(-3).map((a) => (
         <div key={a.id} className={`alert alert-${a.severity}`}>

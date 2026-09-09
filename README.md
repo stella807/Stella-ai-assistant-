@@ -15,7 +15,8 @@ pnpm dev          # API on :8787, web on :5173
 ```
 
 To deploy, see `docs/deploy.md` — one Railway service serves both the API and
-the web app, backed by Railway Postgres.
+the web app, backed by Railway Postgres. To ship to the App Store and Play
+Store, see `docs/mobile.md`.
 
 Open http://localhost:5173. Create an account, then two tabs: **I'm out**
 (the traveler) and **I'm watching** (the guardian). Start a night, log a few
@@ -23,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 287 tests
+pnpm test         # 312 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -60,6 +61,11 @@ when the night gets away from someone. The purchase is authorized *while sober*,
 with a hard spending cap, and fires once. The API refuses an authorization from
 someone already impaired — see "Where we said no". A partner can also send one
 by hand, since they are sober and paying.
+
+**Your data.** Account → Download my data exports everything held about you,
+location history included. Account → Delete my account is real erasure, not
+deactivation: it takes the traveler's nights, traces, sessions and sharing with
+it, while leaving crews and shared game rounds standing for everyone else.
 
 **Plans.** A plan picker with monthly and annual pricing. Billing is not
 connected in this build: no card form, no charge, and the screen says so.

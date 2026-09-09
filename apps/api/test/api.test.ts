@@ -290,6 +290,13 @@ describe("a signed-out or wrong user gets nothing", () => {
     }
   });
 
+  it("does not let a signed-out caller tell a real night id from a made-up one", async () => {
+    const nightId = (await startNight(sam)).json.night.id;
+    // Both must be 401: a different status for a real id is an enumeration oracle.
+    expect((await call("GET", `/api/nights/${nightId}`)).status).toBe(401);
+    expect((await call("GET", "/api/nights/night_totally_made_up")).status).toBe(401);
+  });
+
   it("hides another user's night behind a 404, not a 403", async () => {
     const nightId = (await startNight(sam)).json.night.id;
     // Jordan is signed in, just not the owner. 404 so night ids cannot be probed.
@@ -854,5 +861,79 @@ describe("HEAD requests", () => {
 
   it("still 404s an unknown API path on HEAD", async () => {
     expect((await fetch(`${base}/api/nope`, { method: "HEAD" })).status).toBe(404);
+  });
+});
+
+describe("account export and deletion", () => {
+  it("exports everything held about the caller, without the password hash", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/location`, { lat: 40.7148, lng: -74.0018 }, sam);
+    await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: "beer-ipa" }, sam);
+
+    const out = (await call("GET", "/api/account/export", undefined, sam)).json;
+    expect(out.account.email).toBe("sam@example.com");
+    expect(out.nights).toHaveLength(1);
+    expect(JSON.stringify(out.locationHistory)).toContain("40.7148");
+    expect(JSON.stringify(out)).not.toMatch(/passwordHash|scrypt/);
+  });
+
+  it("requires a session to export", async () => {
+    expect((await call("GET", "/api/account/export")).status).toBe(401);
+  });
+
+  it("refuses deletion without the right password", async () => {
+    const res = await call("POST", "/api/account/delete", { password: "wrong-password-here", confirm: "DELETE" }, sam);
+    expect(res.status).toBe(401);
+    expect((await call("GET", "/api/auth/me", undefined, sam)).json.traveler).not.toBeNull();
+  });
+
+  it("refuses deletion without the typed confirmation", async () => {
+    const res = await call("POST", "/api/account/delete", { password: "a-long-enough-passphrase", confirm: "yes" }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/type DELETE/i);
+  });
+
+  it("deletes the account and everything on it", async () => {
+    const doomed = await signup("doomed@example.com", "Doomed");
+    const nightId = (await call("POST", "/api/nights", { weightKg: 80, drinkLimit: 4 }, doomed.token)).json.night.id;
+    await call("POST", `/api/nights/${nightId}/location`, { lat: 51.5, lng: -0.12 }, doomed.token);
+
+    const res = (await call("POST", "/api/account/delete", {
+      password: "a-long-enough-passphrase", confirm: "DELETE",
+    }, doomed.token)).json;
+
+    expect(res.deleted).toBe(true);
+    expect(res.summary.nights).toBe(1);
+    expect(res.summary.locationPings).toBe(1);
+
+    // The session dies with it, and the night is unreachable.
+    expect((await call("GET", "/api/auth/me", undefined, doomed.token)).json.traveler).toBeNull();
+    expect((await call("GET", `/api/nights/${nightId}`, undefined, doomed.token)).status).toBe(401);
+    expect((await call("GET", `/api/nights/${nightId}`, undefined, sam)).status).toBe(404);
+  });
+
+  it("frees the email, so the same address can sign up again", async () => {
+    const first = await signup("recycle@example.com", "First");
+    await call("POST", "/api/account/delete", { password: "a-long-enough-passphrase", confirm: "DELETE" }, first.token);
+    const second = await signup("recycle@example.com", "Second");
+    expect(second.res.status).toBe(200);
+    expect(second.id).not.toBe(first.id);
+  });
+
+  it("cuts off anyone who was watching them", async () => {
+    const doomed = await signup("watched@example.com", "Watched");
+    await call("POST", "/api/nights", { weightKg: 80, drinkLimit: 4 }, doomed.token);
+    const grant = (await call("POST", "/api/grants", { scopes: ["location"] }, doomed.token)).json;
+    await call("POST", "/api/grants/claim", { inviteCode: grant.inviteCode }, sam);
+    expect((await call("GET", `/api/watch/${grant.id}`, undefined, sam)).status).toBe(200);
+
+    await call("POST", "/api/account/delete", { password: "a-long-enough-passphrase", confirm: "DELETE" }, doomed.token);
+    expect((await call("GET", `/api/watch/${grant.id}`, undefined, sam)).status).toBe(404);
+  });
+
+  it("does not disturb anyone else's account", async () => {
+    const doomed = await signup("bystander-test@example.com", "Doomed");
+    await call("POST", "/api/account/delete", { password: "a-long-enough-passphrase", confirm: "DELETE" }, doomed.token);
+    expect((await call("GET", "/api/auth/me", undefined, sam)).json.traveler.email).toBe("sam@example.com");
   });
 });

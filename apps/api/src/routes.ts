@@ -23,6 +23,7 @@ import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
   validatePassword, verifyPassword,
 } from "./auth.ts";
+import { deleteAccount, exportAccount } from "./account.ts";
 
 export class HttpError extends Error {
   status: number;
@@ -107,11 +108,18 @@ function getNight(ctx: Ctx, nightId: string): NightOut {
   return night;
 }
 
-/** A night the signed-in user owns. Anything else is a 404, not a 403 — a
- *  stranger should not be able to probe which night ids exist. */
+/**
+ * A night the signed-in user owns.
+ *
+ * Identity is resolved *before* existence is checked, deliberately: doing it
+ * the other way round lets an unauthenticated caller tell a real night id (401)
+ * from a made-up one (404) and enumerate them. Signed in but not the owner is a
+ * 404 rather than a 403, for the same reason.
+ */
 function ownNight(ctx: Ctx, nightId: string): NightOut {
+  const me = actor(ctx);
   const night = getNight(ctx, nightId);
-  if (!canActOnNight(actor(ctx), night)) throw notFound("Night");
+  if (!canActOnNight(me, night)) throw notFound("Night");
   return night;
 }
 
@@ -250,6 +258,42 @@ export const routes: Record<string, Handler> = {
     if (token) ctx.store.update((db) => { db.sessions = db.sessions.filter((s) => s.token !== token); });
     ctx.setSession?.(null);
     return { ok: true };
+  },
+
+  /**
+   * Everything held about the signed-in person. Right of access, and the thing
+   * that makes deletion a decision rather than a leap.
+   */
+  "GET /api/account/export": (ctx) => exportAccount(ctx.store.data, actor(ctx), ctx.now()),
+
+  /**
+   * Permanent erasure. Required by App Store guideline 5.1.1(v) and by the
+   * right to erasure. Re-authentication is required: a borrowed unlocked phone
+   * should not be able to destroy someone's account, and anyone being coerced
+   * has one more moment to stop.
+   */
+  "POST /api/account/delete": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+
+    if (ctx.limiters.login.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many attempts. Try again later.");
+    }
+    const ok = await verifyPassword(String(body?.password ?? ""), traveler.passwordHash);
+    if (!ok) throw new HttpError(401, "That password is not right.");
+    if (String(body?.confirm ?? "").trim().toUpperCase() !== "DELETE") {
+      throw new HttpError(400, 'Type DELETE to confirm.');
+    }
+
+    let summary!: ReturnType<typeof deleteAccount>;
+    ctx.store.update((db) => { summary = deleteAccount(db, me, ctx.now()); });
+    ctx.setSession?.(null);
+    return {
+      deleted: true,
+      summary,
+      note: "Your account and everything on it are gone. Location history cannot be recovered.",
+    };
   },
 
   "GET /api/auth/me": (ctx) => {

@@ -1,3 +1,4 @@
+import { apiBase } from "./native/platform.ts";
 import type { Alert, BacEstimate, CheckIn, LocationPing, NightOut, RecoveryPlan, RideQuote, ShareGrant, Venue } from "@safehubby/core";
 
 export interface CrewMemberView {
@@ -105,7 +106,7 @@ export interface Account {
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiBase() + path, {
     method,
     // The session is an HttpOnly cookie, so it must ride along explicitly.
     credentials: "include",
@@ -126,6 +127,10 @@ export const api = {
   login: (input: { email: string; password: string }) =>
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
+  exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
+  deleteAccount: (password: string, confirm: string) =>
+    request<{ deleted: true; summary: Record<string, number>; note: string }>(
+      "POST", "/api/account/delete", { password, confirm }),
 
   traveler: (id: string) => request<any>("GET", `/api/travelers/${id}`),
   startNight: (input: { weightKg: number; widmarkRatio?: number; drinkLimit: number; homeAddressLabel?: string }) =>
