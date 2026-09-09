@@ -18,10 +18,12 @@ const TRIGGERS = [
  * person's card on the strength of an estimate they cannot evaluate is exactly
  * backwards, so the consent has to happen before the drinking does.
  */
-export function PharmacyPanel({ nightId, state, homeLabel, onChange }: {
+export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
   nightId: string;
   state: CarePackageState;
   homeLabel: string;
+  /** Current impairment band — arming is refused past "low". */
+  band: string;
   onChange: (next: CarePackageState) => void;
 }) {
   const [baskets, setBaskets] = useState<Basket[]>([]);
@@ -43,6 +45,8 @@ export function PharmacyPanel({ nightId, state, homeLabel, onChange }: {
   const chosen = baskets.find((b) => b.id === basketId);
   const total = chosen ? chosen.items.reduce((s, i) => s + i.priceCents * i.qty, 0) : 0;
   const armed = state.auth?.enabled;
+  // Mirrors the server rule rather than offering a button that can only fail.
+  const impaired = ["moderate", "high", "severe"].includes(band);
 
   return (
     <section className="card" aria-label="Pharmacy run">
@@ -78,6 +82,12 @@ export function PharmacyPanel({ nightId, state, homeLabel, onChange }: {
             Turn it off
           </button>
         </>
+      ) : impaired ? (
+        <div className="banner">
+          You&apos;re past the point where Safehubby will take an authorization to spend your money. That
+          isn&apos;t consent — set this up before you start next time. Whoever is watching you can still
+          send one by hand.
+        </div>
       ) : (
         <>
           <p className="small muted">

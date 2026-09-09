@@ -20,7 +20,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 227 tests
+pnpm test         # 259 tests
 pnpm typecheck
 pnpm build
 ```
@@ -60,6 +60,13 @@ by hand, since they are sober and paying.
 
 **Plans.** A plan picker with monthly and annual pricing. Billing is not
 connected in this build: no card form, no charge, and the screen says so.
+
+**Medical escalation.** A red-flag checklist for alcohol poisoning and head
+injury, the correct emergency number for wherever you are, and a script for what
+to say when the dispatcher picks up — with the location and drink log already
+filled in. Any single red flag routes to emergency services; it is not a score.
+The panel opens itself once the estimate is in the danger range. Never
+plan-gated.
 
 **Games.** Five of them — First Worried Text, Check-In Roulette, Guess the Tab,
 Last One Standing, Ride Home Race. Every one scores on checking in, pacing,
@@ -119,6 +126,17 @@ delivery referrals, and venue partnerships.
 
 Three things in the original brief are deliberately not built. Each is
 documented at its call site in the code.
+
+**No "Uber ambulance".** There is no such product. Uber Health is non-emergency
+medical transport booked by healthcare organisations for appointments and
+discharges, and Uber's own terms tell users to call emergency services. Shipping
+a rideshare under an ambulance label would be worse than shipping nothing: a
+driver has no oxygen, no airway training and no authority to treat, and the
+minutes spent waiting for one are the harm. What we built instead is the
+escalation above — recognise it, call the right number, know what to say. A
+separate urgent-care ride exists for the not-an-emergency case, on its own route
+so it can never be rendered as an emergency response, and a test asserts no ride
+option is ever labelled an ambulance.
 
 **No coaching on how to hide being drunk.** The brief asked for AI advice to
 "minimize visible signs of drunkenness". Nothing speeds up alcohol elimination —

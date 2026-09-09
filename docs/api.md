@@ -72,6 +72,21 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/games/worried-text/:roundId/report` | — |
 | `GET` | `/api/games/leaderboard` | — |
 
+## Medical escalation
+
+Never plan-gated. Safehubby cannot dispatch an ambulance and says so in the
+payload; a rideshare is not emergency medical transport.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/emergency?region=US` | Red flags, the local emergency number, and the not-an-ambulance statement. Returns `emergency: null` for an unknown region rather than guessing. |
+| `POST` | `/api/nights/:nightId/emergency/assess` | `{ flags?, region?, concerns? }`. Any single red flag returns `escalation: "call-emergency"` plus a dispatcher script with location and drink totals filled in. Traveler or bound guardian only. |
+| `POST` | `/api/rides/urgent-care` | A normal ride to urgent care, with an explicit not-for-emergencies warning. Requires `ride-booking`. |
+
+`GET /api/nights/:nightId` also returns `promptEmergencyCheck`, true at the
+severe band or when a high estimate meets a missed check-in, so the client can
+raise the checklist without waiting to be asked.
+
 ## Venue data
 
 `GET /api/venues` resolves through Yelp Fusion, then Google Places, then the

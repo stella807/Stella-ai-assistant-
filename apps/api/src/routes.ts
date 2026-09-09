@@ -12,8 +12,10 @@ import {
   GAMES, findGame, recordGuess, settleGuessTheTab, settleRound, settleWithWinner, startRound,
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
+  RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
+  shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
 } from "@safehubby/core";
-import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvider, PlanId, TriggerBand } from "@safehubby/core";
+import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvider, PlanId, RedFlagId, TriggerBand } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import { newId, type Store } from "./store.ts";
@@ -171,6 +173,10 @@ function nightSummary(ctx: Ctx, night: NightOut) {
     lastPing: night.pings.at(-1) ?? null,
     alerts: ctx.store.data.alerts.filter((a) => a.nightId === night.id),
     carePackage: carePackageState(ctx, night.id),
+    promptEmergencyCheck: shouldPromptEmergencyCheck(
+      bac.band,
+      night.checkIns.filter((c) => c.status === "missed").length,
+    ),
   };
 }
 
@@ -690,6 +696,74 @@ export const routes: Record<string, Handler> = {
     const r = redeem(body?.rewardId, entries, redemptions, newId("rdm"), ctx.now());
     ctx.store.update((db) => void (db.redemptions[travelerId] ??= []).push(r));
     return { redemption: r, balance: balance(entries, [...redemptions, r]) };
+  },
+
+  /* ---------------- medical escalation ----------------
+     Never plan-gated, and deliberately not part of the ride picker: a rideshare
+     is not an ambulance, and an app that blurs the two costs the minutes that
+     matter. */
+
+  "GET /api/emergency": (ctx, p) => {
+    const region = typeof p.region === "string" ? p.region : null;
+    return {
+      redFlags: RED_FLAGS,
+      emergency: emergencyNumberFor(region),
+      // Said plainly rather than implied, so no client can render a softer
+      // version of it.
+      notAnAmbulanceService:
+        "Safehubby cannot dispatch an ambulance. Call your local emergency number — a rideshare is not emergency medical transport.",
+    };
+  },
+
+  "POST /api/nights/:nightId/emergency/assess": (ctx, p, body) => {
+    const me = actor(ctx);
+    const night = getNight(ctx, req(p, "nightId"));
+    const asGuardian = ctx.store.data.grants.some(
+      (g) => g.travelerId === night.travelerId && g.guardianId === me && !g.revokedAt,
+    );
+    if (!canActOnNight(me, night) && !asGuardian) throw notFound("Night");
+
+    const checked = (body?.flags ?? []) as RedFlagId[];
+    const assessment = checked.length > 0 || body?.emergency
+      ? assess(checked)
+      : assessNonEmergency(body?.concerns ?? []);
+
+    const now = ctx.now();
+    const emergency = emergencyNumberFor(body?.region ?? null);
+    const ping = night.pings.at(-1) ?? null;
+    const hours = (now.getTime() - new Date(night.startedAt).getTime()) / 3_600_000;
+
+    return {
+      assessment,
+      emergency,
+      script: assessment.escalation === "call-emergency"
+        ? dispatcherScript({
+            emergencyNumber: emergency?.number ?? null,
+            locationLabel: ping?.venueName ?? night.homeAddressLabel ?? null,
+            lat: ping?.lat,
+            lng: ping?.lng,
+            standardDrinks: sumStandardDrinks(night.drinks),
+            hoursDrinking: hours,
+            flagged: assessment.flagged,
+          })
+        : [],
+    };
+  },
+
+  /**
+   * A ride to urgent care — the legitimate rideshare use, for someone who needs
+   * looking at but is not in danger. Kept on its own route so it can never be
+   * mistaken for, or rendered alongside, an emergency response.
+   */
+  "POST /api/rides/urgent-care": async (ctx, _p, body) => {
+    const travelerId = actor(ctx);
+    requireFeature(ctx, travelerId, "ride-booking");
+    const quotes = await mockRides.quote({ pickup: body.pickup, dropoff: body.dropoff });
+    return {
+      quotes,
+      warning:
+        "For anything life-threatening call your local emergency number instead. This is a normal ride, with a normal driver.",
+    };
   },
 
   /* ---------------- games ---------------- */

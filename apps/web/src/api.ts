@@ -27,6 +27,15 @@ export interface CarePackageState {
   orders: { id: string; basketId: string; totalCents: number; deliverTo: string; reason: string; etaMinutes: number }[];
 }
 
+export interface RedFlag { id: string; label: string; detail: string }
+export interface EmergencyNumber { region: string; countryName: string; number: string; poisonControl?: string }
+export interface Assessment {
+  escalation: "call-emergency" | "get-checked" | "stay-and-watch";
+  headline: string;
+  steps: string[];
+  flagged: RedFlag[];
+}
+
 export interface GameDef {
   id: string;
   name: string;
@@ -67,6 +76,7 @@ export interface NightSummary {
   lastPing: LocationPing | null;
   alerts: Alert[];
   carePackage: CarePackageState;
+  promptEmergencyCheck: boolean;
 }
 
 export interface WatchView {
@@ -164,6 +174,13 @@ export const api = {
     request<CarePackageState>("POST", `/api/nights/${nightId}/care-package/cancel`, {}),
   sendCarePackage: (nightId: string, basketId: string) =>
     request<any>("POST", `/api/nights/${nightId}/care-package/send`, { basketId }),
+
+  emergencyInfo: (region: string) =>
+    request<{ redFlags: RedFlag[]; emergency: EmergencyNumber | null; notAnAmbulanceService: string }>(
+      "GET", `/api/emergency?region=${encodeURIComponent(region)}`),
+  assessEmergency: (nightId: string, body: { flags?: string[]; region?: string; emergency?: boolean; concerns?: string[] }) =>
+    request<{ assessment: Assessment; emergency: EmergencyNumber | null; script: string[] }>(
+      "POST", `/api/nights/${nightId}/emergency/assess`, body),
 
   games: () => request<{ games: GameDef[] }>("GET", "/api/games"),
   startRound: (gameId: string, players: { id: string; displayName: string }[]) =>

@@ -9,6 +9,7 @@ export * from "./crew.ts";
 export * from "./care-package.ts";
 export * from "./orders.ts";
 export * from "./party.ts";
+export * from "./emergency.ts";
 export * from "./authz.ts";
 export * from "./points.ts";
 export * from "./games.ts";

@@ -9,6 +9,7 @@ import { SharingPanel } from "./SharingPanel.tsx";
 import { SosButton } from "./SosButton.tsx";
 import { CrewPanel } from "./CrewPanel.tsx";
 import { PharmacyPanel } from "./PharmacyPanel.tsx";
+import { EmergencyPanel } from "./EmergencyPanel.tsx";
 
 export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[]; account: Account }) {
   const TRAVELER_ID = account.id;
@@ -139,9 +140,14 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
           nightId={night.id}
           state={summary.carePackage}
           homeLabel={HOME_LABEL}
+          band={bac.band}
           onChange={(carePackage) => setSummary({ ...summary, carePackage })}
         />
       )}
+
+      {/* Sits directly above the SOS: the two things you reach for when it has
+          gone wrong, in escalation order. */}
+      {!ended && <EmergencyPanel nightId={night.id} prompted={summary.promptEmergencyCheck} />}
 
       {!ended && <SosButton onSend={(silent) => run(async () => {
         await api.sos(night.id, silent);

@@ -755,3 +755,91 @@ describe("party supply", () => {
     expect((await call("GET", "/api/party/cart", undefined, jordan)).json.lines).toEqual([]);
   });
 });
+
+describe("medical escalation", () => {
+  it("serves red flags and the local emergency number without a plan", async () => {
+    const res = await call("GET", "/api/emergency?region=US", undefined, jordan);
+    expect(res.status).toBe(200);
+    expect(res.json.emergency.number).toBe("911");
+    expect(res.json.redFlags.length).toBeGreaterThan(5);
+  });
+
+  it("says plainly that it cannot dispatch an ambulance", async () => {
+    const res = await call("GET", "/api/emergency?region=GB", undefined, sam);
+    expect(res.json.emergency.number).toBe("999");
+    expect(res.json.notAnAmbulanceService).toMatch(/cannot dispatch an ambulance/i);
+    expect(res.json.notAnAmbulanceService).toMatch(/rideshare is not emergency medical transport/i);
+  });
+
+  it("returns no number rather than guessing for an unknown region", async () => {
+    expect((await call("GET", "/api/emergency?region=XX", undefined, sam)).json.emergency).toBeNull();
+  });
+
+  it("escalates on a single red flag and hands back a dispatcher script", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/location`, { lat: 40.7148, lng: -74.0018, venueName: "The Anchor Tavern" }, sam);
+    for (const d of ["shot-whiskey", "beer-ipa", "shot-tequila"]) {
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+
+    const res = (await call("POST", `/api/nights/${nightId}/emergency/assess`, {
+      flags: ["unresponsive"], region: "US",
+    }, sam)).json;
+
+    expect(res.assessment.escalation).toBe("call-emergency");
+    expect(res.emergency.number).toBe("911");
+    expect(res.script[0]).toMatch(/need an ambulance/i);
+    expect(res.script.join(" ")).toContain("The Anchor Tavern");
+    expect(res.script.join(" ")).toContain("40.71480");
+  });
+
+  it("does not manufacture an emergency when nothing is flagged", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const res = (await call("POST", `/api/nights/${nightId}/emergency/assess`, { concerns: [] }, sam)).json;
+    expect(res.assessment.escalation).toBe("get-checked");
+    expect(res.script).toEqual([]);
+  });
+
+  it("lets the bound guardian run the check too", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const grant = (await call("POST", "/api/grants", { scopes: ["location", "drinks"] }, sam)).json;
+    await call("POST", "/api/grants/claim", { inviteCode: grant.inviteCode }, jordan);
+
+    const res = await call("POST", `/api/nights/${nightId}/emergency/assess`, { flags: ["seizure"], region: "US" }, jordan);
+    expect(res.status).toBe(200);
+    expect(res.json.assessment.escalation).toBe("call-emergency");
+  });
+
+  it("keeps strangers out", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const mallory = await signup("er-mal@example.com", "Mallory");
+    expect((await call("POST", `/api/nights/${nightId}/emergency/assess`, { flags: ["seizure"] }, mallory.token)).status).toBe(404);
+  });
+
+  it("raises the prompt on its own once the night is bad enough", async () => {
+    const nightId = (await startNight()).json.night.id;
+    expect((await call("GET", `/api/nights/${nightId}`, undefined, sam)).json.promptEmergencyCheck).toBe(false);
+
+    for (const d of ["shot-whiskey", "shot-tequila", "shot-whiskey", "beer-ipa", "shot-tequila", "shot-whiskey"]) {
+      advance(4);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    expect((await call("GET", `/api/nights/${nightId}`, undefined, sam)).json.promptEmergencyCheck).toBe(true);
+  });
+
+  it("offers an urgent-care ride with an explicit not-for-emergencies warning", async () => {
+    const res = (await call("POST", "/api/rides/urgent-care", {
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam)).json;
+    expect(res.quotes.length).toBeGreaterThan(0);
+    expect(res.warning).toMatch(/call your local emergency number/i);
+    expect(res.warning).toMatch(/normal ride, with a normal driver/i);
+  });
+
+  it("never lists an ambulance among ride options", async () => {
+    const quotes = (await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam)).json;
+    expect(JSON.stringify(quotes).toLowerCase()).not.toMatch(/ambulance|paramedic|medical transport/);
+  });
+});
