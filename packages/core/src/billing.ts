@@ -69,13 +69,20 @@ const PLUS_FEATURES: Feature[] = [
 /**
  * Pricing.
  *
- * These came back down from an earlier round that priced in the float and
- * bad-debt risk of booking a ride on someone's behalf before billing them for
- * it. That risk is now carried per-transaction instead, by a pre-authorization
- * hold placed on the rider's card before Safehubby spends a cent with a
- * provider — see payment.ts. Safehubby never fronts money that is not already
- * reserved, so the subscription price only has to cover the software again,
- * not a margin against bad debt that may or may not show up in a given month.
+ * The pre-authorization hold in payment.ts still does its job: Safehubby
+ * never fronts money on an automatic ride or delivery that is not already
+ * reserved on the rider's card, so that particular risk is not what these
+ * numbers are pricing in anymore.
+ *
+ * They went back up anyway, for a reason the hold does not touch: secure
+ * transport. An armed driver's liability, commercial-livery and E&O coverage
+ * is not something an individual contractor or Safehubby itself can buy
+ * piecemeal — it has to come from a contract with an already-licensed,
+ * already-insured security firm (see docs/driving.md), and that contract
+ * costs real money every month whether or not a given Family subscriber ever
+ * books a secure-transport trip. Spreading that fixed cost, plus an actual
+ * profit margin instead of pricing at cost, across the paid tiers is why
+ * Premium and Premium Plus went back up too, not just Family.
  *
  * Ride and delivery costs are still passed through at the provider's price on
  * top of the subscription. Bundling them would mean either capping how often
@@ -95,8 +102,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 799,
-    annualCents: 8150,
+    monthlyCents: 1499,
+    annualCents: 15288,
     seats: 2,
     features: BASIC_FEATURES,
     blurb: "Venue menus, detailed logging, intoxication estimates, and the recovery plan.",
@@ -104,8 +111,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 1499,
-    annualCents: 15290,
+    monthlyCents: 2999,
+    annualCents: 30588,
     seats: 2,
     features: PLUS_FEATURES,
     blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history and group games. Add a card once; rides and deliveries are held then billed at cost, never fronted.",
@@ -113,8 +120,8 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 2499,
-    annualCents: 25490,
+    monthlyCents: 4999,
+    annualCents: 50988,
     seats: 6,
     features: [...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport"],
     blurb: "Up to six people, extended emergency contacts, group alerts, and access to secure transport where it operates.",

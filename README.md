@@ -137,16 +137,18 @@ without spinning up a server.
 | Plan | Monthly | Annual | What it adds |
 |---|---|---|---|
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
-| Premium | $7.99 | $81.50 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
-| Premium Plus | $14.99 | $152.90 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
-| Family | $24.99 | $254.90 (15% off) | Six seats, extended contacts, and secure transport where it operates |
+| Premium | $14.99 | $152.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
+| Premium Plus | $29.99 | $305.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
+| Family | $49.99 | $509.88 (15% off) | Six seats, extended contacts, and secure transport where it operates |
 
-Automatic fulfilment means Safehubby books the provider on the rider's behalf.
-A pre-authorization hold on the rider's own card, placed right before booking
-and captured only for the actual fare, carries the risk that used to be priced
-into the subscription. Rides and deliveries are passed through at cost;
-bundling them would mean capping how often someone can get home safely. See
-`docs/fulfillment.md`.
+Automatic fulfilment means Safehubby books the provider on the rider's behalf,
+backed by a pre-authorization hold on the rider's own card so nothing is ever
+fronted. The prices are not set by that risk anymore, though — they fund a
+standing contract with a licensed, insured security firm for secure transport
+(armed-driver liability coverage isn't bought per trip; see `docs/driving.md`)
+plus a real profit margin. Rides and deliveries are still passed through at
+cost on top of the subscription; bundling them would mean capping how often
+someone can get home safely. See `docs/fulfillment.md`.
 
 Safety basics are never paywalled — SOS, location sharing, and check-ins are
 free forever, and a test enforces it. Revenue is subscriptions, ride and

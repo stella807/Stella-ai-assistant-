@@ -197,11 +197,7 @@ professional driver. Apple's 1.4.1 scrutiny applies to anything that reads as a
 safety guarantee, and the app already states plainly that it cannot dispatch an
 ambulance.
 
-## Why automatic booking doesn't need a bigger subscription margin
-
-Automatic booking used to carry a float: Safehubby paid the provider first and
-billed the subscriber later, so the subscription price had to absorb the risk
-of that money not coming back. It doesn't have to anymore.
+## The pre-authorization hold, and why it didn't keep prices down
 
 `packages/core/src/payment.ts` adds a **pre-authorization hold** in front of
 every automatic booking. Before `POST /api/rides/book` or
@@ -223,18 +219,25 @@ explanation if there's no live card on file; the ride quote also reports
 `needsPaymentMethod` so the UI can ask for a card before someone taps "book" and
 hits a wall.
 
-The risk this replaces was the entire justification for pricing high enough to
-self-insure against no-shows and chargebacks. Moving it to a per-transaction
-hold is what let the prices below come back down.
+The hold removes the float/bad-debt risk from automatic booking, full stop —
+that part is real and stays. But the subscription prices went back up anyway,
+for a reason the hold does not touch: **secure transport needs an insured
+driver, and that insurance is not cheap.** An armed driver's liability,
+commercial-livery and E&O coverage is not something bought piecemeal per trip
+or per freelance contractor — see `docs/driving.md` — it comes from a standing
+contract with an already-licensed, already-insured security firm, and that
+contract costs money every month whether or not a Family subscriber books a
+trip that month. The higher prices below fund that fixed cost across the
+subscriber base, plus an actual profit margin, rather than pricing at cost.
 
 ## What the pricing assumes
 
 | Plan | Monthly | Annual | Automatic? |
 |---|---|---|---|
 | Free | — | — | No |
-| Premium | $7.99 | $81.50 | No |
-| Premium Plus | $14.99 | $152.90 | Rides + delivery |
-| Family | $24.99 | $254.90 | Everything, plus secure transport |
+| Premium | $14.99 | $152.88 | No |
+| Premium Plus | $29.99 | $305.88 | Rides + delivery |
+| Family | $49.99 | $509.88 | Everything, plus secure transport |
 
 Rides and deliveries are **passed through at the provider's price** on top of
 the subscription. Bundling them would mean capping how often someone can get
