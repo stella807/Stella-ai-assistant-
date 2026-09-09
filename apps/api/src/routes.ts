@@ -28,7 +28,7 @@ import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import {
   deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates, uberForBusiness,
 } from "./adapters/fulfillment.ts";
-import { walmartLink } from "./adapters/grocery.ts";
+import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
@@ -1018,6 +1018,10 @@ export const routes: Record<string, Handler> = {
 
   "GET /api/supplies": async (ctx, p) => mockDelivery.catalog({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),
 
+  /** Real, nearby, named stores — Google Maps when configured — to prefer for the basket below. */
+  "GET /api/supplies/stores": async (ctx, p) =>
+    storeLocator.nearby({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),
+
   /**
    * Builds the basket for real.
    *
@@ -1025,12 +1029,17 @@ export const routes: Record<string, Handler> = {
    * the customer taps once to check out. The basket is put together by the app
    * rather than typed by someone at 1am, which is the whole point; the payment
    * still happens in their account, which keeps the consent rule intact.
+   *
+   * An optional chosen store (from GET /api/supplies/stores) is passed along
+   * as a note the shopper sees, not a guaranteed reroute — see grocery.ts for
+   * why Google Places can name a nearby store but cannot select it for real.
    */
   "POST /api/supplies/order": async (ctx, _p, body) => {
     const me = actor(ctx);
     requireFeature(ctx, me, "supply-delivery");
     const dispatcher = deliveryDispatcher();
     const to = String(body?.to ?? "Home");
+    const note = buildStoreNote(body?.store ? { name: String(body.store.name ?? ""), address: body.store.address ? String(body.store.address) : undefined } : null);
 
     const items = (body?.items ?? []).map((i: { id: string; qty?: number; name?: string; priceCents?: number }) => ({
       sku: i.id,
@@ -1041,7 +1050,7 @@ export const routes: Record<string, Handler> = {
 
     if (isAutomatic(dispatcher.status)) {
       try {
-        const dispatched = await dispatcher.dispatch({ items, dropoff: { label: to } });
+        const dispatched = await dispatcher.dispatch({ items, dropoff: { label: to }, note });
         return { mode: "cart-ready", ...dispatched };
       } catch (err) {
         // A provider outage must not swallow the request silently; fall back to

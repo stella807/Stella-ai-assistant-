@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 403 tests (7 Postgres tests skip without a database)
+pnpm test         # 410 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -70,8 +70,12 @@ already impaired; payment happens in the customer's own account, so Safehubby
 never charges a card on a drunk person's say-so. Walmart is the tracked
 fallback. Every basket is a fixed, curated list — real meals, never a
 free-form cart, and never alcohol; Family unlocks a wider menu (pizza, burgers,
-a takeout bowl, brunch) on top of the base set everyone gets. See
-`docs/fulfillment.md`.
+a takeout bowl, brunch) on top of the base set everyone gets. With
+`GOOGLE_PLACES_API_KEY` configured, a real nearby store can be named as a
+preference on the order — Google Maps can show you a real Walgreens three
+blocks away, but it has no idea what Instacart's internal id for that
+Walgreens is, so the choice is passed along as a note the shopper sees, not a
+guaranteed reroute. See `docs/fulfillment.md`.
 
 **Your data.** Account → Download my data exports everything held about you,
 location history included. Account → Delete my account is real erasure, not

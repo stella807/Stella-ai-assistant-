@@ -98,6 +98,29 @@ railway variables --set "PUBLIC_APP_URL=https://<your-app>.up.railway.app"
 
 `PUBLIC_APP_URL` is the link-back Instacart shows to bring people home again.
 
+### Picking a real, nearby store
+
+`GET /api/supplies/stores` returns real, named stores near a location —
+Google Places, the same key and request shape `apps/api/src/adapters/venues.ts`
+already uses for bars, aimed at `grocery_store`, `supermarket`, `pharmacy` and
+`convenience_store` instead (`apps/api/src/adapters/grocery.ts`). No key means
+a small fixed mock list instead, same as venues without one.
+
+```bash
+railway variables --set "GOOGLE_PLACES_API_KEY=..."
+```
+
+**This names a store; it does not route the order to it.** Google Places has
+no idea what Instacart's internal id for a given store is — that mapping only
+exists in Instacart's own Retailers endpoint, keyed by postal code, which is a
+separate integration this app does not have. So a chosen store is passed to
+`POST /api/supplies/order` as `store: { name, address }` and becomes a
+free-text note on the Instacart Shopping List (`buildStoreNote`, folded into
+the existing `instructions` field) — a real preference the shopper sees and
+can act on, not a guarantee this app can back. Claiming otherwise would be the
+same mistake as inventing a fare: a promise made on a screen that the backend
+cannot actually keep.
+
 ### Walmart
 
 Walmart publishes **no consumer ordering API**, and its terms forbid scraping

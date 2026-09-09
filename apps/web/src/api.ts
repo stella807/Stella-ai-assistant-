@@ -1,5 +1,5 @@
 import { apiBase } from "./native/platform.ts";
-import type { Alert, BacEstimate, CheckIn, LocationPing, NightOut, RecoveryPlan, RideQuote, ShareGrant, Venue } from "@safehubby/core";
+import type { Alert, BacEstimate, CheckIn, LocationPing, NearbyStore, NightOut, RecoveryPlan, RideQuote, ShareGrant, Venue } from "@safehubby/core";
 
 export interface CrewMemberView {
   travelerId: string;
@@ -220,7 +220,13 @@ export const api = {
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),
-  orderSupplies: (items: { id: string; qty: number; name?: string; priceCents?: number }[], to: string) =>
+  nearbyStores: (at: { lat: number; lng: number }) =>
+    request<NearbyStore[]>("GET", `/api/supplies/stores?lat=${at.lat}&lng=${at.lng}`),
+  orderSupplies: (
+    items: { id: string; qty: number; name?: string; priceCents?: number }[],
+    to: string,
+    store?: { name: string; address?: string } | null,
+  ) =>
     request<{
       mode: "cart-ready" | "handoff";
       provider?: string;
@@ -229,7 +235,7 @@ export const api = {
       note?: string;
       error?: string;
       handoff?: { provider: string; url: string; tracked: boolean; description: string };
-    }>("POST", "/api/supplies/order", { items, to }),
+    }>("POST", "/api/supplies/order", { items, to, store }),
   redeem: (rewardId: string) => request<any>("POST", "/api/points/redeem", { rewardId }),
 
   crews: () => request<any[]>("GET", "/api/crews"),

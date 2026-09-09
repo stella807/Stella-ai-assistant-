@@ -6,7 +6,8 @@ signed in but not permitted, 404 unknown resource **or one you may not see**,
 409 conflicting state, 429 rate limited.
 
 **Authentication.** All routes except `/api/health`, `/api/catalog`,
-`/api/venues`, `/api/supplies` and the `/api/auth/*` endpoints require a
+`/api/venues`, `/api/supplies`, `/api/supplies/stores`,
+`/api/care-package/baskets` and the `/api/auth/*` endpoints require a
 session. Send it as the `sh_session` cookie (set automatically by signup and
 login) or as `Authorization: Bearer <token>`. Identity always comes from the
 session; a `travelerId` in a request body is ignored.
@@ -65,6 +66,7 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/rides/quote` | `ride-booking` |
 | `POST` | `/api/rides/book` | `ride-booking` (awards 100 points) |
 | `GET` | `/api/supplies` | — |
+| `GET` | `/api/supplies/stores?lat=&lng=` | — |
 | `POST` | `/api/supplies/order` | `supply-delivery` |
 | `POST` | `/api/routes` | `safe-routes` |
 | `POST` | `/api/points/redeem` | — |

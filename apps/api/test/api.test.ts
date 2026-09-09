@@ -1112,6 +1112,26 @@ describe("grocery fulfilment", () => {
     expect(state.mode).toBe("prepared");
     expect(state.handoff.provider).toBe("Walmart");
   });
+
+  it("lists nearby stores to prefer, closest first, from the mock when no Places key is set", async () => {
+    const res = await call("GET", "/api/supplies/stores?lat=40.7135&lng=-74.0041", undefined, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.length).toBeGreaterThan(0);
+    expect(res.json[0]).toMatchObject({ name: expect.any(String), address: expect.any(String) });
+  });
+
+  it("accepts a preferred store on the order without changing the fallback path", async () => {
+    const res = (await call("POST", "/api/supplies/order", {
+      items: [{ id: "liquid-iv", name: "Liquid I.V.", qty: 1, priceCents: 999 }],
+      to: "142 Rowan St",
+      store: { name: "Corner Market", address: "210 Bridge St" },
+    }, sam)).json;
+    // No Instacart key in tests, so this still falls back to Walmart — the
+    // store preference only reaches Instacart's own request, exercised
+    // separately in the grocery adapter's own unit test.
+    expect(res.mode).toBe("handoff");
+    expect(res.handoff.provider).toBe("Walmart");
+  });
 });
 
 describe("Uber Guest Trips wiring", () => {

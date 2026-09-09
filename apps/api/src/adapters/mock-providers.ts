@@ -1,12 +1,14 @@
 import type {
   DeliveryPort,
   LocationPing,
+  NearbyStore,
   RidePort,
   RideQuote,
   RideRequest,
   RoutePort,
   RouteSuggestion,
   StoreItem,
+  StorePort,
   Venue,
   VenuePort,
 } from "@safehubby/core";
@@ -97,6 +99,18 @@ export const mockVenues: VenuePort = {
   },
   async byId(id) {
     return VENUES.find((v) => v.id === id);
+  },
+};
+
+const STORES: NearbyStore[] = [
+  { id: "s-corner-market", name: "Corner Market", address: "210 Bridge St", lat: 40.7135, lng: -74.0041 },
+  { id: "s-downtown-pharmacy", name: "Downtown Pharmacy", address: "88 Harbor Ave", lat: 40.7161, lng: -73.9989 },
+  { id: "s-quickstop", name: "QuickStop", address: "45 Mill Lane", lat: 40.7102, lng: -74.0007 },
+];
+
+export const mockStores: StorePort = {
+  async nearby(at) {
+    return [...STORES].sort((a, b) => haversineKm(at, a) - haversineKm(at, b));
   },
 };
 

@@ -1,5 +1,6 @@
-import type { AutomaticDeliveryPort, DeliveryRequestInput, DispatchedDelivery } from "@safehubby/core";
+import type { AutomaticDeliveryPort, DeliveryRequestInput, DispatchedDelivery, NearbyStore, StorePort } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
+import { mockStores } from "./mock-providers.ts";
 
 /**
  * Grocery and pharmacy fulfilment via Instacart and Walmart.
@@ -29,6 +30,85 @@ import { statusFor } from "@safehubby/core";
  */
 
 const TIMEOUT_MS = 8000;
+
+/* -------------------------------------------------------- Picking a store */
+
+const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY;
+const STORE_SEARCH_RADIUS_M = 1500;
+
+/**
+ * Real, nearby, named stores to choose from — same Google Places key and
+ * request shape venues.ts uses for bars, aimed at grocery and pharmacy types
+ * instead.
+ *
+ * What this can and cannot do: Places can tell you a Walgreens exists three
+ * blocks away. It cannot tell you Instacart's internal id for that Walgreens —
+ * that comes only from Instacart's own Retailers endpoint, keyed by postal
+ * code, which is a separate integration this app does not have. So picking a
+ * store here does not silently reroute the Instacart cart to it; it is passed
+ * along as a note on the order (`buildStoreNote` below) — a real preference
+ * the shopper sees, not a routing guarantee this app cannot back.
+ */
+async function placesNearbyStores(at: { lat: number; lng: number }): Promise<NearbyStore[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        "X-Goog-Api-Key": PLACES_KEY!,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
+      },
+      body: JSON.stringify({
+        includedTypes: ["grocery_store", "supermarket", "pharmacy", "convenience_store"],
+        maxResultCount: 12,
+        locationRestriction: { circle: { center: { latitude: at.lat, longitude: at.lng }, radius: STORE_SEARCH_RADIUS_M } },
+      }),
+    });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = (await res.json()) as { places?: any[] };
+    return (data.places ?? []).map((p: any): NearbyStore => ({
+      id: `places:${p.id}`,
+      name: p.displayName?.text ?? "Unnamed store",
+      address: p.formattedAddress ?? "",
+      lat: p.location?.latitude ?? at.lat,
+      lng: p.location?.longitude ?? at.lng,
+    }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Google Places when configured, the fixed mock list otherwise — the app runs with no key. */
+export const storeLocator: StorePort = {
+  async nearby(at) {
+    if (PLACES_KEY) {
+      try {
+        const found = await placesNearbyStores(at);
+        if (found.length) return found;
+      } catch {
+        // fall through to the mock rather than an empty picker
+      }
+    }
+    return mockStores.nearby(at);
+  },
+};
+
+export const storeLocatorSource = PLACES_KEY ? "google-places" : "mock";
+
+/**
+ * Turns a chosen store into the free-text note Instacart shows the shopper
+ * (`instructions` on the Shopping List). Pure and exported so the wording is
+ * testable without a network call.
+ */
+export function buildStoreNote(store: { name: string; address?: string } | null | undefined): string | undefined {
+  if (!store?.name) return undefined;
+  return store.address
+    ? `Please shop at ${store.name}, ${store.address} if it's available.`
+    : `Please shop at ${store.name} if it's available.`;
+}
 
 /* ---------------------------------------------------------------- Instacart */
 

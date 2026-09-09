@@ -57,6 +57,27 @@ export interface VenuePort {
   byId(id: string): Promise<Venue | undefined>;
 }
 
+export interface NearbyStore {
+  id: string;
+  name: string;
+  /** Human-readable, for display and for the note passed to a delivery provider. */
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * "Which real store is this near" — Google Places/Yelp-backed, same as
+ * VenuePort. This does not select a delivery provider's retailer for a basket:
+ * Instacart's own retailer ids come from its own Retailers endpoint, keyed by
+ * postal code, and a Google Place has no reliable mapping onto one. So a
+ * chosen store here becomes a preference passed along as a note, not a
+ * guaranteed routing — see grocery.ts.
+ */
+export interface StorePort {
+  nearby(at: { lat: number; lng: number }): Promise<NearbyStore[]>;
+}
+
 export interface NotificationPort {
   push(to: string, title: string, body: string): Promise<void>;
 }

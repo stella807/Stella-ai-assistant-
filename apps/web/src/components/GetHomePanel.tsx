@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { NearbyStore } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 
 const HOME = { lat: 40.7488, lng: -73.9857 };
@@ -37,8 +38,12 @@ export function GetHomePanel({ pickup, homeLabel }: {
   const [tookRide, setTookRide] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [stores, setStores] = useState<NearbyStore[]>([]);
+  const [storeId, setStoreId] = useState<string | null>(null);
 
   const at = pickup ?? { lat: 40.714, lng: -74.003 };
+
+  useEffect(() => { api.nearbyStores(at).then(setStores).catch(() => {}); }, [at.lat, at.lng]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -169,17 +174,30 @@ export function GetHomePanel({ pickup, homeLabel }: {
       {handoffs && note && <p className="tiny muted">{note}</p>}
       {tookRide && <div className="banner banner-safe">Ride home logged. <b>+100 points</b> for not driving.</div>}
 
+      {stores.length > 0 && !supplies && (
+        <div className="field">
+          <label htmlFor="store-pick" className="tiny muted">Prefer a store, if it's open</label>
+          <select id="store-pick" value={storeId ?? ""} onChange={(e) => setStoreId(e.target.value || null)}>
+            <option value="">No preference — whatever Instacart has nearby</option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ""}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <button className="btn btn-block" disabled={busy}
         onClick={() => run(async () => {
+          const store = stores.find((s) => s.id === storeId) ?? null;
           const res = await api.orderSupplies([
             { id: "liquid-iv", name: "Liquid I.V. hydration packs", qty: 1, priceCents: 999 },
             { id: "gatorade", name: "Gatorade", qty: 2, priceCents: 349 },
             { id: "crackers", name: "Saltine crackers", qty: 1, priceCents: 299 },
-          ], homeLabel);
+          ], homeLabel, store);
 
           if (res.mode === "cart-ready") {
             setSupplies({
-              text: `Basket built and waiting at ${res.provider}. One tap to check out — it goes to ${homeLabel}.`,
+              text: `Basket built and waiting at ${res.provider}${store ? ` — asked for ${store.name}` : ""}. One tap to check out — it goes to ${homeLabel}.`,
               url: res.trackingUrl,
               cta: `Check out at ${res.provider}`,
             });

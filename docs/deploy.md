@@ -43,7 +43,7 @@ railway variables --set "NODE_ENV=production"
 | `WEB_ROOT` | no | Set by the Dockerfile. |
 | `ALLOWED_ORIGINS` | no | Only needed if you serve the web app from a second origin. |
 | `YELP_API_KEY` | no | Real venue lookup. Falls back to Google Places, then mock. |
-| `GOOGLE_PLACES_API_KEY` | no | See `docs/api.md` for what these can and cannot return. |
+| `GOOGLE_PLACES_API_KEY` | no | Venue lookup, and the nearby-store picker for the pharmacy run. See `docs/api.md` and `docs/fulfillment.md` for what these can and cannot return. |
 
 **Losing `SAFEHUBBY_ENCRYPTION_KEY` means losing every stored location trace.**
 That is the intended failure — the alternative is a key the platform can read.
