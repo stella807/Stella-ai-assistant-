@@ -197,14 +197,44 @@ professional driver. Apple's 1.4.1 scrutiny applies to anything that reads as a
 safety guarantee, and the app already states plainly that it cannot dispatch an
 ambulance.
 
+## Why automatic booking doesn't need a bigger subscription margin
+
+Automatic booking used to carry a float: Safehubby paid the provider first and
+billed the subscriber later, so the subscription price had to absorb the risk
+of that money not coming back. It doesn't have to anymore.
+
+`packages/core/src/payment.ts` adds a **pre-authorization hold** in front of
+every automatic booking. Before `POST /api/rides/book` or
+`POST /api/rides/secure` calls the provider, the API places a hold on the
+rider's card for the fare estimate plus a 25% buffer (`HOLD_BUFFER`), and only
+then makes the booking call. If the booking fails, the hold is released and
+nothing is ever charged. If it succeeds, the hold is captured for the actual
+fare, which can be less than the estimate but never more — `captureHold` throws
+if a caller tries to take more than was held. A hold that outlives
+`HOLD_TTL_HOURS` (24) without being captured or released is swept back to
+`released` rather than left open against the card indefinitely.
+
+This is why `GET /api/account/payment-method` and the card form in the Account
+screen exist: a rider adds a card once, and every automatic booking after that
+reserves money on *their* card before Safehubby spends anything, rather than
+Safehubby fronting it. `POST /api/rides/book` and `POST /api/rides/secure`
+both call `requirePaymentMethod` first and return a `402` with a plain-language
+explanation if there's no live card on file; the ride quote also reports
+`needsPaymentMethod` so the UI can ask for a card before someone taps "book" and
+hits a wall.
+
+The risk this replaces was the entire justification for pricing high enough to
+self-insure against no-shows and chargebacks. Moving it to a per-transaction
+hold is what let the prices below come back down.
+
 ## What the pricing assumes
 
 | Plan | Monthly | Annual | Automatic? |
 |---|---|---|---|
 | Free | — | — | No |
-| Premium | $14.99 | $152.88 | No |
-| Premium Plus | $29.99 | $305.88 | Rides + delivery |
-| Family | $49.99 | $509.88 | Everything, plus secure transport |
+| Premium | $7.99 | $81.50 | No |
+| Premium Plus | $14.99 | $152.90 | Rides + delivery |
+| Family | $24.99 | $254.90 | Everything, plus secure transport |
 
 Rides and deliveries are **passed through at the provider's price** on top of
 the subscription. Bundling them would mean capping how often someone can get

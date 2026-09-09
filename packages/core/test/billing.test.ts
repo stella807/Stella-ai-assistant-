@@ -36,7 +36,7 @@ describe("plans", () => {
 
   it("formats prices", () => {
     expect(formatPrice(0)).toBe("Free");
-    expect(formatPrice(2999)).toBe("$29.99");
+    expect(formatPrice(1499)).toBe("$14.99");
   });
 
   it("gates automatic fulfilment above the entry tier", () => {

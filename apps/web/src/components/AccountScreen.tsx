@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, type Account } from "../api.ts";
+import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 
 /**
  * Account settings: export and deletion.
@@ -55,6 +56,8 @@ export function AccountScreen({ account, onDeleted }: { account: Account; onDele
         <h2>Account</h2>
         <p className="small muted">{account.displayName} · {account.email}</p>
       </div>
+
+      <PaymentMethodCard />
 
       <section className="card">
         <h3>Take your data</h3>

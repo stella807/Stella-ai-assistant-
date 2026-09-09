@@ -16,8 +16,13 @@ import {
   isAutomatic, SECURE_TRANSPORT_DISCLOSURES,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
+  attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold, sweepExpiredHolds,
+  submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
-import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvider, PlanId, RedFlagId, TriggerBand } from "@safehubby/core";
+import type {
+  ApplicationStatus, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
+  OrderProvider, PlanId, PreAuthorization, RedFlagId, TriggerBand,
+} from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import {
@@ -67,7 +72,11 @@ export interface Ctx {
   clientKey: string;
   /** Per-instance, not module-global: one server's traffic must not throttle
    *  another's, and tests need isolation between instances. */
-  limiters: { login: RateLimiter; signup: RateLimiter };
+  limiters: { login: RateLimiter; signup: RateLimiter; applications: RateLimiter };
+  /** The one header a route needs directly: the admin key, checked constant-time
+   *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
+   *  review has no per-account identity to hang a role off yet. */
+  adminKey: string | null;
 }
 
 const unauthorized = () => new HttpError(401, "Sign in to continue.");
@@ -80,6 +89,72 @@ function nameOf(ctx: Ctx, userId: string): string {
   return ctx.store.data.travelers.find((t) => t.id === userId)?.displayName ?? "Safehubby rider";
 }
 const forbidden = () => new HttpError(403, "You do not have access to that.");
+
+/**
+ * Whether a live, unexpired card is on file for automatic booking. Checked
+ * against the same instant a hold would be authorized at — a card can expire
+ * between requests, and the check has to be live, not cached at login.
+ */
+function hasLivePaymentMethod(ctx: Ctx, userId: string): boolean {
+  const method = ctx.store.data.paymentMethods[userId] ?? null;
+  return canBookAutomatically(method !== null, method, ctx.now());
+}
+
+function requirePaymentMethod(ctx: Ctx, userId: string): void {
+  if (!hasLivePaymentMethod(ctx, userId)) {
+    throw new HttpError(
+      402,
+      "Add a payment method before Safehubby can book this automatically. Nothing is charged until a trip is actually booked.",
+    );
+  }
+}
+
+/**
+ * Runs a pay-then-bill booking behind a hold: reserve the estimate first,
+ * capture only what the provider actually charges, release everything if the
+ * booking fails. This is the mechanism that let per-transaction risk replace a
+ * margin baked into the subscription price — see payment.ts.
+ */
+async function bookWithHold<T extends { fareEstimateCents: number | null }>(
+  ctx: Ctx,
+  travelerId: string,
+  estimateCents: number,
+  doBook: () => Promise<T>,
+): Promise<T> {
+  const hold = authorizeHold({ id: newId("hold"), travelerId, estimateCents, now: ctx.now() });
+  ctx.store.update((db) => void db.holds.push(hold));
+
+  try {
+    const result = await doBook();
+    ctx.store.update((db) => {
+      const target = db.holds.find((h) => h.id === hold.id);
+      if (!target) return;
+      const actual = result.fareEstimateCents ?? target.amountCents;
+      Object.assign(target, captureHold(target, Math.min(actual, target.amountCents), ctx.now()));
+    });
+    return result;
+  } catch (err) {
+    ctx.store.update((db) => {
+      const target = db.holds.find((h) => h.id === hold.id);
+      if (target) Object.assign(target, releaseHold(target));
+    });
+    throw err;
+  }
+}
+
+/**
+ * Admin gate for driver-application review. Checked live against the
+ * environment rather than a stored role, because there is no admin-account
+ * system yet — this is the minimum that keeps the review endpoints from being
+ * open to the internet, not a real access-control system. A production
+ * deployment should replace it with per-account roles before real applicant
+ * data is stored here.
+ */
+function requireAdmin(ctx: Ctx): void {
+  const expected = process.env.SAFEHUBBY_ADMIN_KEY;
+  if (!expected) throw new HttpError(503, "Admin access is not configured on this server.");
+  if (!ctx.adminKey || ctx.adminKey !== expected) throw new HttpError(401, "Bad or missing admin key.");
+}
 
 /** Every authenticated route starts here. */
 function actor(ctx: Ctx): string {
@@ -99,6 +174,9 @@ export function makeLimiters() {
   return {
     login: new RateLimiter(8, 15 * 60_000),
     signup: new RateLimiter(5, 60 * 60_000),
+    // Public and unauthenticated — a driver application needs no account —
+    // so it gets its own budget rather than borrowing signup's.
+    applications: new RateLimiter(10, 60 * 60_000),
   };
 }
 
@@ -330,6 +408,37 @@ export const routes: Record<string, Handler> = {
       summary,
       note: "Your account and everything on it are gone. Location history cannot be recovered.",
     };
+  },
+
+  /**
+   * The card that lets automatic booking happen without Safehubby fronting
+   * the money. Never returns a full card number — there is nothing here to
+   * leak past the last four digits and an expiry.
+   */
+  "GET /api/account/payment-method": (ctx) => {
+    const me = actor(ctx);
+    const method = ctx.store.data.paymentMethods[me] ?? null;
+    return { method, live: hasLivePaymentMethod(ctx, me) };
+  },
+
+  "POST /api/account/payment-method": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const method = attachPaymentMethod({
+      id: newId("pm"),
+      brand: String(body?.brand ?? ""),
+      last4: String(body?.last4 ?? ""),
+      expMonth: Number(body?.expMonth),
+      expYear: Number(body?.expYear),
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => { db.paymentMethods[me] = method; });
+    return { method };
+  },
+
+  "POST /api/account/payment-method/remove": (ctx) => {
+    const me = actor(ctx);
+    ctx.store.update((db) => { delete db.paymentMethods[me]; });
+    return { removed: true };
   },
 
   "GET /api/auth/me": (ctx) => {
@@ -750,7 +859,9 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     requireFeature(ctx, me, "ride-booking");
     const dropoff = { lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label };
-    const automatic = isAutomatic(uberForBusiness.status) && hasFeature(planOf(ctx, me), "automatic-rides");
+    const providerReady = isAutomatic(uberForBusiness.status) && hasFeature(planOf(ctx, me), "automatic-rides");
+    const hasCard = hasLivePaymentMethod(ctx, me);
+    const automatic = providerReady && hasCard;
 
     // Secure transport is offered only where the provider says it operates.
     let secure = null;
@@ -768,9 +879,15 @@ export const routes: Record<string, Handler> = {
       }).catch(() => []);
       return { mode: "automatic", provider: uberForBusiness.status.name, estimates, secure };
     }
+    // The card, not the provider, is the only thing standing between this
+    // account and automatic booking — say that instead of a generic note.
+    const needsPaymentMethod = providerReady && !hasCard;
     return {
       mode: "handoff",
-      note: uberForBusiness.status.requires,
+      note: needsPaymentMethod
+        ? "Add a payment method to book automatically. Nothing is charged until a ride is booked."
+        : uberForBusiness.status.requires,
+      needsPaymentMethod,
       handoffs: ridesFor(dropoff),
       secure,
     };
@@ -807,14 +924,23 @@ export const routes: Record<string, Handler> = {
     if (!isAutomatic(secureTransport.status)) {
       throw new HttpError(503, secureTransport.status.requires);
     }
+    // A protective-service trip costs multiples of a normal ride, so the
+    // pre-authorization matters here even more than on an ordinary ride.
+    requirePaymentMethod(ctx, me);
 
-    const booked = await secureTransport.book({
-      pickup: body.pickup,
-      dropoff: body.dropoff,
-      riderName: nameOf(ctx, me),
-      riderPhone: body?.phone,
-      note: body?.note,
-    });
+    const dropoff = { lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label };
+    const quote = await secureTransport.quote({ pickup: body.pickup, dropoff, riderName: nameOf(ctx, me) });
+    if (!quote) throw new HttpError(503, `${secureTransport.status.name} does not operate where you are right now.`);
+
+    const booked = await bookWithHold(ctx, me, quote.fareEstimateCents, () =>
+      secureTransport.book({
+        pickup: body.pickup,
+        dropoff: body.dropoff,
+        riderName: nameOf(ctx, me),
+        riderPhone: body?.phone,
+        note: body?.note,
+      }),
+    );
     ctx.store.update((db) => {
       (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Secure ride home"));
     });
@@ -830,13 +956,22 @@ export const routes: Record<string, Handler> = {
     // Automatic: Safehubby books it on their behalf and the car is actually
     // coming. Only claimed when the provider really answered.
     if (isAutomatic(uberForBusiness.status) && hasFeature(planOf(ctx, travelerId), "automatic-rides")) {
-      const booked = await uberForBusiness.book({
-        pickup: body.pickup,
-        dropoff: body.dropoff,
-        riderName: nameOf(ctx, travelerId),
-        riderPhone: body?.phone,
-        note: body?.note,
-      });
+      requirePaymentMethod(ctx, travelerId);
+
+      const dropoff = { lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label };
+      const estimates = await uberEstimates({ pickup: body.pickup, dropoff, riderName: nameOf(ctx, travelerId) });
+      const estimate = estimates.find((e) => e.productId === body?.providerId) ?? estimates[0];
+      if (!estimate?.fareCents) throw new HttpError(502, "Could not get a fare estimate right now — try again.");
+
+      const booked = await bookWithHold(ctx, travelerId, estimate.fareCents, () =>
+        uberForBusiness.book({
+          pickup: body.pickup,
+          dropoff: body.dropoff,
+          riderName: nameOf(ctx, travelerId),
+          riderPhone: body?.phone,
+          note: body?.note,
+        }),
+      );
       ctx.store.update((db) => {
         (db.points[travelerId] ??= []).push(
           award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Booked a ride home"),
@@ -1180,5 +1315,85 @@ export const routes: Record<string, Handler> = {
       players.map((p) => [p.id, balance(ctx.store.data.points[p.id] ?? [], ctx.store.data.redemptions[p.id] ?? [])]),
     );
     return leaderboard(players, points);
+  },
+
+  /* ---------------- driver applications ----------------
+     A place for real people to sign up to drive — separate from the Uber and
+     Instacart integrations, which bring their own drivers and shoppers. This
+     is the intake for whatever Safehubby vets and staffs directly, which
+     today is nothing, but which the secure-transport tier cannot be real
+     without: that tier has to be staffed by name and licence, not an API key. */
+
+  /** Public — applying needs no account. Rate limited on its own budget. */
+  "POST /api/drivers/apply": (ctx, _p, body) => {
+    if (ctx.limiters.applications.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many applications from this connection. Try again later.");
+    }
+    const app = submitApplication({
+      id: newId("drv"),
+      tier: (body?.tier ?? "standard") as DriverTier,
+      fullName: String(body?.fullName ?? ""),
+      email: String(body?.email ?? ""),
+      phone: String(body?.phone ?? ""),
+      city: String(body?.city ?? ""),
+      state: String(body?.state ?? ""),
+      licenseNumber: String(body?.licenseNumber ?? ""),
+      licenseExpiry: String(body?.licenseExpiry ?? ""),
+      yearsDriving: Number(body?.yearsDriving),
+      vehicle: {
+        make: String(body?.vehicle?.make ?? ""),
+        model: String(body?.vehicle?.model ?? ""),
+        year: Number(body?.vehicle?.year),
+        licensePlate: String(body?.vehicle?.licensePlate ?? ""),
+      },
+      protectiveLicenseNumber: body?.protectiveLicenseNumber ? String(body.protectiveLicenseNumber) : undefined,
+      protectiveLicenseState: body?.protectiveLicenseState ? String(body.protectiveLicenseState) : undefined,
+      yearsProtectiveExperience:
+        body?.yearsProtectiveExperience !== undefined ? Number(body.yearsProtectiveExperience) : undefined,
+      backgroundCheckConsent: body?.backgroundCheckConsent === true,
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.driverApplications.push(app));
+    // The full record (licence numbers, etc.) is not echoed back to the
+    // submitter's own browser response beyond what they already typed — this
+    // just confirms receipt and gives them their id to reference.
+    return { id: app.id, status: app.status, submittedAt: app.submittedAt };
+  },
+
+  /** An applicant checking or withdrawing their own application, identified by
+   *  the id they were given plus the email they applied with — the minimum
+   *  needed since applicants have no account. */
+  "POST /api/drivers/applications/:id/withdraw": (ctx, p, body) => {
+    const id = req(p, "id");
+    const app = ctx.store.data.driverApplications.find((a) => a.id === id);
+    if (!app || app.email !== String(body?.email ?? "").trim().toLowerCase()) throw notFound("Application");
+    const withdrawn = withdrawApplication(app, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.driverApplications.findIndex((a) => a.id === id);
+      db.driverApplications[i] = withdrawn;
+    });
+    return { id: withdrawn.id, status: withdrawn.status };
+  },
+
+  /** Admin: the review queue. Applicant contact and licence details are real
+   *  personal data, so this is the one place in the app gated by a shared
+   *  secret rather than a per-account role — see requireAdmin. */
+  "GET /api/drivers/applications": (ctx) => {
+    requireAdmin(ctx);
+    return ctx.store.data.driverApplications;
+  },
+
+  "POST /api/drivers/applications/:id/review": (ctx, p, body) => {
+    requireAdmin(ctx);
+    const id = req(p, "id");
+    const app = ctx.store.data.driverApplications.find((a) => a.id === id);
+    if (!app) throw notFound("Application");
+    const status = String(body?.status ?? "") as Exclude<ApplicationStatus, "withdrawn">;
+    const reviewed = reviewApplication(app, status, ctx.now(), body?.note ? String(body.note) : undefined);
+    ctx.store.update((db) => {
+      const i = db.driverApplications.findIndex((a) => a.id === id);
+      db.driverApplications[i] = reviewed;
+    });
+    return reviewed;
   },
 };

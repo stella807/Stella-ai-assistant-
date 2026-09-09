@@ -118,6 +118,31 @@ export interface Account {
   homeLabel: string;
 }
 
+export interface PaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+}
+
+export interface DriverApplicationInput {
+  tier: "standard" | "secure-transport";
+  fullName: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  licenseNumber: string;
+  licenseExpiry: string;
+  yearsDriving: number;
+  vehicle: { make: string; model: string; year: number; licensePlate: string };
+  protectiveLicenseNumber?: string;
+  protectiveLicenseState?: string;
+  yearsProtectiveExperience?: number;
+  backgroundCheckConsent: boolean;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(apiBase() + path, {
     method,
@@ -141,6 +166,16 @@ export const api = {
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
+  paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),
+  attachPaymentMethod: (brand: string, last4: string, expMonth: number, expYear: number) =>
+    request<{ method: PaymentMethod }>("POST", "/api/account/payment-method", { brand, last4, expMonth, expYear }),
+  removePaymentMethod: () => request<{ removed: true }>("POST", "/api/account/payment-method/remove", {}),
+
+  applyToDrive: (input: DriverApplicationInput) =>
+    request<{ id: string; status: string; submittedAt: string }>("POST", "/api/drivers/apply", input),
+  withdrawApplication: (id: string, email: string) =>
+    request<{ id: string; status: string }>("POST", `/api/drivers/applications/${id}/withdraw`, { email }),
+
   deleteAccount: (password: string, confirm: string) =>
     request<{ deleted: true; summary: Record<string, number>; note: string }>(
       "POST", "/api/account/delete", { password, confirm }),

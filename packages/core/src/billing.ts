@@ -69,16 +69,18 @@ const PLUS_FEATURES: Feature[] = [
 /**
  * Pricing.
  *
- * The paid tiers went up when fulfilment became automatic, and the reason is
- * arithmetic rather than positioning: booking a ride on someone's behalf means
- * Safehubby pays the provider first and bills the user after. That is float,
- * chargeback exposure, and a support cost on every trip that goes wrong —
- * none of which existed when the app only opened a deep link.
+ * These came back down from an earlier round that priced in the float and
+ * bad-debt risk of booking a ride on someone's behalf before billing them for
+ * it. That risk is now carried per-transaction instead, by a pre-authorization
+ * hold placed on the rider's card before Safehubby spends a cent with a
+ * provider — see payment.ts. Safehubby never fronts money that is not already
+ * reserved, so the subscription price only has to cover the software again,
+ * not a margin against bad debt that may or may not show up in a given month.
  *
- * Ride and delivery costs are passed through at the provider's price on top of
- * the subscription. Bundling them would mean either capping how often someone
- * can get home safely, or pricing for the heaviest user and overcharging
- * everyone else. Neither is a good look on a safety product.
+ * Ride and delivery costs are still passed through at the provider's price on
+ * top of the subscription. Bundling them would mean either capping how often
+ * someone can get home safely, or pricing for the heaviest user and
+ * overcharging everyone else. Neither is a good look on a safety product.
  */
 export const PLANS: Plan[] = [
   {
@@ -93,8 +95,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 1499,
-    annualCents: 15288,
+    monthlyCents: 799,
+    annualCents: 8150,
     seats: 2,
     features: BASIC_FEATURES,
     blurb: "Venue menus, detailed logging, intoxication estimates, and the recovery plan.",
@@ -102,17 +104,17 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 2999,
-    annualCents: 30588,
+    monthlyCents: 1499,
+    annualCents: 15290,
     seats: 2,
     features: PLUS_FEATURES,
-    blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history and group games. Rides and deliveries billed at cost.",
+    blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history and group games. Add a card once; rides and deliveries are held then billed at cost, never fronted.",
   },
   {
     id: "family",
     name: "Family",
-    monthlyCents: 4999,
-    annualCents: 50988,
+    monthlyCents: 2499,
+    annualCents: 25490,
     seats: 6,
     features: [...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport"],
     blurb: "Up to six people, extended emergency contacts, group alerts, and access to secure transport where it operates.",

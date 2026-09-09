@@ -11,8 +11,9 @@ import { AccountScreen } from "./components/AccountScreen.tsx";
 import { PendingOrderPrompt } from "./components/PendingOrderPrompt.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
+import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
 
-type Role = "out" | "watching" | "games" | "party" | "plans" | "account";
+type Role = "out" | "watching" | "games" | "party" | "plans" | "account" | "drive";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -51,7 +52,17 @@ export function App() {
         </div>
       )}
 
-      {!ready ? null : !account ? (
+      {/* Applying to drive needs no rider account, so it has to be reachable
+          from outside the auth gate below, not from inside it. */}
+      {role !== "drive" && (
+        <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setRole("drive")}>
+          Drive for Safehubby →
+        </button>
+      )}
+
+      {role === "drive" ? (
+        <DriveSignupScreen onBack={() => setRole("out")} />
+      ) : !ready ? null : !account ? (
         <AuthScreen onSignedIn={setAccount} />
       ) : (
         <>

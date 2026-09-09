@@ -135,6 +135,7 @@ export function createApp(base: Ctx) {
       actorId: resolveActor(base, token),
       sessionToken: token,
       clientKey: clientKey(req),
+      adminKey: firstHeader(req.headers["x-admin-key"]),
       setSession: (next) => {
         res.setHeader("Set-Cookie", next === null ? clearedCookie(SECURE_COOKIES) : sessionCookie(next, SECURE_COOKIES));
       },
@@ -164,7 +165,7 @@ function send(res: ServerResponse, status: number, payload: unknown, headOnly = 
 }
 
 export function makeCtx(store: StoreLike = new Store()): Ctx {
-  return { store, now: () => new Date(), actorId: null, clientKey: "local", limiters: makeLimiters() };
+  return { store, now: () => new Date(), actorId: null, clientKey: "local", limiters: makeLimiters(), adminKey: null };
 }
 
 function readToken(req: IncomingMessage): string | null {
@@ -187,4 +188,9 @@ function clientKey(req: IncomingMessage): string {
   const fwd = req.headers["x-forwarded-for"];
   const first = Array.isArray(fwd) ? fwd[0] : fwd?.split(",")[0];
   return (first ?? req.socket.remoteAddress ?? "unknown").trim();
+}
+
+function firstHeader(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
 }

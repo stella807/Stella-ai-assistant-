@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 341 tests (7 Postgres tests skip without a database)
+pnpm test         # 398 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -76,7 +76,15 @@ deactivation: it takes the traveler's nights, traces, sessions and sharing with
 it, while leaving crews and shared game rounds standing for everyone else.
 
 **Plans.** A plan picker with monthly and annual pricing. Billing is not
-connected in this build: no card form, no charge, and the screen says so.
+connected in this build: no real charge is ever made, and the screen says so.
+A card can be added on file (Account → Payment method) — that only enables a
+pre-authorization hold at the moment a ride or delivery is actually booked, see
+"Getting home"; it never charges anything by itself.
+
+**Drive for Safehubby.** A public application form, reachable before signing
+in, for people who want to drive directly for Safehubby rather than through
+Uber or Instacart. Standard and secure-transport tiers, admin-reviewed. See
+`docs/driving.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what
@@ -129,14 +137,16 @@ without spinning up a server.
 | Plan | Monthly | Annual | What it adds |
 |---|---|---|---|
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
-| Premium | $14.99 | $152.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
-| Premium Plus | $29.99 | $305.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
-| Family | $49.99 | $509.88 (15% off) | Six seats, extended contacts, and secure transport where it operates |
+| Premium | $7.99 | $81.50 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
+| Premium Plus | $14.99 | $152.90 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
+| Family | $24.99 | $254.90 (15% off) | Six seats, extended contacts, and secure transport where it operates |
 
-Automatic fulfilment means Safehubby books and pays the provider, then bills it
-on — that float is what the higher tiers buy. Rides and deliveries are passed
-through at cost; bundling them would mean capping how often someone can get home
-safely. See `docs/fulfillment.md`.
+Automatic fulfilment means Safehubby books the provider on the rider's behalf.
+A pre-authorization hold on the rider's own card, placed right before booking
+and captured only for the actual fare, carries the risk that used to be priced
+into the subscription. Rides and deliveries are passed through at cost;
+bundling them would mean capping how often someone can get home safely. See
+`docs/fulfillment.md`.
 
 Safety basics are never paywalled — SOS, location sharing, and check-ins are
 free forever, and a test enforces it. Revenue is subscriptions, ride and
@@ -196,9 +206,13 @@ they can afford *not* to drive is the worst possible place to be wrong, and a
 pharmacy run that promises to charge a card it cannot charge is the second
 worst. The relevant flags are off in `features.ts` until a partnership exists.
 
-**No fake checkout.** The plan picker never asks for card details, because
-billing is not wired up. A realistic-looking payment step for a charge that
-does not exist is a lie told to the user's face.
+**No fake checkout.** The plan picker itself still never asks for card
+details, because subscription billing is not wired up. A card can be added
+separately, under Account, but only for the pre-authorization hold that backs
+automatic rides and delivery (see "Getting home") — adding one never charges
+anything, and there is no processor behind it yet (`docs/fulfillment.md`). A
+realistic-looking payment step for a charge that does not exist is a lie told
+to the user's face, which is why the card form says plainly what it is for.
 
 **No selling drinking data.** "Anonymized trend data" was on the monetization
 list. Location traces are notoriously re-identifiable and a bar-by-bar drinking

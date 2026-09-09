@@ -15,8 +15,11 @@ let dir: string;
 let clock: Date;
 
 /** Each "session" is just a bearer token, so tests can act as different users. */
-const call = async (method: string, path: string, body?: unknown, token?: string | null) => {
-  const headers: Record<string, string> = {};
+const call = async (
+  method: string, path: string, body?: unknown, token?: string | null,
+  extraHeaders?: Record<string, string>,
+) => {
+  const headers: Record<string, string> = { ...extraHeaders };
   if (body) headers["content-type"] = "application/json";
   if (token) headers.authorization = `Bearer ${token}`;
   const res = await fetch(`${base}${path}`, {
@@ -25,6 +28,11 @@ const call = async (method: string, path: string, body?: unknown, token?: string
   const text = await res.text();
   return { status: res.status, json: text ? JSON.parse(text) : {}, setCookie: res.headers.get("set-cookie") };
 };
+
+/** Admin routes (driver-application review) are gated by a shared secret in a
+ *  header, not a session — see requireAdmin in routes.ts. */
+const callAdmin = (method: string, path: string, body?: unknown, key = "test-admin-key") =>
+  call(method, path, body, null, { "x-admin-key": key });
 
 let sam = "", jordan = "", samId = "", jordanId = "";
 
@@ -1079,5 +1087,192 @@ describe("Uber Guest Trips wiring", () => {
     const res = await call("POST", "/api/rides/trip_123/cancel", {}, sam);
     expect(res.status).toBe(400);
     expect(res.json.error).toMatch(/not configured/i);
+  });
+});
+
+describe("payment method on file", () => {
+  it("starts with none", async () => {
+    const res = await call("GET", "/api/account/payment-method", undefined, sam);
+    expect(res.json.method).toBeNull();
+    expect(res.json.live).toBe(false);
+  });
+
+  it("attaches a card and reports it live", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.method.last4).toBe("4242");
+
+    const check = await call("GET", "/api/account/payment-method", undefined, sam);
+    expect(check.json.live).toBe(true);
+    expect(check.json.method.last4).toBe("4242");
+  });
+
+  it("rejects a malformed card", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      brand: "Visa", last4: "42", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an already-expired card", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      brand: "Visa", last4: "4242", expMonth: 1, expYear: 2000,
+    }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/expired/i);
+  });
+
+  it("removes the card on file", async () => {
+    await call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, sam);
+    await call("POST", "/api/account/payment-method/remove", {}, sam);
+    const check = await call("GET", "/api/account/payment-method", undefined, sam);
+    expect(check.json.method).toBeNull();
+  });
+
+  it("requires a session", async () => {
+    expect((await call("GET", "/api/account/payment-method")).status).toBe(401);
+    expect((await call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 1, expYear: 2030 })).status).toBe(401);
+  });
+
+  it("keeps cards per account", async () => {
+    await call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, sam);
+    const jordanCheck = await call("GET", "/api/account/payment-method", undefined, jordan);
+    expect(jordanCheck.json.method).toBeNull();
+  });
+});
+
+describe("ride quote reflects the missing card, not a generic note, once the provider is the only other gap", () => {
+  it("without Uber configured, the note is about the provider, never the card, even with no card on file", async () => {
+    // In this test environment Uber is never configured, so providerReady is
+    // always false — the card can never be the reported blocker here. This
+    // guards the priority order in the route: provider status first.
+    const res = await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    expect(res.json.mode).toBe("handoff");
+    expect(res.json.needsPaymentMethod).toBe(false);
+    expect(res.json.note).toMatch(/guests\.trips/i);
+  });
+});
+
+describe("driver applications", () => {
+  const applicant = (over: Record<string, unknown> = {}) => ({
+    tier: "standard",
+    fullName: "Jordan Rivera",
+    email: "driver-jordan@example.com",
+    phone: "404-555-0182",
+    city: "Atlanta",
+    state: "GA",
+    licenseNumber: "GA123456",
+    licenseExpiry: "2030-01-01T00:00:00Z",
+    yearsDriving: 6,
+    vehicle: { make: "Toyota", model: "Camry", year: 2021, licensePlate: "ABC1234" },
+    backgroundCheckConsent: true,
+    ...over,
+  });
+
+  it("is public — needs no account", async () => {
+    const res = await call("POST", "/api/drivers/apply", applicant());
+    expect(res.status).toBe(200);
+    expect(res.json.status).toBe("submitted");
+    expect(res.json.id).toMatch(/^drv_/);
+  });
+
+  it("rejects an incomplete application, naming the field", async () => {
+    const res = await call("POST", "/api/drivers/apply", applicant({ email: "not-an-email" }));
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/valid email/i);
+  });
+
+  it("requires the extra fields for the secure-transport tier", async () => {
+    const res = await call("POST", "/api/drivers/apply", applicant({ tier: "secure-transport" }));
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/protective-services or law-enforcement licence/i);
+  });
+
+  it("accepts a complete secure-transport application", async () => {
+    const res = await call("POST", "/api/drivers/apply", applicant({
+      tier: "secure-transport",
+      protectiveLicenseNumber: "PSA-9981",
+      protectiveLicenseState: "GA",
+      yearsProtectiveExperience: 8,
+      email: "driver-secure@example.com",
+    }));
+    expect(res.status).toBe(200);
+  });
+
+  it("is rate limited on its own budget", async () => {
+    for (let i = 0; i < 10; i++) {
+      await call("POST", "/api/drivers/apply", applicant({ email: `driver-rl-${i}@example.com` }));
+    }
+    const eleventh = await call("POST", "/api/drivers/apply", applicant({ email: "driver-rl-10@example.com" }));
+    expect(eleventh.status).toBe(429);
+  });
+
+  it("lets an applicant withdraw with their id and email, and nobody else's", async () => {
+    const submitted = await call("POST", "/api/drivers/apply", applicant({ email: "driver-withdraw@example.com" }));
+    const wrong = await call("POST", `/api/drivers/applications/${submitted.json.id}/withdraw`, { email: "wrong@example.com" });
+    expect(wrong.status).toBe(404);
+
+    const right = await call("POST", `/api/drivers/applications/${submitted.json.id}/withdraw`, { email: "driver-withdraw@example.com" });
+    expect(right.status).toBe(200);
+    expect(right.json.status).toBe("withdrawn");
+  });
+
+  describe("admin review", () => {
+    const withAdminKey = async (fn: () => Promise<void>) => {
+      const prior = process.env.SAFEHUBBY_ADMIN_KEY;
+      process.env.SAFEHUBBY_ADMIN_KEY = "test-admin-key";
+      try { await fn(); } finally { process.env.SAFEHUBBY_ADMIN_KEY = prior; }
+    };
+
+    it("refuses the list without an admin key configured server-side", async () => {
+      const prior = process.env.SAFEHUBBY_ADMIN_KEY;
+      delete process.env.SAFEHUBBY_ADMIN_KEY;
+      try {
+        const res = await callAdmin("GET", "/api/drivers/applications");
+        expect(res.status).toBe(503);
+      } finally {
+        process.env.SAFEHUBBY_ADMIN_KEY = prior;
+      }
+    });
+
+    it("refuses a wrong key even when one is configured", async () => {
+      await withAdminKey(async () => {
+        const res = await callAdmin("GET", "/api/drivers/applications", undefined, "wrong-key");
+        expect(res.status).toBe(401);
+      });
+    });
+
+    it("lists applications and reviews one through submitted -> under-review -> approved", async () => {
+      await withAdminKey(async () => {
+        const submitted = await call("POST", "/api/drivers/apply", applicant({ email: "driver-review@example.com" }));
+        const list = await callAdmin("GET", "/api/drivers/applications");
+        expect(list.status).toBe(200);
+        expect(list.json.some((a: any) => a.id === submitted.json.id)).toBe(true);
+
+        const straight = await callAdmin("POST", `/api/drivers/applications/${submitted.json.id}/review`, { status: "approved" });
+        expect(straight.status).toBe(400);
+        expect(straight.json.error).toMatch(/under-review before approving/i);
+
+        const toReview = await callAdmin("POST", `/api/drivers/applications/${submitted.json.id}/review`, {
+          status: "under-review", note: "Checking references.",
+        });
+        expect(toReview.status).toBe(200);
+        expect(toReview.json.status).toBe("under-review");
+
+        const approved = await callAdmin("POST", `/api/drivers/applications/${submitted.json.id}/review`, { status: "approved" });
+        expect(approved.status).toBe(200);
+        expect(approved.json.status).toBe("approved");
+      });
+    });
+
+    it("plain requests without the admin route cannot see the queue", async () => {
+      await withAdminKey(async () => {
+        expect((await call("GET", "/api/drivers/applications", undefined, sam)).status).toBe(401);
+      });
+    });
   });
 });
