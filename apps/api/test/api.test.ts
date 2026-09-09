@@ -773,7 +773,7 @@ describe("ride hand-off", () => {
     // No prices anywhere: we cannot know them, so we must not show them.
     expect(JSON.stringify(res.handoffs)).not.toMatch(/fareEstimate|\$\d/);
     expect(res.handoffs[0].url).toContain("m.uber.com/ul/");
-    expect(res.note).toMatch(/partnership/i);
+    expect(res.note).toMatch(/Uber for Business/i);
   });
 
   it("still records the ride home so the points are real", async () => {
@@ -965,5 +965,67 @@ describe("account export and deletion", () => {
     const doomed = await signup("bystander-test@example.com", "Doomed");
     await call("POST", "/api/account/delete", { password: "a-long-enough-passphrase", confirm: "DELETE" }, doomed.token);
     expect((await call("GET", "/api/auth/me", undefined, sam)).json.traveler.email).toBe("sam@example.com");
+  });
+});
+
+describe("automatic fulfilment", () => {
+  it("reports what is configured and what each missing piece needs", async () => {
+    const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+    // No credentials in tests, so everything falls back rather than faking.
+    expect(res.rides.mode).toBe("handoff");
+    expect(res.rides.requires).toMatch(/Uber for Business/i);
+    expect(res.delivery.requires).toMatch(/Uber Direct|DoorDash/i);
+    expect(res.secureTransport.requires).toMatch(/partner agreement/i);
+    expect(res.disclosures.join(" ")).toMatch(/may be armed/i);
+  });
+
+  it("requires a session", async () => {
+    expect((await call("GET", "/api/fulfillment/status")).status).toBe(401);
+  });
+
+  it("hands off rather than claiming a booking it did not make", async () => {
+    const res = (await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.714, lng: -74.003 },
+      dropoff: { lat: 40.75, lng: -73.98, label: "142 Rowan St" },
+    }, sam)).json;
+    expect(res.mode).toBe("handoff");
+    expect(res.handoffs.length).toBe(3);
+  });
+
+  it("does not offer secure transport without a configured provider", async () => {
+    const res = (await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam)).json;
+    expect(res.secure).toBeNull();
+  });
+});
+
+describe("secure transport", () => {
+  it("is gated on the plan that includes it", async () => {
+    // Sam is premium-plus, which deliberately does not include it.
+    const res = await call("POST", "/api/rides/secure", {
+      acknowledgedDisclosures: true,
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    expect(res.status).toBe(402);
+  });
+
+  it("refuses when no licensed provider is configured, rather than pretending", async () => {
+    await call("POST", "/api/subscription", { planId: "family" }, sam);
+    const res = await call("POST", "/api/rides/secure", {
+      acknowledgedDisclosures: true,
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    expect(res.status).toBe(503);
+    expect(res.json.error).toMatch(/partner agreement/i);
+  });
+
+  it("will not book without the disclosures acknowledged", async () => {
+    await call("POST", "/api/subscription", { planId: "family" }, sam);
+    const res = await call("POST", "/api/rides/secure", {
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/acknowledged/i);
   });
 });

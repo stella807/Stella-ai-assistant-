@@ -13,12 +13,16 @@ import {
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
   isEnabled, flagNote, ridesFor, deliverySearch, pharmacySearch,
+  isAutomatic, SECURE_TRANSPORT_DISCLOSURES,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
 } from "@safehubby/core";
 import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvider, PlanId, RedFlagId, TriggerBand } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
+import {
+  deliveryDispatcher, fulfillmentStatus, secureTransport, uberForBusiness,
+} from "./adapters/fulfillment.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
@@ -66,6 +70,14 @@ export interface Ctx {
 }
 
 const unauthorized = () => new HttpError(401, "Sign in to continue.");
+
+/** Plan and display name for the signed-in actor, used by the fulfilment paths. */
+function planOf(ctx: Ctx, userId: string): PlanId {
+  return (ctx.store.data.travelers.find((t) => t.id === userId)?.planId ?? "free") as PlanId;
+}
+function nameOf(ctx: Ctx, userId: string): string {
+  return ctx.store.data.travelers.find((t) => t.id === userId)?.displayName ?? "Safehubby rider";
+}
 const forbidden = () => new HttpError(403, "You do not have access to that.");
 
 /** Every authenticated route starts here. */
@@ -161,11 +173,11 @@ function refresh(ctx: Ctx, night: NightOut): NightOut {
  */
 function carePackageState(ctx: Ctx, nightId: string) {
   const state = ctx.store.data.carePackages[nightId] ?? { auth: null, orders: [] };
-  const ordered = isEnabled("pharmacy-ordering-api");
+  const ordered = isAutomatic(deliveryDispatcher().status) || isEnabled("pharmacy-ordering-api");
   return {
     ...state,
     mode: ordered ? "ordered" : "prepared",
-    note: ordered ? null : flagNote("pharmacy-ordering-api"),
+    note: ordered ? null : deliveryDispatcher().status.requires,
     handoff: ordered ? null : pharmacySearch("electrolytes water snacks"),
   };
 }
@@ -731,16 +743,67 @@ export const routes: Record<string, Handler> = {
    * is least able to check it, so this returns links that open the real app
    * with the destination filled in, and says so.
    */
-  "POST /api/rides/quote": (ctx, _p, body) => {
-    requireFeature(ctx, actor(ctx), "ride-booking");
-    if (isEnabled("ride-booking-api")) {
-      return { mode: "api", quotes: mockRides.quote({ pickup: body.pickup, dropoff: body.dropoff }) };
+  "POST /api/rides/quote": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "ride-booking");
+    const dropoff = { lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label };
+    const automatic = isAutomatic(uberForBusiness.status) && hasFeature(planOf(ctx, me), "automatic-rides");
+
+    // Secure transport is offered only where the provider says it operates.
+    let secure = null;
+    if (hasFeature(planOf(ctx, me), "secure-transport") && isAutomatic(secureTransport.status)) {
+      secure = await secureTransport
+        .quote({ pickup: body.pickup, dropoff, riderName: nameOf(ctx, me) })
+        .catch(() => null);
+    }
+
+    if (automatic) {
+      return { mode: "automatic", provider: uberForBusiness.status.name, secure };
     }
     return {
       mode: "handoff",
-      note: flagNote("ride-booking-api"),
-      handoffs: ridesFor({ lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label }),
+      note: uberForBusiness.status.requires,
+      handoffs: ridesFor(dropoff),
+      secure,
     };
+  },
+
+  /** What is switched on, and what each missing piece needs. */
+  "GET /api/fulfillment/status": (ctx) => {
+    actor(ctx);
+    const { rides, delivery, secureTransport: secure } = fulfillmentStatus();
+    return { rides, delivery, secureTransport: secure, disclosures: SECURE_TRANSPORT_DISCLOSURES };
+  },
+
+  /**
+   * Books a secure-transport trip. Separate from the ordinary ride route
+   * because it is a different product with different law behind it, and
+   * because the disclosures must be acknowledged first — a passenger who did
+   * not realise their driver is armed is in a situation they did not consent to.
+   */
+  "POST /api/rides/secure": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "secure-transport");
+    // Validate the request before checking whether the service can run it: a
+    // malformed booking is a 400 whether or not a provider happens to be up.
+    if (body?.acknowledgedDisclosures !== true) {
+      throw new HttpError(400, "The disclosures have to be acknowledged before booking.");
+    }
+    if (!isAutomatic(secureTransport.status)) {
+      throw new HttpError(503, secureTransport.status.requires);
+    }
+
+    const booked = await secureTransport.book({
+      pickup: body.pickup,
+      dropoff: body.dropoff,
+      riderName: nameOf(ctx, me),
+      riderPhone: body?.phone,
+      note: body?.note,
+    });
+    ctx.store.update((db) => {
+      (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Secure ride home"));
+    });
+    return booked;
   },
 
   /** Records that a ride was taken instead of driving; the booking happens in
@@ -748,6 +811,25 @@ export const routes: Record<string, Handler> = {
   "POST /api/rides/book": async (ctx, _p, body) => {
     const travelerId = actor(ctx);
     requireFeature(ctx, travelerId, "ride-booking");
+
+    // Automatic: Safehubby books it on their behalf and the car is actually
+    // coming. Only claimed when the provider really answered.
+    if (isAutomatic(uberForBusiness.status) && hasFeature(planOf(ctx, travelerId), "automatic-rides")) {
+      const booked = await uberForBusiness.book({
+        pickup: body.pickup,
+        dropoff: body.dropoff,
+        riderName: nameOf(ctx, travelerId),
+        riderPhone: body?.phone,
+        note: body?.note,
+      });
+      ctx.store.update((db) => {
+        (db.points[travelerId] ??= []).push(
+          award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Booked a ride home"),
+        );
+      });
+      return { mode: "automatic", ...booked };
+    }
+
     if (!isEnabled("ride-booking-api")) {
       ctx.store.update((db) => {
         (db.points[travelerId] ??= []).push(

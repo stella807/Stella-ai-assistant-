@@ -36,7 +36,21 @@ describe("plans", () => {
 
   it("formats prices", () => {
     expect(formatPrice(0)).toBe("Free");
-    expect(formatPrice(1099)).toBe("$10.99");
+    expect(formatPrice(2999)).toBe("$29.99");
+  });
+
+  it("gates automatic fulfilment above the entry tier", () => {
+    // Booking on someone's behalf means fronting the money, which is what the
+    // higher tiers actually pay for.
+    expect(hasFeature("premium-basic", "automatic-rides")).toBe(false);
+    expect(hasFeature("premium-plus", "automatic-rides")).toBe(true);
+    expect(hasFeature("premium-plus", "automatic-delivery")).toBe(true);
+  });
+
+  it("keeps secure transport to the top tier and never on the free one", () => {
+    expect(hasFeature("free", "secure-transport")).toBe(false);
+    expect(hasFeature("premium-plus", "secure-transport")).toBe(false);
+    expect(hasFeature("family", "secure-transport")).toBe(true);
   });
 
   it("rejects an unknown plan", () => {

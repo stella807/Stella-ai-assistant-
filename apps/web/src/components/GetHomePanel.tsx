@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../api.ts";
+import { api, type SecureQuote } from "../api.ts";
 
 const HOME = { lat: 40.7488, lng: -73.9857 };
 
@@ -26,6 +26,10 @@ export function GetHomePanel({ pickup, homeLabel }: {
   homeLabel: string;
 }) {
   const [handoffs, setHandoffs] = useState<HandOff[] | null>(null);
+  const [automatic, setAutomatic] = useState<string | null>(null);
+  const [booked, setBooked] = useState<any>(null);
+  const [secure, setSecure] = useState<SecureQuote | null>(null);
+  const [secureOpen, setSecureOpen] = useState(false);
   const [note, setNote] = useState<string>("");
   const [supplies, setSupplies] = useState<string | null>(null);
   const [tookRide, setTookRide] = useState(false);
@@ -49,14 +53,68 @@ export function GetHomePanel({ pickup, homeLabel }: {
         <button className="btn btn-primary btn-block" disabled={busy}
           onClick={() => run(async () => {
             const res = await api.rideQuotes(at, { ...HOME, label: homeLabel });
+            setAutomatic(res.mode === "automatic" ? (res.provider ?? "your ride") : null);
             setHandoffs(res.handoffs ?? []);
+            setSecure(res.secure ?? null);
             setNote(res.note ?? "");
           })}>
           Get me home to {homeLabel}
         </button>
       )}
 
-      {handoffs?.map((h) => (
+      {automatic && !booked && (
+        <button className="btn btn-primary btn-block" disabled={busy}
+          onClick={() => run(async () => {
+            const res = await api.bookRide(automatic.toLowerCase(), at, { ...HOME, label: homeLabel });
+            setBooked(res);
+            setTookRide(true);
+          })}>
+          Book it — {automatic} comes to you
+        </button>
+      )}
+
+      {booked && (
+        <div className="banner banner-safe">
+          <strong>{booked.provider} booked.</strong>{" "}
+          {booked.etaMinutes ? `About ${booked.etaMinutes} min away. ` : ""}
+          {booked.driver?.plate ? `Look for ${booked.driver.plate}. ` : ""}
+          <b>+100 points</b> for not driving.
+        </div>
+      )}
+
+      {secure && (
+        <section className="secure">
+          <div className="row-between">
+            <div>
+              <strong className="small">{secure.provider} — protected ride</strong>
+              <div className="tiny muted">{secure.description}</div>
+            </div>
+            <strong>${(secure.fareEstimateCents / 100).toFixed(0)}</strong>
+          </div>
+
+          <button className="btn btn-sm btn-ghost btn-block" onClick={() => setSecureOpen((o) => !o)}>
+            {secureOpen ? "Hide the details" : "What this means"}
+          </button>
+
+          {secureOpen && (
+            <>
+              <ul className="list-plain">
+                {secure.disclosures.map((d) => <li key={d} className="tiny">{d}</li>)}
+              </ul>
+              <button className="btn btn-primary btn-block" disabled={busy}
+                onClick={() => run(async () => {
+                  const res = await api.bookSecureRide(at, { ...HOME, label: homeLabel });
+                  setBooked(res);
+                  setTookRide(true);
+                })}>
+                I understand — book it (~${(secure.fareEstimateCents / 100).toFixed(0)}, {secure.etaMinutes} min)
+              </button>
+            </>
+          )}
+        </section>
+      )}
+
+      {!automatic && handoffs?.map((h) => (
         <a key={h.provider} className="btn btn-block ride-link" href={h.url}
           target="_blank" rel="noreferrer"
           onClick={() => {

@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 325 tests (7 Postgres tests skip without a database)
+pnpm test         # 334 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -46,10 +46,14 @@ presented as a wide range rather than a single number. See "Where we said no".
 **SOS.** Hold-to-send (a pocket tap must not fire it), with a silent mode that
 withholds the call action so a phone call can't give someone away.
 
-**Getting home.** One tap opens Uber or Lyft with your destination already
-filled in, and taking a ride is the single largest point award in the app. It
-hands off rather than booking in-app because Uber and Lyft both closed their
-public ride APIs to third-party developers — see "Where we said no".
+**Getting home.** With Uber for Business configured, Safehubby books the ride
+itself and the car comes to you. Without it, one tap opens Uber or Lyft with the
+destination filled in. The app shows which of the two it is doing and never
+claims a booking it did not make — see `docs/fulfillment.md`.
+
+**Secure transport.** Where a licensed operator covers your location, a ride
+with a protection professional at the wheel. Disclosed and acknowledged before
+booking, billed per trip, never bundled.
 
 **Crew.** Start a crew, read the join code out at the table, and everyone sees
 who is getting ahead and who has gone quiet. Counts and check-in state only —
@@ -122,9 +126,14 @@ without spinning up a server.
 | Plan | Monthly | Annual | What it adds |
 |---|---|---|---|
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
-| Premium Basic | $5.99 | $61.08 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
-| Premium Plus | $10.99 | $112.08 (15% off) | Rides, supply delivery, safe routes, history, games |
-| Family | $17.99 | $183.48 (15% off) | Six seats, extended emergency contacts, group alerts |
+| Premium | $14.99 | $152.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
+| Premium Plus | $29.99 | $305.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
+| Family | $49.99 | $509.88 (15% off) | Six seats, extended contacts, and secure transport where it operates |
+
+Automatic fulfilment means Safehubby books and pays the provider, then bills it
+on — that float is what the higher tiers buy. Rides and deliveries are passed
+through at cost; bundling them would mean capping how often someone can get home
+safely. See `docs/fulfillment.md`.
 
 Safety basics are never paywalled — SOS, location sharing, and check-ins are
 free forever, and a test enforces it. Revenue is subscriptions, ride and

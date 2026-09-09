@@ -13,6 +13,9 @@ export type PlanId = "free" | "premium-basic" | "premium-plus" | "family";
 
 export type Feature =
   | "location-sharing"
+  | "automatic-rides"
+  | "automatic-delivery"
+  | "secure-transport"
   | "check-ins"
   | "drink-count"
   | "sos"
@@ -56,8 +59,27 @@ const PLUS_FEATURES: Feature[] = [
   "safe-routes",
   "history-analytics",
   "group-games",
+  // Automatic fulfilment: Safehubby books and pays on the user's behalf
+  // through the business APIs, then bills it on. That float is the reason
+  // these tiers cost what they do.
+  "automatic-rides",
+  "automatic-delivery",
 ];
 
+/**
+ * Pricing.
+ *
+ * The paid tiers went up when fulfilment became automatic, and the reason is
+ * arithmetic rather than positioning: booking a ride on someone's behalf means
+ * Safehubby pays the provider first and bills the user after. That is float,
+ * chargeback exposure, and a support cost on every trip that goes wrong —
+ * none of which existed when the app only opened a deep link.
+ *
+ * Ride and delivery costs are passed through at the provider's price on top of
+ * the subscription. Bundling them would mean either capping how often someone
+ * can get home safely, or pricing for the heaviest user and overcharging
+ * everyone else. Neither is a good look on a safety product.
+ */
 export const PLANS: Plan[] = [
   {
     id: "free",
@@ -70,32 +92,40 @@ export const PLANS: Plan[] = [
   },
   {
     id: "premium-basic",
-    name: "Premium Basic",
-    monthlyCents: 599,
-    annualCents: 6108,
+    name: "Premium",
+    monthlyCents: 1499,
+    annualCents: 15288,
     seats: 2,
     features: BASIC_FEATURES,
-    blurb: "Detailed drink logging with venue menus, intoxication estimates, and the recovery plan.",
+    blurb: "Venue menus, detailed logging, intoxication estimates, and the recovery plan.",
   },
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 1099,
-    annualCents: 11208,
+    monthlyCents: 2999,
+    annualCents: 30588,
     seats: 2,
     features: PLUS_FEATURES,
-    blurb: "Everything, plus one-tap rides, supply delivery, safe routes, history, and group games.",
+    blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history and group games. Rides and deliveries billed at cost.",
   },
   {
     id: "family",
     name: "Family",
-    monthlyCents: 1799,
-    annualCents: 18348,
+    monthlyCents: 4999,
+    annualCents: 50988,
     seats: 6,
-    features: [...PLUS_FEATURES, "multi-profile", "extended-sos-contacts"],
-    blurb: "Up to six people, extended emergency contacts, and group alerts.",
+    features: [...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport"],
+    blurb: "Up to six people, extended emergency contacts, group alerts, and access to secure transport where it operates.",
   },
 ];
+
+/**
+ * Secure transport is not bundled into any subscription. A protective-service
+ * trip costs multiples of a normal ride, so folding it into a monthly price
+ * would mean either rationing it — rationing the safest way home is indefensible
+ * on this product — or charging everyone for what few will use.
+ */
+export const SECURE_TRANSPORT_BILLING = "per-trip, at the provider's rate" as const;
 
 export const TRIAL_DAYS = 14;
 

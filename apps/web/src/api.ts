@@ -41,6 +41,15 @@ export interface Assessment {
   flagged: RedFlag[];
 }
 
+export interface SecureQuote {
+  provider: string;
+  fareEstimateCents: number;
+  currency: string;
+  etaMinutes: number;
+  description: string;
+  disclosures: string[];
+}
+
 export interface GameDef {
   id: string;
   name: string;
@@ -160,8 +169,15 @@ export const api = {
     request<ShareGrant>("POST", `/api/grants/${grantId}/revoke`, {}),
   watch: (grantId: string) => request<WatchView>("GET", `/api/watch/${grantId}`),
   rideQuotes: (pickup: { lat: number; lng: number }, dropoff: { lat: number; lng: number; label?: string }) =>
-    request<{ mode: string; note?: string; handoffs?: { provider: string; url: string; description: string }[] }>(
-      "POST", "/api/rides/quote", { pickup, dropoff }),
+    request<{
+      mode: "automatic" | "handoff";
+      provider?: string;
+      note?: string;
+      handoffs?: { provider: string; url: string; description: string }[];
+      secure?: SecureQuote | null;
+    }>("POST", "/api/rides/quote", { pickup, dropoff }),
+  bookSecureRide: (pickup: any, dropoff: any) =>
+    request<any>("POST", "/api/rides/secure", { pickup, dropoff, acknowledgedDisclosures: true }),
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),
