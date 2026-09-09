@@ -16,7 +16,7 @@ import type { Iso8601 } from "./types.ts";
  * they are paying and they are sober.
  */
 
-export type BasketId = "hydration" | "morning-after" | "food";
+export type BasketId = "hydration" | "morning-after" | "food" | "hot-meal";
 
 export interface BasketItem {
   sku: string;
@@ -56,11 +56,21 @@ export const BASKETS: Basket[] = [
   },
   {
     id: "food",
-    name: "Something to eat",
-    blurb: "Food in your stomach, and a bottle of water with it.",
+    name: "Quick bite",
+    blurb: "A sandwich and something to go with it, for when a little is enough.",
     items: [
       { sku: "wg-sandwich", name: "Sandwich", priceCents: 799, qty: 1 },
       { sku: "wg-chips", name: "Chips", priceCents: 249, qty: 1 },
+      { sku: "wg-water", name: "Bottled water, 6-pack", priceCents: 349, qty: 1 },
+    ],
+  },
+  {
+    id: "hot-meal",
+    name: "Actual meal",
+    blurb: "A hot entrée and a side, not just something to snack on.",
+    items: [
+      { sku: "wg-burrito-bowl", name: "Burrito bowl", priceCents: 999, qty: 1 },
+      { sku: "wg-rotisserie-side", name: "Side salad", priceCents: 449, qty: 1 },
       { sku: "wg-water", name: "Bottled water, 6-pack", priceCents: 349, qty: 1 },
     ],
   },

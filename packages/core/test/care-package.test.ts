@@ -23,6 +23,12 @@ describe("baskets", () => {
     // @ts-expect-error exercising the runtime guard
     expect(() => findBasket("caviar")).toThrow();
   });
+
+  it("offers a real meal, not just snacks", () => {
+    const meal = findBasket("hot-meal");
+    expect(meal.name).toBe("Actual meal");
+    expect(basketTotalCents(meal)).toBeGreaterThan(0);
+  });
 });
 
 describe("authorizing a run", () => {
