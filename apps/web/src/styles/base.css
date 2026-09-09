@@ -1,15 +1,90 @@
+/*
+ * Visual language: the high-contrast, type-led style of modern ride-hailing
+ * apps — near-black and white, heavy tight headlines, full-width primary
+ * actions, grey fill instead of borders. Safehubby's own product, not anyone
+ * else's branding.
+ *
+ * Light is the base theme; dark is true black, which is what these apps use
+ * and what suits a phone held at 1am.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
 :root {
-  --bg: #0b1020;
-  --surface: #151b30;
-  --surface-2: #1d2540;
-  --line: #2a3350;
-  --text: #eef1f8;
-  --muted: #99a3c0;
-  --accent: #6ea8fe;
-  --safe: #4ade80;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --radius: 14px;
+  --ground: #ffffff;
+  --surface: #ffffff;
+  --fill: #f6f6f6;
+  --fill-strong: #eeeeee;
+  --line: #e2e2e2;
+  --text: #000000;
+  --muted: #545454;
+  --faint: #8f8f8f;
+
+  /* Primary action is the ink colour itself — the signature move of this style. */
+  --primary: #000000;
+  --on-primary: #ffffff;
+
+  --ok: #048848;
+  --ok-fill: #e6f5ee;
+  --warn: #8c5a00;
+  --warn-fill: #fdf3e3;
+  --danger: #cc0f00;
+  --danger-fill: #fdeceb;
+
+  --r-btn: 8px;
+  --r-card: 12px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 4px 14px -8px rgba(0, 0, 0, .18);
+
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #000000;
+    --surface: #0e0e0e;
+    --fill: #1c1c1c;
+    --fill-strong: #262626;
+    --line: #2e2e2e;
+    --text: #ffffff;
+    --muted: #afafaf;
+    --faint: #7a7a7a;
+
+    --primary: #ffffff;
+    --on-primary: #000000;
+
+    --ok: #21c17f;
+    --ok-fill: #0d2a1e;
+    --warn: #f5aa3c;
+    --warn-fill: #2c2008;
+    --danger: #ff6b5e;
+    --danger-fill: #2e100d;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 4px 14px -8px rgba(0, 0, 0, .9);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #000000;
+  --surface: #0e0e0e;
+  --fill: #1c1c1c;
+  --fill-strong: #262626;
+  --line: #2e2e2e;
+  --text: #ffffff;
+  --muted: #afafaf;
+  --faint: #7a7a7a;
+
+  --primary: #ffffff;
+  --on-primary: #000000;
+
+  --ok: #21c17f;
+  --ok-fill: #0d2a1e;
+  --warn: #f5aa3c;
+  --warn-fill: #2c2008;
+  --danger: #ff6b5e;
+  --danger-fill: #2e100d;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 4px 14px -8px rgba(0, 0, 0, .9);
   color-scheme: dark;
 }
 
@@ -17,29 +92,40 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--ground);
   color: var(--text);
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font: 400 16px/1.5 var(--font);
   -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.006em;
 }
 
 .app {
-  max-width: 460px;
+  max-width: 448px;
   margin: 0 auto;
-  padding: 16px 16px 96px;
+  padding: 20px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-h1, h2, h3 { margin: 0; line-height: 1.25; }
-h1 { font-size: 22px; }
-h2 { font-size: 17px; }
-h3 { font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+/* Headlines are the loudest thing on the page: heavy, tight, left-aligned. */
+h1, h2, h3 { margin: 0; letter-spacing: -0.03em; text-wrap: balance; }
+h1 { font-size: 26px; font-weight: 800; line-height: 1.15; }
+h2 { font-size: 22px; font-weight: 700; line-height: 1.2; }
+h3 {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
 p { margin: 0; }
 
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .row { display: flex; align-items: center; gap: 10px; }
-.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .wrap { flex-wrap: wrap; }
-.grow { flex: 1; }
+.grow { flex: 1; min-width: 0; }
 .muted { color: var(--muted); }
-.small { font-size: 13px; }
-.tiny { font-size: 12px; }
+.small { font-size: 14px; }
+.tiny { font-size: 12.5px; line-height: 1.45; color: var(--muted); }

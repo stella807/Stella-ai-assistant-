@@ -1,92 +1,224 @@
+/* ---------- Cards: grey fill, no border. Weight comes from the fill. ------- */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
+  background: var(--fill);
+  border: none;
+  border-radius: var(--r-card);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
+/* ---------- Buttons: the primary is solid ink, full width, 8px radius. ----- */
 .btn {
   appearance: none;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text);
-  border-radius: 10px;
-  padding: 11px 14px;
-  font-size: 15px;
+  font-family: var(--font);
+  font-size: 16px;
   font-weight: 600;
-  cursor: pointer;
-  /* Thumb-sized targets: this app gets used one-handed, at night, by someone
-     who has been drinking. */
-  min-height: 44px;
-}
-.btn:hover:not(:disabled) { border-color: var(--accent); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #08111f; }
-.btn-safe { background: var(--safe); border-color: var(--safe); color: #05210f; }
-.btn-danger { background: var(--danger); border-color: var(--danger); color: #2b0707; }
-.btn-ghost { background: transparent; }
-.btn-block { width: 100%; }
-.btn-sm { min-height: 36px; padding: 7px 11px; font-size: 13px; }
-
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 13px; color: var(--muted); }
-.field input, .field select {
-  background: var(--bg);
-  border: 1px solid var(--line);
+  letter-spacing: -0.01em;
+  border: none;
+  border-radius: var(--r-btn);
+  background: var(--fill-strong);
   color: var(--text);
-  border-radius: 10px;
-  padding: 11px;
-  font-size: 16px; /* 16px stops iOS zooming the viewport on focus. */
-  min-height: 44px;
+  padding: 0 18px;
+  /* 48px: a thumb target on a phone held one-handed, after a few drinks. */
+  min-height: 48px;
+  cursor: pointer;
+  transition: opacity .12s ease, background .12s ease;
+}
+.btn:hover:not(:disabled) { opacity: .88; }
+.btn:active:not(:disabled) { opacity: .75; }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-safe { background: var(--ok); color: #ffffff; }
+.btn-danger { background: var(--danger); color: #ffffff; }
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.btn-block { width: 100%; }
+.btn-sm { min-height: 36px; padding: 0 12px; font-size: 14px; font-weight: 600; }
+
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
+/* ---------- Fields ---------- */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field input,
+.field select {
+  background: var(--surface);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  border-radius: var(--r-btn);
+  padding: 0 14px;
+  /* 16px keeps iOS from zooming the viewport on focus. */
+  font: 400 16px/1 var(--font);
+  min-height: 52px;
+}
+.field input:focus, .field select:focus { box-shadow: inset 0 0 0 2px var(--primary); outline: none; }
+.field select { padding-right: 34px; }
+
+/* ---------- Segmented tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+}
+.tabs button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: 600 15px/1 var(--font);
+  letter-spacing: -0.01em;
+  padding: 14px 8px;
+  min-height: 48px;
+  cursor: pointer;
+  /* The active tab is underscored in ink, not filled — the pattern these apps
+     use for top-level switching. */
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--text);
+}
+
+/* ---------- Status pills ---------- */
 .pill {
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
+  padding: 5px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--fill-strong);
+  color: var(--text);
+  white-space: nowrap;
 }
-.pill-safe { color: var(--safe); border-color: color-mix(in srgb, var(--safe) 45%, transparent); }
-.pill-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
-.pill-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.pill-safe { background: var(--ok-fill); color: var(--ok); }
+.pill-warn { background: var(--warn-fill); color: var(--warn); }
+.pill-danger { background: var(--danger-fill); color: var(--danger); }
 
-.meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; position: relative; }
-.meter-range { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 35%, transparent); }
-.meter-point { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; background: var(--text); }
+/* ---------- Estimate meter ---------- */
+.meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fill-strong);
+  overflow: visible;
+  position: relative;
+}
+.meter-range { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: var(--text); opacity: .28; }
+.meter-point { position: absolute; top: -4px; width: 4px; height: 14px; border-radius: 2px; background: var(--text); }
 
-.alert { border-left: 3px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); }
-.alert-info { border-left-color: var(--accent); }
-.alert-warn { border-left-color: var(--warn); }
-.alert-urgent { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface-2)); }
+/* ---------- Alerts: a filled block, severity in the fill ---------- */
+.alert { border-radius: var(--r-card); padding: 14px 16px; background: var(--fill-strong); }
+.alert-info { background: var(--fill-strong); }
+.alert-warn { background: var(--warn-fill); color: var(--warn); }
+.alert-urgent { background: var(--danger-fill); color: var(--danger); }
+.alert-warn p, .alert-urgent p { color: inherit; font-weight: 500; }
 
-.tabs { display: flex; gap: 6px; background: var(--surface); padding: 5px; border-radius: 12px; border: 1px solid var(--line); }
-.tabs button { flex: 1; border: none; background: transparent; color: var(--muted); padding: 9px; border-radius: 8px; font-weight: 600; cursor: pointer; min-height: 40px; }
-.tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--text); }
-
-.chip-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+/* ---------- Drink chips: rows, not tiles ---------- */
+.chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .chip {
-  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
-  border-radius: 10px; padding: 10px; text-align: left; cursor: pointer; min-height: 56px;
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--r-btn);
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  min-height: 62px;
+  font-family: var(--font);
 }
-.chip:hover { border-color: var(--accent); }
-.chip strong { display: block; font-size: 14px; }
+.chip:hover { box-shadow: inset 0 0 0 2px var(--primary); }
+.chip strong { display: block; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; }
+.chip .tiny { color: var(--faint); }
 
-.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.timeline li { display: flex; gap: 10px; align-items: baseline; }
-.timeline time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; min-width: 52px; }
-
-.banner {
-  border-radius: 10px; padding: 10px 12px; font-size: 13px;
-  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
-  background: color-mix(in srgb, var(--warn) 10%, transparent);
+/* ---------- Timeline / list rows: hairline dividers, value right-aligned.
+     This is the ride-picker row pattern — label and detail left, figure right. */
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.timeline li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
 }
-.banner-danger { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); }
-.banner-safe { border-color: color-mix(in srgb, var(--safe) 40%, transparent); background: color-mix(in srgb, var(--safe) 10%, transparent); }
+.timeline li:last-child { border-bottom: none; }
+.timeline time {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 58px;
+}
 
+/* ---------- Notices ---------- */
+.banner { border-radius: var(--r-card); padding: 13px 15px; font-size: 13.5px; line-height: 1.45; background: var(--warn-fill); color: var(--warn); font-weight: 500; }
+.banner-danger { background: var(--danger-fill); color: var(--danger); }
+.banner-safe { background: var(--ok-fill); color: var(--ok); }
+
+/* ---------- SOS: the one place colour outranks the ink ---------- */
 .sos {
-  width: 100%; min-height: 76px; border-radius: 16px; font-size: 19px; font-weight: 800; letter-spacing: .04em;
-  background: var(--danger); border: none; color: #2b0707; cursor: pointer;
+  width: 100%;
+  min-height: 72px;
+  border-radius: var(--r-card);
+  font: 800 19px/1 var(--font);
+  letter-spacing: -0.01em;
+  background: var(--danger);
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
 }
-.sos:active { transform: scale(.985); }
+.sos:active { transform: scale(.99); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ---------- Ride picker ----------
+   Pick a product, then confirm — the fare sits right-aligned and bold, the
+   selected row carries a 2px ink outline. */
+.rides { list-style: none; margin: 0; padding: 0; }
+.rides li { border-bottom: 1px solid var(--line); }
+.rides li:last-child { border-bottom: none; }
+
+.ride {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-btn);
+  padding: 14px 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  color: var(--text);
+  min-height: 62px;
+  box-shadow: inset 0 0 0 2px transparent;
+}
+.ride:hover { background: var(--fill-strong); }
+.ride-on { box-shadow: inset 0 0 0 2px var(--text); background: var(--surface); }
+
+.ride-name { display: flex; flex-direction: column; gap: 2px; font-size: 15.5px; font-weight: 600; letter-spacing: -0.01em; }
+.ride-eta { font-size: 13px; font-weight: 400; color: var(--faint); }
+.ride-fare { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* Logging water is a positive secondary action: outlined, not filled, so it
+   does not compete with the SOS for the eye. */
+.btn-water {
+  background: transparent;
+  color: var(--ok);
+  box-shadow: inset 0 0 0 1.5px var(--ok);
+}
+.btn-water:hover:not(:disabled) { background: var(--ok-fill); opacity: 1; }

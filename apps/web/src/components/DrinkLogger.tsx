@@ -53,7 +53,7 @@ export function DrinkLogger({ drinks, venues, onLog, busy }: Props) {
         ))}
       </div>
 
-      <button className="btn btn-safe btn-block" disabled={busy} onClick={() => onLog("na-water", venue?.name)}>
+      <button className="btn btn-water btn-block" disabled={busy} onClick={() => onLog("na-water", venue?.name)}>
         + Water &nbsp;<span style={{ fontWeight: 600, opacity: .8 }}>(earns points)</span>
       </button>
 

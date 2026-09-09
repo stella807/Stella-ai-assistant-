@@ -10,6 +10,7 @@ export function GetHomePanel({ pickup, homeLabel }: {
   homeLabel: string;
 }) {
   const [quotes, setQuotes] = useState<RideQuote[] | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
   const [booked, setBooked] = useState<string | null>(null);
   const [supplies, setSupplies] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,23 +36,40 @@ export function GetHomePanel({ pickup, homeLabel }: {
         </button>
       )}
 
-      {quotes?.map((q) => (
-        <div key={q.providerId} className="row-between">
-          <div>
-            <strong className="small">{q.providerName} {q.productName}</strong>
-            <div className="tiny muted">{q.etaMinutes} min away · ~${(q.fareEstimateCents / 100).toFixed(2)}</div>
-          </div>
-          <button className="btn btn-sm btn-primary" disabled={busy}
+      {quotes && !booked && (
+        <>
+          <ul className="rides">
+            {quotes.map((q) => (
+              <li key={q.providerId}>
+                <button
+                  type="button"
+                  className={`ride${chosen === q.providerId ? " ride-on" : ""}`}
+                  aria-pressed={chosen === q.providerId}
+                  onClick={() => setChosen(q.providerId)}
+                >
+                  <span className="ride-name">
+                    {q.productName}
+                    <span className="ride-eta">{q.providerName} · {q.etaMinutes} min away</span>
+                  </span>
+                  <span className="ride-fare">${(q.fareEstimateCents / 100).toFixed(2)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <button className="btn btn-primary btn-block" disabled={busy || !chosen}
             onClick={() => run(async () => {
-              const b = await api.bookRide(q.providerId, at, HOME);
+              const b = await api.bookRide(chosen!, at, HOME);
               setBooked(b.bookingId);
             })}>
-            Book
+            {chosen
+              ? `Book ${quotes.find((q) => q.providerId === chosen)!.productName}`
+              : "Choose a ride"}
           </button>
-        </div>
-      ))}
 
-      {quotes && <p className="tiny muted">Fares and driver pay are set by the ride company. Safehubby only shows their estimate.</p>}
+          <p className="tiny muted">Fares and driver pay are set by the ride company. Safehubby only shows their estimate.</p>
+        </>
+      )}
 
       {booked && <div className="banner banner-safe">Ride booked ({booked}). +100 points for not driving.</div>}
 
