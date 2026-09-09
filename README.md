@@ -20,7 +20,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 118 tests
+pnpm test         # 175 tests
 pnpm typecheck
 pnpm build
 ```
@@ -45,6 +45,21 @@ withholds the call action so a phone call can't give someone away.
 **Getting home.** Ride quotes and booking, safe-route suggestions that flag the
 poorly lit shortcut, and hydration/food delivery to the house. Booking a ride is
 the single largest point award in the app.
+
+**Crew.** Start a crew, read the join code out at the table, and everyone sees
+who is getting ahead and who has gone quiet. Counts and check-in state only —
+never anyone's location, which stays behind an individual share grant to a named
+person. "Ahead" is measured against the rest of the table, and any member can
+hide their own count without leaving.
+
+**Pharmacy run.** Water, electrolytes and food sent to the house automatically
+when the night gets away from someone. The purchase is authorized *while sober*,
+with a hard spending cap, and fires once. The API refuses an authorization from
+someone already impaired — see "Where we said no". A partner can also send one
+by hand, since they are sober and paying.
+
+**Plans.** A plan picker with monthly and annual pricing. Billing is not
+connected in this build: no card form, no charge, and the screen says so.
 
 **Points and games.** Points for checking in, logging water, and getting home
 without driving — never for drinking. Redeemable at partner venues. The
@@ -104,6 +119,18 @@ always carries an expiry, is always visible to them, ends when they get home, an
 can be revoked unilaterally. There is no hidden mode to add later — `consent.ts`
 makes it unrepresentable, and the API enforces scope on every read. Tracking a
 partner without their knowledge is stalking, and in many places a crime.
+
+**No charging a drunk person's card.** "Buys you things when you're too drunk"
+is a good feature with one dangerous reading. Someone past the impairment line
+cannot meaningfully consent to a purchase, so the authorization has to happen
+before the drinking does: you arm the pharmacy run while sober, set a cap, and
+the API refuses to accept an authorization once the estimate says you are
+impaired. One automatic order per night, and every order records why it was
+sent.
+
+**No fake checkout.** The plan picker never asks for card details, because
+billing is not wired up. A realistic-looking payment step for a charge that
+does not exist is a lie told to the user's face.
 
 **No selling drinking data.** "Anonymized trend data" was on the monetization
 list. Location traces are notoriously re-identifiable and a bar-by-bar drinking

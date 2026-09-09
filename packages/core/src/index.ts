@@ -5,6 +5,8 @@ export * from "./checkins.ts";
 export * from "./alerts.ts";
 export * from "./recovery.ts";
 export * from "./consent.ts";
+export * from "./crew.ts";
+export * from "./care-package.ts";
 export * from "./authz.ts";
 export * from "./points.ts";
 export * from "./games.ts";

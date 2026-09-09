@@ -7,6 +7,8 @@ import { DrinkLogger } from "./DrinkLogger.tsx";
 import { GetHomePanel } from "./GetHomePanel.tsx";
 import { SharingPanel } from "./SharingPanel.tsx";
 import { SosButton } from "./SosButton.tsx";
+import { CrewPanel } from "./CrewPanel.tsx";
+import { PharmacyPanel } from "./PharmacyPanel.tsx";
 
 export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[]; account: Account }) {
   const TRAVELER_ID = account.id;
@@ -39,6 +41,11 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   useEffect(() => {
     api.venues(40.714, -74.003).then(setVenues).catch(() => setVenues([]));
     refreshTraveler().catch(() => {});
+    // Pick up a night already in progress, so a reload does not offer to start
+    // a second one on top of it.
+    api.currentNight()
+      .then((res) => { if ("night" in res && res.night) setSummary(res as NightSummary); })
+      .catch(() => {});
   }, [refreshTraveler]);
 
   // Poll so alerts and missed check-ins surface without a manual refresh.
@@ -53,6 +60,7 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   if (!summary) {
     return (
       <div className="stack">
+        <CrewPanel travelerId={TRAVELER_ID} />
         <section className="card stack">
           <h2>Heading out tonight?</h2>
           <p className="small muted">
@@ -122,6 +130,17 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
             setSummary(await api.logDrink(night.id, drinkId, venueName));
             await refreshTraveler();
           })} />
+      )}
+
+      <CrewPanel travelerId={TRAVELER_ID} refreshKey={night.drinks.length} />
+
+      {!ended && (
+        <PharmacyPanel
+          nightId={night.id}
+          state={summary.carePackage}
+          homeLabel={HOME_LABEL}
+          onChange={(carePackage) => setSummary({ ...summary, carePackage })}
+        />
       )}
 
       {!ended && <SosButton onSend={(silent) => run(async () => {

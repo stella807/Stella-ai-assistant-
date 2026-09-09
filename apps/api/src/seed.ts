@@ -11,6 +11,8 @@ import type { Db } from "./store.ts";
 export const SEED: Db = {
   travelers: [],
   sessions: [],
+  crews: [],
+  carePackages: {},
   nights: [],
   grants: [],
   alerts: [],

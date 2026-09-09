@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account } from "./api.ts";
 import { AuthScreen } from "./components/AuthScreen.tsx";
+import { PlansScreen } from "./components/PlansScreen.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 
-type Role = "out" | "watching";
+type Role = "out" | "watching" | "plans";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -46,10 +47,18 @@ export function App() {
       ) : (
         <>
           <div className="tabs" role="tablist">
-            <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>I&apos;m out</button>
-            <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>I&apos;m watching</button>
+            <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>Tonight</button>
+            <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>Watching</button>
+            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Plan</button>
           </div>
-          {role === "out" ? <TravelerScreen drinks={drinks} account={account} /> : <GuardianScreen />}
+          {role === "out" && <TravelerScreen drinks={drinks} account={account} />}
+          {role === "watching" && <GuardianScreen />}
+          {role === "plans" && (
+            <PlansScreen
+              currentPlanId={account.planId}
+              onChanged={(planId) => setAccount({ ...account, planId })}
+            />
+          )}
         </>
       )}
 

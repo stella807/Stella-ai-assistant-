@@ -1,5 +1,32 @@
 import type { Alert, BacEstimate, CheckIn, LocationPing, NightOut, RecoveryPlan, RideQuote, ShareGrant, Venue } from "@safehubby/core";
 
+export interface CrewMemberView {
+  travelerId: string;
+  displayName: string;
+  drinks: number | null;
+  state: "steady" | "ahead" | "quiet" | "heading-home" | "home-safe";
+  missedCheckIns: number;
+}
+
+export interface CrewView {
+  crew: { id: string; name: string; joinCode: string; members: any[] };
+  members: CrewMemberView[];
+  everyoneHome: boolean;
+  active: boolean;
+}
+
+export interface Basket {
+  id: string;
+  name: string;
+  blurb: string;
+  items: { sku: string; name: string; priceCents: number; qty: number }[];
+}
+
+export interface CarePackageState {
+  auth: { enabled: boolean; basketId: string; capCents: number; triggerBand: string; deliverTo: string } | null;
+  orders: { id: string; basketId: string; totalCents: number; deliverTo: string; reason: string; etaMinutes: number }[];
+}
+
 export interface NightSummary {
   night: NightOut;
   bac: BacEstimate;
@@ -7,6 +34,7 @@ export interface NightSummary {
   pendingCheckIn: CheckIn | null;
   lastPing: LocationPing | null;
   alerts: Alert[];
+  carePackage: CarePackageState;
 }
 
 export interface WatchView {
@@ -61,6 +89,7 @@ export const api = {
   startNight: (input: { weightKg: number; widmarkRatio?: number; drinkLimit: number; homeAddressLabel?: string }) =>
     request<NightSummary>("POST", "/api/nights", input),
   night: (id: string) => request<NightSummary>("GET", `/api/nights/${id}`),
+  currentNight: () => request<{ night: null } | NightSummary>("GET", "/api/nights/current"),
   logDrink: (nightId: string, drinkId: string, venueName?: string, servings = 1) =>
     request<NightSummary>("POST", `/api/nights/${nightId}/drinks`, { drinkId, servings, venueName }),
   answerCheckIn: (nightId: string, checkInId: string, feelingRating?: number) =>
@@ -87,6 +116,26 @@ export const api = {
   orderSupplies: (items: { id: string; qty: number }[], to: string) =>
     request<{ orderId: string; etaMinutes: number }>("POST", "/api/supplies/order", { items, to }),
   redeem: (rewardId: string) => request<any>("POST", "/api/points/redeem", { rewardId }),
+
+  crews: () => request<any[]>("GET", "/api/crews"),
+  createCrew: (name: string) => request<any>("POST", "/api/crews", { name }),
+  joinCrew: (joinCode: string) => request<any>("POST", "/api/crews/join", { joinCode }),
+  crew: (crewId: string) => request<CrewView>("GET", `/api/crews/${crewId}`),
+  leaveCrew: (crewId: string) => request<any>("POST", `/api/crews/${crewId}/leave`, {}),
+  shareCount: (crewId: string, sharesCount: boolean) =>
+    request<any>("POST", `/api/crews/${crewId}/share-count`, { sharesCount }),
+
+  baskets: () => request<{ baskets: Basket[]; defaultCapCents: number }>("GET", "/api/care-package/baskets"),
+  authorizeCarePackage: (nightId: string, input: { basketId: string; capCents: number; triggerBand: string; deliverTo: string }) =>
+    request<CarePackageState>("POST", `/api/nights/${nightId}/care-package/authorize`, input),
+  cancelCarePackage: (nightId: string) =>
+    request<CarePackageState>("POST", `/api/nights/${nightId}/care-package/cancel`, {}),
+  sendCarePackage: (nightId: string, basketId: string) =>
+    request<any>("POST", `/api/nights/${nightId}/care-package/send`, { basketId }),
+
+  subscribe: (planId: string, cadence: "monthly" | "annual") =>
+    request<{ plan: any; cadence: string; trialDays: number; billingConnected: boolean; note: string }>(
+      "POST", "/api/subscription", { planId, cadence }),
 };
 
 export { ApiError };

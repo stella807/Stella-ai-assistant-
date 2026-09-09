@@ -398,3 +398,210 @@ describe("adaptive cadence", () => {
     expect(new Date(after.pendingCheckIn.dueAt).getTime()).toBeLessThan(originalDue);
   });
 });
+
+describe("crew", () => {
+  const makeCrew = () => call("POST", "/api/crews", { name: "Friday" }, sam);
+
+  it("creates a crew with the creator in it and a join code", async () => {
+    const crew = (await makeCrew()).json;
+    expect(crew.joinCode).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
+    expect(crew.members).toHaveLength(1);
+    expect(crew.members[0].travelerId).toBe(samId);
+  });
+
+  it("lets someone join with the code and shows the table", async () => {
+    const crew = (await makeCrew()).json;
+    await call("POST", "/api/crews/join", { joinCode: crew.joinCode }, jordan);
+    const view = (await call("GET", `/api/crews/${crew.id}`, undefined, sam)).json;
+    expect(view.members).toHaveLength(2);
+    expect(view.members.map((m: any) => m.displayName).sort()).toEqual(["Jordan", "Sam"]);
+  });
+
+  it("refuses a bad code", async () => {
+    expect((await call("POST", "/api/crews/join", { joinCode: "ZZZ-999" }, jordan)).status).toBe(404);
+  });
+
+  it("is members-only — a join code is not a spectator pass", async () => {
+    const crew = (await makeCrew()).json;
+    expect((await call("GET", `/api/crews/${crew.id}`, undefined, jordan)).status).toBe(404);
+    expect((await call("GET", `/api/crews/${crew.id}`)).status).toBe(401);
+  });
+
+  it("flags whoever is ahead of the table", async () => {
+    const crew = (await makeCrew()).json;
+    await call("POST", "/api/crews/join", { joinCode: crew.joinCode }, jordan);
+
+    const samNight = (await startNight(sam)).json.night.id;
+    const jordanNight = (await call("POST", "/api/nights", { weightKg: 70 }, jordan)).json.night.id;
+    await call("POST", `/api/nights/${jordanNight}/drinks`, { drinkId: "beer-light" }, jordan);
+    for (const d of ["beer-ipa", "beer-ipa", "shot-whiskey", "beer-ipa"]) {
+      await call("POST", `/api/nights/${samNight}/drinks`, { drinkId: d }, sam);
+    }
+
+    const view = (await call("GET", `/api/crews/${crew.id}`, undefined, jordan)).json;
+    expect(view.members.find((m: any) => m.travelerId === samId).state).toBe("ahead");
+  });
+
+  it("hides a member's count when they opt out, without hiding the member", async () => {
+    const crew = (await makeCrew()).json;
+    await call("POST", "/api/crews/join", { joinCode: crew.joinCode }, jordan);
+    const nightId = (await startNight(sam)).json.night.id;
+    await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: "beer-ipa" }, sam);
+
+    await call("POST", `/api/crews/${crew.id}/share-count`, { sharesCount: false }, sam);
+    const view = (await call("GET", `/api/crews/${crew.id}`, undefined, jordan)).json;
+    const samRow = view.members.find((m: any) => m.travelerId === samId);
+    expect(samRow.drinks).toBeNull();
+    expect(samRow.displayName).toBe("Sam");
+  });
+
+  it("lets a member leave, and then they can no longer read it", async () => {
+    const crew = (await makeCrew()).json;
+    await call("POST", "/api/crews/join", { joinCode: crew.joinCode }, jordan);
+    await call("POST", `/api/crews/${crew.id}/leave`, {}, jordan);
+    expect((await call("GET", `/api/crews/${crew.id}`, undefined, jordan)).status).toBe(404);
+  });
+});
+
+describe("pharmacy run", () => {
+  it("authorizes while sober and fires once the estimate crosses the band", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const authed = (await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+      basketId: "hydration", capCents: 3000, triggerBand: "high", deliverTo: "142 Rowan St",
+    }, sam)).json;
+    expect(authed.auth.enabled).toBe(true);
+    expect(authed.orders).toEqual([]);
+
+    // Drink into the "high" band.
+    for (const d of ["shot-whiskey", "shot-tequila", "beer-ipa", "shot-whiskey", "beer-ipa"]) {
+      advance(5);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    const after = (await call("GET", `/api/nights/${nightId}`, undefined, sam)).json;
+    expect(after.bac.band === "high" || after.bac.band === "severe").toBe(true);
+    expect(after.carePackage.orders).toHaveLength(1);
+    expect(after.carePackage.orders[0].reason).toBe("auto");
+  });
+
+  it("never sends the automatic run twice", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+      basketId: "hydration", capCents: 3000, triggerBand: "moderate", deliverTo: "Home",
+    }, sam);
+    for (const d of ["shot-whiskey", "shot-tequila", "beer-ipa", "shot-whiskey"]) {
+      advance(5);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    await call("GET", `/api/nights/${nightId}`, undefined, sam);
+    const state = (await call("GET", `/api/nights/${nightId}`, undefined, sam)).json.carePackage;
+    expect(state.orders.filter((o: any) => o.reason === "auto")).toHaveLength(1);
+  });
+
+  it("REFUSES to take an authorization once the traveler is already impaired", async () => {
+    const nightId = (await startNight()).json.night.id;
+    for (const d of ["shot-whiskey", "shot-tequila", "beer-ipa", "shot-whiskey"]) {
+      advance(4);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    const res = await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+      basketId: "hydration", capCents: 3000, triggerBand: "high", deliverTo: "Home",
+    }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/before you start drinking/i);
+  });
+
+  it("refuses a basket over the cap rather than trimming it", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const res = await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+      basketId: "morning-after", capCents: 200, triggerBand: "high", deliverTo: "Home",
+    }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/more than your cap/i);
+  });
+
+  it("stops sending after the traveler cancels", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+      basketId: "hydration", capCents: 3000, triggerBand: "moderate", deliverTo: "Home",
+    }, sam);
+    await call("POST", `/api/nights/${nightId}/care-package/cancel`, {}, sam);
+    for (const d of ["shot-whiskey", "shot-tequila", "beer-ipa", "shot-whiskey"]) {
+      advance(5);
+      await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: d }, sam);
+    }
+    const state = (await call("GET", `/api/nights/${nightId}`, undefined, sam)).json.carePackage;
+    expect(state.orders).toEqual([]);
+  });
+
+  it("lets the bound guardian send one by hand", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const grant = (await call("POST", "/api/grants", { scopes: ["location", "drinks"] }, sam)).json;
+    await call("POST", "/api/grants/claim", { inviteCode: grant.inviteCode }, jordan);
+
+    const res = await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "morning-after" }, jordan);
+    expect(res.status).toBe(200);
+    expect(res.json.order.reason).toBe("guardian");
+  });
+
+  it("does not let a stranger send to someone else's address", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const mallory = await signup("cp-mal@example.com", "Mallory");
+    expect((await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "food" }, mallory.token)).status).toBe(404);
+  });
+});
+
+describe("subscription", () => {
+  it("switches the plan and unlocks its features", async () => {
+    expect((await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
+    }, jordan)).status).toBe(402);
+
+    const res = await call("POST", "/api/subscription", { planId: "premium-plus", cadence: "annual" }, jordan);
+    expect(res.status).toBe(200);
+    expect(res.json.plan.id).toBe("premium-plus");
+
+    expect((await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
+    }, jordan)).status).toBe(200);
+  });
+
+  it("is explicit that no payment was taken", async () => {
+    const res = await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    expect(res.json.billingConnected).toBe(false);
+    expect(res.json.note).toMatch(/nothing was charged/i);
+  });
+
+  it("rejects an unknown plan and requires a session", async () => {
+    expect((await call("POST", "/api/subscription", { planId: "enterprise" }, jordan)).status).toBe(400);
+    expect((await call("POST", "/api/subscription", { planId: "family" })).status).toBe(401);
+  });
+});
+
+describe("resuming a night", () => {
+  it("returns nothing before a night starts", async () => {
+    expect((await call("GET", "/api/nights/current", undefined, sam)).json.night).toBeNull();
+  });
+
+  it("hands back the night in progress, so a reload picks it up", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/drinks`, { drinkId: "beer-ipa" }, sam);
+    const current = (await call("GET", "/api/nights/current", undefined, sam)).json;
+    expect(current.night.id).toBe(nightId);
+    expect(current.stats.alcoholicDrinks).toBe(1);
+  });
+
+  it("stops offering a night once it is finished", async () => {
+    const nightId = (await startNight()).json.night.id;
+    await call("POST", `/api/nights/${nightId}/status`, { status: "home-safe" }, sam);
+    expect((await call("GET", "/api/nights/current", undefined, sam)).json.night).toBeNull();
+  });
+
+  it("never hands back someone else's night", async () => {
+    await startNight(sam);
+    expect((await call("GET", "/api/nights/current", undefined, jordan)).json.night).toBeNull();
+  });
+
+  it("requires a session", async () => {
+    expect((await call("GET", "/api/nights/current")).status).toBe(401);
+  });
+});

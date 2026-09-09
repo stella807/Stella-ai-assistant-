@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Alert, NightOut, ShareGrant, WorriedTextRound } from "@safehubby/core";
+import type { Alert, CarePackageAuth, CarePackageOrder, Crew, NightOut, ShareGrant, WorriedTextRound } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
 
 export interface Traveler {
@@ -20,9 +20,18 @@ export interface Session {
   expiresAt: string;
 }
 
+/** Care-package state hangs off the night rather than off core's NightOut,
+ *  which keeps the domain types free of a circular import. */
+export interface CarePackageState {
+  auth: CarePackageAuth | null;
+  orders: CarePackageOrder[];
+}
+
 export interface Db {
   travelers: Traveler[];
   sessions: Session[];
+  crews: Crew[];
+  carePackages: Record<string, CarePackageState>;
   nights: NightOut[];
   grants: ShareGrant[];
   alerts: Alert[];
@@ -32,7 +41,7 @@ export interface Db {
 }
 
 const EMPTY: Db = {
-  travelers: [], sessions: [], nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [],
+  travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [],
 };
 
 /**

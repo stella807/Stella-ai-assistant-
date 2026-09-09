@@ -5,8 +5,12 @@ import {
   reportWorriedText, retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert, startWorriedTextRound,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
   canActOnNight, canReadAccount, canReadScope, canRevokeGrant, canSeeGrant, claimGrant,
+  BASKETS, DEFAULT_CAP_CENTS, authorizeCarePackage, basketTotalCents, buildOrder, findBasket,
+  shouldSendAutomatically,
+  activeMembers, createCrew, crewView, everyoneHome, isCrewActive, isMember, joinCrew, leaveCrew,
+  setSharesCount, findPlan, TRIAL_DAYS,
 } from "@safehubby/core";
-import type { Feature, NightOut } from "@safehubby/core";
+import type { CrewMemberFacts, Feature, NightOut, PlanId, TriggerBand } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes, mockVenues } from "./adapters/mock-providers.ts";
 import { newId, type Store } from "./store.ts";
 import {
@@ -113,8 +117,37 @@ function refresh(ctx: Ctx, night: NightOut): NightOut {
     target.checkIns = sweepMissedCheckIns(target.checkIns, now);
     const raised = new Set(db.alerts.filter((a) => a.nightId === target.id).map((a) => a.id));
     db.alerts.push(...deriveAlerts({ night: target, now, alreadyRaised: raised }));
+
+    // A pre-authorized pharmacy run goes out here, once, when the estimate
+    // crosses the band the traveler set while sober.
+    const care = db.carePackages[target.id];
+    if (care) {
+      const band = estimateBac({ body: target.body, drinks: target.drinks, now }).band;
+      if (shouldSendAutomatically({ auth: care.auth, band, existingOrders: care.orders })) {
+        care.orders.push(buildOrder(newId("cp"), care.auth!.basketId, care.auth!.deliverTo, "auto", now));
+      }
+    }
   });
   return getNight(ctx, night.id);
+}
+
+function carePackageState(ctx: Ctx, nightId: string) {
+  return ctx.store.data.carePackages[nightId] ?? { auth: null, orders: [] };
+}
+
+function crewFacts(ctx: Ctx, travelerIds: string[], now: Date): CrewMemberFacts[] {
+  return travelerIds.map((travelerId) => {
+    const night = ctx.store.data.nights
+      .filter((n) => n.travelerId === travelerId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    if (!night) return { travelerId, drinks: 0, missedCheckIns: 0, nightStatus: "none" as const };
+    return {
+      travelerId,
+      drinks: alcoholicDrinks(night.drinks).length,
+      missedCheckIns: sweepMissedCheckIns(night.checkIns, now).filter((c) => c.status === "missed").length,
+      nightStatus: night.status,
+    };
+  });
 }
 
 function nightSummary(ctx: Ctx, night: NightOut) {
@@ -133,6 +166,7 @@ function nightSummary(ctx: Ctx, night: NightOut) {
     pendingCheckIn: pending ?? null,
     lastPing: night.pings.at(-1) ?? null,
     alerts: ctx.store.data.alerts.filter((a) => a.nightId === night.id),
+    carePackage: carePackageState(ctx, night.id),
   };
 }
 
@@ -253,6 +287,17 @@ export const routes: Record<string, Handler> = {
     night.checkIns.push(scheduleCheckIn(night, now, newId("chk")));
     ctx.store.update((db) => void db.nights.push(night));
     return nightSummary(ctx, night);
+  },
+
+  /** The signed-in user's night in progress, so a reload or a new device picks
+   *  the evening back up instead of offering to start a second one. */
+  "GET /api/nights/current": (ctx) => {
+    const me = actor(ctx);
+    const night = ctx.store.data.nights
+      .filter((n) => n.travelerId === me && n.status !== "ended" && n.status !== "home-safe")
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    if (!night) return { night: null };
+    return nightSummary(ctx, refresh(ctx, night));
   },
 
   "GET /api/nights/:nightId": (ctx, p) => nightSummary(ctx, refresh(ctx, ownNight(ctx, req(p, "nightId")))),
@@ -431,6 +476,168 @@ export const routes: Record<string, Handler> = {
       bac: canReadScope(me, grant, "drinks", now) ? summary.bac : null,
       stats: summary.stats,
       alerts: summary.alerts,
+    };
+  },
+
+  /* ---------------- crew: buddies out together ---------------- */
+
+  "POST /api/crews": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    const crew = createCrew({
+      id: newId("crew"),
+      name: String(body?.name ?? "Tonight"),
+      joinCode: newInviteCode(),
+      createdBy: me,
+      displayName: traveler.displayName,
+      now: ctx.now(),
+      hours: body?.hours,
+    });
+    ctx.store.update((db) => void db.crews.push(crew));
+    return crew;
+  },
+
+  "POST /api/crews/join": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    const code = String(body?.joinCode ?? "").trim().toUpperCase();
+    const crew = ctx.store.data.crews.find((c) => c.joinCode === code);
+    if (!crew) throw new HttpError(404, "That code is not valid.");
+    const joined = joinCrew(crew, me, traveler.displayName, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.crews.findIndex((c) => c.id === crew.id);
+      db.crews[i] = joined;
+    });
+    return joined;
+  },
+
+  /** Crew state. Members only — a join code is not a spectator pass. */
+  "GET /api/crews/:crewId": (ctx, p) => {
+    const me = actor(ctx);
+    const crew = ctx.store.data.crews.find((c) => c.id === req(p, "crewId"));
+    if (!crew || !isMember(crew, me)) throw notFound("Crew");
+    const now = ctx.now();
+    const members = crewView(crew, crewFacts(ctx, activeMembers(crew).map((m) => m.travelerId), now));
+    return { crew, members, everyoneHome: everyoneHome(members), active: isCrewActive(crew, now) };
+  },
+
+  "GET /api/crews": (ctx) => {
+    const me = actor(ctx);
+    const now = ctx.now();
+    return ctx.store.data.crews.filter((c) => isMember(c, me) && isCrewActive(c, now));
+  },
+
+  "POST /api/crews/:crewId/leave": (ctx, p) => {
+    const me = actor(ctx);
+    const crew = ctx.store.data.crews.find((c) => c.id === req(p, "crewId"));
+    if (!crew || !isMember(crew, me)) throw notFound("Crew");
+    const left = leaveCrew(crew, me, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.crews.findIndex((c) => c.id === crew.id);
+      db.crews[i] = left;
+    });
+    return left;
+  },
+
+  /** Opt in or out of showing your count to the table. Yourself only. */
+  "POST /api/crews/:crewId/share-count": (ctx, p, body) => {
+    const me = actor(ctx);
+    const crew = ctx.store.data.crews.find((c) => c.id === req(p, "crewId"));
+    if (!crew || !isMember(crew, me)) throw notFound("Crew");
+    const updated = setSharesCount(crew, me, Boolean(body?.sharesCount));
+    ctx.store.update((db) => {
+      const i = db.crews.findIndex((c) => c.id === crew.id);
+      db.crews[i] = updated;
+    });
+    return updated;
+  },
+
+  /* ---------------- pharmacy run ---------------- */
+
+  "GET /api/care-package/baskets": () => ({ baskets: BASKETS, defaultCapCents: DEFAULT_CAP_CENTS }),
+
+  "POST /api/nights/:nightId/care-package/authorize": (ctx, p, body) => {
+    const night = ownNight(ctx, req(p, "nightId"));
+    requireFeature(ctx, night.travelerId, "supply-delivery");
+    const now = ctx.now();
+    const auth = authorizeCarePackage({
+      basketId: body?.basketId ?? "hydration",
+      capCents: body?.capCents ?? DEFAULT_CAP_CENTS,
+      triggerBand: (body?.triggerBand ?? "high") as TriggerBand,
+      deliverTo: String(body?.deliverTo ?? night.homeAddressLabel ?? ""),
+      now,
+      // Checked against the live estimate: an impaired person cannot authorize
+      // spending, so this refuses rather than accepting a late opt-in.
+      currentBand: estimateBac({ body: night.body, drinks: night.drinks, now }).band,
+    });
+    ctx.store.update((db) => {
+      const state = (db.carePackages[night.id] ??= { auth: null, orders: [] });
+      state.auth = auth;
+    });
+    return carePackageState(ctx, night.id);
+  },
+
+  "POST /api/nights/:nightId/care-package/cancel": (ctx, p) => {
+    const night = ownNight(ctx, req(p, "nightId"));
+    ctx.store.update((db) => {
+      const state = (db.carePackages[night.id] ??= { auth: null, orders: [] });
+      state.auth = state.auth ? { ...state.auth, enabled: false } : null;
+    });
+    return carePackageState(ctx, night.id);
+  },
+
+  /**
+   * Send one by hand. The traveler can do this for themselves; so can the
+   * guardian, who is sober and paying — which is why this path needs no
+   * pre-authorization.
+   */
+  "POST /api/nights/:nightId/care-package/send": (ctx, p, body) => {
+    const me = actor(ctx);
+    const night = getNight(ctx, req(p, "nightId"));
+    const mine = canActOnNight(me, night);
+    const asGuardian = ctx.store.data.grants.some(
+      (g) => g.travelerId === night.travelerId && g.guardianId === me && !g.revokedAt,
+    );
+    if (!mine && !asGuardian) throw notFound("Night");
+
+    const basket = findBasket(body?.basketId ?? "hydration");
+    const order = buildOrder(
+      newId("cp"), basket.id,
+      String(body?.deliverTo ?? night.homeAddressLabel ?? "Home"),
+      mine ? "traveler" : "guardian",
+      ctx.now(),
+    );
+    ctx.store.update((db) => {
+      const state = (db.carePackages[night.id] ??= { auth: null, orders: [] });
+      state.orders.push(order);
+    });
+    return { order, totalCents: basketTotalCents(basket) };
+  },
+
+  /* ---------------- subscription ---------------- */
+
+  /**
+   * Switches the plan. Billing is NOT connected — no card is taken and nothing
+   * is charged. Kept explicit in the response so no caller can mistake this
+   * for a completed purchase.
+   */
+  "POST /api/subscription": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const planId = body?.planId as PlanId;
+    const cadence = body?.cadence === "annual" ? "annual" : "monthly";
+    const plan = findPlan(planId);
+    ctx.store.update((db) => {
+      const traveler = db.travelers.find((t) => t.id === me)!;
+      traveler.planId = plan.id;
+    });
+    return {
+      plan,
+      cadence,
+      trialDays: TRIAL_DAYS,
+      billingConnected: false,
+      note: "Plan switched. Billing is not connected in this build — no payment method was taken and nothing was charged.",
     };
   },
 
