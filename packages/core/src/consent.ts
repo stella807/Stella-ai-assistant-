@@ -16,10 +16,19 @@ export type ShareScope = "location" | "drinks" | "check-ins" | "route";
 export interface ShareGrant {
   id: string;
   travelerId: TravelerId;
-  guardianId: GuardianId;
+  /**
+   * Null until a guardian claims the invite code while signed in. An unclaimed
+   * grant is readable by nobody: a leaked code is useless on its own, and once
+   * claimed the grant is bound to exactly one account, so the code cannot be
+   * passed around to add silent watchers.
+   */
+  guardianId: GuardianId | null;
+  /** Short human-typable code the traveler reads out. Single use. */
+  inviteCode: string;
   scopes: ShareScope[];
   grantedAt: Iso8601;
   expiresAt: Iso8601;
+  claimedAt?: Iso8601;
   revokedAt?: Iso8601;
   /**
    * Always true. The traveler's device shows a persistent indicator whenever a
@@ -33,7 +42,9 @@ export const MAX_GRANT_HOURS = 24;
 export interface CreateGrantInput {
   id: string;
   travelerId: TravelerId;
-  guardianId: GuardianId;
+  /** Omit to issue an unclaimed invite the guardian redeems with the code. */
+  guardianId?: GuardianId | null;
+  inviteCode: string;
   scopes: ShareScope[];
   now: Date;
   hours: number;
@@ -50,15 +61,33 @@ export function createGrant(input: CreateGrantInput): ShareGrant {
     throw new Error(`Grant length must be between 0 and ${MAX_GRANT_HOURS} hours.`);
   }
 
+  if (!input.inviteCode) throw new Error("A grant must carry an invite code.");
+
   return {
     id: input.id,
     travelerId: input.travelerId,
-    guardianId: input.guardianId,
+    guardianId: input.guardianId ?? null,
+    inviteCode: input.inviteCode,
     scopes: [...input.scopes],
     grantedAt: input.now.toISOString(),
     expiresAt: new Date(input.now.getTime() + input.hours * 3_600_000).toISOString(),
+    claimedAt: input.guardianId ? input.now.toISOString() : undefined,
     visibleToTraveler: true,
   };
+}
+
+/**
+ * Binds an unclaimed invite to one guardian account. Claiming is one-way and
+ * single-use: a second person with the same code is refused rather than
+ * silently added, so the traveler's watcher list can never grow behind them.
+ */
+export function claimGrant(grant: ShareGrant, guardianId: GuardianId, now: Date): ShareGrant {
+  if (!isGrantActive(grant, now)) throw new Error("That invite has expired or been revoked.");
+  if (grant.guardianId && grant.guardianId !== guardianId) {
+    throw new Error("That invite has already been claimed by someone else.");
+  }
+  if (grant.travelerId === guardianId) throw new Error("You cannot watch your own night.");
+  return { ...grant, guardianId, claimedAt: now.toISOString() };
 }
 
 export function revokeGrant(grant: ShareGrant, now: Date, revokedBy: string): ShareGrant {

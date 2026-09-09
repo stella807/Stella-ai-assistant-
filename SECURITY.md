@@ -7,11 +7,6 @@ requires.
 
 ## Not yet built — blocking for production
 
-**Authentication.** There is none. `travelerId` is taken from the request body
-and trusted. Anyone who can reach the API can read any night or act as any user.
-Real auth (per-device tokens, session expiry, re-auth for changing sharing) is
-the first thing to add.
-
 **Encryption at rest.** Location pings and drink logs are written to
 `.safehubby/db.json` in plaintext. Production needs encrypted storage, and
 location history in particular should be encrypted per-user.
@@ -23,7 +18,52 @@ user opts into the history feature and deletable on demand.
 **Transport.** The dev server is HTTP and permissive CORS. Production is TLS
 only, with an origin allowlist.
 
-**Rate limiting.** No limits on any endpoint, including SOS.
+**Rate limiting beyond auth.** Sign-up and sign-in are limited per client ip;
+nothing else is. The limiter is in-process, so a multi-instance deployment needs
+a shared store (Redis or the platform's own limiter) or an attacker just spreads
+attempts across instances. Behind a proxy, `X-Forwarded-For` is trusted as the
+client ip — that is only safe when the proxy is the sole ingress and strips
+client-supplied values.
+
+**Password reset.** There is no reset flow, so a forgotten password means a lost
+account. Adding one introduces the usual email-ownership attack surface and
+should be designed, not improvised.
+
+## Authentication and authorization — built
+
+**Accounts and sessions.** Email plus a password of at least 10 characters,
+hashed with scrypt (Node's own, so there is no dependency to keep patched) and a
+per-password salt, verified in constant time. Sessions are opaque 32-byte random
+tokens with a 30-day expiry, sent as an `HttpOnly; SameSite=Lax` cookie and also
+accepted as a bearer token. Password hashes never leave the server, even to
+their owner — a test asserts no response body can contain one.
+
+**Identity comes from the session, never the body.** Every authenticated route
+resolves the actor from the cookie or bearer token before the handler runs. A
+`travelerId` in a request body is ignored; a test signs in as one user, posts
+another user's id, and asserts the night is created against the caller.
+
+**Ownership is checked, and misses read as 404.** `packages/core/src/authz.ts`
+holds the predicates as pure functions so they are tested directly rather than
+inferred from route wiring. Another user's night, account, or grant returns 404
+rather than 403, so ids cannot be probed for existence.
+
+**Invites are claimed, not shared.** A grant is created unclaimed with a
+six-character code from an unambiguous alphabet. A guardian redeems it once
+while signed in, which binds the grant to exactly one account; a second person
+presenting the same code is refused. So a leaked code grants no access on its
+own, and a code cannot be passed around to add watchers the traveler never
+approved. Reading a grant requires being the bound guardian — holding the grant
+id is not access.
+
+**Sign-up and sign-in are rate limited** per client ip, and login failures
+return an identical message whether or not the account exists, with a dummy hash
+verified on the unknown-account path so response time does not leak which emails
+are registered.
+
+**CORS is an allowlist.** Credentialed requests require an exact origin match
+from `ALLOWED_ORIGINS`; the previous reflect-any-origin behavior would have
+handed a session to any site once cookies were involved.
 
 ## Built in, and load-bearing
 

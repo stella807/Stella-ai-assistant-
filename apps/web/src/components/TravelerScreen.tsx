@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DrinkDefinition, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
-import { api, type NightSummary } from "../api.ts";
+import { api, type Account, type NightSummary } from "../api.ts";
 import { BacCard } from "./BacCard.tsx";
 import { CheckInPrompt } from "./CheckInPrompt.tsx";
 import { DrinkLogger } from "./DrinkLogger.tsx";
@@ -8,10 +8,10 @@ import { GetHomePanel } from "./GetHomePanel.tsx";
 import { SharingPanel } from "./SharingPanel.tsx";
 import { SosButton } from "./SosButton.tsx";
 
-const TRAVELER_ID = "t-sam";
-const HOME_LABEL = "142 Rowan St";
+export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[]; account: Account }) {
+  const TRAVELER_ID = account.id;
+  const HOME_LABEL = account.homeLabel || "Home";
 
-export function TravelerScreen({ drinks }: { drinks: DrinkDefinition[] }) {
   const [summary, setSummary] = useState<NightSummary | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
   const [grants, setGrants] = useState<ShareGrant[]>([]);
@@ -73,7 +73,7 @@ export function TravelerScreen({ drinks }: { drinks: DrinkDefinition[] }) {
 
           <button className="btn btn-primary btn-block" disabled={busy || !(weightKg > 0)}
             onClick={() => run(async () => {
-              setSummary(await api.startNight({ travelerId: TRAVELER_ID, weightKg, drinkLimit, homeAddressLabel: HOME_LABEL }));
+              setSummary(await api.startNight({ weightKg, drinkLimit, homeAddressLabel: HOME_LABEL }));
             })}>
             Start the night
           </button>
@@ -130,15 +130,15 @@ export function TravelerScreen({ drinks }: { drinks: DrinkDefinition[] }) {
       })} />}
       {sos && <div className="banner banner-danger">{sos}</div>}
 
-      {!ended && <GetHomePanel travelerId={TRAVELER_ID} pickup={summary.lastPing} homeLabel={HOME_LABEL} />}
+      {!ended && <GetHomePanel pickup={summary.lastPing} homeLabel={HOME_LABEL} />}
 
       <SharingPanel grants={grants} busy={busy}
         onShare={() => run(async () => {
-          await api.grant(TRAVELER_ID, "Alex", ["location", "drinks", "check-ins"], 8);
+          await api.grant(["location", "drinks", "check-ins"], 8);
           await refreshTraveler();
         })}
         onRevoke={(id) => run(async () => {
-          await api.revokeGrant(id, TRAVELER_ID);
+          await api.revokeGrant(id);
           await refreshTraveler();
         })} />
 

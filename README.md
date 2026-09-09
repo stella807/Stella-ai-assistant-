@@ -14,12 +14,13 @@ pnpm install
 pnpm dev          # API on :8787, web on :5173
 ```
 
-Open http://localhost:5173. Two tabs: **I'm out** (the traveler) and
-**I'm watching** (the guardian). Start a night, log a few drinks, tap
-"Share with someone", copy the watch link id into the watching tab.
+Open http://localhost:5173. Create an account, then two tabs: **I'm out**
+(the traveler) and **I'm watching** (the guardian). Start a night, log a few
+drinks, tap "Share with someone", and read the six-character invite code to
+whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 92 tests
+pnpm test         # 118 tests
 pnpm typecheck
 pnpm build
 ```
@@ -51,6 +52,12 @@ without driving — never for drinking. Redeemable at partner venues. The
 of water.
 
 **Sharing.** Consent-gated, scoped, time-boxed, revocable, and always visible.
+An invite is claimed once by one signed-in account, so a leaked code grants
+nobody access and cannot be passed around to add watchers.
+
+**Accounts.** Email and password (scrypt), `HttpOnly` session cookies, rate
+limited sign-in. Identity always comes from the session — a `travelerId` in a
+request body is ignored.
 
 ## Layout
 
@@ -110,7 +117,8 @@ resolve to a clear-to-drive message.
 
 ## Before this ships
 
-`SECURITY.md` covers what a real deployment needs: authentication (there is none
-yet — traveler ids are trusted from the request), encryption of location history
-at rest, a retention window, and the abuse review that any partner-location
-product owes its users.
+Authentication, ownership checks, claimed invites, and auth rate limiting are
+built. `SECURITY.md` covers what a deployment still needs: encryption of
+location history at rest, a retention window, a shared rate-limit store for
+multi-instance runs, a password reset flow, and the abuse review that any
+partner-location product owes its users.

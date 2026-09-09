@@ -26,9 +26,19 @@ class ApiError extends Error {
   }
 }
 
+export interface Account {
+  id: string;
+  email: string;
+  displayName: string;
+  planId: string;
+  homeLabel: string;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
+    // The session is an HttpOnly cookie, so it must ride along explicitly.
+    credentials: "include",
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -39,8 +49,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   catalog: () => request<{ drinks: any[]; plans: any[]; rewards: any[] }>("GET", "/api/catalog"),
+
+  me: () => request<{ traveler: Account | null }>("GET", "/api/auth/me"),
+  signup: (input: { email: string; password: string; displayName: string; homeLabel?: string }) =>
+    request<{ traveler: Account }>("POST", "/api/auth/signup", input),
+  login: (input: { email: string; password: string }) =>
+    request<{ traveler: Account }>("POST", "/api/auth/login", input),
+  logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
+
   traveler: (id: string) => request<any>("GET", `/api/travelers/${id}`),
-  startNight: (input: { travelerId: string; weightKg: number; widmarkRatio?: number; drinkLimit: number; homeAddressLabel?: string }) =>
+  startNight: (input: { weightKg: number; widmarkRatio?: number; drinkLimit: number; homeAddressLabel?: string }) =>
     request<NightSummary>("POST", "/api/nights", input),
   night: (id: string) => request<NightSummary>("GET", `/api/nights/${id}`),
   logDrink: (nightId: string, drinkId: string, venueName?: string, servings = 1) =>
@@ -54,20 +72,21 @@ export const api = {
   sos: (nightId: string, silent: boolean) => request<any>("POST", `/api/nights/${nightId}/sos`, { silent }),
   recovery: (nightId: string) => request<RecoveryPlan>("GET", `/api/nights/${nightId}/recovery`),
   venues: (lat: number, lng: number) => request<Venue[]>("GET", `/api/venues?lat=${lat}&lng=${lng}`),
-  grant: (travelerId: string, guardianId: string, scopes: string[], hours: number) =>
-    request<ShareGrant>("POST", "/api/grants", { travelerId, guardianId, createdBy: travelerId, scopes, hours }),
-  revokeGrant: (grantId: string, revokedBy: string) =>
-    request<ShareGrant>("POST", `/api/grants/${grantId}/revoke`, { revokedBy }),
+  grant: (scopes: string[], hours: number) =>
+    request<ShareGrant>("POST", "/api/grants", { scopes, hours }),
+  claimGrant: (inviteCode: string) =>
+    request<ShareGrant>("POST", "/api/grants/claim", { inviteCode }),
+  revokeGrant: (grantId: string) =>
+    request<ShareGrant>("POST", `/api/grants/${grantId}/revoke`, {}),
   watch: (grantId: string) => request<WatchView>("GET", `/api/watch/${grantId}`),
-  rideQuotes: (travelerId: string, pickup: { lat: number; lng: number }, dropoff: { lat: number; lng: number }) =>
-    request<RideQuote[]>("POST", "/api/rides/quote", { travelerId, pickup, dropoff }),
-  bookRide: (travelerId: string, providerId: string, pickup: any, dropoff: any) =>
-    request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { travelerId, providerId, pickup, dropoff }),
+  rideQuotes: (pickup: { lat: number; lng: number }, dropoff: { lat: number; lng: number }) =>
+    request<RideQuote[]>("POST", "/api/rides/quote", { pickup, dropoff }),
+  bookRide: (providerId: string, pickup: any, dropoff: any) =>
+    request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),
-  orderSupplies: (travelerId: string, items: { id: string; qty: number }[], to: string) =>
-    request<{ orderId: string; etaMinutes: number }>("POST", "/api/supplies/order", { travelerId, items, to }),
-  redeem: (travelerId: string, rewardId: string) =>
-    request<any>("POST", "/api/points/redeem", { travelerId, rewardId }),
+  orderSupplies: (items: { id: string; qty: number }[], to: string) =>
+    request<{ orderId: string; etaMinutes: number }>("POST", "/api/supplies/order", { items, to }),
+  redeem: (rewardId: string) => request<any>("POST", "/api/points/redeem", { rewardId }),
 };
 
 export { ApiError };

@@ -1,22 +1,20 @@
 import type { Db } from "./store.ts";
 
-/** A demo couple so the UI has something to show on first run. */
+/**
+ * An empty database.
+ *
+ * Demo accounts with known passwords are deliberately not seeded: this server
+ * is meant to be deployed, and a shipped credential is a back door that
+ * outlives whoever remembers it. Accounts are created through
+ * `POST /api/auth/signup`.
+ */
 export const SEED: Db = {
-  travelers: [
-    {
-      id: "t-sam",
-      displayName: "Sam",
-      planId: "premium-plus",
-      homeLabel: "142 Rowan St",
-      emergencyContacts: [{ name: "Alex (partner)", phone: "+1-555-0100" }],
-    },
-    {
-      id: "t-jordan",
-      displayName: "Jordan",
-      planId: "free",
-      homeLabel: "9 Corbin Ave",
-      emergencyContacts: [{ name: "Riley", phone: "+1-555-0111" }],
-    },
-  ],
-  nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [],
+  travelers: [],
+  sessions: [],
+  nights: [],
+  grants: [],
+  alerts: [],
+  points: {},
+  redemptions: {},
+  rounds: [],
 };

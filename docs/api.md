@@ -1,11 +1,24 @@
 # API reference
 
-Base URL `http://localhost:8787`. JSON in, JSON out. Errors are
-`{ "error": string }` with a meaningful status: 400 validation or domain
-refusal, 402 plan does not include the feature, 404 unknown resource,
-409 conflicting state.
+Base URL `http://localhost:8787`. JSON in, JSON out. Errors are `{ "error": string }` with a meaningful status: 400 validation or
+domain refusal, 401 not signed in, 402 plan does not include the feature, 403
+signed in but not permitted, 404 unknown resource **or one you may not see**,
+409 conflicting state, 429 rate limited.
 
-**No authentication yet** — see `SECURITY.md`.
+**Authentication.** All routes except `/api/health`, `/api/catalog`,
+`/api/venues`, `/api/supplies` and the `/api/auth/*` endpoints require a
+session. Send it as the `sh_session` cookie (set automatically by signup and
+login) or as `Authorization: Bearer <token>`. Identity always comes from the
+session; a `travelerId` in a request body is ignored.
+
+## Accounts
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/api/auth/signup` | `{ email, password, displayName, homeLabel? }`. Password min 10 chars. 409 if the email exists. Rate limited. |
+| `POST` | `/api/auth/login` | `{ email, password }`. 401 with an identical message whether or not the account exists. Rate limited. |
+| `POST` | `/api/auth/logout` | Deletes the presented session. |
+| `GET` | `/api/auth/me` | `{ traveler }` or `{ traveler: null }`. Never includes a password hash. |
 
 ## Catalog and accounts
 
@@ -20,7 +33,7 @@ refusal, 402 plan does not include the feature, 404 unknown resource,
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/api/nights` | `{ travelerId, weightKg, widmarkRatio?, drinkLimit?, homeAddressLabel? }`. Schedules the first check-in. |
+| `POST` | `/api/nights` | `{ weightKg, widmarkRatio?, drinkLimit?, homeAddressLabel? }`. Owner is the signed-in user. Schedules the first check-in. |
 | `GET` | `/api/nights/:nightId` | Summary: night, BAC estimate, stats, pending check-in, last ping, alerts. Sweeps missed check-ins and derives new alerts. |
 | `POST` | `/api/nights/:nightId/drinks` | `{ drinkId, servings?, venueName? }`. Re-times the pending check-in. |
 | `POST` | `/api/nights/:nightId/check-ins/:checkInId/answer` | `{ feelingRating?, reportedDrinkIds? }`. Schedules the next one. 409 if already answered. |
@@ -33,12 +46,16 @@ refusal, 402 plan does not include the feature, 404 unknown resource,
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/api/grants` | `{ travelerId, guardianId, createdBy, scopes?, hours? }`. `createdBy` must equal `travelerId`. |
-| `POST` | `/api/grants/:grantId/revoke` | `{ revokedBy }` — traveler or guardian. |
-| `GET` | `/api/watch/:grantId` | Guardian view, filtered by grant scope and liveness. |
+| `POST` | `/api/grants` | `{ scopes?, hours? }`. Returns an **unclaimed** grant carrying a six-character `inviteCode`. |
+| `POST` | `/api/grants/claim` | `{ inviteCode }`. Binds the grant to the signed-in guardian. 400 if already claimed by someone else, 404 if the code is not valid. |
+| `POST` | `/api/grants/:grantId/revoke` | Traveler or bound guardian. 404 for anyone else. |
+| `GET` | `/api/watch/:grantId` | Guardian view, filtered by grant scope and liveness. 404 unless the caller is the bound guardian. |
 
 Scopes: `location`, `drinks`, `check-ins`, `route`. A location-only grant
 returns `drinks: []` and `bac: null`.
+
+An unclaimed grant is readable by nobody, so a leaked invite code grants no
+access on its own, and a claimed grant is bound to exactly one account.
 
 ## Services
 

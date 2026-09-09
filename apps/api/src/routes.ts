@@ -4,10 +4,15 @@ import {
   canRead, createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
   reportWorriedText, retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert, startWorriedTextRound,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
+  canActOnNight, canReadAccount, canReadScope, canRevokeGrant, canSeeGrant, claimGrant,
 } from "@safehubby/core";
 import type { Feature, NightOut } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes, mockVenues } from "./adapters/mock-providers.ts";
 import { newId, type Store } from "./store.ts";
+import {
+  RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
+  validatePassword, verifyPassword,
+} from "./auth.ts";
 
 export class HttpError extends Error {
   status: number;
@@ -32,6 +37,49 @@ function req(params: Params, name: string): string {
 export interface Ctx {
   store: Store;
   now: () => Date;
+  /**
+   * The authenticated user for this request, resolved from the session cookie
+   * or bearer token by the server layer. Null when signed out. Routes must take
+   * identity from here and never from the request body.
+   */
+  actorId: string | null;
+  /** Set by a route to make the server emit or clear the session cookie. */
+  setSession?: (token: string | null) => void;
+  /** The presented session token, so logout can delete exactly this session. */
+  sessionToken?: string | null;
+  clientKey: string;
+  /** Per-instance, not module-global: one server's traffic must not throttle
+   *  another's, and tests need isolation between instances. */
+  limiters: { login: RateLimiter; signup: RateLimiter };
+}
+
+const unauthorized = () => new HttpError(401, "Sign in to continue.");
+const forbidden = () => new HttpError(403, "You do not have access to that.");
+
+/** Every authenticated route starts here. */
+function actor(ctx: Ctx): string {
+  if (!ctx.actorId) throw unauthorized();
+  return ctx.actorId;
+}
+
+/** Six characters from an unambiguous alphabet — no O/0, I/1 — read aloud in a bar. */
+function newInviteCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return `${out.slice(0, 3)}-${out.slice(3)}`;
+}
+
+export function makeLimiters() {
+  return {
+    login: new RateLimiter(8, 15 * 60_000),
+    signup: new RateLimiter(5, 60 * 60_000),
+  };
+}
+
+function publicTraveler(t: { id: string; email: string; displayName: string; planId: string; homeLabel: string }) {
+  // The password hash never leaves the server, even to its owner.
+  return { id: t.id, email: t.email, displayName: t.displayName, planId: t.planId, homeLabel: t.homeLabel };
 }
 
 /** Feature gating lives at the API boundary so the UI cannot be the only guard. */
@@ -46,6 +94,14 @@ function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
 function getNight(ctx: Ctx, nightId: string): NightOut {
   const night = ctx.store.data.nights.find((n) => n.id === nightId);
   if (!night) throw notFound("Night");
+  return night;
+}
+
+/** A night the signed-in user owns. Anything else is a 404, not a 403 — a
+ *  stranger should not be able to probe which night ids exist. */
+function ownNight(ctx: Ctx, nightId: string): NightOut {
+  const night = getNight(ctx, nightId);
+  if (!canActOnNight(actor(ctx), night)) throw notFound("Night");
   return night;
 }
 
@@ -87,29 +143,100 @@ type Handler = (ctx: Ctx, params: Params, body: any) => Promise<unknown> | unkno
 export const routes: Record<string, Handler> = {
   "GET /api/health": () => ({ ok: true }),
 
+  "POST /api/auth/signup": async (ctx, _p, body) => {
+    if (ctx.limiters.signup.hit(ctx.clientKey)) throw new HttpError(429, "Too many sign-up attempts. Try again later.");
+    const email = normalizeEmail(body?.email);
+    if (!email) throw new HttpError(400, "Enter a valid email address.");
+    const pwError = validatePassword(body?.password);
+    if (pwError) throw new HttpError(400, pwError);
+    const displayName = String(body?.displayName ?? "").trim();
+    if (!displayName) throw new HttpError(400, "Enter the name your people will see.");
+    if (ctx.store.data.travelers.some((t) => t.email === email)) {
+      throw new HttpError(409, "An account already exists for that email.");
+    }
+
+    const traveler = {
+      id: newId("usr"),
+      email,
+      passwordHash: await hashPassword(body.password),
+      displayName,
+      planId: "free" as const,
+      homeLabel: String(body?.homeLabel ?? "Home"),
+      emergencyContacts: [],
+    };
+    const token = newSessionToken();
+    const now = ctx.now();
+    ctx.store.update((db) => {
+      db.travelers.push(traveler);
+      db.sessions.push({
+        token, userId: traveler.id, createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString(),
+      });
+    });
+    ctx.setSession?.(token);
+    return { traveler: publicTraveler(traveler) };
+  },
+
+  "POST /api/auth/login": async (ctx, _p, body) => {
+    if (ctx.limiters.login.hit(ctx.clientKey)) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
+    const email = normalizeEmail(body?.email);
+    const traveler = email ? ctx.store.data.travelers.find((t) => t.email === email) : undefined;
+
+    // Verify against a dummy hash when the account is unknown so response time
+    // does not reveal which emails are registered.
+    const hash = traveler?.passwordHash ?? "scrypt$00$00";
+    const ok = await verifyPassword(String(body?.password ?? ""), hash);
+    if (!traveler || !ok) throw new HttpError(401, "That email and password do not match.");
+
+    const token = newSessionToken();
+    const now = ctx.now();
+    ctx.store.update((db) => {
+      db.sessions.push({
+        token, userId: traveler.id, createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString(),
+      });
+    });
+    ctx.limiters.login.reset(ctx.clientKey);
+    ctx.setSession?.(token);
+    return { traveler: publicTraveler(traveler) };
+  },
+
+  "POST /api/auth/logout": (ctx, _p, _body) => {
+    const token = ctx.sessionToken;
+    if (token) ctx.store.update((db) => { db.sessions = db.sessions.filter((s) => s.token !== token); });
+    ctx.setSession?.(null);
+    return { ok: true };
+  },
+
+  "GET /api/auth/me": (ctx) => {
+    if (!ctx.actorId) return { traveler: null };
+    const t = ctx.store.data.travelers.find((x) => x.id === ctx.actorId);
+    return { traveler: t ? publicTraveler(t) : null };
+  },
+
   "GET /api/catalog": () => ({
     drinks: DRINK_CATALOG,
     plans: PLANS,
     rewards: REWARD_CATALOG,
   }),
 
-  "GET /api/travelers": (ctx) => ctx.store.data.travelers,
-
   "GET /api/travelers/:travelerId": (ctx, p) => {
-    const traveler = ctx.store.data.travelers.find((t) => t.id === req(p, "travelerId"));
+    const travelerId = req(p, "travelerId");
+    if (!canReadAccount(actor(ctx), travelerId)) throw notFound("Traveler");
+    const traveler = ctx.store.data.travelers.find((t) => t.id === travelerId);
     if (!traveler) throw notFound("Traveler");
     const entries = ctx.store.data.points[traveler.id] ?? [];
     const redemptions = ctx.store.data.redemptions[traveler.id] ?? [];
     return {
-      traveler,
+      traveler: publicTraveler(traveler),
       points: { balance: balance(entries, redemptions), entries, redemptions },
       grants: activeGrantsFor(ctx.store.data.grants, traveler.id, ctx.now()),
     };
   },
 
   "POST /api/nights": (ctx, _p, body) => {
-    const { travelerId, weightKg, widmarkRatio, drinkLimit, homeAddressLabel } = body ?? {};
-    if (!travelerId) throw new HttpError(400, "travelerId is required");
+    const travelerId = actor(ctx);
+    const { weightKg, widmarkRatio, drinkLimit, homeAddressLabel } = body ?? {};
     if (!(weightKg > 0)) throw new HttpError(400, "weightKg must be a positive number");
 
     const now = ctx.now();
@@ -128,10 +255,10 @@ export const routes: Record<string, Handler> = {
     return nightSummary(ctx, night);
   },
 
-  "GET /api/nights/:nightId": (ctx, p) => nightSummary(ctx, refresh(ctx, getNight(ctx, req(p, "nightId")))),
+  "GET /api/nights/:nightId": (ctx, p) => nightSummary(ctx, refresh(ctx, ownNight(ctx, req(p, "nightId")))),
 
   "POST /api/nights/:nightId/drinks": (ctx, p, body) => {
-    const night = getNight(ctx, req(p, "nightId"));
+    const night = ownNight(ctx, req(p, "nightId"));
     const drink = logDrink({
       id: newId("drk"),
       drinkId: body?.drinkId,
@@ -153,7 +280,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/nights/:nightId/check-ins/:checkInId/answer": (ctx, p, body) => {
-    const night = getNight(ctx, req(p, "nightId"));
+    const night = ownNight(ctx, req(p, "nightId"));
     const checkIn = night.checkIns.find((c) => c.id === req(p, "checkInId"));
     if (!checkIn) throw notFound("Check-in");
     if (checkIn.status === "answered") throw new HttpError(409, "Check-in already answered");
@@ -171,7 +298,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/nights/:nightId/location": (ctx, p, body) => {
-    const night = getNight(ctx, req(p, "nightId"));
+    const night = ownNight(ctx, req(p, "nightId"));
     const { lat, lng, accuracyMeters, venueName } = body ?? {};
     if (typeof lat !== "number" || typeof lng !== "number") {
       throw new HttpError(400, "lat and lng are required numbers");
@@ -185,7 +312,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/nights/:nightId/status": (ctx, p, body) => {
-    const night = getNight(ctx, req(p, "nightId"));
+    const night = ownNight(ctx, req(p, "nightId"));
     const status = body?.status as NightOut["status"];
     if (!["active", "heading-home", "home-safe", "ended"].includes(status)) {
       throw new HttpError(400, "Invalid status");
@@ -214,14 +341,14 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/nights/:nightId/sos": (ctx, p, body) => {
-    const night = getNight(ctx, req(p, "nightId"));
+    const night = ownNight(ctx, req(p, "nightId"));
     const alert = sosAlert(night, ctx.now(), Boolean(body?.silent));
     ctx.store.update((db) => void db.alerts.push(alert));
     return { alert, lastPing: night.pings.at(-1) ?? null };
   },
 
   "GET /api/nights/:nightId/recovery": (ctx, p, _body) => {
-    const night = getNight(ctx, req(p, "nightId"));
+    const night = ownNight(ctx, req(p, "nightId"));
     requireFeature(ctx, night.travelerId, "recovery-plan");
     const bac = estimateBac({ body: night.body, drinks: night.drinks, now: ctx.now() });
     const phase = night.status === "ended" || night.status === "home-safe" ? "next-morning" : "during";
@@ -229,23 +356,43 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/grants": (ctx, _p, body) => {
+    const travelerId = actor(ctx);
     const grant = createGrant({
       id: newId("grant"),
-      travelerId: body?.travelerId,
-      guardianId: body?.guardianId,
+      travelerId,
+      // Unclaimed: the guardian binds it to their own account with the code.
+      guardianId: null,
+      inviteCode: newInviteCode(),
       scopes: body?.scopes ?? ["location", "drinks", "check-ins"],
       now: ctx.now(),
       hours: body?.hours ?? 8,
-      createdBy: body?.createdBy,
+      createdBy: travelerId,
     });
     ctx.store.update((db) => void db.grants.push(grant));
     return grant;
   },
 
-  "POST /api/grants/:grantId/revoke": (ctx, p, body) => {
+  "POST /api/grants/claim": (ctx, _p, body) => {
+    const guardianId = actor(ctx);
+    const code = String(body?.inviteCode ?? "").trim().toUpperCase();
+    const grant = ctx.store.data.grants.find((g) => g.inviteCode === code);
+    // Same error whether the code is wrong or already spent, so the endpoint
+    // cannot be used to enumerate live invites.
+    if (!grant) throw new HttpError(404, "That code is not valid.");
+    const claimed = claimGrant(grant, guardianId, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.grants.findIndex((g) => g.id === grant.id);
+      db.grants[i] = claimed;
+    });
+    return claimed;
+  },
+
+  "POST /api/grants/:grantId/revoke": (ctx, p, _body) => {
+    const me = actor(ctx);
     const grant = ctx.store.data.grants.find((g) => g.id === req(p, "grantId"));
-    if (!grant) throw notFound("Grant");
-    const revoked = revokeGrant(grant, ctx.now(), body?.revokedBy);
+    if (!grant || !canSeeGrant(me, grant)) throw notFound("Grant");
+    if (!canRevokeGrant(me, grant)) throw forbidden();
+    const revoked = revokeGrant(grant, ctx.now(), me);
     ctx.store.update((db) => {
       const i = db.grants.findIndex((g) => g.id === req(p, "grantId"));
       db.grants[i] = revoked;
@@ -255,8 +402,9 @@ export const routes: Record<string, Handler> = {
 
   /** The guardian's view. Every field is gated on a live, scoped grant. */
   "GET /api/watch/:grantId": (ctx, p) => {
+    const me = actor(ctx);
     const grant = ctx.store.data.grants.find((g) => g.id === req(p, "grantId"));
-    if (!grant) throw notFound("Grant");
+    if (!grant || grant.guardianId !== me) throw notFound("Grant");
     const now = ctx.now();
     const night = ctx.store.data.nights
       .filter((n) => n.travelerId === grant.travelerId)
@@ -269,18 +417,18 @@ export const routes: Record<string, Handler> = {
 
     return {
       grant,
-      sharingActive: canRead(grant, "location", now),
+      sharingActive: canReadScope(me, grant, "location", now),
       traveler: ctx.store.data.travelers.find((t) => t.id === grant.travelerId) ?? null,
       night: {
         id: fresh.id,
         status: fresh.status,
         startedAt: fresh.startedAt,
         drinkLimit: fresh.drinkLimit,
-        drinks: canRead(grant, "drinks", now) ? fresh.drinks : [],
-        checkIns: canRead(grant, "check-ins", now) ? fresh.checkIns : [],
+        drinks: canReadScope(me, grant, "drinks", now) ? fresh.drinks : [],
+        checkIns: canReadScope(me, grant, "check-ins", now) ? fresh.checkIns : [],
       },
-      lastPing: canRead(grant, "location", now) ? summary.lastPing : null,
-      bac: canRead(grant, "drinks", now) ? summary.bac : null,
+      lastPing: canReadScope(me, grant, "location", now) ? summary.lastPing : null,
+      bac: canReadScope(me, grant, "drinks", now) ? summary.bac : null,
       stats: summary.stats,
       alerts: summary.alerts,
     };
@@ -293,18 +441,19 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/rides/quote": async (ctx, _p, body) => {
-    requireFeature(ctx, body?.travelerId, "ride-booking");
+    requireFeature(ctx, actor(ctx), "ride-booking");
     return mockRides.quote({ pickup: body.pickup, dropoff: body.dropoff, waypoint: body.waypoint });
   },
 
   "POST /api/rides/book": async (ctx, _p, body) => {
-    requireFeature(ctx, body?.travelerId, "ride-booking");
+    const travelerId = actor(ctx);
+    requireFeature(ctx, travelerId, "ride-booking");
     const booking = await mockRides.book(
       { pickup: body.pickup, dropoff: body.dropoff, waypoint: body.waypoint },
       body.providerId,
     );
     ctx.store.update((db) => {
-      (db.points[body.travelerId] ??= []).push(
+      (db.points[travelerId] ??= []).push(
         award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Booked a ride home"),
       );
     });
@@ -314,17 +463,17 @@ export const routes: Record<string, Handler> = {
   "GET /api/supplies": async (ctx, p) => mockDelivery.catalog({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),
 
   "POST /api/supplies/order": async (ctx, _p, body) => {
-    requireFeature(ctx, body?.travelerId, "supply-delivery");
+    requireFeature(ctx, actor(ctx), "supply-delivery");
     return mockDelivery.order(body.items ?? [], { label: body.to ?? "Home" });
   },
 
   "POST /api/routes": async (ctx, _p, body) => {
-    requireFeature(ctx, body?.travelerId, "safe-routes");
+    requireFeature(ctx, actor(ctx), "safe-routes");
     return mockRoutes.safeRoutes(body.from, body.to);
   },
 
   "POST /api/points/redeem": (ctx, _p, body) => {
-    const travelerId = body?.travelerId;
+    const travelerId = actor(ctx);
     const entries = ctx.store.data.points[travelerId] ?? [];
     const redemptions = ctx.store.data.redemptions[travelerId] ?? [];
     const r = redeem(body?.rewardId, entries, redemptions, newId("rdm"), ctx.now());
@@ -333,7 +482,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/games/worried-text": (ctx, _p, body) => {
-    requireFeature(ctx, body?.travelerId, "group-games");
+    requireFeature(ctx, actor(ctx), "group-games");
     const round = startWorriedTextRound(newId("round"), body?.players ?? [], ctx.now(), body?.forfeit);
     ctx.store.update((db) => void db.rounds.push(round));
     return round;
@@ -350,8 +499,16 @@ export const routes: Record<string, Handler> = {
     return updated;
   },
 
+  /** Only the signed-in player and the people they share a live round with. */
   "GET /api/games/leaderboard": (ctx) => {
-    const players = ctx.store.data.travelers.map((t) => ({ id: t.id, displayName: t.displayName }));
+    const me = actor(ctx);
+    const ids = new Set<string>([me]);
+    for (const round of ctx.store.data.rounds) {
+      if (round.players.some((p) => p.id === me)) for (const p of round.players) ids.add(p.id);
+    }
+    const players = ctx.store.data.travelers
+      .filter((t) => ids.has(t.id))
+      .map((t) => ({ id: t.id, displayName: t.displayName }));
     const points = Object.fromEntries(
       players.map((p) => [p.id, balance(ctx.store.data.points[p.id] ?? [], ctx.store.data.redemptions[p.id] ?? [])]),
     );

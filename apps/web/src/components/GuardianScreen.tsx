@@ -6,7 +6,7 @@ import { api, type WatchView } from "../api.ts";
  * plainly when sharing is off — an empty map must never read as "he's fine".
  */
 export function GuardianScreen() {
-  const [grantId, setGrantId] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [view, setView] = useState<WatchView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,10 +18,19 @@ export function GuardianScreen() {
     return () => clearInterval(id);
   }, [view?.grant.id]);
 
-  const load = async (id: string) => {
+  /**
+   * The code binds the grant to this account once, then the grant id is what we
+   * poll. A code that has already been claimed by someone else is refused, so a
+   * shared code cannot quietly add a second watcher.
+   */
+  const claim = async (code: string) => {
     setError(null);
-    try { setView(await api.watch(id.trim())); }
-    catch (e) { setError(e instanceof Error ? e.message : "Could not load"); }
+    try {
+      const grant = await api.claimGrant(code.trim().toUpperCase());
+      setView(await api.watch(grant.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start watching");
+    }
   };
 
   if (!view) {
@@ -29,14 +38,15 @@ export function GuardianScreen() {
       <section className="card stack">
         <h2>Watching someone tonight</h2>
         <p className="small muted">
-          Paste the watch link id they shared with you. They can see that you are watching, and they can stop
-          sharing at any time.
+          Enter the invite code they read out to you. They can see that you are watching, and they can stop
+          sharing at any moment.
         </p>
         <div className="field">
-          <label htmlFor="grant">Watch link id</label>
-          <input id="grant" value={grantId} placeholder="grant_…" onChange={(e) => setGrantId(e.target.value)} />
+          <label htmlFor="code">Invite code</label>
+          <input id="code" value={inviteCode} placeholder="ABC-234" autoCapitalize="characters"
+            onChange={(e) => setInviteCode(e.target.value)} />
         </div>
-        <button className="btn btn-primary btn-block" disabled={!grantId.trim()} onClick={() => load(grantId)}>
+        <button className="btn btn-primary btn-block" disabled={!inviteCode.trim()} onClick={() => claim(inviteCode)}>
           Start watching
         </button>
         {error && <div className="banner banner-danger">{error}</div>}

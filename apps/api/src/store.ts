@@ -5,14 +5,24 @@ import type { PointEntry, Redemption } from "@safehubby/core";
 
 export interface Traveler {
   id: string;
+  email: string;
+  passwordHash: string;
   displayName: string;
   planId: "free" | "premium-basic" | "premium-plus" | "family";
   homeLabel: string;
   emergencyContacts: { name: string; phone: string }[];
 }
 
+export interface Session {
+  token: string;
+  userId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface Db {
   travelers: Traveler[];
+  sessions: Session[];
   nights: NightOut[];
   grants: ShareGrant[];
   alerts: Alert[];
@@ -22,7 +32,7 @@ export interface Db {
 }
 
 const EMPTY: Db = {
-  travelers: [], nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [],
+  travelers: [], sessions: [], nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [],
 };
 
 /**

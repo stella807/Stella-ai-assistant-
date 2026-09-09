@@ -5,8 +5,7 @@ import { api } from "../api.ts";
 const HOME = { lat: 40.7488, lng: -73.9857 };
 
 /** Rides, supplies, and the safe-route note. Fares come from the ride provider. */
-export function GetHomePanel({ travelerId, pickup, homeLabel }: {
-  travelerId: string;
+export function GetHomePanel({ pickup, homeLabel }: {
   pickup: { lat: number; lng: number } | null;
   homeLabel: string;
 }) {
@@ -31,7 +30,7 @@ export function GetHomePanel({ travelerId, pickup, homeLabel }: {
 
       {!quotes && (
         <button className="btn btn-primary btn-block" disabled={busy}
-          onClick={() => run(async () => setQuotes(await api.rideQuotes(travelerId, at, HOME)))}>
+          onClick={() => run(async () => setQuotes(await api.rideQuotes(at, HOME)))}>
           Find me a ride to {homeLabel}
         </button>
       )}
@@ -44,7 +43,7 @@ export function GetHomePanel({ travelerId, pickup, homeLabel }: {
           </div>
           <button className="btn btn-sm btn-primary" disabled={busy}
             onClick={() => run(async () => {
-              const b = await api.bookRide(travelerId, q.providerId, at, HOME);
+              const b = await api.bookRide(q.providerId, at, HOME);
               setBooked(b.bookingId);
             })}>
             Book
@@ -58,7 +57,7 @@ export function GetHomePanel({ travelerId, pickup, homeLabel }: {
 
       <button className="btn btn-block" disabled={busy}
         onClick={() => run(async () => {
-          const order = await api.orderSupplies(travelerId, [{ id: "liquid-iv", qty: 1 }, { id: "gatorade", qty: 1 }, { id: "crackers", qty: 1 }], homeLabel);
+          const order = await api.orderSupplies([{ id: "liquid-iv", qty: 1 }, { id: "gatorade", qty: 1 }, { id: "crackers", qty: 1 }], homeLabel);
           setSupplies(`Electrolytes and a snack heading to ${homeLabel} — about ${order.etaMinutes} min.`);
         })}>
         Send water &amp; a snack home

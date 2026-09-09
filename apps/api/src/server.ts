@@ -1,6 +1,16 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { HttpError, routes, type Ctx } from "./routes.ts";
+import { HttpError, makeLimiters, routes, type Ctx } from "./routes.ts";
 import { Store } from "./store.ts";
+import { SESSION_COOKIE, clearedCookie, parseCookies, sessionCookie } from "./auth.ts";
+
+/**
+ * Browsers send cookies cross-origin only for an explicitly allowlisted
+ * origin — a wildcard is rejected with credentials. In production set
+ * ALLOWED_ORIGINS; in development the Vite dev server is allowed.
+ */
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173")
+  .split(",").map((o) => o.trim()).filter(Boolean);
+const SECURE_COOKIES = process.env.NODE_ENV === "production";
 
 const ROUTE_TABLE = Object.entries(routes).map(([key, handler]) => {
   const [method, pattern] = key.split(" ") as [string, string];
@@ -41,17 +51,33 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
-export function createApp(ctx: Ctx) {
+export function createApp(base: Ctx) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const origin = req.headers.origin ?? "*";
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Headers", "content-type");
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader("Access-Control-Allow-Headers", "content-type,authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     if (req.method === "OPTIONS") return void res.writeHead(204).end();
 
     const url = new URL(req.url ?? "/", "http://localhost");
     const found = match(req.method ?? "GET", url.pathname);
     if (!found) return send(res, 404, { error: "Not found" });
+
+    // Resolve identity before the handler runs; a route never sees a raw token.
+    const token = readToken(req);
+    const ctx: Ctx = {
+      ...base,
+      actorId: resolveActor(base, token),
+      sessionToken: token,
+      clientKey: clientKey(req),
+      setSession: (next) => {
+        res.setHeader("Set-Cookie", next === null ? clearedCookie(SECURE_COOKIES) : sessionCookie(next, SECURE_COOKIES));
+      },
+    };
 
     try {
       const body = req.method === "POST" ? await readBody(req) : undefined;
@@ -74,5 +100,27 @@ function send(res: ServerResponse, status: number, payload: unknown): void {
 }
 
 export function makeCtx(store = new Store()): Ctx {
-  return { store, now: () => new Date() };
+  return { store, now: () => new Date(), actorId: null, clientKey: "local", limiters: makeLimiters() };
+}
+
+function readToken(req: IncomingMessage): string | null {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ")) return auth.slice(7).trim() || null;
+  return parseCookies(req.headers.cookie)[SESSION_COOKIE] ?? null;
+}
+
+/** An expired session is treated as absent; it is swept on next write. */
+function resolveActor(ctx: Ctx, token: string | null): string | null {
+  if (!token) return null;
+  const session = ctx.store.data.sessions.find((s) => s.token === token);
+  if (!session) return null;
+  if (new Date(session.expiresAt).getTime() <= ctx.now().getTime()) return null;
+  return session.userId;
+}
+
+/** Rate-limit key. Behind a proxy this needs the real client ip — see SECURITY.md. */
+function clientKey(req: IncomingMessage): string {
+  const fwd = req.headers["x-forwarded-for"];
+  const first = Array.isArray(fwd) ? fwd[0] : fwd?.split(",")[0];
+  return (first ?? req.socket.remoteAddress ?? "unknown").trim();
 }
