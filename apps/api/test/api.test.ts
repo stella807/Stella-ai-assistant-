@@ -843,3 +843,16 @@ describe("medical escalation", () => {
     expect(JSON.stringify(quotes).toLowerCase()).not.toMatch(/ambulance|paramedic|medical transport/);
   });
 });
+
+describe("HEAD requests", () => {
+  it("answers HEAD on an API route with headers and no body", async () => {
+    const res = await fetch(`${base}/api/health`, { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).not.toBeNull();
+    expect(await res.text()).toBe("");
+  });
+
+  it("still 404s an unknown API path on HEAD", async () => {
+    expect((await fetch(`${base}/api/nope`, { method: "HEAD" })).status).toBe(404);
+  });
+});

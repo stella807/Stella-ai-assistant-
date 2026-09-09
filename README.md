@@ -14,13 +14,16 @@ pnpm install
 pnpm dev          # API on :8787, web on :5173
 ```
 
+To deploy, see `docs/deploy.md` — one Railway service serves both the API and
+the web app, backed by Railway Postgres.
+
 Open http://localhost:5173. Create an account, then two tabs: **I'm out**
 (the traveler) and **I'm watching** (the guardian). Start a night, log a few
 drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 259 tests
+pnpm test         # 287 tests
 pnpm typecheck
 pnpm build
 ```
@@ -183,8 +186,9 @@ resolve to a clear-to-drive message.
 
 ## Before this ships
 
-Authentication, ownership checks, claimed invites, and auth rate limiting are
-built. `SECURITY.md` covers what a deployment still needs: encryption of
-location history at rest, a retention window, a shared rate-limit store for
-multi-instance runs, a password reset flow, and the abuse review that any
-partner-location product owes its users.
+Authentication, ownership checks, claimed invites, auth rate limiting, and
+AES-256-GCM encryption of location history at rest are built. `docs/deploy.md`
+covers deploying to Railway. `SECURITY.md` covers what is still outstanding: a
+retention window, key rotation, a shared rate-limit store for multi-instance
+runs, a password reset flow, and the abuse review that any partner-location
+product owes its users.

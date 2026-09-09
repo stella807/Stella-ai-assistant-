@@ -18,7 +18,7 @@ import {
 import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvider, PlanId, RedFlagId, TriggerBand } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
-import { newId, type Store } from "./store.ts";
+import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
   validatePassword, verifyPassword,
@@ -45,7 +45,7 @@ function req(params: Params, name: string): string {
 }
 
 export interface Ctx {
-  store: Store;
+  store: StoreLike;
   now: () => Date;
   /**
    * The authenticated user for this request, resolved from the session cookie

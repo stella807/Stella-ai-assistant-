@@ -7,16 +7,18 @@ requires.
 
 ## Not yet built — blocking for production
 
-**Encryption at rest.** Location pings and drink logs are written to
-`.safehubby/db.json` in plaintext. Production needs encrypted storage, and
-location history in particular should be encrypted per-user.
-
 **Retention.** Nothing is deleted. Location traces should have a short, stated
 retention window (days, not forever), with drink history retained only if the
-user opts into the history feature and deletable on demand.
+user opts into the history feature and deletable on demand. This is now the
+largest outstanding gap.
 
-**Transport.** The dev server is HTTP and permissive CORS. Production is TLS
-only, with an origin allowlist.
+**Key rotation.** `SAFEHUBBY_ENCRYPTION_KEY` cannot be rotated without
+re-encrypting every stored trace. The ciphertext envelope is versioned (`v1.`)
+so a rotation path can be added, but it does not exist yet.
+
+**Horizontal scale.** The store keeps the database document in one JSONB row,
+which is safe only at a single replica — see `docs/deploy.md`. Concurrent
+writes are detected and logged, not merged.
 
 **Rate limiting beyond auth.** Sign-up and sign-in are limited per client ip;
 nothing else is. The limiter is in-process, so a multi-instance deployment needs
@@ -28,6 +30,31 @@ client-supplied values.
 **Password reset.** There is no reset flow, so a forgotten password means a lost
 account. Adding one introduces the usual email-ownership attack surface and
 should be designed, not improvised.
+
+## Encryption at rest — built
+
+Location pings are encrypted with AES-256-GCM before they leave the process,
+keyed from `SAFEHUBBY_ENCRYPTION_KEY`. A night of pings identifies a person,
+their local, and who they were with, and traces are notoriously re-identifiable
+even stripped of names — so they are not left to the platform's disk-level
+encryption, which protects against a stolen drive and nothing else: not a leaked
+backup, not a misconfigured read replica, not an operator with a psql prompt.
+
+GCM is authenticated, so a tampered ciphertext fails to decrypt rather than
+silently yielding wrong coordinates. A process without the key gets an empty
+ping list, never plaintext — losing location history is the correct failure.
+Everything else in the document stays readable, so the store remains
+inspectable for support without exposing where anyone was.
+
+The server **refuses to start in production** without the key or without
+`DATABASE_URL`, because both misconfigurations otherwise surface as silent data
+loss weeks later.
+
+## Transport — built
+
+Production sets `Secure` on the session cookie, and CORS is an exact-origin
+allowlist. In the default Railway topology the API also serves the web app, so
+the cookie is same-origin and no cross-origin credentials are involved at all.
 
 ## Authentication and authorization — built
 

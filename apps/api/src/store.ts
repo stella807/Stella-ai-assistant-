@@ -46,16 +46,24 @@ const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
 };
 
+/** What routes need from a store, so the file and Postgres backings are
+ *  interchangeable and the tested behaviour is the deployed behaviour. */
+export interface StoreLike {
+  readonly data: Db;
+  update(fn: (db: Db) => void): void;
+  reset(seed: Db): void;
+  save(): void;
+}
+
 /**
  * Flat-file JSON persistence. Deliberately boring: this is a prototype backend,
  * and the interesting logic lives in @safehubby/core, so swapping this for
  * Postgres later touches only this file.
  *
- * A real deployment must encrypt location history at rest and set an actual
- * retention window — see SECURITY.md. Location traces are the most sensitive
- * data this product touches.
+ * Used for development and tests. Deployments use PostgresStore, which encrypts
+ * location history before it leaves the process — see crypto.ts and SECURITY.md.
  */
-export class Store {
+export class Store implements StoreLike {
   #path: string;
   #db: Db;
 
