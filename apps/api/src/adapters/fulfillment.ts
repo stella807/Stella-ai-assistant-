@@ -39,21 +39,79 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
 }
 
 /* -------------------------------------------------------------------------
-   Uber for Business — "rides for others"
-   Requires an Uber for Business organisation, an OAuth client, and the
-   guest-rides scope. This is the successor to Uber Central and is the only
-   sanctioned way for an app to book a ride for someone who is not the
-   account holder.
+   Uber Guest Trips
+   ------------------------------------------------------------------------
+   Uber's product for requesting rides on behalf of people who do not have an
+   Uber account — which is precisely Safehubby's case, since the person getting
+   the ride is the one who cannot be trusted to arrange it right now.
+
+   Verified against developer.uber.com:
+     Base (prod)     https://api.uber.com/v1/guests/
+     Base (sandbox)  https://sandbox-api.uber.com/v1/guests/
+     OAuth scope     guests.trips
+     Endpoints       POST   /trips             request a trip
+                     POST   /trips/estimates   price estimates
+                     GET    /trips/{id}        retrieve
+                     DELETE /trips/{id}        cancel
+     Rate limit      200 requests/hour/endpoint by default, raisable
+
+   The sandbox matters: it is how you exercise this without summoning real cars
+   to real addresses, and UBER_ENV=sandbox switches to it.
    ---------------------------------------------------------------------- */
 
 const UBER_TOKEN = process.env.UBER_BUSINESS_TOKEN;
 const UBER_ORG = process.env.UBER_BUSINESS_ORG_ID;
-const UBER_API = process.env.UBER_API_BASE ?? "https://api.uber.com/v1/guests";
+const UBER_SANDBOX = process.env.UBER_ENV === "sandbox";
+const UBER_API =
+  process.env.UBER_API_BASE ??
+  (UBER_SANDBOX ? "https://sandbox-api.uber.com/v1/guests" : "https://api.uber.com/v1/guests");
+
+/**
+ * Estimates before booking.
+ *
+ * This is why the ride panel can show a fare again. Earlier it could not, and
+ * showing an invented one would have been worse than showing none — but Guest
+ * Trips quotes a real price, so the number on screen is Uber's, not ours.
+ * Safehubby still never computes a fare or a driver payout.
+ */
+export async function uberEstimates(input: RideRequestInput): Promise<
+  { productId: string | null; productName: string | null; fareCents: number | null; currency: string; etaMinutes: number | null }[]
+> {
+  if (!UBER_TOKEN) return [];
+  const data = await postJson(`${UBER_API}/trips/estimates`, { authorization: `Bearer ${UBER_TOKEN}` }, {
+    pickup: { latitude: input.pickup.lat, longitude: input.pickup.lng },
+    dropoff: { latitude: input.dropoff.lat, longitude: input.dropoff.lng },
+  }).catch(() => null);
+  if (!data) return [];
+
+  const rows: any[] = data.estimates ?? data.products ?? (Array.isArray(data) ? data : []);
+  return rows.map((row) => ({
+    productId: row.product_id ?? row.fare_id ?? null,
+    productName: row.display_name ?? row.product?.display_name ?? null,
+    fareCents:
+      typeof row.fare?.value === "number" ? Math.round(row.fare.value * 100)
+      : typeof row.estimate?.low_estimate === "number" ? Math.round(row.estimate.low_estimate * 100)
+      : null,
+    currency: row.fare?.currency_code ?? row.estimate?.currency_code ?? "USD",
+    etaMinutes: typeof row.pickup_estimate === "number" ? row.pickup_estimate : null,
+  }));
+}
+
+/** Cancels a booked trip. Wired because a night that changes plan should not
+ *  leave a car waiting outside a bar for someone who already left. */
+export async function uberCancel(tripId: string): Promise<void> {
+  if (!UBER_TOKEN) throw new Error("Uber Guest Trips is not configured.");
+  const res = await fetch(`${UBER_API}/trips/${encodeURIComponent(tripId)}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${UBER_TOKEN}` },
+  });
+  if (!res.ok && res.status !== 404) throw new Error(`Uber cancel failed: ${res.status}`);
+}
 
 export const uberForBusiness: AutomaticRidePort = {
   status: statusFor(
-    "uber-business", "Uber", Boolean(UBER_TOKEN && UBER_ORG),
-    "An Uber for Business organisation with guest-rides enabled, then UBER_BUSINESS_TOKEN and UBER_BUSINESS_ORG_ID.",
+    "uber-business", UBER_SANDBOX ? "Uber (sandbox)" : "Uber", Boolean(UBER_TOKEN && UBER_ORG),
+    "An Uber developer app with the guests.trips OAuth scope, then UBER_BUSINESS_TOKEN and UBER_BUSINESS_ORG_ID. Set UBER_ENV=sandbox to test without summoning real cars.",
   ),
 
   async book(input: RideRequestInput): Promise<BookedRide> {

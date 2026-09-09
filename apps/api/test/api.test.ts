@@ -773,7 +773,7 @@ describe("ride hand-off", () => {
     // No prices anywhere: we cannot know them, so we must not show them.
     expect(JSON.stringify(res.handoffs)).not.toMatch(/fareEstimate|\$\d/);
     expect(res.handoffs[0].url).toContain("m.uber.com/ul/");
-    expect(res.note).toMatch(/Uber for Business/i);
+    expect(res.note).toMatch(/guests\.trips/);
   });
 
   it("still records the ride home so the points are real", async () => {
@@ -973,7 +973,7 @@ describe("automatic fulfilment", () => {
     const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
     // No credentials in tests, so everything falls back rather than faking.
     expect(res.rides.mode).toBe("handoff");
-    expect(res.rides.requires).toMatch(/Uber for Business/i);
+    expect(res.rides.requires).toMatch(/Uber developer app/i);
     expect(res.delivery.requires).toMatch(/Instacart/i);
     expect(res.secureTransport.requires).toMatch(/partner agreement/i);
     expect(res.disclosures.join(" ")).toMatch(/may be armed/i);
@@ -1061,5 +1061,23 @@ describe("grocery fulfilment", () => {
     const state = (await call("GET", `/api/nights/${nightId}`, undefined, sam)).json.carePackage;
     expect(state.mode).toBe("prepared");
     expect(state.handoff.provider).toBe("Walmart");
+  });
+});
+
+describe("Uber Guest Trips wiring", () => {
+  it("names the scope and the sandbox in what it needs", async () => {
+    const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+    expect(res.rides.requires).toMatch(/guests\.trips/);
+    expect(res.rides.requires).toMatch(/sandbox/i);
+  });
+
+  it("cancelling requires a session", async () => {
+    expect((await call("POST", "/api/rides/trip_123/cancel", {})).status).toBe(401);
+  });
+
+  it("cancelling without Uber configured fails loudly rather than claiming success", async () => {
+    const res = await call("POST", "/api/rides/trip_123/cancel", {}, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/not configured/i);
   });
 });

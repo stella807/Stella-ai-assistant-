@@ -16,23 +16,64 @@ Check what is live at any time:
 curl -b cookies https://<your-app>/api/fulfillment/status
 ```
 
-## 1. Rides — Uber for Business
+## 1. Rides — Uber Guest Trips
 
-The consumer Ride Request API is closed. **Uber for Business "rides for others"**
-is not: an organisation books and pays for a ride on someone else's behalf.
-This is the successor to Uber Central and is exactly the shape this needs.
+The consumer Ride Request API is closed. **Guest Trips** is not, and it is
+exactly the shape this app needs: it requests rides *for people who do not have
+an Uber account*, which is the whole situation — the person getting the ride is
+the one who cannot be trusted to arrange it right now.
 
-1. Create an organisation at [business.uber.com](https://business.uber.com).
-2. Ask your account team to enable **guest rides / rides for others**. This is
-   not self-serve; expect a conversation about volume and use case.
-3. Create an OAuth client and get a token with the guest-rides scope.
+### Connecting it
+
+1. **Create a developer app** at
+   [developer.uber.com](https://developer.uber.com/dashboard). You need an Uber
+   account; the dashboard is where apps, credentials and scopes live.
+2. **Request the `guests.trips` scope.** This is the gate. It is not granted by
+   ticking a box — expect to describe the use case, your volume, and how riders
+   are identified. Say plainly that riders are impaired adults being sent home
+   by someone who is not; it is a sympathetic case and a real one.
+3. **Get an OAuth token** for the app, and note your organisation id.
+4. **Start in the sandbox.** `UBER_ENV=sandbox` points at
+   `sandbox-api.uber.com`, so you can exercise the whole flow without summoning
+   real cars to real addresses. Do not skip this — the first live call of a ride
+   API should never be a real person at 1am.
 
 ```bash
-railway variables --set "UBER_BUSINESS_TOKEN=..." --set "UBER_BUSINESS_ORG_ID=..."
+railway variables \
+  --set "UBER_BUSINESS_TOKEN=..." \
+  --set "UBER_BUSINESS_ORG_ID=..." \
+  --set "UBER_ENV=sandbox"          # drop this to go live
 ```
 
-Your organisation is billed for the ride, so you need to bill the user. That
-float is the reason Premium Plus costs what it does.
+### What it gives you
+
+| Call | Endpoint | Used for |
+|---|---|---|
+| Estimate | `POST /v1/guests/trips/estimates` | Real fares in the ride picker |
+| Request | `POST /v1/guests/trips` | Booking the trip |
+| Retrieve | `GET /v1/guests/trips/{id}` | Status and driver details |
+| Cancel | `DELETE /v1/guests/trips/{id}` | Plans change; don't leave a car waiting |
+
+Base URLs are `https://api.uber.com/v1/guests/` and
+`https://sandbox-api.uber.com/v1/guests/`. Default rate limit is **200
+requests per hour per endpoint**, raisable on request — worth asking for early
+if you expect Friday-night spikes, since that is exactly when it matters.
+
+**Fares come from Uber's estimates endpoint.** This is why the ride picker
+shows prices again: they are Uber's numbers, not ours. Safehubby never computes
+a fare or a driver payout.
+
+**You are billed for the ride, so you have to bill the user.** That float —
+plus chargeback exposure and a support cost on every trip that goes wrong — is
+the reason Premium Plus costs what it does.
+
+### If the request body differs from what we mapped
+
+The docs site renders its schema in JavaScript and the exact field names for
+`POST /trips` could not be read from the page, so the body in
+`apps/api/src/adapters/fulfillment.ts` is built from the documented shape.
+Verify it against Uber's Postman collection before going live. The mapping is
+in one function; correcting it is a few lines.
 
 ## 2. Supplies — Instacart, with Walmart as the fallback
 

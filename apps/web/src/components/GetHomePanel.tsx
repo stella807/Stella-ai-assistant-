@@ -27,6 +27,8 @@ export function GetHomePanel({ pickup, homeLabel }: {
 }) {
   const [handoffs, setHandoffs] = useState<HandOff[] | null>(null);
   const [automatic, setAutomatic] = useState<string | null>(null);
+  const [estimates, setEstimates] = useState<{ productId: string | null; productName: string | null; fareCents: number | null; etaMinutes: number | null }[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
   const [booked, setBooked] = useState<any>(null);
   const [secure, setSecure] = useState<SecureQuote | null>(null);
   const [secureOpen, setSecureOpen] = useState(false);
@@ -54,6 +56,8 @@ export function GetHomePanel({ pickup, homeLabel }: {
           onClick={() => run(async () => {
             const res = await api.rideQuotes(at, { ...HOME, label: homeLabel });
             setAutomatic(res.mode === "automatic" ? (res.provider ?? "your ride") : null);
+            setEstimates(res.estimates ?? []);
+            setChosen(res.estimates?.[0]?.productId ?? null);
             setHandoffs(res.handoffs ?? []);
             setSecure(res.secure ?? null);
             setNote(res.note ?? "");
@@ -63,14 +67,44 @@ export function GetHomePanel({ pickup, homeLabel }: {
       )}
 
       {automatic && !booked && (
-        <button className="btn btn-primary btn-block" disabled={busy}
-          onClick={() => run(async () => {
-            const res = await api.bookRide(automatic.toLowerCase(), at, { ...HOME, label: homeLabel });
-            setBooked(res);
-            setTookRide(true);
-          })}>
-          Book it — {automatic} comes to you
-        </button>
+        <>
+          {estimates.length > 0 && (
+            <ul className="rides">
+              {estimates.map((e) => (
+                <li key={e.productId ?? e.productName}>
+                  <button type="button"
+                    className={`ride${chosen === e.productId ? " ride-on" : ""}`}
+                    aria-pressed={chosen === e.productId}
+                    onClick={() => setChosen(e.productId)}>
+                    <span className="ride-name">
+                      {e.productName ?? "Ride"}
+                      <span className="ride-eta">
+                        {e.etaMinutes !== null ? `${e.etaMinutes} min away` : "Checking availability"}
+                      </span>
+                    </span>
+                    {/* Uber's own quote. Safehubby never computes a fare. */}
+                    <span className="ride-fare">
+                      {e.fareCents !== null ? `$${(e.fareCents / 100).toFixed(2)}` : "—"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <button className="btn btn-primary btn-block" disabled={busy}
+            onClick={() => run(async () => {
+              const res = await api.bookRide(chosen ?? automatic.toLowerCase(), at, { ...HOME, label: homeLabel });
+              setBooked(res);
+              setTookRide(true);
+            })}>
+            Book it — {automatic} comes to you
+          </button>
+
+          {estimates.length > 0 && (
+            <p className="tiny muted">Fares are Uber's estimate and are charged by them, not by Safehubby.</p>
+          )}
+        </>
       )}
 
       {booked && (

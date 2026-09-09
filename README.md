@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 338 tests (7 Postgres tests skip without a database)
+pnpm test         # 341 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -46,10 +46,11 @@ presented as a wide range rather than a single number. See "Where we said no".
 **SOS.** Hold-to-send (a pocket tap must not fire it), with a silent mode that
 withholds the call action so a phone call can't give someone away.
 
-**Getting home.** With Uber for Business configured, Safehubby books the ride
-itself and the car comes to you. Without it, one tap opens Uber or Lyft with the
-destination filled in. The app shows which of the two it is doing and never
-claims a booking it did not make — see `docs/fulfillment.md`.
+**Getting home.** With Uber Guest Trips configured, Safehubby quotes real fares
+from Uber, books the ride itself, and the car comes to you — cancellable if
+plans change. Without it, one tap opens Uber or Lyft with the destination
+filled in. The app shows which of the two it is doing and never claims a
+booking it did not make — see `docs/fulfillment.md`.
 
 **Secure transport.** Where a licensed operator covers your location, a ride
 with a protection professional at the wheel. Disclosed and acknowledged before

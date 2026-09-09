@@ -173,6 +173,7 @@ export const api = {
       mode: "automatic" | "handoff";
       provider?: string;
       note?: string;
+      estimates?: { productId: string | null; productName: string | null; fareCents: number | null; currency: string; etaMinutes: number | null }[];
       handoffs?: { provider: string; url: string; description: string }[];
       secure?: SecureQuote | null;
     }>("POST", "/api/rides/quote", { pickup, dropoff }),

@@ -21,7 +21,7 @@ import type { CartLine, CrewMemberFacts, Feature, GameId, NightOut, OrderProvide
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import {
-  deliveryDispatcher, fulfillmentStatus, secureTransport, uberForBusiness,
+  deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates, uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { walmartLink } from "./adapters/grocery.ts";
 import { newId, type StoreLike } from "./store.ts";
@@ -761,7 +761,12 @@ export const routes: Record<string, Handler> = {
     }
 
     if (automatic) {
-      return { mode: "automatic", provider: uberForBusiness.status.name, secure };
+      // Real fares, from Uber's own estimates endpoint. Safehubby still never
+      // computes one — it displays what the provider quoted.
+      const estimates = await uberEstimates({
+        pickup: body.pickup, dropoff, riderName: nameOf(ctx, me),
+      }).catch(() => []);
+      return { mode: "automatic", provider: uberForBusiness.status.name, estimates, secure };
     }
     return {
       mode: "handoff",
@@ -769,6 +774,13 @@ export const routes: Record<string, Handler> = {
       handoffs: ridesFor(dropoff),
       secure,
     };
+  },
+
+  /** Cancels a booked ride, so a change of plan does not leave a car waiting. */
+  "POST /api/rides/:tripId/cancel": async (ctx, p) => {
+    actor(ctx);
+    await uberCancel(req(p, "tripId"));
+    return { cancelled: true };
   },
 
   /** What is switched on, and what each missing piece needs. */
