@@ -1,0 +1,192 @@
+import { useCallback, useEffect, useState } from "react";
+import type { DrinkDefinition, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
+import { api, type NightSummary } from "../api.ts";
+import { BacCard } from "./BacCard.tsx";
+import { CheckInPrompt } from "./CheckInPrompt.tsx";
+import { DrinkLogger } from "./DrinkLogger.tsx";
+import { GetHomePanel } from "./GetHomePanel.tsx";
+import { SharingPanel } from "./SharingPanel.tsx";
+import { SosButton } from "./SosButton.tsx";
+
+const TRAVELER_ID = "t-sam";
+const HOME_LABEL = "142 Rowan St";
+
+export function TravelerScreen({ drinks }: { drinks: DrinkDefinition[] }) {
+  const [summary, setSummary] = useState<NightSummary | null>(null);
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [grants, setGrants] = useState<ShareGrant[]>([]);
+  const [recovery, setRecovery] = useState<RecoveryPlan | null>(null);
+  const [points, setPoints] = useState(0);
+  const [weightKg, setWeightKg] = useState(82);
+  const [drinkLimit, setDrinkLimit] = useState(4);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sos, setSos] = useState<string | null>(null);
+
+  const refreshTraveler = useCallback(async () => {
+    const t = await api.traveler(TRAVELER_ID);
+    setPoints(t.points.balance);
+    setGrants(t.grants);
+  }, []);
+
+  const run = useCallback(async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong"); }
+    finally { setBusy(false); }
+  }, []);
+
+  useEffect(() => {
+    api.venues(40.714, -74.003).then(setVenues).catch(() => setVenues([]));
+    refreshTraveler().catch(() => {});
+  }, [refreshTraveler]);
+
+  // Poll so alerts and missed check-ins surface without a manual refresh.
+  useEffect(() => {
+    if (!summary || summary.night.status === "ended") return;
+    const id = setInterval(() => {
+      api.night(summary.night.id).then(setSummary).catch(() => {});
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [summary?.night.id, summary?.night.status]);
+
+  if (!summary) {
+    return (
+      <div className="stack">
+        <section className="card stack">
+          <h2>Heading out tonight?</h2>
+          <p className="small muted">
+            Start a night and Safehubby will check in on you, keep a log, and make getting home the easy option.
+          </p>
+
+          <div className="field">
+            <label htmlFor="weight">Your weight (kg)</label>
+            <input id="weight" type="number" inputMode="numeric" value={weightKg}
+              onChange={(e) => setWeightKg(Number(e.target.value))} />
+          </div>
+
+          <div className="field">
+            <label htmlFor="limit">Drink limit you both agreed on</label>
+            <input id="limit" type="number" inputMode="numeric" value={drinkLimit}
+              onChange={(e) => setDrinkLimit(Number(e.target.value))} />
+          </div>
+
+          <button className="btn btn-primary btn-block" disabled={busy || !(weightKg > 0)}
+            onClick={() => run(async () => {
+              setSummary(await api.startNight({ travelerId: TRAVELER_ID, weightKg, drinkLimit, homeAddressLabel: HOME_LABEL }));
+            })}>
+            Start the night
+          </button>
+
+          {error && <div className="banner banner-danger">{error}</div>}
+          <p className="tiny muted">
+            Weight is used for a rough alcohol estimate. It stays on your account and is never sold or shared with advertisers.
+          </p>
+        </section>
+      </div>
+    );
+  }
+
+  const { night, bac, stats, pendingCheckIn, alerts } = summary;
+  const ended = night.status === "home-safe" || night.status === "ended";
+
+  return (
+    <div className="stack">
+      <div className="row-between">
+        <div>
+          <h2>{ended ? "Home safe" : "Out tonight"}</h2>
+          <p className="tiny muted">
+            {stats.alcoholicDrinks} drinks · {stats.standardDrinks} standard · {stats.calories} cal · {points} pts
+          </p>
+        </div>
+        <span className={ended ? "pill pill-safe" : "pill"}>{night.status}</span>
+      </div>
+
+      {alerts.filter((a) => a.severity !== "info").slice(-3).map((a) => (
+        <div key={a.id} className={`alert alert-${a.severity}`}>
+          <p className="small">{a.message}</p>
+        </div>
+      ))}
+
+      {!ended && <CheckInPrompt checkIn={pendingCheckIn} busy={busy}
+        onAnswer={(rating) => run(async () => {
+          setSummary(await api.answerCheckIn(night.id, pendingCheckIn!.id, rating));
+          await refreshTraveler();
+        })} />}
+
+      <BacCard bac={bac} />
+
+      {!ended && (
+        <DrinkLogger drinks={drinks} venues={venues} busy={busy}
+          onLog={(drinkId, venueName) => run(async () => {
+            setSummary(await api.logDrink(night.id, drinkId, venueName));
+            await refreshTraveler();
+          })} />
+      )}
+
+      {!ended && <SosButton onSend={(silent) => run(async () => {
+        await api.sos(night.id, silent);
+        setSos(silent ? "Silent SOS sent with your location." : "SOS sent with your location.");
+      })} />}
+      {sos && <div className="banner banner-danger">{sos}</div>}
+
+      {!ended && <GetHomePanel travelerId={TRAVELER_ID} pickup={summary.lastPing} homeLabel={HOME_LABEL} />}
+
+      <SharingPanel grants={grants} busy={busy}
+        onShare={() => run(async () => {
+          await api.grant(TRAVELER_ID, "Alex", ["location", "drinks", "check-ins"], 8);
+          await refreshTraveler();
+        })}
+        onRevoke={(id) => run(async () => {
+          await api.revokeGrant(id, TRAVELER_ID);
+          await refreshTraveler();
+        })} />
+
+      <section className="card stack">
+        <h3>Take care of yourself</h3>
+        {recovery ? (
+          <>
+            <p className="small">{recovery.soberEstimate}</p>
+            <ul className="timeline">
+              {recovery.tips.map((t) => (
+                <li key={t.id}>
+                  <div>
+                    <strong className="small">{t.title}</strong>
+                    <div className="tiny muted">{t.detail}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <h3>Things that do not work</h3>
+            <ul className="timeline">
+              {recovery.myths.map((m) => <li key={m}><span className="tiny muted">{m}</span></li>)}
+            </ul>
+          </>
+        ) : (
+          <button className="btn btn-block" disabled={busy}
+            onClick={() => run(async () => setRecovery(await api.recovery(night.id)))}>
+            Show my plan
+          </button>
+        )}
+      </section>
+
+      {!ended && (
+        <div className="row">
+          <button className="btn grow" disabled={busy}
+            onClick={() => run(async () => setSummary(await api.setStatus(night.id, "heading-home")))}>
+            Heading home
+          </button>
+          <button className="btn btn-safe grow" disabled={busy}
+            onClick={() => run(async () => {
+              setSummary(await api.setStatus(night.id, "home-safe"));
+              await refreshTraveler();
+            })}>
+            I'm home
+          </button>
+        </div>
+      )}
+
+      {error && <div className="banner banner-danger">{error}</div>}
+    </div>
+  );
+}

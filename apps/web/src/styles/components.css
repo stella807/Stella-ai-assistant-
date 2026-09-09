@@ -1,0 +1,92 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  /* Thumb-sized targets: this app gets used one-handed, at night, by someone
+     who has been drinking. */
+  min-height: 44px;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #08111f; }
+.btn-safe { background: var(--safe); border-color: var(--safe); color: #05210f; }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #2b0707; }
+.btn-ghost { background: transparent; }
+.btn-block { width: 100%; }
+.btn-sm { min-height: 36px; padding: 7px 11px; font-size: 13px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; color: var(--muted); }
+.field input, .field select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 16px; /* 16px stops iOS zooming the viewport on focus. */
+  min-height: 44px;
+}
+
+.pill {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.pill-safe { color: var(--safe); border-color: color-mix(in srgb, var(--safe) 45%, transparent); }
+.pill-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.pill-danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+
+.meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; position: relative; }
+.meter-range { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.meter-point { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; background: var(--text); }
+
+.alert { border-left: 3px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); }
+.alert-info { border-left-color: var(--accent); }
+.alert-warn { border-left-color: var(--warn); }
+.alert-urgent { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface-2)); }
+
+.tabs { display: flex; gap: 6px; background: var(--surface); padding: 5px; border-radius: 12px; border: 1px solid var(--line); }
+.tabs button { flex: 1; border: none; background: transparent; color: var(--muted); padding: 9px; border-radius: 8px; font-weight: 600; cursor: pointer; min-height: 40px; }
+.tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--text); }
+
+.chip-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.chip {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text);
+  border-radius: 10px; padding: 10px; text-align: left; cursor: pointer; min-height: 56px;
+}
+.chip:hover { border-color: var(--accent); }
+.chip strong { display: block; font-size: 14px; }
+
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.timeline li { display: flex; gap: 10px; align-items: baseline; }
+.timeline time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; min-width: 52px; }
+
+.banner {
+  border-radius: 10px; padding: 10px 12px; font-size: 13px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.banner-danger { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.banner-safe { border-color: color-mix(in srgb, var(--safe) 40%, transparent); background: color-mix(in srgb, var(--safe) 10%, transparent); }
+
+.sos {
+  width: 100%; min-height: 76px; border-radius: 16px; font-size: 19px; font-weight: 800; letter-spacing: .04em;
+  background: var(--danger); border: none; color: #2b0707; cursor: pointer;
+}
+.sos:active { transform: scale(.985); }

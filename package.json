@@ -1,0 +1,17 @@
+{
+  "name": "safehubby",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Safehubby — get home safe after a night out",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --parallel -r dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

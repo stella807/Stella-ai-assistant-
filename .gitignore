@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.safehubby/
+*.log
+.DS_Store
