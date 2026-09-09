@@ -4,6 +4,7 @@ import type {
 } from "@safehubby/core";
 import { SECURE_TRANSPORT_DISCLOSURES, statusFor } from "@safehubby/core";
 import { ridesFor, pharmacySearch } from "@safehubby/core";
+import { instacart, walmartLink, walmartStatus } from "./grocery.ts";
 
 /**
  * Automatic fulfilment adapters.
@@ -259,14 +260,25 @@ export const secureTransport: SecureTransportPort = {
   },
 };
 
-/** Whichever dispatcher is configured; Uber Direct wins when both are. */
-export const deliveryDispatcher = (): AutomaticDeliveryPort =>
-  uberDirect.status.mode === "automatic" ? uberDirect : doordashDrive;
+/**
+ * Whichever fulfiller is configured, in order of how close it gets to done.
+ *
+ * Instacart first: it already has the stores, the shoppers and the checkout, so
+ * it needs an API key rather than a supplier agreement. The courier dispatchers
+ * come after, and only make sense once Safehubby holds stock of its own.
+ */
+export const deliveryDispatcher = (): AutomaticDeliveryPort => {
+  if (instacart.status.mode === "automatic") return instacart;
+  if (uberDirect.status.mode === "automatic") return uberDirect;
+  if (doordashDrive.status.mode === "automatic") return doordashDrive;
+  return instacart;
+};
 
 export const fulfillmentStatus = () => ({
   rides: uberForBusiness.status,
   delivery: deliveryDispatcher().status,
+  walmart: walmartStatus(),
   secureTransport: secureTransport.status,
   /** Links used whenever a provider is in handoff mode. */
-  fallbacks: { rides: ridesFor, pharmacy: pharmacySearch },
+  fallbacks: { rides: ridesFor, pharmacy: pharmacySearch, walmart: walmartLink },
 });

@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 334 tests (7 Postgres tests skip without a database)
+pnpm test         # 338 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -61,11 +61,13 @@ never anyone's location, which stays behind an individual share grant to a named
 person. "Ahead" is measured against the rest of the table, and any member can
 hide their own count without leaving.
 
-**Pharmacy run.** Water, electrolytes and food sent to the house automatically
-when the night gets away from someone. The purchase is authorized *while sober*,
-with a hard spending cap, and fires once. The API refuses an authorization from
-someone already impaired — see "Where we said no". A partner can also send one
-by hand, since they are sober and paying.
+**Pharmacy run.** Water, electrolytes and food, lined up automatically when the
+night gets away from someone. With Instacart configured the basket is built for
+real and waiting at checkout — one tap, no typing at 1am. The authorization
+happens *while sober*, with a hard cap, and the API refuses one from someone
+already impaired; payment happens in the customer's own account, so Safehubby
+never charges a card on a drunk person's say-so. Walmart is the tracked
+fallback. See `docs/fulfillment.md`.
 
 **Your data.** Account → Download my data exports everything held about you,
 location history included. Account → Delete my account is real erasure, not

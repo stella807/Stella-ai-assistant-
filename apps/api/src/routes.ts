@@ -23,6 +23,7 @@ import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import {
   deliveryDispatcher, fulfillmentStatus, secureTransport, uberForBusiness,
 } from "./adapters/fulfillment.ts";
+import { walmartLink } from "./adapters/grocery.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
@@ -178,7 +179,9 @@ function carePackageState(ctx: Ctx, nightId: string) {
     ...state,
     mode: ordered ? "ordered" : "prepared",
     note: ordered ? null : deliveryDispatcher().status.requires,
-    handoff: ordered ? null : pharmacySearch("electrolytes water snacks"),
+    // Walmart is the tracked fallback when no fulfiller is configured; it
+    // earns commission and needs no approval, unlike a bare pharmacy search.
+    handoff: ordered ? null : walmartLink("electrolytes water crackers"),
   };
 }
 
@@ -771,8 +774,8 @@ export const routes: Record<string, Handler> = {
   /** What is switched on, and what each missing piece needs. */
   "GET /api/fulfillment/status": (ctx) => {
     actor(ctx);
-    const { rides, delivery, secureTransport: secure } = fulfillmentStatus();
-    return { rides, delivery, secureTransport: secure, disclosures: SECURE_TRANSPORT_DISCLOSURES };
+    const { rides, delivery, walmart, secureTransport: secure } = fulfillmentStatus();
+    return { rides, delivery, walmart, secureTransport: secure, disclosures: SECURE_TRANSPORT_DISCLOSURES };
   },
 
   /**
@@ -852,9 +855,48 @@ export const routes: Record<string, Handler> = {
 
   "GET /api/supplies": async (ctx, p) => mockDelivery.catalog({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),
 
+  /**
+   * Builds the basket for real.
+   *
+   * With Instacart configured this returns a cart that is already assembled —
+   * the customer taps once to check out. The basket is put together by the app
+   * rather than typed by someone at 1am, which is the whole point; the payment
+   * still happens in their account, which keeps the consent rule intact.
+   */
   "POST /api/supplies/order": async (ctx, _p, body) => {
-    requireFeature(ctx, actor(ctx), "supply-delivery");
-    return mockDelivery.order(body.items ?? [], { label: body.to ?? "Home" });
+    const me = actor(ctx);
+    requireFeature(ctx, me, "supply-delivery");
+    const dispatcher = deliveryDispatcher();
+    const to = String(body?.to ?? "Home");
+
+    const items = (body?.items ?? []).map((i: { id: string; qty?: number; name?: string; priceCents?: number }) => ({
+      sku: i.id,
+      name: i.name ?? i.id,
+      qty: i.qty ?? 1,
+      priceCents: i.priceCents ?? 0,
+    }));
+
+    if (isAutomatic(dispatcher.status)) {
+      try {
+        const dispatched = await dispatcher.dispatch({ items, dropoff: { label: to } });
+        return { mode: "cart-ready", ...dispatched };
+      } catch (err) {
+        // A provider outage must not swallow the request silently; fall back to
+        // the tracked link and say what happened.
+        return {
+          mode: "handoff",
+          provider: dispatcher.status.name,
+          error: err instanceof Error ? err.message : "Provider unavailable",
+          handoff: walmartLink(items.map((i: { name: string }) => i.name).join(" ") || "electrolytes water"),
+        };
+      }
+    }
+
+    return {
+      mode: "handoff",
+      note: dispatcher.status.requires,
+      handoff: walmartLink(items.map((i: { name: string }) => i.name).join(" ") || "electrolytes water"),
+    };
   },
 
   "POST /api/routes": async (ctx, _p, body) => {

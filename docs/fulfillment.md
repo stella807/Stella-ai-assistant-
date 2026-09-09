@@ -34,24 +34,69 @@ railway variables --set "UBER_BUSINESS_TOKEN=..." --set "UBER_BUSINESS_ORG_ID=..
 Your organisation is billed for the ride, so you need to bill the user. That
 float is the reason Premium Plus costs what it does.
 
-## 2. Delivery — Uber Direct or DoorDash Drive
+## 2. Supplies — Instacart, with Walmart as the fallback
 
-Both dispatch a courier for **a merchant's own goods**. Safehubby therefore has
-to be the merchant of record for the basket, which means a supplier agreement
-with whoever stocks it — a pharmacy chain, a convenience partner, or your own
-inventory. That is the real work here; the API is the easy half.
+**Instacart is the one to set up.** It is the only provider here with a
+self-serve key and a real cart-building API, and it already has the stores, the
+shoppers and the checkout — so Safehubby does not have to become a merchant or
+hold stock.
+
+The **Shopping Lists API** takes our basket as line items and returns a link
+that opens Instacart with everything already in the cart. The customer taps once
+to check out. That is the automatic part that matters: the basket is assembled
+by the app rather than typed by someone at 1am. Payment still happens in their
+own Instacart account, which keeps the consent rule from `care-package.ts`
+intact — Safehubby prepares, the customer confirms, and no card of theirs is
+ever charged by us.
 
 ```bash
-# Uber Direct
-railway variables --set "UBER_DIRECT_TOKEN=..." --set "UBER_DIRECT_CUSTOMER_ID=..."
-# or DoorDash Drive
-railway variables --set "DOORDASH_DRIVE_JWT=..."
-
-# Both need a pickup point — the store the courier collects from.
-railway variables --set "FULFILLMENT_PICKUP_ADDRESS=..."
+# Self-serve at docs.instacart.com — no partnership call required.
+railway variables --set "INSTACART_API_KEY=..."
+railway variables --set "PUBLIC_APP_URL=https://<your-app>.up.railway.app"
 ```
 
-Uber Direct wins when both are configured.
+`PUBLIC_APP_URL` is the link-back Instacart shows to bring people home again.
+
+### Walmart
+
+Walmart publishes **no consumer ordering API**, and its terms forbid scraping
+the catalogue. Two things are available:
+
+- **Content Provider (affiliate) API** — product data and tracked links that
+  earn commission. Self-serve-ish, needs approval as a content provider. This
+  is a real revenue line, and it replaces the ride commission that turned out
+  not to exist.
+- **AddToCart proxy** — can add items to a Walmart cart, but needs approval and
+  "a sound business case".
+
+```bash
+railway variables --set "WALMART_PUBLISHER_ID=..."   # from the affiliate programme
+```
+
+Without it the app still links to Walmart, just untracked — and says so in the
+response (`tracked: false`) rather than implying a commission that is not being
+earned.
+
+### Couriers (only if you hold stock)
+
+`uberDirect` and `doordashDrive` remain implemented for the day Safehubby
+stocks its own baskets. Both move **a merchant's own goods**, so they need a
+supplier agreement plus `FULFILLMENT_PICKUP_ADDRESS`. Instacart is tried first;
+these are for later.
+
+### If Instacart's schema differs from the docs
+
+The request and response are mapped in one place in
+`apps/api/src/adapters/grocery.ts`, built from the documented Shopping Lists
+shape. It has not been run against a live key here, so verify these before
+launch — the fix is a few lines, not a rewrite:
+
+| | Expected |
+|---|---|
+| Endpoint | `POST /idp/v1/products/products_link` |
+| Auth | `Authorization: Bearer <INSTACART_API_KEY>` |
+| Request | `{ title, link_type: "shopping_list", expires_in, line_items: [{ name, quantity, unit, display_text }], landing_page_configuration }` |
+| Response | `{ products_link_url }` |
 
 ## 3. Secure transport
 

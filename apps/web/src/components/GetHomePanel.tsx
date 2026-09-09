@@ -31,7 +31,7 @@ export function GetHomePanel({ pickup, homeLabel }: {
   const [secure, setSecure] = useState<SecureQuote | null>(null);
   const [secureOpen, setSecureOpen] = useState(false);
   const [note, setNote] = useState<string>("");
-  const [supplies, setSupplies] = useState<string | null>(null);
+  const [supplies, setSupplies] = useState<{ text: string; url?: string | null; cta?: string } | null>(null);
   const [tookRide, setTookRide] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -137,13 +137,42 @@ export function GetHomePanel({ pickup, homeLabel }: {
 
       <button className="btn btn-block" disabled={busy}
         onClick={() => run(async () => {
-          const order = await api.orderSupplies([{ id: "liquid-iv", qty: 1 }, { id: "gatorade", qty: 1 }], homeLabel);
-          setSupplies(`Basket ready for ${homeLabel} — about ${order.etaMinutes} min once you confirm it.`);
+          const res = await api.orderSupplies([
+            { id: "liquid-iv", name: "Liquid I.V. hydration packs", qty: 1, priceCents: 999 },
+            { id: "gatorade", name: "Gatorade", qty: 2, priceCents: 349 },
+            { id: "crackers", name: "Saltine crackers", qty: 1, priceCents: 299 },
+          ], homeLabel);
+
+          if (res.mode === "cart-ready") {
+            setSupplies({
+              text: `Basket built and waiting at ${res.provider}. One tap to check out — it goes to ${homeLabel}.`,
+              url: res.trackingUrl,
+              cta: `Check out at ${res.provider}`,
+            });
+          } else {
+            setSupplies({
+              text: res.error
+                ? `${res.provider} didn't answer, so here's the basket at ${res.handoff?.provider} instead.`
+                : `Basket ready. You place the order at ${res.handoff?.provider}.`,
+              url: res.handoff?.url,
+              cta: `Open ${res.handoff?.provider}`,
+            });
+          }
         })}>
         Send water &amp; a snack home
       </button>
 
-      {supplies && <div className="banner banner-safe">{supplies}</div>}
+      {supplies && (
+        <div className="banner banner-safe">
+          {supplies.text}
+          {supplies.url && (
+            <>
+              {" "}
+              <a href={supplies.url} target="_blank" rel="noreferrer" className="inline-link">{supplies.cta}</a>
+            </>
+          )}
+        </div>
+      )}
       {error && <div className="banner banner-danger">{error}</div>}
     </section>
   );

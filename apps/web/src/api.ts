@@ -181,8 +181,16 @@ export const api = {
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),
-  orderSupplies: (items: { id: string; qty: number }[], to: string) =>
-    request<{ orderId: string; etaMinutes: number }>("POST", "/api/supplies/order", { items, to }),
+  orderSupplies: (items: { id: string; qty: number; name?: string; priceCents?: number }[], to: string) =>
+    request<{
+      mode: "cart-ready" | "handoff";
+      provider?: string;
+      trackingUrl?: string | null;
+      totalCents?: number;
+      note?: string;
+      error?: string;
+      handoff?: { provider: string; url: string; tracked: boolean; description: string };
+    }>("POST", "/api/supplies/order", { items, to }),
   redeem: (rewardId: string) => request<any>("POST", "/api/points/redeem", { rewardId }),
 
   crews: () => request<any[]>("GET", "/api/crews"),

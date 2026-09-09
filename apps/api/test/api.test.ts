@@ -974,7 +974,7 @@ describe("automatic fulfilment", () => {
     // No credentials in tests, so everything falls back rather than faking.
     expect(res.rides.mode).toBe("handoff");
     expect(res.rides.requires).toMatch(/Uber for Business/i);
-    expect(res.delivery.requires).toMatch(/Uber Direct|DoorDash/i);
+    expect(res.delivery.requires).toMatch(/Instacart/i);
     expect(res.secureTransport.requires).toMatch(/partner agreement/i);
     expect(res.disclosures.join(" ")).toMatch(/may be armed/i);
   });
@@ -1027,5 +1027,39 @@ describe("secure transport", () => {
     }, sam);
     expect(res.status).toBe(400);
     expect(res.json.error).toMatch(/acknowledged/i);
+  });
+});
+
+describe("grocery fulfilment", () => {
+  it("reports Instacart as the delivery path and Walmart separately", async () => {
+    const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+    expect(res.delivery.name).toBe("Instacart");
+    expect(res.delivery.requires).toMatch(/Instacart Developer Platform/i);
+    expect(res.walmart.requires).toMatch(/affiliate/i);
+  });
+
+  it("falls back to a Walmart link when nothing is configured", async () => {
+    const res = (await call("POST", "/api/supplies/order", {
+      items: [{ id: "liquid-iv", name: "Liquid I.V.", qty: 1, priceCents: 999 }], to: "142 Rowan St",
+    }, sam)).json;
+
+    expect(res.mode).toBe("handoff");
+    expect(res.handoff.provider).toBe("Walmart");
+    expect(res.handoff.url).toContain("walmart.com");
+    expect(res.handoff.url).toContain(encodeURIComponent("Liquid I.V.").slice(0, 6));
+    // Untracked without a publisher id — and honest about it.
+    expect(res.handoff.tracked).toBe(false);
+    expect(res.note).toMatch(/Instacart/i);
+  });
+
+  it("still needs the plan that includes delivery", async () => {
+    expect((await call("POST", "/api/supplies/order", { items: [] }, jordan)).status).toBe(402);
+  });
+
+  it("offers the Walmart fallback on the care package too", async () => {
+    const nightId = (await startNight()).json.night.id;
+    const state = (await call("GET", `/api/nights/${nightId}`, undefined, sam)).json.carePackage;
+    expect(state.mode).toBe("prepared");
+    expect(state.handoff.provider).toBe("Walmart");
   });
 });
