@@ -1,0 +1,24 @@
+# Free-tier deployment on Render.
+#
+# Pair this with a free Neon Postgres (neon.tech) rather than Render's own,
+# which expires after 30 days. Neon's free tier does not expire.
+#
+# IMPORTANT: a Render free web service sleeps after 15 minutes idle and takes
+# roughly 50 seconds to wake. That is fine for testing and demos and NOT fine
+# for real use — a safety app that is asleep when someone presses SOS is not a
+# safety app. Move to a paid instance before anyone relies on it.
+services:
+  - type: web
+    name: safehubby
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    numInstances: 1        # the store requires exactly one — see docs/deploy.md
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false        # paste your Neon connection string
+      - key: SAFEHUBBY_ENCRYPTION_KEY
+        generateValue: true

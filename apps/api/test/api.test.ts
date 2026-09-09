@@ -7,6 +7,7 @@ import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import type { Ctx } from "../src/routes.ts";
+import { resetFlags, setFlag } from "@safehubby/core";
 
 let server: ReturnType<typeof createApp>;
 let base: string;
@@ -342,18 +343,16 @@ describe("plan gating", () => {
     const recovery = (await call("GET", `/api/nights/${nightId}/recovery`, undefined, sam)).json;
     expect(recovery.soberEstimate).toMatch(/only time/i);
 
-    const quotes = (await call("POST", "/api/rides/quote", {
+    const rides = (await call("POST", "/api/rides/quote", {
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
     }, sam)).json;
-    expect(quotes.length).toBeGreaterThan(0);
+    expect(rides.handoffs.length).toBeGreaterThan(0);
   });
 
   it("awards a large bonus for booking a ride instead of driving", async () => {
     await startNight();
     const before = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
-    await call("POST", "/api/rides/book", {
-      providerId: "uber-x", pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
-    }, sam);
+    await call("POST", "/api/rides/book", { providerId: "uber-x" }, sam);
     const after = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
     expect(after - before).toBe(100);
   });
@@ -728,38 +727,69 @@ describe("food orders confirmed sober", () => {
   });
 });
 
-describe("party supply", () => {
-  it("serves a catalogue across every category", async () => {
-    const { categories, items } = (await call("GET", "/api/party/catalog")).json;
-    expect(categories.length).toBe(6);
-    for (const c of categories) {
-      expect(items.some((i: any) => i.category === c.id)).toBe(true);
+describe("party supply (held for a later release)", () => {
+  it("is hidden behind the release flag", async () => {
+    for (const path of ["/api/party/catalog", "/api/party/suggest?guests=20", "/api/party/cart"]) {
+      const res = await call("GET", path, undefined, sam);
+      expect(res.status).toBe(404);
+      expect(res.json.error).toMatch(/later release/i);
+    }
+    expect((await call("POST", "/api/party/cart", { lines: [] }, sam)).status).toBe(404);
+  });
+
+  it("still works once the flag is on", async () => {
+    setFlag("party-supply", true);
+    try {
+      const { categories, items } = (await call("GET", "/api/party/catalog", undefined, sam)).json;
+      expect(categories.length).toBe(6);
+      for (const c of categories) expect(items.some((i: any) => i.category === c.id)).toBe(true);
+
+      const suggested = (await call("GET", "/api/party/suggest?guests=20", undefined, sam)).json;
+      expect(suggested.summary.coversGuests).toBeGreaterThanOrEqual(20);
+
+      const saved = (await call("POST", "/api/party/cart", {
+        lines: [{ sku: "pt-chair", qty: 10 }, { sku: "pt-cups", qty: 1 }],
+      }, sam)).json;
+      expect(saved.summary.rentalCents).toBe(2500);
+      expect(saved.summary.purchaseCents).toBe(2800);
+
+      expect((await call("POST", "/api/party/cart", { lines: [{ sku: "pt-unicorn", qty: 1 }] }, sam)).status).toBe(400);
+      expect((await call("GET", "/api/party/cart", undefined, jordan)).json.lines).toEqual([]);
+    } finally {
+      resetFlags();
     }
   });
+});
 
-  it("suggests a cart that covers the headcount", async () => {
-    const res = (await call("GET", "/api/party/suggest?guests=20")).json;
-    expect(res.summary.coversGuests).toBeGreaterThanOrEqual(20);
-    expect(res.summary.subtotalCents).toBeGreaterThan(0);
-  });
-
-  it("saves a cart and splits rentals from purchases", async () => {
-    const res = (await call("POST", "/api/party/cart", {
-      lines: [{ sku: "pt-chair", qty: 10 }, { sku: "pt-cups", qty: 1 }],
+describe("ride hand-off", () => {
+  it("returns links to the real apps, not invented fares", async () => {
+    const res = (await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.714, lng: -74.003 },
+      dropoff: { lat: 40.75, lng: -73.98, label: "142 Rowan St" },
     }, sam)).json;
-    expect(res.summary.rentalCents).toBe(2500);
-    expect(res.summary.purchaseCents).toBe(2800);
-    expect((await call("GET", "/api/party/cart", undefined, sam)).json.summary.subtotalCents).toBe(5300);
+
+    expect(res.mode).toBe("handoff");
+    expect(res.handoffs.map((h: any) => h.provider)).toEqual(["Uber", "Lyft", "Maps"]);
+    // No prices anywhere: we cannot know them, so we must not show them.
+    expect(JSON.stringify(res.handoffs)).not.toMatch(/fareEstimate|\$\d/);
+    expect(res.handoffs[0].url).toContain("m.uber.com/ul/");
+    expect(res.note).toMatch(/partnership/i);
   });
 
-  it("rejects an unknown sku rather than storing a broken cart", async () => {
-    expect((await call("POST", "/api/party/cart", { lines: [{ sku: "pt-unicorn", qty: 1 }] }, sam)).status).toBe(400);
-    expect((await call("GET", "/api/party/cart", undefined, sam)).json.lines).toEqual([]);
+  it("still records the ride home so the points are real", async () => {
+    await startNight();
+    const before = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
+    const res = (await call("POST", "/api/rides/book", { providerId: "uber" }, sam)).json;
+    expect(res.mode).toBe("handoff");
+    expect(res.recorded).toBe(true);
+    const after = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
+    expect(after - before).toBe(100);
   });
 
-  it("keeps carts per account", async () => {
-    await call("POST", "/api/party/cart", { lines: [{ sku: "pt-chair", qty: 4 }] }, sam);
-    expect((await call("GET", "/api/party/cart", undefined, jordan)).json.lines).toEqual([]);
+  it("is still gated on the paid plan", async () => {
+    expect((await call("POST", "/api/rides/quote", {
+      pickup: { lat: 1, lng: 1 }, dropoff: { lat: 2, lng: 2 },
+    }, jordan)).status).toBe(402);
   });
 });
 
@@ -844,10 +874,10 @@ describe("medical escalation", () => {
   });
 
   it("never lists an ambulance among ride options", async () => {
-    const quotes = (await call("POST", "/api/rides/quote", {
+    const rides = (await call("POST", "/api/rides/quote", {
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
     }, sam)).json;
-    expect(JSON.stringify(quotes).toLowerCase()).not.toMatch(/ambulance|paramedic|medical transport/);
+    expect(JSON.stringify(rides).toLowerCase()).not.toMatch(/ambulance|paramedic|medical transport/);
   });
 });
 

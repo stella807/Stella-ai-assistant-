@@ -1,4 +1,14 @@
-# Deploying to Railway
+# Deploying
+
+Two paths: **Railway** (paid, always on) and a **free tier** (Render + Neon).
+
+Read the free-tier caveat before choosing it: a free web service sleeps when
+idle, and a sleeping safety app is not a safety app. It is right for testing and
+showing people; it is wrong for anyone actually going out on a Friday night.
+
+---
+
+# Railway
 
 One service serves both the API and the web app, so the session cookie is
 same-origin and there is no CORS to configure. It talks to a Railway Postgres.
@@ -110,3 +120,57 @@ is fine for development and is thrown away by any platform on redeploy.
 The Postgres store tests skip when no database is reachable. CI should set
 `TEST_DATABASE_URL` and run them — they are what prove location data is
 encrypted at rest.
+
+
+---
+
+# The free path: Render + Neon
+
+Zero cost, no card for the database, good enough to test on a real phone.
+
+## 1. Free Postgres from Neon
+
+[neon.tech](https://neon.tech) → new project → copy the connection string. The
+free tier does not expire, unlike Render's own free database, which dies after
+30 days and takes your data with it.
+
+## 2. Free web service on Render
+
+[render.com](https://render.com) → New → Web Service → connect the repo. It
+picks up `render.yaml`, which sets the health check, pins one instance, and
+generates the encryption key for you.
+
+Paste the Neon connection string into `DATABASE_URL`.
+
+## 3. Point the mobile app at it
+
+```bash
+cd apps/web
+export VITE_API_URL="https://safehubby.onrender.com"
+pnpm build && npx cap sync android
+cd android && ./gradlew assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+That is a real app on a real phone, talking to a real server, for **$0**.
+
+## What free actually costs you
+
+| | Render free | Render paid ($7/mo) | Railway (~$5/mo) |
+|---|---|---|---|
+| Sleeps when idle | **Yes — ~50s to wake** | No | No |
+| Good enough to test | Yes | Yes | Yes |
+| Good enough to rely on | **No** | Yes | Yes |
+
+The sleep is the whole story. Someone presses SOS, the container is cold, and
+nothing happens for the better part of a minute. Use free to build and
+demonstrate; move to paid before you tell anyone this app will look after them.
+
+## Free on the app stores
+
+- **Android sideload: free.** `adb install` the APK. No store, no fee, no review.
+- **Google Play: $25 once.** Cheapest real distribution there is.
+- **iOS on your own device: free.** Xcode with a free Apple ID signs a build
+  that runs for 7 days before it must be re-signed.
+- **iOS for anyone else: $99/year.** TestFlight and the App Store both require
+  the paid Developer Program. There is no free path to another person's iPhone.

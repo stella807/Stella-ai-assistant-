@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 312 tests (7 Postgres tests skip without a database)
+pnpm test         # 325 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -46,9 +46,10 @@ presented as a wide range rather than a single number. See "Where we said no".
 **SOS.** Hold-to-send (a pocket tap must not fire it), with a silent mode that
 withholds the call action so a phone call can't give someone away.
 
-**Getting home.** Ride quotes and booking, safe-route suggestions that flag the
-poorly lit shortcut, and hydration/food delivery to the house. Booking a ride is
-the single largest point award in the app.
+**Getting home.** One tap opens Uber or Lyft with your destination already
+filled in, and taking a ride is the single largest point award in the app. It
+hands off rather than booking in-app because Uber and Lyft both closed their
+public ride APIs to third-party developers — see "Where we said no".
 
 **Crew.** Start a crew, read the join code out at the table, and everyone sees
 who is getting ahead and who has gone quiet. Counts and check-in state only —
@@ -82,11 +83,9 @@ Last One Standing, Ride Home Race. Every one scores on checking in, pacing,
 water or getting home; none score on how much anyone drank, and a test asserts
 no forfeit involves drinking more. Rounds are played with your crew.
 
-**Party supply.** Chairs, tables, catering, drinks, decorations, entertainment
-and the essentials everyone forgets. Give it a headcount and it builds a cart
-you can edit; rentals are quoted separately from purchases, and coverage is
-reported by the thinnest category, so twelve chairs and food for forty still
-says it seats twelve.
+**Party supply** *(built, held for a later release).* Chairs, tables, catering,
+drinks, decorations, entertainment and essentials. Behind the `party-supply`
+flag in `packages/core/src/features.ts` — turn it on to ship it.
 
 **Food, confirmed sober.** Delivery ordered at 1am is queued, not charged.
 Safehubby puts the question when the estimate says you can actually answer it —
@@ -175,6 +174,15 @@ asked about later; a confirmation taken while the estimate says someone is
 impaired is refused outright, and nothing is charged. An "are you sure?" tapped
 by someone too drunk to read it is not consent, it is a formality with a charge
 attached.
+
+**No invented fares, and no charge we cannot make.** Uber and Lyft retired
+their public ride APIs for third-party developers; DoorDash and Walgreens have
+no consumer ordering API at all. So the app cannot quote a fare, book a ride, or
+place an order without a commercial partnership. It hands off to the provider's
+own app instead. A made-up price on the screen where someone is deciding whether
+they can afford *not* to drive is the worst possible place to be wrong, and a
+pharmacy run that promises to charge a card it cannot charge is the second
+worst. The relevant flags are off in `features.ts` until a partnership exists.
 
 **No fake checkout.** The plan picker never asks for card details, because
 billing is not wired up. A realistic-looking payment step for a charge that

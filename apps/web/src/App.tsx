@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account } from "./api.ts";
 import { configError } from "./native/platform.ts";
+import { isEnabled } from "@safehubby/core";
 import { AuthScreen } from "./components/AuthScreen.tsx";
 import { PlansScreen } from "./components/PlansScreen.tsx";
 import { GamesScreen } from "./components/GamesScreen.tsx";
@@ -58,7 +59,9 @@ export function App() {
             <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>Tonight</button>
             <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>Watch</button>
             <button role="tab" aria-selected={role === "games"} onClick={() => setRole("games")}>Games</button>
-            <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>Party</button>
+            {isEnabled("party-supply") && (
+              <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>Party</button>
+            )}
             <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Plan</button>
           </div>
 
@@ -69,7 +72,7 @@ export function App() {
           {role === "out" && <TravelerScreen drinks={drinks} account={account} />}
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
-          {role === "party" && <PartyScreen />}
+          {role === "party" && isEnabled("party-supply") && <PartyScreen />}
           {role === "account" && (
             <AccountScreen account={account} onDeleted={() => { setAccount(null); setRole("out"); }} />
           )}

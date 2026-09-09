@@ -1,5 +1,33 @@
 # Shipping to the App Store and Play Store
 
+## First: what the delivery and ride APIs actually allow
+
+This shapes the product more than any store rule, and neither Apple nor Google
+is the constraint — **the providers are**.
+
+| Provider | Public API for a third-party consumer app? | What you can actually do |
+|---|---|---|
+| **Uber** rides | **No.** The Ride Request API was retired for third-party developers. | Deep link into the Uber app with the destination filled in. |
+| **Lyft** rides | **No.** Closed to new consumer apps. | Same: deep link. |
+| **Uber Eats** | **No** consumer ordering API. The API is merchant-facing, for restaurants receiving orders. | Deep link to a search. |
+| **DoorDash** | **No** consumer ordering API. DoorDash Drive delivers *your own* goods if you are a merchant. | Deep link to a search. |
+| **Walgreens** | No public consumer ordering API. | Deep link to a search. |
+| **Yelp / Google Places** | **Yes.** Both are open with a key. | Venue lookup — already wired. |
+
+So in-app booking, live fares, and automatic ordering all require a commercial
+partnership, not an API key. Until one exists, `ride-booking-api`,
+`food-ordering-api` and `pharmacy-ordering-api` are off in
+`packages/core/src/features.ts`, and the app hands off to the provider's own app
+instead of inventing a fare.
+
+**This also removes the ride-commission line from the revenue plan.** Uber has
+no open affiliate programme for consumer ride referrals. Subscriptions and venue
+partnerships are the realistic revenue, and both work fine through the stores.
+
+Deep links need no approval from anyone and are what most apps in this category
+actually do.
+
+
 The web app is wrapped with [Capacitor](https://capacitorjs.com): the built
 bundle ships inside a native shell and talks to the Railway API over HTTPS. A
 server deploy reaches every installed app immediately; only UI changes need a

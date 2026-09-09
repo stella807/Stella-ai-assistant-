@@ -12,6 +12,7 @@ import {
   GAMES, findGame, recordGuess, settleGuessTheTab, settleRound, settleWithWinner, startRound,
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
+  isEnabled, flagNote, ridesFor, deliverySearch, pharmacySearch,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
 } from "@safehubby/core";
@@ -94,6 +95,11 @@ function publicTraveler(t: { id: string; email: string; displayName: string; pla
 }
 
 /** Feature gating lives at the API boundary so the UI cannot be the only guard. */
+/** A release flag, distinct from a paid-plan feature. */
+function requireFlag(flag: Parameters<typeof isEnabled>[0]): void {
+  if (!isEnabled(flag)) throw new HttpError(404, flagNote(flag));
+}
+
 function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
   const traveler = ctx.store.data.travelers.find((t) => t.id === travelerId);
   if (!traveler) throw notFound("Traveler");
@@ -145,8 +151,23 @@ function refresh(ctx: Ctx, night: NightOut): NightOut {
   return getNight(ctx, night.id);
 }
 
+/**
+ * Care-package state, plus how it can actually be fulfilled.
+ *
+ * With no pharmacy or delivery partnership there is no way to place the order,
+ * so the run "prepares" a basket and hands off to the store rather than
+ * charging a card it cannot charge. Prices are the store's list prices and are
+ * labelled approximate — the real total is whatever the store rings up.
+ */
 function carePackageState(ctx: Ctx, nightId: string) {
-  return ctx.store.data.carePackages[nightId] ?? { auth: null, orders: [] };
+  const state = ctx.store.data.carePackages[nightId] ?? { auth: null, orders: [] };
+  const ordered = isEnabled("pharmacy-ordering-api");
+  return {
+    ...state,
+    mode: ordered ? "ordered" : "prepared",
+    note: ordered ? null : flagNote("pharmacy-ordering-api"),
+    handoff: ordered ? null : pharmacySearch("electrolytes water snacks"),
+  };
 }
 
 function crewFacts(ctx: Ctx, travelerIds: string[], now: Date): CrewMemberFacts[] {
@@ -701,14 +722,40 @@ export const routes: Record<string, Handler> = {
     return venuePort.nearby({ lat, lng });
   },
 
-  "POST /api/rides/quote": async (ctx, _p, body) => {
+  /**
+   * Hand-off links, not quotes.
+   *
+   * Uber and Lyft both closed their public ride APIs to third-party developers,
+   * so nothing outside a formal partnership can book a ride or read a fare.
+   * Returning invented fares would be a lie told on the screen where the user
+   * is least able to check it, so this returns links that open the real app
+   * with the destination filled in, and says so.
+   */
+  "POST /api/rides/quote": (ctx, _p, body) => {
     requireFeature(ctx, actor(ctx), "ride-booking");
-    return mockRides.quote({ pickup: body.pickup, dropoff: body.dropoff, waypoint: body.waypoint });
+    if (isEnabled("ride-booking-api")) {
+      return { mode: "api", quotes: mockRides.quote({ pickup: body.pickup, dropoff: body.dropoff }) };
+    }
+    return {
+      mode: "handoff",
+      note: flagNote("ride-booking-api"),
+      handoffs: ridesFor({ lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label }),
+    };
   },
 
+  /** Records that a ride was taken instead of driving; the booking happens in
+   *  the provider's own app until an API partnership exists. */
   "POST /api/rides/book": async (ctx, _p, body) => {
     const travelerId = actor(ctx);
     requireFeature(ctx, travelerId, "ride-booking");
+    if (!isEnabled("ride-booking-api")) {
+      ctx.store.update((db) => {
+        (db.points[travelerId] ??= []).push(
+          award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Took a ride home"),
+        );
+      });
+      return { mode: "handoff", recorded: true, note: flagNote("ride-booking-api") };
+    }
     const booking = await mockRides.book(
       { pickup: body.pickup, dropoff: body.dropoff, waypoint: body.waypoint },
       body.providerId,
@@ -957,21 +1004,24 @@ export const routes: Record<string, Handler> = {
 
   /* ---------------- party supply ---------------- */
 
-  "GET /api/party/catalog": () => ({ categories: PARTY_CATEGORIES, items: PARTY_CATALOG }),
+  "GET /api/party/catalog": () => { requireFlag("party-supply"); return { categories: PARTY_CATEGORIES, items: PARTY_CATALOG }; },
 
   "GET /api/party/suggest": (ctx, p) => {
+    requireFlag("party-supply");
     const guests = Number(p.guests ?? 12);
     const lines = suggestForGuests(guests);
     return { guests, lines, summary: summarizeCart(lines) };
   },
 
   "GET /api/party/cart": (ctx) => {
+    requireFlag("party-supply");
     const me = actor(ctx);
     const lines = ctx.store.data.partyCarts[me] ?? [];
     return { lines, summary: summarizeCart(lines) };
   },
 
   "POST /api/party/cart": (ctx, _p, body) => {
+    requireFlag("party-supply");
     const me = actor(ctx);
     const lines = (body?.lines ?? []) as CartLine[];
     // summarizeCart validates every sku, so a bad cart is rejected before it is

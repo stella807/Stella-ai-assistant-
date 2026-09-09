@@ -26,6 +26,10 @@ export interface Basket {
 export interface CarePackageState {
   auth: { enabled: boolean; basketId: string; capCents: number; triggerBand: string; deliverTo: string } | null;
   orders: { id: string; basketId: string; totalCents: number; deliverTo: string; reason: string; etaMinutes: number }[];
+  /** "prepared" until a pharmacy partnership exists; nothing is charged then. */
+  mode?: "prepared" | "ordered";
+  note?: string | null;
+  handoff?: { provider: string; url: string; description: string } | null;
 }
 
 export interface RedFlag { id: string; label: string; detail: string }
@@ -155,8 +159,9 @@ export const api = {
   revokeGrant: (grantId: string) =>
     request<ShareGrant>("POST", `/api/grants/${grantId}/revoke`, {}),
   watch: (grantId: string) => request<WatchView>("GET", `/api/watch/${grantId}`),
-  rideQuotes: (pickup: { lat: number; lng: number }, dropoff: { lat: number; lng: number }) =>
-    request<RideQuote[]>("POST", "/api/rides/quote", { pickup, dropoff }),
+  rideQuotes: (pickup: { lat: number; lng: number }, dropoff: { lat: number; lng: number; label?: string }) =>
+    request<{ mode: string; note?: string; handoffs?: { provider: string; url: string; description: string }[] }>(
+      "POST", "/api/rides/quote", { pickup, dropoff }),
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),

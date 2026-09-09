@@ -45,6 +45,9 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
   const chosen = baskets.find((b) => b.id === basketId);
   const total = chosen ? chosen.items.reduce((s, i) => s + i.priceCents * i.qty, 0) : 0;
   const armed = state.auth?.enabled;
+  // Without a pharmacy partnership nothing can be charged, so the run prepares
+  // a basket and hands off. The copy must not promise a purchase either way.
+  const prepared = state.mode !== "ordered";
   // Mirrors the server rule rather than offering a button that can only fail.
   const impaired = ["moderate", "high", "severe"].includes(band);
 
@@ -56,26 +59,38 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
       </div>
 
       {state.orders.length > 0 && (
-        <ul className="timeline">
-          {state.orders.map((o) => (
-            <li key={o.id}>
-              <div className="grow">
-                <strong className="small">{baskets.find((b) => b.id === o.basketId)?.name ?? o.basketId}</strong>
-                <div className="tiny muted">
-                  {o.reason === "auto" ? "Sent automatically" : o.reason === "guardian" ? "Sent by your person" : "You sent this"}
-                  {" · "}{money(o.totalCents)} · {o.deliverTo} · ~{o.etaMinutes} min
+        <>
+          <ul className="timeline">
+            {state.orders.map((o) => (
+              <li key={o.id}>
+                <div className="grow">
+                  <strong className="small">{baskets.find((b) => b.id === o.basketId)?.name ?? o.basketId}</strong>
+                  <div className="tiny muted">
+                    {prepared
+                      ? `Lined up for ${o.deliverTo} · about ${money(o.totalCents)}`
+                      : `${o.reason === "auto" ? "Sent automatically" : o.reason === "guardian" ? "Sent by your person" : "You sent this"} · ${money(o.totalCents)} · ${o.deliverTo} · ~${o.etaMinutes} min`}
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+          {prepared && state.handoff && (
+            <a className="btn btn-primary btn-block ride-link" href={state.handoff.url} target="_blank" rel="noreferrer">
+              <span>
+                <strong>Order it at {state.handoff.provider}</strong>
+                <span className="tiny muted">{state.handoff.description}</span>
+              </span>
+            </a>
+          )}
+        </>
       )}
 
       {armed ? (
         <>
           <p className="small muted">
-            {baskets.find((b) => b.id === state.auth!.basketId)?.name} goes to {state.auth!.deliverTo} if you
-            cross the line you set. Capped at {money(state.auth!.capCents)}, once per night.
+            {prepared
+              ? `${baskets.find((b) => b.id === state.auth!.basketId)?.name} gets lined up for ${state.auth!.deliverTo} if you cross the line you set. Nothing is charged — you or your person confirm it in the store's app.`
+              : `${baskets.find((b) => b.id === state.auth!.basketId)?.name} goes to ${state.auth!.deliverTo} if you cross the line you set. Capped at ${money(state.auth!.capCents)}, once per night.`}
           </p>
           <button className="btn btn-block btn-ghost" disabled={busy}
             onClick={() => run(async () => onChange(await api.cancelCarePackage(nightId)))}>
@@ -91,8 +106,9 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
       ) : (
         <>
           <p className="small muted">
-            Set this up now, before you start. Water and electrolytes get sent home if the night gets away
-            from you.
+            {prepared
+              ? "Set this up now, before you start. If the night gets away from you, Safehubby lines up water and electrolytes — you or your person confirm the order in the store's own app."
+              : "Set this up now, before you start. Water and electrolytes get sent home if the night gets away from you."}
           </p>
 
           <div className="chip-grid">
@@ -105,7 +121,12 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
             ))}
           </div>
 
-          {chosen && <p className="tiny muted">{chosen.items.map((i) => `${i.qty}× ${i.name}`).join(" · ")}</p>}
+          {chosen && (
+            <p className="tiny muted">
+              {chosen.items.map((i) => `${i.qty}× ${i.name}`).join(" · ")}
+              {prepared && " · prices are the store's list prices, approximate"}
+            </p>
+          )}
 
           <div className="field">
             <label htmlFor="trigger">Send it</label>
@@ -115,7 +136,7 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
           </div>
 
           <div className="field">
-            <label htmlFor="cap">Never spend more than (${cap})</label>
+            <label htmlFor="cap">{prepared ? `Keep the basket under $${cap}` : `Never spend more than ($${cap})`}</label>
             <input id="cap" type="range" min={5} max={100} step={5} value={cap}
               onChange={(e) => setCap(Number(e.target.value))} />
           </div>
@@ -124,12 +145,15 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
             onClick={() => run(async () => onChange(await api.authorizeCarePackage(nightId, {
               basketId, capCents: cap * 100, triggerBand: trigger, deliverTo: homeLabel,
             })))}>
-            {total > cap * 100 ? "Raise the cap to arm this" : `Arm it — up to ${money(cap * 100)}`}
+            {total > cap * 100
+              ? "Raise the limit to arm this"
+              : prepared ? "Arm it" : `Arm it — up to ${money(cap * 100)}`}
           </button>
 
           <p className="tiny muted">
-            You can only set this up while you&apos;re sober. Once you&apos;re impaired Safehubby will not take
-            an authorization to spend your money — that&apos;s not consent.
+            {prepared
+              ? "Set up while sober, because a basket chosen drunk is one you did not really choose. Nothing is charged automatically — Safehubby has no pharmacy partnership yet, so you confirm the order yourself."
+              : "You can only set this up while you're sober. Once you're impaired Safehubby will not take an authorization to spend your money — that's not consent."}
           </p>
         </>
       )}
