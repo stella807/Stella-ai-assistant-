@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  No cleartext, anywhere. The session is an HttpOnly cookie and the payloads
+  carry live location; a plaintext fallback on a hostile network is exactly the
+  failure this app cannot afford. Local development runs against the Vite dev
+  server in a browser, not the shell, so nothing here needs an exemption.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

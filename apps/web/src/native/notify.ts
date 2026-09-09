@@ -34,7 +34,10 @@ export async function scheduleCheckInReminder(dueAt: string, minutesLate = 0): P
       id: CHECK_IN_ID,
       title: "Safehubby check-in",
       body: "Tap to let your people know you're alright.",
-      schedule: { at },
+      schedule: { at, allowWhileIdle: true },
+      // Matches the HIGH-importance channel created in SafehubbyApplication;
+      // the default channel would deliver this silently.
+      channelId: "safehubby-checkins",
     }],
   });
 }

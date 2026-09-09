@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account } from "./api.ts";
+import { configError } from "./native/platform.ts";
 import { AuthScreen } from "./components/AuthScreen.tsx";
 import { PlansScreen } from "./components/PlansScreen.tsx";
 import { GamesScreen } from "./components/GamesScreen.tsx";
@@ -45,7 +46,7 @@ export function App() {
 
       {offline && (
         <div className="banner banner-danger">
-          Can&apos;t reach the Safehubby API. Start it with <code>pnpm dev</code>.
+          {configError() ?? <>Can&apos;t reach the Safehubby API. Start it with <code>pnpm dev</code>.</>}
         </div>
       )}
 

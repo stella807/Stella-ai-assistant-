@@ -10,12 +10,22 @@ import { Capacitor } from "@capacitor/core";
 export const isNative = (): boolean => Capacitor.isNativePlatform();
 export const platform = (): string => Capacitor.getPlatform();
 
+/**
+ * Why the app cannot talk to a server, if it cannot. Returned rather than
+ * thrown so the UI can show the actual cause: a native build with no API URL
+ * looks exactly like a server outage otherwise, and gets debugged as one.
+ */
+export const configError = (): string | null => {
+  if (!isNative()) return null;
+  return import.meta.env.VITE_API_URL
+    ? null
+    : "This build has no API address. It was compiled without VITE_API_URL — see docs/mobile.md.";
+};
+
 /** The API origin. Bundled apps talk to the deployed server; the web build is same-origin. */
 export const apiBase = (): string => {
   if (!isNative()) return "";
   const configured = import.meta.env.VITE_API_URL;
-  if (!configured) {
-    throw new Error("VITE_API_URL must be set for native builds — see docs/mobile.md");
-  }
+  if (!configured) return "";
   return String(configured).replace(/\/$/, "");
 };
