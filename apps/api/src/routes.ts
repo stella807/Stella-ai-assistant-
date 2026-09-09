@@ -20,7 +20,7 @@ import {
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
 import type {
-  ApplicationStatus, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
+  ApplicationStatus, Basket, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
   OrderProvider, PlanId, PreAuthorization, RedFlagId, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
@@ -196,6 +196,13 @@ function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
   if (!traveler) throw notFound("Traveler");
   if (!hasFeature(traveler.planId, feature)) {
     throw new HttpError(402, `Your plan does not include "${feature}". Upgrade to unlock it.`);
+  }
+}
+
+/** The wider pharmacy-run menu is a Family-only perk, not something every basket needs. */
+function requireBasketAccess(ctx: Ctx, travelerId: string, basket: Basket): void {
+  if (basket.tier === "premium" && !hasFeature(planOf(ctx, travelerId), "extended-menu")) {
+    throw new HttpError(402, `"${basket.name}" is part of the Family plan's extended menu. Upgrade to unlock it.`);
   }
 }
 
@@ -755,14 +762,22 @@ export const routes: Record<string, Handler> = {
 
   /* ---------------- pharmacy run ---------------- */
 
-  "GET /api/care-package/baskets": () => ({ baskets: BASKETS, defaultCapCents: DEFAULT_CAP_CENTS }),
+  "GET /api/care-package/baskets": (ctx) => {
+    const unlocked = ctx.actorId ? hasFeature(planOf(ctx, ctx.actorId), "extended-menu") : false;
+    return {
+      baskets: BASKETS.map((b) => ({ ...b, locked: b.tier === "premium" && !unlocked })),
+      defaultCapCents: DEFAULT_CAP_CENTS,
+    };
+  },
 
   "POST /api/nights/:nightId/care-package/authorize": (ctx, p, body) => {
     const night = ownNight(ctx, req(p, "nightId"));
     requireFeature(ctx, night.travelerId, "supply-delivery");
+    const basket = findBasket(body?.basketId ?? "hydration");
+    requireBasketAccess(ctx, night.travelerId, basket);
     const now = ctx.now();
     const auth = authorizeCarePackage({
-      basketId: body?.basketId ?? "hydration",
+      basketId: basket.id,
       capCents: body?.capCents ?? DEFAULT_CAP_CENTS,
       triggerBand: (body?.triggerBand ?? "high") as TriggerBand,
       deliverTo: String(body?.deliverTo ?? night.homeAddressLabel ?? ""),
@@ -802,6 +817,7 @@ export const routes: Record<string, Handler> = {
     if (!mine && !asGuardian) throw notFound("Night");
 
     const basket = findBasket(body?.basketId ?? "hydration");
+    requireBasketAccess(ctx, night.travelerId, basket);
     const order = buildOrder(
       newId("cp"), basket.id,
       String(body?.deliverTo ?? night.homeAddressLabel ?? "Home"),

@@ -14,9 +14,22 @@ import type { Iso8601 } from "./types.ts";
  *
  * A partner can also send one by hand, which needs no pre-authorization because
  * they are paying and they are sober.
+ *
+ * The menu is deliberately a closed, curated list rather than an open cart —
+ * "standard" baskets for every paid plan, "premium" ones (more variety, real
+ * meals from different cuisines) gated to Family via the `extended-menu`
+ * feature in billing.ts. There is no path to add an arbitrary item, and there
+ * never will be one for alcohol: an automatic run fires because someone is
+ * already impaired, and sending more alcohol to that person is the opposite
+ * of what this feature exists to do. That is a product line this app does not
+ * cross, not an oversight to fix later.
  */
 
-export type BasketId = "hydration" | "morning-after" | "food" | "hot-meal";
+export type BasketId =
+  | "hydration" | "morning-after" | "food" | "hot-meal"
+  | "pizza-night" | "burger-and-fries" | "takeout-bowl" | "weekend-brunch";
+
+export type BasketTier = "standard" | "premium";
 
 export interface BasketItem {
   sku: string;
@@ -29,6 +42,7 @@ export interface Basket {
   id: BasketId;
   name: string;
   blurb: string;
+  tier: BasketTier;
   items: BasketItem[];
 }
 
@@ -37,6 +51,7 @@ export const BASKETS: Basket[] = [
     id: "hydration",
     name: "Hydration run",
     blurb: "Electrolytes and water, sent to your door.",
+    tier: "standard",
     items: [
       { sku: "wg-liquid-iv", name: "Liquid I.V. hydration packs (4)", priceCents: 999, qty: 1 },
       { sku: "wg-gatorade", name: "Gatorade, 32oz", priceCents: 349, qty: 2 },
@@ -47,6 +62,7 @@ export const BASKETS: Basket[] = [
     id: "morning-after",
     name: "Morning after",
     blurb: "Electrolytes, plain carbs, and something for the headache.",
+    tier: "standard",
     items: [
       { sku: "wg-pedialyte", name: "Pedialyte", priceCents: 699, qty: 1 },
       { sku: "wg-ibuprofen", name: "Ibuprofen 200mg", priceCents: 899, qty: 1 },
@@ -58,6 +74,7 @@ export const BASKETS: Basket[] = [
     id: "food",
     name: "Quick bite",
     blurb: "A sandwich and something to go with it, for when a little is enough.",
+    tier: "standard",
     items: [
       { sku: "wg-sandwich", name: "Sandwich", priceCents: 799, qty: 1 },
       { sku: "wg-chips", name: "Chips", priceCents: 249, qty: 1 },
@@ -68,10 +85,55 @@ export const BASKETS: Basket[] = [
     id: "hot-meal",
     name: "Actual meal",
     blurb: "A hot entrée and a side, not just something to snack on.",
+    tier: "standard",
     items: [
       { sku: "wg-burrito-bowl", name: "Burrito bowl", priceCents: 999, qty: 1 },
       { sku: "wg-rotisserie-side", name: "Side salad", priceCents: 449, qty: 1 },
       { sku: "wg-water", name: "Bottled water, 6-pack", priceCents: 349, qty: 1 },
+    ],
+  },
+  {
+    id: "pizza-night",
+    name: "Pizza night",
+    blurb: "A personal pizza and a drink, like ordering from the place down the street.",
+    tier: "premium",
+    items: [
+      { sku: "wg-personal-pizza", name: "Personal pizza", priceCents: 1099, qty: 1 },
+      { sku: "wg-garlic-knots", name: "Garlic knots", priceCents: 399, qty: 1 },
+      { sku: "wg-soda", name: "Soda, 20oz", priceCents: 249, qty: 1 },
+    ],
+  },
+  {
+    id: "burger-and-fries",
+    name: "Burger and fries",
+    blurb: "A real burger and fries, not a snack basket.",
+    tier: "premium",
+    items: [
+      { sku: "wg-burger", name: "Cheeseburger", priceCents: 899, qty: 1 },
+      { sku: "wg-fries", name: "Fries", priceCents: 399, qty: 1 },
+      { sku: "wg-water", name: "Bottled water, 6-pack", priceCents: 349, qty: 1 },
+    ],
+  },
+  {
+    id: "takeout-bowl",
+    name: "Takeout bowl",
+    blurb: "A loaded rice or noodle bowl, the kind you'd order in.",
+    tier: "premium",
+    items: [
+      { sku: "wg-teriyaki-bowl", name: "Teriyaki rice bowl", priceCents: 1199, qty: 1 },
+      { sku: "wg-egg-roll", name: "Egg rolls (2)", priceCents: 399, qty: 1 },
+      { sku: "wg-water", name: "Bottled water, 6-pack", priceCents: 349, qty: 1 },
+    ],
+  },
+  {
+    id: "weekend-brunch",
+    name: "Weekend brunch",
+    blurb: "Breakfast for dinner, or breakfast for the morning after.",
+    tier: "premium",
+    items: [
+      { sku: "wg-breakfast-sandwich", name: "Breakfast sandwich", priceCents: 649, qty: 1 },
+      { sku: "wg-hash-browns", name: "Hash browns", priceCents: 299, qty: 1 },
+      { sku: "wg-orange-juice", name: "Orange juice", priceCents: 349, qty: 1 },
     ],
   },
 ];

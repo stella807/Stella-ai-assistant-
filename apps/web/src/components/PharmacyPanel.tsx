@@ -114,12 +114,21 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
           <div className="chip-grid">
             {baskets.map((b) => (
               <button key={b.id} className={`chip${b.id === basketId ? " chip-on" : ""}`}
-                onClick={() => setBasketId(b.id)} aria-pressed={b.id === basketId}>
-                <strong>{b.name}</strong>
-                <span className="tiny">{money(b.items.reduce((s, i) => s + i.priceCents * i.qty, 0))}</span>
+                disabled={b.locked} aria-disabled={b.locked}
+                onClick={() => { if (!b.locked) setBasketId(b.id); }} aria-pressed={b.id === basketId}>
+                <strong>{b.name}{b.locked && " 🔒"}</strong>
+                <span className="tiny">
+                  {b.locked ? "Family plan" : money(b.items.reduce((s, i) => s + i.priceCents * i.qty, 0))}
+                </span>
               </button>
             ))}
           </div>
+
+          {baskets.some((b) => b.locked) && (
+            <p className="tiny muted">
+              🔒 Pizza night, burgers, takeout bowls and brunch are part of the Family plan's full menu.
+            </p>
+          )}
 
           {chosen && (
             <p className="tiny muted">
@@ -141,11 +150,13 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
               onChange={(e) => setCap(Number(e.target.value))} />
           </div>
 
-          <button className="btn btn-primary btn-block" disabled={busy || total > cap * 100}
+          <button className="btn btn-primary btn-block" disabled={busy || Boolean(chosen?.locked) || total > cap * 100}
             onClick={() => run(async () => onChange(await api.authorizeCarePackage(nightId, {
               basketId, capCents: cap * 100, triggerBand: trigger, deliverTo: homeLabel,
             })))}>
-            {total > cap * 100
+            {chosen?.locked
+              ? "Upgrade to arm this"
+              : total > cap * 100
               ? "Raise the limit to arm this"
               : prepared ? "Arm it" : `Arm it — up to ${money(cap * 100)}`}
           </button>

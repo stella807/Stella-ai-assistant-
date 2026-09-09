@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 399 tests (7 Postgres tests skip without a database)
+pnpm test         # 403 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -68,7 +68,10 @@ real and waiting at checkout — one tap, no typing at 1am. The authorization
 happens *while sober*, with a hard cap, and the API refuses one from someone
 already impaired; payment happens in the customer's own account, so Safehubby
 never charges a card on a drunk person's say-so. Walmart is the tracked
-fallback. See `docs/fulfillment.md`.
+fallback. Every basket is a fixed, curated list — real meals, never a
+free-form cart, and never alcohol; Family unlocks a wider menu (pizza, burgers,
+a takeout bowl, brunch) on top of the base set everyone gets. See
+`docs/fulfillment.md`.
 
 **Your data.** Account → Download my data exports everything held about you,
 location history included. Account → Delete my account is real erasure, not
@@ -139,7 +142,7 @@ without spinning up a server.
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
 | Premium | $14.99 | $152.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
 | Premium Plus | $29.99 | $305.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
-| Family | $49.99 | $509.88 (15% off) | Six seats, extended contacts, and secure transport where it operates |
+| Family | $59.99 | $611.88 (15% off) | Six seats, extended contacts, secure transport, and the full pharmacy-run menu |
 
 Automatic fulfilment means Safehubby books the provider on the rider's behalf,
 backed by a pre-authorization hold on the rider's own card so nothing is ever

@@ -20,6 +20,9 @@ export interface Basket {
   id: string;
   name: string;
   blurb: string;
+  tier: "standard" | "premium";
+  /** True when this basket needs a plan the signed-in account doesn't have. */
+  locked: boolean;
   items: { sku: string; name: string; priceCents: number; qty: number }[];
 }
 

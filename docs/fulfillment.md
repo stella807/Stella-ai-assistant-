@@ -230,6 +230,27 @@ contract costs money every month whether or not a Family subscriber books a
 trip that month. The higher prices below fund that fixed cost across the
 subscriber base, plus an actual profit margin, rather than pricing at cost.
 
+## The extended pharmacy-run menu is a paid perk, not a free-for-all cart
+
+`packages/core/src/care-package.ts` gates part of its basket catalog behind
+the `extended-menu` feature, which only the Family plan has. Premium and
+Premium Plus still get the original four baskets (hydration, morning-after,
+a quick bite, a hot meal); Family additionally gets four more real-meal
+options — pizza, a burger, a takeout bowl, brunch — priced and sourced like
+actual takeout rather than a snack basket. `GET /api/care-package/baskets`
+returns every basket with a `locked` flag computed from the signed-in
+account's plan, and `POST /.../authorize` and `POST /.../send` both re-check
+`extended-menu` server-side (`requireBasketAccess` in `apps/api/src/routes.ts`)
+so the UI's lock icon is a courtesy, not the only guard.
+
+Two things this deliberately does **not** do, no matter how the tier is
+priced: it never becomes a free-text or open cart — every basket is still a
+fixed, curated item list decided ahead of time — and it never includes
+alcohol. Both baskets and the automatic trigger that fires them exist because
+someone is already impaired; delivering more alcohol to that person at that
+moment is the one thing this feature can never be extended to do, regardless
+of what plan someone is willing to pay for.
+
 ## What the pricing assumes
 
 | Plan | Monthly | Annual | Automatic? |
@@ -237,7 +258,7 @@ subscriber base, plus an actual profit margin, rather than pricing at cost.
 | Free | — | — | No |
 | Premium | $14.99 | $152.88 | No |
 | Premium Plus | $29.99 | $305.88 | Rides + delivery |
-| Family | $49.99 | $509.88 | Everything, plus secure transport |
+| Family | $59.99 | $611.88 | Everything, plus secure transport and the full pharmacy-run menu |
 
 Rides and deliveries are **passed through at the provider's price** on top of
 the subscription. Bundling them would mean capping how often someone can get

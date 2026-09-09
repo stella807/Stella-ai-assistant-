@@ -29,7 +29,8 @@ export type Feature =
   | "history-analytics"
   | "group-games"
   | "multi-profile"
-  | "extended-sos-contacts";
+  | "extended-sos-contacts"
+  | "extended-menu";
 
 export interface Plan {
   id: PlanId;
@@ -84,6 +85,14 @@ const PLUS_FEATURES: Feature[] = [
  * profit margin instead of pricing at cost, across the paid tiers is why
  * Premium and Premium Plus went back up too, not just Family.
  *
+ * Family went up again on top of that, for a second reason: the wider
+ * pharmacy-run menu behind `extended-menu` (see care-package.ts) is more real
+ * food, sourced and priced like actual takeout rather than a snack basket,
+ * and it costs Safehubby more per basket to offer. It stays a Family-only
+ * perk rather than something every tier absorbs the cost of, and pricing it
+ * in is what keeps the wider menu a margin-positive feature instead of one
+ * that quietly eats the plan's profit.
+ *
  * Ride and delivery costs are still passed through at the provider's price on
  * top of the subscription. Bundling them would mean either capping how often
  * someone can get home safely, or pricing for the heaviest user and
@@ -120,11 +129,13 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 4999,
-    annualCents: 50988,
+    monthlyCents: 5999,
+    annualCents: 61188,
     seats: 6,
-    features: [...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport"],
-    blurb: "Up to six people, extended emergency contacts, group alerts, and access to secure transport where it operates.",
+    features: [
+      ...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport", "extended-menu",
+    ],
+    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, and the full pharmacy-run menu — real meals from different cuisines, not just a snack basket.",
   },
 ];
 

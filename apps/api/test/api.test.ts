@@ -562,6 +562,48 @@ describe("pharmacy run", () => {
     const mallory = await signup("cp-mal@example.com", "Mallory");
     expect((await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "food" }, mallory.token)).status).toBe(404);
   });
+
+  describe("extended menu (Family-only baskets)", () => {
+    it("marks premium baskets locked for a Premium Plus account, unlocked baskets for everyone", async () => {
+      // Sam is premium-plus by default (see beforeEach), which does not include extended-menu.
+      const { baskets } = (await call("GET", "/api/care-package/baskets", undefined, sam)).json;
+      const pizza = baskets.find((b: any) => b.id === "pizza-night");
+      const hydration = baskets.find((b: any) => b.id === "hydration");
+      expect(pizza.locked).toBe(true);
+      expect(hydration.locked).toBe(false);
+    });
+
+    it("refuses to authorize a premium basket without the Family plan", async () => {
+      const nightId = (await startNight()).json.night.id;
+      const res = await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+        basketId: "pizza-night", capCents: 3000, triggerBand: "high", deliverTo: "Home",
+      }, sam);
+      expect(res.status).toBe(402);
+      expect(res.json.error).toMatch(/Family plan/i);
+    });
+
+    it("refuses to hand-send a premium basket without the Family plan", async () => {
+      const nightId = (await startNight()).json.night.id;
+      const res = await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "burger-and-fries" }, sam);
+      expect(res.status).toBe(402);
+    });
+
+    it("unlocks the full menu once the traveler is on the Family plan", async () => {
+      await call("POST", "/api/subscription", { planId: "family" }, sam);
+      const nightId = (await startNight()).json.night.id;
+
+      const { baskets } = (await call("GET", "/api/care-package/baskets", undefined, sam)).json;
+      expect(baskets.find((b: any) => b.id === "pizza-night").locked).toBe(false);
+
+      const authed = await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
+        basketId: "pizza-night", capCents: 3000, triggerBand: "high", deliverTo: "Home",
+      }, sam);
+      expect(authed.status).toBe(200);
+
+      const sent = await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "takeout-bowl" }, sam);
+      expect(sent.status).toBe(200);
+    });
+  });
 });
 
 describe("subscription", () => {
