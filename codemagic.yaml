@@ -1,0 +1,56 @@
+# iOS CI on Codemagic's free tier — the piece a Linux dev box cannot do:
+# run `npx cap sync ios` and compile the Xcode project against a real Mac.
+# See docs/mobile.md for the full iOS picture, including what is still
+# missing before an actual App Store submission.
+#
+# This workflow proves the app COMPILES, nothing more. It builds for the iOS
+# Simulator, which needs no Apple signing identity, so it works before an
+# Apple Developer Program account exists. A second, signed workflow (real
+# device / TestFlight / App Store) needs certificates and a provisioning
+# profile added here once that account and those credentials exist.
+#
+# Before running this workflow, set VITE_API_URL as an environment variable
+# in the Codemagic UI (Workflow → Environment variables), pointing at the
+# Railway deployment. It gets baked into the JS bundle at `pnpm build` time —
+# see apps/web/src/native/platform.ts — so a build without it compiles fine
+# but throws on launch rather than failing loudly here.
+#
+# Free tier is 500 macOS-minutes/month; this workflow is not on any trigger,
+# so it only runs minutes when you start it from the dashboard.
+
+workflows:
+  ios-simulator-build:
+    name: iOS simulator build (free tier, unsigned)
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: latest
+    scripts:
+      - name: Install pnpm
+        script: npm install -g pnpm@9
+
+      - name: Install workspace dependencies
+        script: pnpm install --frozen-lockfile
+
+      - name: Build the web bundle
+        script: |
+          cd apps/web
+          pnpm build
+
+      - name: Sync the Capacitor iOS project with the fresh build
+        script: |
+          cd apps/web
+          npx cap sync ios
+
+      - name: Compile for the iOS Simulator (no signing required)
+        script: |
+          cd apps/web/ios/App
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build

@@ -42,6 +42,12 @@ limitation is what makes the App Store path mandatory rather than optional.
 
 ## Building it
 
+Both native projects are committed at `apps/web/ios/` and `apps/web/android/` —
+checked in rather than generated on demand, same reasoning as Android's own
+section below: the Xcode project, its Info.plist location strings, and the
+signing config are real source, not something to regenerate and lose on every
+clone.
+
 ```bash
 cd apps/web
 export VITE_API_URL="https://<your-app>.up.railway.app"   # required for native builds
@@ -50,19 +56,41 @@ pnpm cap:ios       # builds, syncs, opens Xcode
 pnpm cap:android   # builds, syncs, opens Android Studio
 ```
 
-First time only, add the platforms:
-
-```bash
-npx cap add ios
-npx cap add android
-```
-
 `VITE_API_URL` is required for a native build and the app throws on boot without
 it — a shell pointing at nothing looks like a server outage and gets diagnosed
 as one for hours.
 
-**You need a Mac for iOS**, or a cloud build (Expo EAS, Codemagic, MacStadium).
-Android builds anywhere.
+**You need a Mac to open Xcode and actually run `pnpm cap:ios`.** Android
+builds anywhere, no Mac required.
+
+### Building iOS without owning a Mac: Codemagic
+
+`codemagic.yaml` at the repo root defines a free-tier workflow,
+`ios-simulator-build`, that compiles the committed Xcode project on
+Codemagic's own Mac runners — 500 free macOS-minutes/month, no card required.
+It builds for the iOS Simulator, which needs no Apple signing identity, so it
+works before an Apple Developer Program account exists. It proves the app
+*compiles*; it is not a TestFlight or App Store build, which need real
+certificates once that account exists.
+
+Steps only doable from your own Codemagic account (this is not something a
+CI config file can do on its own):
+
+1. Sign up at [codemagic.io](https://codemagic.io) and connect this GitHub repo.
+2. Codemagic detects `codemagic.yaml` automatically — no project setup UI needed.
+3. Under the workflow's **Environment variables**, add `VITE_API_URL` pointing
+   at your Railway deployment. It is baked into the JS bundle at build time
+   (`apps/web/src/native/platform.ts`), so this has to be set before the build
+   runs, not after.
+4. Start the `ios-simulator-build` workflow from the dashboard. Nothing here
+   is on an automatic trigger, so it only spends free minutes when you run it.
+
+If the Xcode project ever needs regenerating (a Capacitor major upgrade, a
+corrupted project file), `rm -rf apps/web/ios && npx cap add ios` rebuilds it
+from the same template — but re-add the two `NSLocation*` strings in
+`Info.plist` and the shared scheme under
+`ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` afterward; neither
+survives a fresh `cap add`.
 
 ## Native capabilities in use
 
