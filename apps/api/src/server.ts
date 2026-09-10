@@ -147,10 +147,26 @@ export function createApp(base: Ctx) {
       send(res, 200, await found.handler(ctx, params, body), method === "HEAD");
     } catch (err) {
       if (err instanceof HttpError) return send(res, err.status, { error: err.message });
-      // Domain guards (consent, redemption, unknown drink) throw plain Errors;
-      // surfacing the message is what makes the API self-explanatory.
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      send(res, 400, { error: message });
+
+      /**
+       * Domain guards (consent, redemption, unknown drink) throw plain Errors
+       * and their messages are written to be read by a user, so surfacing them
+       * is what makes the API self-explanatory.
+       *
+       * A TypeError or a RangeError is not that. It is a bug in this server,
+       * and its message names internal properties and call sites. Returning it
+       * as a 400 both leaks those internals and tells the caller they sent
+       * something wrong when they did not — which sends people debugging their
+       * own perfectly good request. Those get a 500 and a generic message, and
+       * the real one goes to the log where it belongs.
+       */
+      const isBug = err instanceof TypeError || err instanceof RangeError
+        || err instanceof ReferenceError || err instanceof SyntaxError;
+      if (isBug || !(err instanceof Error)) {
+        console.error("[safehubby] unhandled error", err);
+        return send(res, 500, { error: "Something went wrong on our end." });
+      }
+      send(res, 400, { error: err.message });
     }
   });
 }

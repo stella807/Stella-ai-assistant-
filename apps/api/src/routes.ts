@@ -16,6 +16,7 @@ import {
   isAutomatic, SECURE_TRANSPORT_DISCLOSURES,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
+  validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold, sweepExpiredHolds,
   devicesFor, registerDevice, upsertDevice,
   submitApplication, reviewApplication, withdrawApplication,
@@ -35,7 +36,7 @@ import { guardianMessages } from "./notify.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
-  validatePassword, verifyPassword,
+  sweepExpiredSessions, validatePassword, verifyPassword,
 } from "./auth.ts";
 import { deleteAccount, exportAccount } from "./account.ts";
 
@@ -75,7 +76,10 @@ export interface Ctx {
   clientKey: string;
   /** Per-instance, not module-global: one server's traffic must not throttle
    *  another's, and tests need isolation between instances. */
-  limiters: { login: RateLimiter; signup: RateLimiter; applications: RateLimiter };
+  limiters: {
+    login: RateLimiter; signup: RateLimiter; applications: RateLimiter;
+    codes: RateLimiter; places: RateLimiter;
+  };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
    *  review has no per-account identity to hang a role off yet. */
@@ -165,6 +169,22 @@ function actor(ctx: Ctx): string {
   return ctx.actorId;
 }
 
+/**
+ * Coordinates off a query string.
+ *
+ * `Number("banana")` is NaN, and NaN sails through `?? default` because it is
+ * not nullish — so without this an unparseable query reached the provider as
+ * a malformed request that still counted against the billed quota.
+ */
+function coordsFrom(p: Record<string, string | undefined>): { lat: number; lng: number } {
+  const lat = Number(p.lat);
+  const lng = Number(p.lng);
+  const valid = Number.isFinite(lat) && Number.isFinite(lng)
+    && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  if (!valid) throw new HttpError(400, "lat and lng must be real coordinates.");
+  return { lat, lng };
+}
+
 /** Six characters from an unambiguous alphabet — no O/0, I/1 — read aloud in a bar. */
 function newInviteCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -180,6 +200,22 @@ export function makeLimiters() {
     // Public and unauthenticated — a driver application needs no account —
     // so it gets its own budget rather than borrowing signup's.
     applications: new RateLimiter(10, 60 * 60_000),
+    /**
+     * Redeeming a code — a share invite or a crew join.
+     *
+     * A six-character code is the only thing between a stranger and a named
+     * person's live location. The alphabet is 32 characters, so guessing one
+     * is a long job at human speed and a short one at machine speed. Legitimate
+     * use is one or two attempts, someone reading it off a phone across a
+     * table, so the budget is deliberately tight.
+     */
+    codes: new RateLimiter(10, 15 * 60_000),
+    /**
+     * Location lookups. Places and Yelp bill per search, so an open endpoint
+     * is somebody else's invoice. Generous enough for a night of moving
+     * between bars, tight enough that it cannot be farmed.
+     */
+    places: new RateLimiter(60, 60 * 60_000),
   };
 }
 
@@ -368,6 +404,7 @@ export const routes: Record<string, Handler> = {
     const now = ctx.now();
     ctx.store.update((db) => {
       db.travelers.push(traveler);
+      db.sessions = sweepExpiredSessions(db.sessions, ctx.now());
       db.sessions.push({
         token, userId: traveler.id, createdAt: now.toISOString(),
         expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString(),
@@ -391,6 +428,7 @@ export const routes: Record<string, Handler> = {
     const token = newSessionToken();
     const now = ctx.now();
     ctx.store.update((db) => {
+      db.sessions = sweepExpiredSessions(db.sessions, ctx.now());
       db.sessions.push({
         token, userId: traveler.id, createdAt: now.toISOString(),
         expiresAt: new Date(now.getTime() + SESSION_TTL_MS).toISOString(),
@@ -504,7 +542,11 @@ export const routes: Record<string, Handler> = {
   "POST /api/nights": (ctx, _p, body) => {
     const travelerId = actor(ctx);
     const { weightKg, widmarkRatio, drinkLimit, homeAddressLabel } = body ?? {};
-    if (!(weightKg > 0)) throw new HttpError(400, "weightKg must be a positive number");
+    // Validated here rather than trusted: estimateBac guards by throwing, and
+    // it runs on every read, so a night stored with a bad profile is a night
+    // that 500s forever with no way to fix it through the API.
+    const profile = validateBody({ weightKg, widmarkRatio });
+    const limit = validateDrinkLimit(drinkLimit);
 
     const now = ctx.now();
     const night: NightOut = {
@@ -512,9 +554,9 @@ export const routes: Record<string, Handler> = {
       travelerId,
       startedAt: now.toISOString(),
       status: "active",
-      body: { weightKg, widmarkRatio: widmarkRatio ?? 0.68 },
+      body: profile,
       drinks: [], checkIns: [], pings: [],
-      drinkLimit: drinkLimit ?? 4,
+      drinkLimit: limit,
       homeAddressLabel,
     };
     night.checkIns.push(scheduleCheckIn(night, now, newId("chk")));
@@ -653,6 +695,9 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/grants/claim": (ctx, _p, body) => {
     const guardianId = actor(ctx);
+    if (ctx.limiters.codes.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many code attempts. Wait a few minutes and try again.");
+    }
     const code = String(body?.inviteCode ?? "").trim().toUpperCase();
     const grant = ctx.store.data.grants.find((g) => g.inviteCode === code);
     // Same error whether the code is wrong or already spent, so the endpoint
@@ -734,6 +779,9 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/crews/join": (ctx, _p, body) => {
     const me = actor(ctx);
+    if (ctx.limiters.codes.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many code attempts. Wait a few minutes and try again.");
+    }
     const traveler = ctx.store.data.travelers.find((t) => t.id === me);
     if (!traveler) throw notFound("Traveler");
     const code = String(body?.joinCode ?? "").trim().toUpperCase();
@@ -884,10 +932,18 @@ export const routes: Record<string, Handler> = {
     };
   },
 
+  /**
+   * Nearby venues. Signed-in and rate limited, because with a Places or Yelp
+   * key configured every call is billed to the operator — an open endpoint is
+   * somebody else's invoice, and the only caller is the signed-in traveler
+   * screen anyway.
+   */
   "GET /api/venues": async (ctx, _p, _b) => {
-    const lat = Number(_p.lat ?? 40.714);
-    const lng = Number(_p.lng ?? -74.003);
-    return venuePort.nearby({ lat, lng });
+    actor(ctx);
+    if (ctx.limiters.places.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many location lookups. Try again shortly.");
+    }
+    return venuePort.nearby(coordsFrom(_p));
   },
 
   /**
@@ -1079,8 +1135,13 @@ export const routes: Record<string, Handler> = {
   "GET /api/supplies": async (ctx, p) => mockDelivery.catalog({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),
 
   /** Real, nearby, named stores — Google Maps when configured — to prefer for the basket below. */
-  "GET /api/supplies/stores": async (ctx, p) =>
-    storeLocator.nearby({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),
+  "GET /api/supplies/stores": async (ctx, p) => {
+    actor(ctx);
+    if (ctx.limiters.places.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many location lookups. Try again shortly.");
+    }
+    return storeLocator.nearby(coordsFrom(p));
+  },
 
   /**
    * Builds the basket for real.

@@ -368,9 +368,24 @@ describe("plan gating", () => {
 
 describe("extras", () => {
   it("lists nearby venues with their menus", async () => {
-    const venues = (await call("GET", "/api/venues?lat=40.714&lng=-74.003")).json;
+    const venues = (await call("GET", "/api/venues?lat=40.714&lng=-74.003", undefined, sam)).json;
     expect(venues[0].menuDrinkIds.length).toBeGreaterThan(0);
     expect(venues[0].foodMenu.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the billed location lookups behind a session", async () => {
+    // Places and Yelp charge per search, so an open endpoint is the operator's
+    // invoice, payable by anyone who finds the URL.
+    expect((await call("GET", "/api/venues?lat=40.714&lng=-74.003")).status).toBe(401);
+    expect((await call("GET", "/api/supplies/stores?lat=40.714&lng=-74.003")).status).toBe(401);
+  });
+
+  it("refuses coordinates that are not coordinates", async () => {
+    // Number("banana") is NaN, and NaN is not nullish, so `?? default` never
+    // caught this — it went to the provider as a malformed billed request.
+    expect((await call("GET", "/api/venues?lat=banana&lng=-74.003", undefined, sam)).status).toBe(400);
+    expect((await call("GET", "/api/venues?lat=999&lng=-74.003", undefined, sam)).status).toBe(400);
+    expect((await call("GET", "/api/venues", undefined, sam)).status).toBe(400);
   });
 
   it("offers supplies and flags the poorly lit route", async () => {
@@ -1410,5 +1425,43 @@ describe("push to the guardian", () => {
     const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
     expect(res.push.id).toBe("push");
     expect(res.push.requires).toMatch(/PUSH_API_URL/);
+  });
+});
+
+describe("codes cannot be brute forced", () => {
+  it("rate limits invite-code attempts", async () => {
+    // A six-character code is the only thing between a stranger and a named
+    // person's live location. Unlimited guesses made that a matter of time.
+    const results: number[] = [];
+    for (let i = 0; i < 14; i++) {
+      results.push((await call("POST", "/api/grants/claim", { inviteCode: `ZZZ-${i}00` }, jordan)).status);
+    }
+    expect(results).toContain(429);
+  });
+
+  it("rate limits crew join attempts on the same budget", async () => {
+    const results: number[] = [];
+    for (let i = 0; i < 14; i++) {
+      results.push((await call("POST", "/api/crews/join", { joinCode: `YYY-${i}00` }, jordan)).status);
+    }
+    expect(results).toContain(429);
+  });
+});
+
+describe("night creation refuses input that would break the estimate", () => {
+  it("rejects a body-water ratio that would brick every later read", async () => {
+    const res = await call("POST", "/api/nights", { weightKg: 82, widmarkRatio: -1, drinkLimit: 4 }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/ratio/i);
+  });
+
+  it("rejects a weight that makes the estimate meaningless", async () => {
+    expect((await call("POST", "/api/nights", { weightKg: 0.1 }, sam)).status).toBe(400);
+    expect((await call("POST", "/api/nights", { weightKg: 5000 }, sam)).status).toBe(400);
+    expect((await call("POST", "/api/nights", { weightKg: "banana" }, sam)).status).toBe(400);
+  });
+
+  it("rejects a drink limit that would alert on every single drink", async () => {
+    expect((await call("POST", "/api/nights", { weightKg: 82, drinkLimit: 0 }, sam)).status).toBe(400);
   });
 });

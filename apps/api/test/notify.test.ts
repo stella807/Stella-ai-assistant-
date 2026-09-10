@@ -89,3 +89,19 @@ describe("who actually gets buzzed", () => {
     expect(guardianMessages(db(), [alert({ nightId: "gone" })], NOW)).toEqual([]);
   });
 });
+
+describe("expired sessions", () => {
+  it("are swept, so logging in does not grow the store forever", async () => {
+    const { sweepExpiredSessions } = await import("../src/auth.ts");
+    const now = new Date("2026-01-02T00:00:00Z");
+    const kept = sweepExpiredSessions(
+      [
+        { token: "live", expiresAt: "2026-01-03T00:00:00Z" },
+        { token: "dead", expiresAt: "2026-01-01T00:00:00Z" },
+        { token: "just-expired", expiresAt: "2026-01-02T00:00:00Z" },
+      ],
+      now,
+    );
+    expect(kept.map((s) => s.token)).toEqual(["live"]);
+  });
+});

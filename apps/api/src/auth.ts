@@ -113,3 +113,18 @@ export class RateLimiter {
     this.#hits.delete(key);
   }
 }
+
+/**
+ * Drops sessions whose expiry has passed.
+ *
+ * `resolveActor` already treats an expired session as absent, so this is not
+ * an authorization fix — it is a storage one. Nothing removed them, so every
+ * login added a row that lived forever, in a store that rewrites the entire
+ * document on every update. Left alone that is unbounded growth plus a pile of
+ * stale credentials kept long after they stopped meaning anything, which is
+ * precisely the sort of thing a retention policy exists to prevent.
+ */
+export function sweepExpiredSessions<T extends { expiresAt: string }>(sessions: T[], now: Date): T[] {
+  const cutoff = now.getTime();
+  return sessions.filter((s) => new Date(s.expiresAt).getTime() > cutoff);
+}

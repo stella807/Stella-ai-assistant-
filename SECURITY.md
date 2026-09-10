@@ -7,11 +7,6 @@ requires.
 
 ## Not yet built — blocking for production
 
-**Retention.** Nothing is deleted. Location traces should have a short, stated
-retention window (days, not forever), with drink history retained only if the
-user opts into the history feature and deletable on demand. This is now the
-largest outstanding gap.
-
 **Key rotation.** `SAFEHUBBY_ENCRYPTION_KEY` cannot be rotated without
 re-encrypting every stored trace. The ciphertext envelope is versioned (`v1.`)
 so a rotation path can be added, but it does not exist yet.
@@ -20,8 +15,8 @@ so a rotation path can be added, but it does not exist yet.
 which is safe only at a single replica — see `docs/deploy.md`. Concurrent
 writes are detected and logged, not merged.
 
-**Rate limiting beyond auth.** Sign-up and sign-in are limited per client ip;
-nothing else is. The limiter is in-process, so a multi-instance deployment needs
+**Rate limiting beyond auth.** Sign-up, sign-in, driver applications, code
+redemption and location lookups are limited per client ip; nothing else is. The limiter is in-process, so a multi-instance deployment needs
 a shared store (Redis or the platform's own limiter) or an attacker just spreads
 attempts across instances. Behind a proxy, `X-Forwarded-For` is trusted as the
 client ip — that is only safe when the proxy is the sole ingress and strips
@@ -30,6 +25,24 @@ client-supplied values.
 **Password reset.** There is no reset flow, so a forgotten password means a lost
 account. Adding one introduces the usual email-ownership attack surface and
 should be designed, not improvised.
+
+## Retention — built
+
+Location pings expire after **7 days** (`LOCATION_RETENTION_DAYS`). The sweep
+runs on boot and hourly, so a redeploy catches up whatever accrued while the
+process was down; a trace is stale by the morning after, so the exact hour it
+goes never matters.
+
+The trace expires and the night does not. The drink log, the check-ins and
+whether someone got home are the record a user might want to look back on; the
+breadcrumb trail is operational data with a short useful life. Encryption at
+rest answers "someone stole the disk" — it does not answer "why is a year of
+your movements still here at all", and the only real answer to that is to not
+have them.
+
+Still outstanding: drink history has no expiry and is kept until the account is
+deleted. It is far less identifying than a trace, but it should become an
+opt-in with its own window.
 
 ## Encryption at rest — built
 
