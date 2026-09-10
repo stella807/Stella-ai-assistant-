@@ -19,6 +19,7 @@
     "@capacitor/geolocation": "^8.2.2",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/push-notifications": "^8.1.2",
     "@safehubby/core": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

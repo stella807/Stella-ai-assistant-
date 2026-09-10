@@ -236,6 +236,12 @@ export const api = {
       error?: string;
       handoff?: { provider: string; url: string; tracked: boolean; description: string };
     }>("POST", "/api/supplies/order", { items, to, store }),
+  pushStatus: () =>
+    request<{ devices: number; delivery: { id: string; name: string; mode: string; requires: string } }>(
+      "GET", "/api/push/status"),
+  registerPushDevice: (token: string, platform: string) =>
+    request<{ registered: boolean; delivery: { mode: string } }>("POST", "/api/push/devices", { token, platform }),
+
   redeem: (rewardId: string) => request<any>("POST", "/api/points/redeem", { rewardId }),
 
   crews: () => request<any[]>("GET", "/api/crews"),

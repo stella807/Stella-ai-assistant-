@@ -1354,3 +1354,61 @@ describe("driver applications", () => {
     });
   });
 });
+
+describe("push to the guardian", () => {
+  const register = (token: string, who: string) =>
+    call("POST", "/api/push/devices", { token, platform: "ios" }, who);
+
+  /** Sam is out; Jordan is watching with a claimed grant of the given scopes. */
+  const watched = async (scopes: string[]) => {
+    const nightId = (await startNight()).json.night.id;
+    const grant = (await call("POST", "/api/grants", { scopes }, sam)).json;
+    await call("POST", "/api/grants/claim", { inviteCode: grant.inviteCode }, jordan);
+    await register("jordan-device-token", jordan);
+    return { nightId, grantId: grant.id };
+  };
+
+  it("registers a device and reports whether delivery is configured", async () => {
+    const res = await register("jordan-device-token", jordan);
+    expect(res.status).toBe(200);
+    expect(res.json.registered).toBe(true);
+    // No provider configured in tests, and the API says so rather than implying delivery.
+    expect(res.json.delivery.mode).not.toBe("automatic");
+
+    const status = (await call("GET", "/api/push/status", undefined, jordan)).json;
+    expect(status.devices).toBe(1);
+  });
+
+  it("rejects a token that is not one, and requires a session", async () => {
+    expect((await call("POST", "/api/push/devices", { token: "x", platform: "ios" }, jordan)).status).toBe(400);
+    expect((await call("POST", "/api/push/devices", { token: "a-real-looking-token", platform: "ios" })).status).toBe(401);
+  });
+
+  it("does not multiply devices when the client re-registers on every launch", async () => {
+    await register("jordan-device-token", jordan);
+    await register("jordan-device-token", jordan);
+    expect((await call("GET", "/api/push/status", undefined, jordan)).json.devices).toBe(1);
+  });
+
+  it("unregisters, and cannot unregister someone else's device", async () => {
+    await register("jordan-device-token", jordan);
+    await call("POST", "/api/push/devices/remove", { token: "jordan-device-token" }, sam);
+    expect((await call("GET", "/api/push/status", undefined, jordan)).json.devices).toBe(1);
+
+    await call("POST", "/api/push/devices/remove", { token: "jordan-device-token" }, jordan);
+    expect((await call("GET", "/api/push/status", undefined, jordan)).json.devices).toBe(0);
+  });
+
+  it("raising an SOS does not fail when no push provider is configured", async () => {
+    const { nightId } = await watched(["location"]);
+    const res = await call("POST", `/api/nights/${nightId}/sos`, {}, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.alert.kind).toBe("sos");
+  });
+
+  it("reports push alongside the other fulfilment providers", async () => {
+    const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+    expect(res.push.id).toBe("push");
+    expect(res.push.requires).toMatch(/PUSH_API_URL/);
+  });
+});

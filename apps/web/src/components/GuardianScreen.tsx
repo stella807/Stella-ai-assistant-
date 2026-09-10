@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type WatchView } from "../api.ts";
+import { PushArmPanel } from "./PushArmPanel.tsx";
 
 /**
  * The watching side. It shows only what the current grant allows, and says so
@@ -74,6 +75,8 @@ export function GuardianScreen() {
           thing shared, not where they are now.
         </div>
       )}
+
+      <PushArmPanel />
 
       {urgent.map((a) => <div key={a.id} className="alert alert-urgent"><p className="small">{a.message}</p></div>)}
       {warnings.slice(-3).map((a) => <div key={a.id} className="alert alert-warn"><p className="small">{a.message}</p></div>)}

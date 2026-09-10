@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   Alert, CarePackageAuth, CarePackageOrder, Crew, DriverApplication, GameRound, NightOut,
-  PaymentMethodOnFile, PendingOrder, PreAuthorization, ShareGrant,
+  PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant,
 } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
 
@@ -46,11 +46,12 @@ export interface Db {
   paymentMethods: Record<string, PaymentMethodOnFile>;
   holds: PreAuthorization[];
   driverApplications: DriverApplication[];
+  pushDevices: PushDevice[];
 }
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], driverApplications: [],
+  paymentMethods: {}, holds: [], driverApplications: [], pushDevices: [],
 };
 
 /** What routes need from a store, so the file and Postgres backings are

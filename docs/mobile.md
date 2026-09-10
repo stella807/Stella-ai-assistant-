@@ -180,9 +180,11 @@ worse, a truthfulness problem.
 - **Background location** is wired through `watchLocation`, but iOS needs
   `UIBackgroundModes: location` in the plist and Apple scrutinises it. Enable it
   only when you can demonstrate the use case on video.
-- **Push notifications** for the guardian side. Local notifications cover the
-  traveler's own check-ins; alerting a *watcher* whose app is closed needs APNs
-  and a push service.
+- **Push notifications** for the guardian side are built — the decision logic,
+  the fan-out, device registration and the sender all exist, and the server
+  states whether delivery is configured rather than failing silently (see
+  `docs/push.md`). What is still outstanding is the accounts: real tokens need
+  APNs, so this has not been run against a live device.
 - **Retention policy.** Still the largest gap — see `SECURITY.md`.
 
 

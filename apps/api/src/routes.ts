@@ -17,10 +17,11 @@ import {
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold, sweepExpiredHolds,
+  devicesFor, registerDevice, upsertDevice,
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
 import type {
-  ApplicationStatus, Basket, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
+  Alert, ApplicationStatus, Basket, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
   OrderProvider, PlanId, PreAuthorization, RedFlagId, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
@@ -29,6 +30,8 @@ import {
   deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates, uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
+import { push } from "./adapters/push.ts";
+import { guardianMessages } from "./notify.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
@@ -227,14 +230,37 @@ function ownNight(ctx: Ctx, nightId: string): NightOut {
   return night;
 }
 
+/**
+ * Tells whoever is watching, on the phone in their pocket.
+ *
+ * Entitlement is re-read from the live grants at send time rather than from
+ * anything cached: a revoked grant, an expired one, or a night that has ended
+ * must stop the buzzing immediately. A notification channel that outlives the
+ * consent that created it is exactly the covert-tracking failure this app
+ * refuses everywhere else.
+ *
+ * Fire-and-forget. A push provider having a bad minute must not fail the
+ * request that raised the alert — the alert is already stored, and the
+ * guardian's own screen will show it either way.
+ */
+function notifyGuardians(ctx: Ctx, alerts: Alert[]): void {
+  if (alerts.length === 0) return;
+  void push.send(guardianMessages(ctx.store.data, alerts, ctx.now())).catch(() => {});
+}
+
 /** Recomputes derived state (missed check-ins, new alerts) before any read. */
 function refresh(ctx: Ctx, night: NightOut): NightOut {
   const now = ctx.now();
+  // Only the alerts raised by *this* pass are pushed. deriveAlerts already
+  // dedupes by id against what is stored, so a standing condition notifies
+  // once rather than on every poll.
+  const fresh: Alert[] = [];
   ctx.store.update((db) => {
     const target = db.nights.find((n) => n.id === night.id)!;
     target.checkIns = sweepMissedCheckIns(target.checkIns, now);
     const raised = new Set(db.alerts.filter((a) => a.nightId === target.id).map((a) => a.id));
-    db.alerts.push(...deriveAlerts({ night: target, now, alreadyRaised: raised }));
+    fresh.push(...deriveAlerts({ night: target, now, alreadyRaised: raised }));
+    db.alerts.push(...fresh);
 
     // A pre-authorized pharmacy run goes out here, once, when the estimate
     // crosses the band the traveler set while sober.
@@ -246,6 +272,7 @@ function refresh(ctx: Ctx, night: NightOut): NightOut {
       }
     }
   });
+  notifyGuardians(ctx, fresh);
   return getNight(ctx, night.id);
 }
 
@@ -595,6 +622,7 @@ export const routes: Record<string, Handler> = {
     const night = ownNight(ctx, req(p, "nightId"));
     const alert = sosAlert(night, ctx.now(), Boolean(body?.silent));
     ctx.store.update((db) => void db.alerts.push(alert));
+    notifyGuardians(ctx, [alert]);
     return { alert, lastPing: night.pings.at(-1) ?? null };
   },
 
@@ -920,7 +948,10 @@ export const routes: Record<string, Handler> = {
   "GET /api/fulfillment/status": (ctx) => {
     actor(ctx);
     const { rides, delivery, walmart, secureTransport: secure } = fulfillmentStatus();
-    return { rides, delivery, walmart, secureTransport: secure, disclosures: SECURE_TRANSPORT_DISCLOSURES };
+    return {
+      rides, delivery, walmart, secureTransport: secure, push: push.status,
+      disclosures: SECURE_TRANSPORT_DISCLOSURES,
+    };
   },
 
   /**
@@ -1014,6 +1045,35 @@ export const routes: Record<string, Handler> = {
       );
     });
     return booking;
+  },
+
+  /* ---------------- push ---------------- */
+
+  "POST /api/push/devices": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const device = registerDevice({
+      token: String(body?.token ?? ""),
+      platform: String(body?.platform ?? ""),
+      userId: me,
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => { db.pushDevices = upsertDevice(db.pushDevices, device); });
+    return { registered: true, platform: device.platform, delivery: push.status };
+  },
+
+  "POST /api/push/devices/remove": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const token = String(body?.token ?? "");
+    ctx.store.update((db) => {
+      db.pushDevices = db.pushDevices.filter((d) => !(d.token === token && d.userId === me));
+    });
+    return { removed: true };
+  },
+
+  /** Whether this account would actually be reached, and whether push is configured at all. */
+  "GET /api/push/status": (ctx) => {
+    const me = actor(ctx);
+    return { devices: devicesFor(ctx.store.data.pushDevices, me).length, delivery: push.status };
   },
 
   "GET /api/supplies": async (ctx, p) => mockDelivery.catalog({ lat: Number(p.lat ?? 40.714), lng: Number(p.lng ?? -74.003) }),

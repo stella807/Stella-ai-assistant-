@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 433 tests (7 Postgres tests skip without a database)
+pnpm test         # 466 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -87,6 +87,15 @@ preference on the order — Google Maps can show you a real Walgreens three
 blocks away, but it has no idea what Instacart's internal id for that
 Walgreens is, so the choice is passed along as a note the shopper sees, not a
 guaranteed reroute. See `docs/fulfillment.md`.
+
+**Alerts on the watcher's phone.** A guardian sitting up with the app closed
+is the normal case, so alerts push to their phone: a missed check-in, a fast
+pace, an SOS. Entitlement is re-read from the live grant every time, so
+revoking sharing stops the buzzing immediately rather than whenever some
+subscription list catches up, and nothing on a lock screen ever carries a
+position — the buzz says go look, the map stays behind the lock. Needs a push
+sender configured; without one the app says plainly that nothing will reach
+you instead of implying it will. See `docs/push.md`.
 
 **Your data.** Account → Download my data exports everything held about you,
 location history included. Account → Delete my account is real erasure, not

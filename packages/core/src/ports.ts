@@ -1,4 +1,6 @@
 import type { LocationPing } from "./types.ts";
+import type { PushMessage } from "./push.ts";
+import type { ProviderStatus } from "./fulfillment.ts";
 
 /**
  * Outbound ports. Core defines the shape; apps/api supplies adapters (mock in
@@ -80,8 +82,16 @@ export interface StorePort {
   nearby(at: { lat: number; lng: number }): Promise<NearbyStore[]>;
 }
 
-export interface NotificationPort {
-  push(to: string, title: string, body: string): Promise<void>;
+/**
+ * Sending the push. What to send and to whom is decided in push.ts; this only
+ * carries it. `status` mirrors the fulfilment adapters: the app states whether
+ * push is actually configured rather than failing silently, because a guardian
+ * who believes they will be woken and will not be is worse off than one who
+ * knows the app cannot reach them.
+ */
+export interface PushPort {
+  readonly status: ProviderStatus;
+  send(messages: PushMessage[]): Promise<{ sent: number; failed: number }>;
 }
 
 export interface RouteSuggestion {

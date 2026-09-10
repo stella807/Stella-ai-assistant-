@@ -70,6 +70,9 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/supplies/order` | `supply-delivery` |
 | `POST` | `/api/routes` | `safe-routes` |
 | `POST` | `/api/points/redeem` | — |
+| `POST` | `/api/push/devices` | — (session) |
+| `POST` | `/api/push/devices/remove` | — (session) |
+| `GET` | `/api/push/status` | — (session) |
 | `POST` | `/api/games/worried-text` | `group-games` |
 | `POST` | `/api/games/worried-text/:roundId/report` | — |
 | `GET` | `/api/games/leaderboard` | — |
