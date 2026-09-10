@@ -113,6 +113,34 @@ presents itself as the venue's real one is how someone logs the wrong drink all
 night. Yelp's terms restrict caching, so nothing venue-derived is written to
 our store.
 
+### Testing it against real bars near you
+
+Without a key the app serves six seeded venues and says so. To search real
+places, get a **Google Places API key** (Google Cloud Console → enable
+*Places API (New)* → create an API key; it needs billing enabled, and Google's
+free monthly credit covers ordinary testing):
+
+```bash
+GOOGLE_PLACES_API_KEY=your-key pnpm dev
+curl localhost:8787/api/health      # {"ok":true,"venueSource":"google-places"}
+```
+
+`venueSource` is the check worth doing first: `mock` means the key never
+reached the process, and every other symptom follows from that.
+
+Then open the app, start a night, and **allow location when the browser
+asks** — the venue search runs from the device's own fix, so refusing it
+falls back to fixed coordinates and the logger says plainly that the list is
+a stand-in rather than passing it off as your surroundings.
+
+Two things to know when testing on a laptop. Browsers only hand out
+geolocation on `localhost` or HTTPS, so a phone pointed at your machine's LAN
+address gets nothing until you serve over TLS or tunnel it. And laptop
+location comes from wifi triangulation, which can be off by a block or more —
+a phone with GPS is the honest test. The list re-searches when you move
+`VENUE_RESEARCH_METERS` (200m) from the last search, so walking to the next
+bar refreshes the menu while a phone sitting on a table does not.
+
 ## Swapping in real providers
 
 `packages/core/src/ports.ts` defines `RidePort`, `DeliveryPort`, `VenuePort`,

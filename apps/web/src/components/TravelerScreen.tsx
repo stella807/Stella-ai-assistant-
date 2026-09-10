@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DrinkDefinition, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
+import { hasMovedVenue } from "@safehubby/core";
 import { api, type Account, type NightSummary } from "../api.ts";
 import { BacCard } from "./BacCard.tsx";
 import { CheckInPrompt } from "./CheckInPrompt.tsx";
@@ -12,6 +13,9 @@ import { PharmacyPanel } from "./PharmacyPanel.tsx";
 import { EmergencyPanel } from "./EmergencyPanel.tsx";
 import { currentFix, requestPermission, watchLocation, type StopWatching } from "../native/location.ts";
 import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } from "../native/notify.ts";
+
+/** Only used when the device refuses a fix, and the UI says so when it is. */
+const FALLBACK_POINT = { lat: 40.714, lng: -74.003 };
 
 export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[]; account: Account }) {
   const TRAVELER_ID = account.id;
@@ -28,6 +32,8 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   const [error, setError] = useState<string | null>(null);
   const [sos, setSos] = useState<string | null>(null);
   const [locationState, setLocationState] = useState<"unknown" | "granted" | "denied" | "unavailable">("unknown");
+  const [venueOrigin, setVenueOrigin] = useState<"pending" | "device" | "fallback">("pending");
+  const lastSearchedAt = useRef<{ lat: number; lng: number } | null>(null);
 
   const refreshTraveler = useCallback(async () => {
     const t = await api.traveler(TRAVELER_ID);
@@ -42,8 +48,27 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
     finally { setBusy(false); }
   }, []);
 
+  /**
+   * Venues come from where the phone actually is. Searching a hardcoded
+   * downtown while someone stands in a bar three states away is worse than
+   * showing nothing: it looks like it worked.
+   *
+   * The fallback coordinates are only reached when the device will not give a
+   * fix, and `venueOrigin` records which of the two happened so the UI can say.
+   */
+  const searchVenuesAt = useCallback(async (at: { lat: number; lng: number } | null) => {
+    const point = at ?? FALLBACK_POINT;
+    setVenueOrigin(at ? "device" : "fallback");
+    lastSearchedAt.current = point;
+    try {
+      setVenues(await api.venues(point.lat, point.lng));
+    } catch {
+      setVenues([]);
+    }
+  }, []);
+
   useEffect(() => {
-    api.venues(40.714, -74.003).then(setVenues).catch(() => setVenues([]));
+    void currentFix().then((fix) => searchVenuesAt(fix));
     refreshTraveler().catch(() => {});
     // Pick up a night already in progress, so a reload does not offer to start
     // a second one on top of it.
@@ -73,12 +98,15 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
 
       stop = await watchLocation((fix) => {
         api.ping(nightId, fix.lat, fix.lng).catch(() => {});
+        // A bar crawl moves; the menu should follow. Gated on distance so a
+        // phone resting on a table does not spend the Places request budget.
+        if (hasMovedVenue(lastSearchedAt.current, fix)) void searchVenuesAt(fix);
       });
       if (cancelled) stop();
     })();
 
     return () => { cancelled = true; stop?.(); };
-  }, [summary?.night.id, summary?.night.status]);
+  }, [summary?.night.id, summary?.night.status, searchVenuesAt]);
 
   /** A reminder that fires with no signal, which is where a miss matters most. */
   useEffect(() => {
@@ -172,6 +200,8 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
 
       {!ended && (
         <DrinkLogger drinks={drinks} venues={venues} busy={busy}
+          venueOrigin={venueOrigin}
+          onFindNearby={() => void currentFix().then((fix) => searchVenuesAt(fix))}
           onLog={(drinkId, venueName) => run(async () => {
             setSummary(await api.logDrink(night.id, drinkId, venueName));
             await refreshTraveler();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DrinkDefinition, Venue } from "@safehubby/core";
 
 interface Props {
@@ -6,6 +6,9 @@ interface Props {
   venues: Venue[];
   onLog: (drinkId: string, venueName?: string, servings?: number) => void;
   busy: boolean;
+  /** Whether the venue list came from the device's own fix or the fallback. */
+  venueOrigin: "pending" | "device" | "fallback";
+  onFindNearby: () => void;
 }
 
 /**
@@ -13,9 +16,20 @@ interface Props {
  * comes first and the full catalog is a fallback. Water sits in its own row
  * because logging it earns points and we want it to be the easiest tap.
  */
-export function DrinkLogger({ drinks, venues, onLog, busy }: Props) {
+export function DrinkLogger({ drinks, venues, onLog, busy, venueOrigin, onFindNearby }: Props) {
   const [venueId, setVenueId] = useState<string>(venues[0]?.id ?? "");
   const [showAll, setShowAll] = useState(false);
+
+  /**
+   * The list is re-fetched when someone changes bar, and the previous
+   * selection will not be in the new one. Without this the menu silently falls
+   * back to the whole catalogue at the exact moment they walked somewhere new
+   * — the one moment the venue menu was worth having.
+   */
+  useEffect(() => {
+    if (venues.length === 0) return;
+    if (!venues.some((v) => v.id === venueId)) setVenueId(venues[0]!.id);
+  }, [venues, venueId]);
 
   const venue = venues.find((v) => v.id === venueId);
   const byId = new Map(drinks.map((d) => [d.id, d]));
@@ -32,6 +46,26 @@ export function DrinkLogger({ drinks, venues, onLog, busy }: Props) {
           {showAll ? "Show menu" : "Show all"}
         </button>
       </div>
+
+      {/* Whether these are really the bars around you is not a detail: a list
+          from the fallback coordinates looks identical to a real one, and
+          someone would log a whole night against the wrong place. */}
+      {venueOrigin === "fallback" && (
+        <div className="banner">
+          These aren&apos;t places near you — your device didn&apos;t share a location, so this is a
+          stand-in list.{" "}
+          <button className="btn btn-sm btn-ghost" style={{ marginTop: 8 }} onClick={onFindNearby}>
+            Find bars near me
+          </button>
+        </div>
+      )}
+
+      {venues.length === 0 && venueOrigin === "device" && (
+        <div className="banner">
+          Nothing found within a few blocks. Pick from the full list below — the log still counts,
+          it just won&apos;t be tied to a venue.
+        </div>
+      )}
 
       {venues.length > 0 && (
         <div className="field">
