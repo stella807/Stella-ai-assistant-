@@ -45,6 +45,17 @@ describe("menu inference from location signals", () => {
     expect(menuForVenue({ types: ["hardware_store"] }).reason).toMatch(/not known/i);
   });
 
+  it("does not read a bar as a brewery for merely ending in -ale", () => {
+    // The Nightingale is a cocktail bar. Matching "ale" without a leading word
+    // boundary classified it, Chorale and wholesale as breweries, which would
+    // lead a cocktail-bar menu with 5% beer instead of a 32% old fashioned.
+    for (const name of ["The Nightingale", "Chorale Lounge", "Bar Sale"]) {
+      expect(menuForVenue({ name, types: ["bar"] }).reason, name).not.toMatch(/brewery/i);
+    }
+    // A place that really is one still matches.
+    expect(menuForVenue({ name: "Old Ale House", types: ["bar"] }).reason).toMatch(/brewery/i);
+  });
+
   it("leads an expensive room with measured pours, a cheap one with well drinks", () => {
     const pricey = menuForVenue({ types: ["cocktail_bar"], priceLevel: 4 });
     expect(pricey.drinkIds[0]).toBe("cocktail-old-fashioned");

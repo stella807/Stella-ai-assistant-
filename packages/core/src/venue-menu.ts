@@ -50,7 +50,7 @@ interface Archetype {
 const ARCHETYPES: Archetype[] = [
   {
     id: "whisky",
-    match: /whisk|bourbon|scotch|rye\b|distiller/i,
+    match: /whisk|bourbon|scotch|\brye\b|distiller/i,
     reason: "Whiskey bar — spirits first",
     drinkIds: ["shot-whiskey", "spirit-neat", "cocktail-old-fashioned", "beer-regular"],
   },
@@ -62,7 +62,10 @@ const ARCHETYPES: Archetype[] = [
   },
   {
     id: "brewery",
-    match: /brew|taproom|tap_room|beer|ale\b|pilsner|bierg/i,
+    // \bale\b, not ale\b: without the leading boundary this matches the tail of
+    // Nightingale, Chorale and wholesale, and sends someone at a cocktail bar
+    // to log 5% beers instead of 32% old fashioneds.
+    match: /brew|taproom|tap_room|beer|\bale\b|pilsner|bierg/i,
     reason: "Brewery — craft pours run stronger than a regular beer",
     drinkIds: ["beer-ipa", "beer-regular", "beer-light", "seltzer"],
   },

@@ -11,7 +11,9 @@ import type {
   StorePort,
   Venue,
   VenuePort,
+  VenueSignals,
 } from "@safehubby/core";
+import { menuForVenue } from "@safehubby/core";
 
 /**
  * Development adapters. The real integrations (Uber/Lyft, DoorDash/Instacart,
@@ -68,11 +70,21 @@ export const mockDelivery: DeliveryPort = {
   },
 };
 
-const VENUES: Venue[] = [
+/**
+ * Mock venues carry the same signals Google Places returns — primaryType,
+ * types, priceLevel — and their menus are derived through the same
+ * `menuForVenue` the real adapter uses, rather than hardcoded.
+ *
+ * That matters more than it looks. Nobody runs this app with a Places key in
+ * development, so a hardcoded mock menu means the inference never executes
+ * outside production: the one path that decides what a drunk person taps would
+ * be the one path nobody ever sees running. These stand in for the API's
+ * answer, not for the mapping applied to it.
+ */
+const MOCK_PLACES: (Omit<Venue, "menuDrinkIds" | "menuReason"> & VenueSignals)[] = [
   {
     id: "v-anchor", name: "The Anchor Tavern", lat: 40.7148, lng: -74.0018,
-    menuDrinkIds: ["beer-regular", "beer-ipa", "wine-red", "shot-whiskey", "cocktail-old-fashioned"],
-    menuReason: "Pub — pints and well drinks",
+    primaryType: "bar", types: ["bar", "restaurant", "sports_bar"], priceLevel: 2,
     foodMenu: [
       { id: "f-wings", name: "Wings", priceCents: 1400 },
       { id: "f-burger", name: "Burger & fries", priceCents: 1800 },
@@ -81,8 +93,7 @@ const VENUES: Venue[] = [
   },
   {
     id: "v-marisol", name: "Marisol Cantina", lat: 40.7171, lng: -74.0064,
-    menuDrinkIds: ["cocktail-margarita", "shot-tequila", "beer-light", "seltzer"],
-    menuReason: "Agave bar — margaritas and tequila",
+    primaryType: "mexican_restaurant", types: ["mexican_restaurant", "bar", "restaurant"], priceLevel: 2,
     foodMenu: [
       { id: "f-tacos", name: "Street tacos (3)", priceCents: 1500 },
       { id: "f-chips", name: "Chips & guac", priceCents: 1100 },
@@ -90,11 +101,31 @@ const VENUES: Venue[] = [
   },
   {
     id: "v-lantern", name: "Lantern Wine Bar", lat: 40.7112, lng: -73.9971,
-    menuDrinkIds: ["wine-red", "wine-white", "seltzer"],
-    menuReason: "Wine bar — wine by the glass",
+    primaryType: "wine_bar", types: ["wine_bar", "bar"], priceLevel: 3,
     foodMenu: [{ id: "f-board", name: "Cheese board", priceCents: 2200 }],
   },
+  {
+    id: "v-fathom", name: "Fathom Brewing Co.", lat: 40.7129, lng: -74.0089,
+    primaryType: "brewery", types: ["brewery", "bar", "restaurant"], priceLevel: 2,
+    foodMenu: [{ id: "f-board2", name: "Pretzel board", priceCents: 1300 }],
+  },
+  {
+    // Places would tag this only `bar`. The name is the whole signal.
+    id: "v-rye", name: "Bourbon & Rye", lat: 40.7157, lng: -74.0031,
+    primaryType: "bar", types: ["bar"], priceLevel: 4,
+    foodMenu: [],
+  },
+  {
+    id: "v-vault", name: "The Vault", lat: 40.7183, lng: -74.0052,
+    primaryType: "night_club", types: ["night_club", "bar"], priceLevel: 3,
+    foodMenu: [],
+  },
 ];
+
+const VENUES: Venue[] = MOCK_PLACES.map(({ primaryType, types, priceLevel, ...venue }) => {
+  const menu = menuForVenue({ name: venue.name, primaryType, types, priceLevel });
+  return { ...venue, menuDrinkIds: menu.drinkIds, menuReason: menu.reason };
+});
 
 export const mockVenues: VenuePort = {
   async nearby(at) {
