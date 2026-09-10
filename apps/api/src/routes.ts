@@ -1,7 +1,7 @@
 import {
   PLANS, REWARD_CATALOG, DRINK_CATALOG,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
-  canRead, createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
+  createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
   canActOnNight, canReadAccount, canReadScope, canRevokeGrant, canSeeGrant, claimGrant,
@@ -12,18 +12,18 @@ import {
   GAMES, findGame, recordGuess, settleGuessTheTab, settleRound, settleWithWinner, startRound,
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
-  isEnabled, flagNote, ridesFor, deliverySearch, pharmacySearch,
+  isEnabled, flagNote, ridesFor,
   isAutomatic, SECURE_TRANSPORT_DISCLOSURES,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
-  attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold, sweepExpiredHolds,
+  attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   devicesFor, registerDevice, upsertDevice,
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, Basket, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
-  OrderProvider, PlanId, PreAuthorization, RedFlagId, TriggerBand,
+  OrderProvider, PlanId, RedFlagId, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";

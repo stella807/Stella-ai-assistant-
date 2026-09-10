@@ -2,7 +2,7 @@
   "name": "safehubby",
   "private": true,
   "version": "0.1.0",
-  "description": "Safehubby — get home safe after a night out",
+  "description": "Safehubby \u2014 get home safe after a night out",
   "engines": {
     "node": ">=22"
   },
@@ -10,10 +10,12 @@
     "build": "pnpm -r build",
     "dev": "pnpm --parallel -r dev",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "lint": "oxlint --deny-warnings packages/core/src packages/core/test apps/api/src apps/api/test apps/web/src"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
+    "oxlint": "^1.82.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
   },

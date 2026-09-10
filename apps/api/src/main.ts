@@ -1,4 +1,4 @@
-import { LOCATION_RETENTION_DAYS, sweepLocationHistory } from "@safehubby/core";
+import { LOCATION_RETENTION_DAYS, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
 import { createApp, makeCtx } from "./server.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
@@ -51,12 +51,28 @@ async function main(): Promise<void> {
    */
   const sweepRetention = () => {
     let removed = 0;
+    let released = 0;
     store.update((db) => {
-      const result = sweepLocationHistory(db.nights, new Date());
+      const now = new Date();
+      const result = sweepLocationHistory(db.nights, now);
       db.nights = result.nights;
       removed = result.removed;
+
+      /**
+       * Release pre-authorizations that were never captured.
+       *
+       * payment.ts states that a hold outliving its 24-hour TTL is swept back
+       * to released "rather than left open against the card indefinitely", and
+       * the sweep was written — but nothing ever called it, so the promise was
+       * a comment. A hold that never releases is somebody's money reserved by
+       * a booking that did not happen.
+       */
+      const before = db.holds.filter((h) => h.status === "held").length;
+      db.holds = sweepExpiredHolds(db.holds, now);
+      released = before - db.holds.filter((h) => h.status === "held").length;
     });
     if (removed > 0) console.log(`[safehubby] Retention: dropped ${removed} expired location ping(s)`);
+    if (released > 0) console.log(`[safehubby] Released ${released} expired payment hold(s)`);
   };
   sweepRetention();
   const retentionTimer = setInterval(sweepRetention, 60 * 60_000);

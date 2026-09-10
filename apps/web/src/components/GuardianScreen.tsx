@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { describeFixAge, isFixStale } from "@safehubby/core";
 import { api, type WatchView } from "../api.ts";
 import { PushArmPanel } from "./PushArmPanel.tsx";
 
@@ -10,11 +11,23 @@ export function GuardianScreen() {
   const [inviteCode, setInviteCode] = useState("");
   const [view, setView] = useState<WatchView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [staleSince, setStaleSince] = useState<number | null>(null);
 
+  /**
+   * Polling that says when it stopped working.
+   *
+   * Swallowing the failure froze this screen on its last good read, and a
+   * stale view of someone's night reads exactly like a current one — the same
+   * failure this component's own rule warns about, arriving by a different
+   * door. Counting from the first failure is what lets the UI say how old
+   * what you are looking at actually is.
+   */
   useEffect(() => {
     if (!view) return;
     const id = setInterval(() => {
-      api.watch(view.grant.id).then(setView).catch(() => {});
+      api.watch(view.grant.id)
+        .then((fresh) => { setView(fresh); setStaleSince(null); })
+        .catch(() => setStaleSince((since) => since ?? Date.now()));
     }, 10_000);
     return () => clearInterval(id);
   }, [view?.grant.id]);
@@ -69,6 +82,14 @@ export function GuardianScreen() {
         <span className={night.status === "home-safe" ? "pill pill-safe" : "pill"}>{night.status}</span>
       </div>
 
+      {staleSince !== null && (
+        <div className="banner banner-danger" role="alert">
+          <strong>Can&apos;t reach Safehubby.</strong> What you see below is from{" "}
+          {Math.max(1, Math.round((Date.now() - staleSince) / 60_000))} minute(s) ago, not now. Check your
+          connection — and if you are worried, call them.
+        </div>
+      )}
+
       {!sharingActive && (
         <div className="banner">
           Sharing is off right now — either it expired or they turned it off. What you see below is the last
@@ -78,8 +99,14 @@ export function GuardianScreen() {
 
       <PushArmPanel />
 
-      {urgent.map((a) => <div key={a.id} className="alert alert-urgent"><p className="small">{a.message}</p></div>)}
-      {warnings.slice(-3).map((a) => <div key={a.id} className="alert alert-warn"><p className="small">{a.message}</p></div>)}
+      {/* Assertive: an SOS interrupts whatever a screen reader was saying.
+          Warnings are polite — they wait for a pause rather than talking over. */}
+      <div aria-live="assertive">
+        {urgent.map((a) => <div key={a.id} className="alert alert-urgent"><p className="small">{a.message}</p></div>)}
+      </div>
+      <div aria-live="polite">
+        {warnings.slice(-3).map((a) => <div key={a.id} className="alert alert-warn"><p className="small">{a.message}</p></div>)}
+      </div>
       {urgent.length === 0 && warnings.length === 0 && (
         <div className="banner banner-safe">Nothing to worry about right now. Check-ins are being answered.</div>
       )}
@@ -121,7 +148,20 @@ export function GuardianScreen() {
         <h3>Last known location</h3>
         {lastPing ? (
           <>
-            <p className="small">{lastPing.venueName ?? "Shared location"}</p>
+            <div className="row-between">
+              <p className="small">{lastPing.venueName ?? "Shared location"}</p>
+              {/* Age first, and loud when it is old. A clock time reads like a
+                  location; "3 hours ago" reads like what it actually is. */}
+              <span className={isFixStale(lastPing.at, new Date()) ? "pill pill-warn" : "pill"}>
+                {describeFixAge(lastPing.at, new Date())}
+              </span>
+            </div>
+            {isFixStale(lastPing.at, new Date()) && night.status !== "home-safe" && (
+              <p className="small">
+                This is where they <strong>were</strong>, not where they are. Their phone has not
+                reported in since.
+              </p>
+            )}
             <p className="tiny muted">
               {lastPing.lat.toFixed(4)}, {lastPing.lng.toFixed(4)} · ±{lastPing.accuracyMeters}m ·{" "}
               {new Date(lastPing.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}

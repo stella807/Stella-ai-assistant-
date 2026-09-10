@@ -78,7 +78,7 @@ export interface DeletionSummary {
  * Erases one account in place. Returns what went, so the user can be told
  * rather than shown a bare "done".
  */
-export function deleteAccount(db: Db, userId: string, now: Date): DeletionSummary {
+export function deleteAccount(db: Db, userId: string, _now: Date): DeletionSummary {
   const nights = db.nights.filter((n) => n.travelerId === userId);
   const nightIds = new Set(nights.map((n) => n.id));
   const locationPings = nights.reduce((sum, n) => sum + (Array.isArray(n.pings) ? n.pings.length : 0), 0);

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { VENUE_RESEARCH_METERS, hasMovedVenue, metersBetween } from "../src/geo.ts";
+import {
+  FIX_STALE_AFTER_MINUTES, VENUE_RESEARCH_METERS, describeFixAge, fixAgeMinutes,
+  hasMovedVenue, isFixStale, metersBetween,
+} from "../src/geo.ts";
 
 describe("metersBetween", () => {
   it("is zero for the same point", () => {
@@ -39,5 +42,26 @@ describe("hasMovedVenue", () => {
 
   it("uses the documented threshold", () => {
     expect(VENUE_RESEARCH_METERS).toBe(200);
+  });
+});
+
+describe("how old a fix is", () => {
+  const now = new Date("2026-01-02T02:00:00Z");
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60_000).toISOString();
+
+  it("says it in plain words rather than a clock time", () => {
+    expect(describeFixAge(minutesAgo(0), now)).toBe("just now");
+    expect(describeFixAge(minutesAgo(42), now)).toBe("42 min ago");
+    expect(describeFixAge(minutesAgo(75), now)).toBe("over an hour ago");
+    expect(describeFixAge(minutesAgo(200), now)).toBe("3 hours ago");
+  });
+
+  it("flags a fix old enough to stop reading as current", () => {
+    expect(isFixStale(minutesAgo(5), now)).toBe(false);
+    expect(isFixStale(minutesAgo(FIX_STALE_AFTER_MINUTES), now)).toBe(true);
+  });
+
+  it("never reports a future fix as negative age", () => {
+    expect(fixAgeMinutes(new Date(now.getTime() + 60_000).toISOString(), now)).toBe(0);
   });
 });

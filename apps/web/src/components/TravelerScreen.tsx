@@ -33,6 +33,7 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   const [sos, setSos] = useState<string | null>(null);
   const [locationState, setLocationState] = useState<"unknown" | "granted" | "denied" | "unavailable">("unknown");
   const [venueOrigin, setVenueOrigin] = useState<"pending" | "device" | "fallback">("pending");
+  const [offline, setOffline] = useState(false);
   const lastSearchedAt = useRef<{ lat: number; lng: number } | null>(null);
 
   const refreshTraveler = useCallback(async () => {
@@ -119,7 +120,12 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   useEffect(() => {
     if (!summary || summary.night.status === "ended") return;
     const id = setInterval(() => {
-      api.night(summary.night.id).then(setSummary).catch(() => {});
+      api.night(summary.night.id)
+        .then((fresh) => { setSummary(fresh); setOffline(false); })
+        // Silently swallowing this left someone believing their night was
+        // being recorded and their people alerted, while nothing was reaching
+        // the server at all. On a safety app that is the worst kind of quiet.
+        .catch(() => setOffline(true));
     }, 15_000);
     return () => clearInterval(id);
   }, [summary?.night.id, summary?.night.status]);
@@ -228,6 +234,13 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
         await api.sos(night.id, silent);
         setSos(silent ? "Silent SOS sent with your location." : "SOS sent with your location.");
       })} />}
+      {offline && (
+        <div className="banner banner-danger" role="alert">
+          <strong>Not reaching Safehubby.</strong> Drinks and check-ins you log now may not be saved, and
+          nobody watching you is being updated. Check your connection.
+        </div>
+      )}
+
       {sos && <div className="banner banner-danger">{sos}</div>}
 
       {!ended && <GetHomePanel pickup={summary.lastPing} homeLabel={HOME_LABEL} />}

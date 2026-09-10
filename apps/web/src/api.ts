@@ -1,5 +1,5 @@
 import { apiBase } from "./native/platform.ts";
-import type { Alert, BacEstimate, CheckIn, LocationPing, NearbyStore, NightOut, RecoveryPlan, RideQuote, ShareGrant, Venue } from "@safehubby/core";
+import type { Alert, BacEstimate, CheckIn, LocationPing, NearbyStore, NightOut, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
 
 export interface CrewMemberView {
   travelerId: string;

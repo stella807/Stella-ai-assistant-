@@ -37,3 +37,31 @@ export function hasMovedVenue(from: Point | null, to: Point): boolean {
   if (!from) return true;
   return metersBetween(from, to) >= VENUE_RESEARCH_METERS;
 }
+
+/**
+ * How old a location fix is, in plain words.
+ *
+ * A guardian was shown the clock time the fix was taken — "11:42 PM" — which
+ * at 2am still reads like a location rather than like a three-hour-old one.
+ * The arithmetic is left to a worried person in the middle of the night, and
+ * they will not do it. The difference between "he is at the bar" and "he was
+ * at the bar three hours ago" is the entire signal.
+ */
+export const FIX_STALE_AFTER_MINUTES = 20;
+
+export function fixAgeMinutes(at: string, now: Date): number {
+  return Math.max(0, Math.round((now.getTime() - new Date(at).getTime()) / 60_000));
+}
+
+export function describeFixAge(at: string, now: Date): string {
+  const minutes = fixAgeMinutes(at, now);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  return hours === 1 ? "over an hour ago" : `${hours} hours ago`;
+}
+
+/** Old enough that the UI should say so rather than presenting it as current. */
+export function isFixStale(at: string, now: Date): boolean {
+  return fixAgeMinutes(at, now) >= FIX_STALE_AFTER_MINUTES;
+}
