@@ -37,7 +37,12 @@ export function SosButton({ onSend }: { onSend: (silent: boolean) => void }) {
         onPointerUp={stop}
         onPointerLeave={stop}
         onPointerCancel={stop}
-        style={{ background: `linear-gradient(90deg, #b91c1c ${progress * 100}%, var(--danger) ${progress * 100}%)` }}
+        /* The fill tracks the hold. Both stops are tokens, so the button stays
+           a real red in dark mode — --danger is tuned for red *type* on black
+           and turns the largest control in the app pink when used as a fill. */
+        style={{
+          background: `linear-gradient(90deg, var(--danger-deep) ${progress * 100}%, var(--danger-solid) ${progress * 100}%)`,
+        }}
       >
         {progress > 0 ? "Keep holding…" : silent ? "HOLD FOR SILENT SOS" : "HOLD FOR SOS"}
       </button>

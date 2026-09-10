@@ -4,87 +4,137 @@
  * actions, grey fill instead of borders. Safehubby's own product, not anyone
  * else's branding.
  *
+ * One colour carries the brand: indigo, for the identity and wayfinding —
+ * the wordmark, the live tab, focus rings, selected state, the estimate meter.
+ * It is deliberately NOT used for primary actions, which stay ink, and
+ * deliberately not amber/red/green, which are spoken for by warn, danger and
+ * ok. A brand colour that reads as a warning on a safety app is a bug.
+ *
  * Light is the base theme; dark is true black, which is what these apps use
  * and what suits a phone held at 1am.
+ *
+ * No webfont. The app ships inside a native shell (see docs/mobile.md), where
+ * a blocking font fetch on bad signal is a flash of unstyled text at exactly
+ * the wrong moment — and an app whose pitch is "your data is never sold"
+ * should not call Google on every launch to draw its own name.
  */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 :root {
-  --ground: #ffffff;
+  /* A soft neutral ground so white cards read as raised objects on it, rather
+     than as grey patches punched out of a white page. */
+  --ground: #f6f6f8;
   --surface: #ffffff;
-  --fill: #f6f6f6;
-  --fill-strong: #eeeeee;
-  --line: #e2e2e2;
-  --text: #000000;
-  --muted: #545454;
-  --faint: #8f8f8f;
+  --fill: #f0f0f3;
+  --fill-strong: #e5e5e9;
+  --line: #e4e4e8;
+  --line-strong: #d3d3d9;
+  --text: #09090b;
+  --muted: #52525b;
+  --faint: #8b8b93;
 
   /* Primary action is the ink colour itself — the signature move of this style. */
-  --primary: #000000;
+  --primary: #09090b;
   --on-primary: #ffffff;
 
-  --ok: #048848;
-  --ok-fill: #e6f5ee;
-  --warn: #8c5a00;
-  --warn-fill: #fdf3e3;
-  --danger: #cc0f00;
-  --danger-fill: #fdeceb;
+  /* Identity, not action. Text-safe on the light ground. */
+  --accent: #4338ca;
+  --accent-bright: #6366f1;
+  --accent-soft: #eef0ff;
 
-  --r-btn: 8px;
-  --r-card: 12px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 4px 14px -8px rgba(0, 0, 0, .18);
+  --ok: #04794a;
+  --ok-fill: #e7f6ee;
+  --warn: #8a5300;
+  --warn-fill: #fdf3e2;
+  --danger: #c81b0d;
+  --danger-fill: #fdecea;
+  /* A large red fill is a different job from red text: --danger is tuned to
+     stay legible as type, --danger-solid to carry white type on top of it.
+     The SOS is the one control in the app that must never look tentative. */
+  --danger-solid: #d32011;
+  /* The held state of the SOS — darker than the resting fill, so the bar
+     filling left-to-right is visible without changing hue mid-press. */
+  --danger-deep: #96170c;
 
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --r-btn: 10px;
+  --r-card: 16px;
+  --r-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(9, 9, 11, .05);
+  --shadow: 0 1px 2px rgba(9, 9, 11, .05), 0 8px 20px -12px rgba(9, 9, 11, .18);
+  --shadow-lg: 0 2px 4px rgba(9, 9, 11, .05), 0 18px 40px -20px rgba(9, 9, 11, .28);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color-scheme: light;
 }
 
+/* Dark is defined once and referenced twice: once for the system preference,
+   once for an explicit choice, so the toggle wins in both directions. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ground: #000000;
-    --surface: #0e0e0e;
-    --fill: #1c1c1c;
-    --fill-strong: #262626;
-    --line: #2e2e2e;
-    --text: #ffffff;
-    --muted: #afafaf;
-    --faint: #7a7a7a;
+    --surface: #101012;
+    --fill: #161619;
+    --fill-strong: #232327;
+    --line: #27272b;
+    --line-strong: #35353b;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --faint: #71717a;
 
-    --primary: #ffffff;
-    --on-primary: #000000;
+    --primary: #fafafa;
+    --on-primary: #09090b;
 
-    --ok: #21c17f;
-    --ok-fill: #0d2a1e;
-    --warn: #f5aa3c;
-    --warn-fill: #2c2008;
-    --danger: #ff6b5e;
-    --danger-fill: #2e100d;
+    --accent: #a5b4fc;
+    --accent-bright: #818cf8;
+    --accent-soft: #17172e;
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 4px 14px -8px rgba(0, 0, 0, .9);
+    --ok: #34d399;
+    --ok-fill: #06231a;
+    --warn: #fbbf24;
+    --warn-fill: #241a05;
+    --danger: #fb7185;
+    --danger-fill: #2b0d12;
+    --danger-solid: #dc2626;
+    --danger-deep: #991b1b;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .6);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 8px 20px -12px rgba(0, 0, 0, .9);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, .7), 0 18px 40px -20px rgba(0, 0, 0, 1);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
   --ground: #000000;
-  --surface: #0e0e0e;
-  --fill: #1c1c1c;
-  --fill-strong: #262626;
-  --line: #2e2e2e;
-  --text: #ffffff;
-  --muted: #afafaf;
-  --faint: #7a7a7a;
+  --surface: #101012;
+  --fill: #161619;
+  --fill-strong: #232327;
+  --line: #27272b;
+  --line-strong: #35353b;
+  --text: #fafafa;
+  --muted: #a1a1aa;
+  --faint: #71717a;
 
-  --primary: #ffffff;
-  --on-primary: #000000;
+  --primary: #fafafa;
+  --on-primary: #09090b;
 
-  --ok: #21c17f;
-  --ok-fill: #0d2a1e;
-  --warn: #f5aa3c;
-  --warn-fill: #2c2008;
-  --danger: #ff6b5e;
-  --danger-fill: #2e100d;
+  --accent: #a5b4fc;
+  --accent-bright: #818cf8;
+  --accent-soft: #17172e;
 
-  --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 4px 14px -8px rgba(0, 0, 0, .9);
+  --ok: #34d399;
+  --ok-fill: #06231a;
+  --warn: #fbbf24;
+  --warn-fill: #241a05;
+  --danger: #fb7185;
+  --danger-fill: #2b0d12;
+  --danger-solid: #dc2626;
+  --danger-deep: #991b1b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .6);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 8px 20px -12px rgba(0, 0, 0, .9);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, .7), 0 18px 40px -20px rgba(0, 0, 0, 1);
   color-scheme: dark;
 }
 
@@ -96,29 +146,53 @@ body {
   color: var(--text);
   font: 400 16px/1.5 var(--font);
   -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.006em;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
 }
 
 .app {
   max-width: 448px;
   margin: 0 auto;
-  padding: 20px 16px 96px;
+  padding: 18px 16px 96px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 /* Headlines are the loudest thing on the page: heavy, tight, left-aligned. */
-h1, h2, h3 { margin: 0; letter-spacing: -0.03em; text-wrap: balance; }
-h1 { font-size: 26px; font-weight: 800; line-height: 1.15; }
-h2 { font-size: 22px; font-weight: 700; line-height: 1.2; }
-h3 {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: 0.01em;
-  color: var(--muted);
+h1, h2, h3 { margin: 0; letter-spacing: -0.032em; text-wrap: balance; }
+
+/* The wordmark carries the one flourish in the app: a lit dot, for the light
+   someone leaves on for you. It is the whole product in one character. */
+h1 {
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
 }
+h1::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  background: var(--accent-bright);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-bright) 18%, transparent);
+  translate: 0 -1px;
+}
+
+h2 { font-size: 23px; font-weight: 750; line-height: 1.18; }
+
+/* Card titles read as titles now — same ink as the body, not a grey whisper. */
+h3 {
+  font-size: 14.5px;
+  font-weight: 680;
+  line-height: 1.3;
+  letter-spacing: -0.014em;
+  color: var(--text);
+}
+
 p { margin: 0; }
 
 .stack { display: flex; flex-direction: column; gap: 14px; }
@@ -127,5 +201,9 @@ p { margin: 0; }
 .wrap { flex-wrap: wrap; }
 .grow { flex: 1; min-width: 0; }
 .muted { color: var(--muted); }
-.small { font-size: 14px; }
+.small { font-size: 14.5px; line-height: 1.5; }
 .tiny { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+
+/* Numbers that are read rather than skimmed — figures, prices, counts —
+   line up in columns instead of jittering. */
+.num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }

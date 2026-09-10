@@ -1,21 +1,60 @@
-/* ---------- Cards: grey fill, no border. Weight comes from the fill. ------- */
+/* ---------- Cards ----------
+   A card is a raised surface with a hairline, not a grey patch. The hairline
+   is what makes a stack of them read as separate objects rather than one long
+   undifferentiated column, which is the failure mode on the Tonight screen. */
 .card {
-  background: var(--fill);
-  border: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--r-card);
-  padding: 18px 16px;
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-/* ---------- Buttons: the primary is solid ink, full width, 8px radius. ----- */
+/* Three weights of card, because not everything on a screen is equally
+   important. Hero is for the two things someone opens the app to find — how
+   drunk the estimate says they are, and when they next have to check in. */
+.card-hero {
+  box-shadow: var(--shadow);
+  border-color: var(--line-strong);
+  padding: 18px 16px;
+}
+.card-quiet {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 4px 0;
+}
+
+/* A card that is asking for something right now — an overdue check-in. Loud
+   in the fill and the edge, but still a card, so it does not read as an error
+   the app has had; it reads as a question waiting on you. */
+.card-alarm {
+  background: var(--danger-fill);
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  box-shadow: 0 8px 22px -14px color-mix(in srgb, var(--danger) 65%, transparent), var(--shadow-sm);
+}
+.card-alarm h3 { color: var(--danger); }
+
+/* A labelled break in a long scroll, so the eye has somewhere to rest. */
+.section-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 6px 2px 0;
+}
+
+/* ---------- Buttons: the primary is solid ink, full width. ----- */
 .btn {
   appearance: none;
   font-family: var(--font);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 15.5px;
+  font-weight: 650;
+  letter-spacing: -0.014em;
   border: none;
   border-radius: var(--r-btn);
   background: var(--fill-strong);
@@ -24,110 +63,194 @@
   /* 48px: a thumb target on a phone held one-handed, after a few drinks. */
   min-height: 48px;
   cursor: pointer;
-  transition: opacity .12s ease, background .12s ease;
+  transition: transform .1s ease, opacity .12s ease, background .12s ease, box-shadow .12s ease;
 }
-.btn:hover:not(:disabled) { opacity: .88; }
-.btn:active:not(:disabled) { opacity: .75; }
-.btn:disabled { opacity: .35; cursor: not-allowed; }
-
-.btn-primary { background: var(--primary); color: var(--on-primary); }
-.btn-safe { background: var(--ok); color: #ffffff; }
-.btn-danger { background: var(--danger); color: #ffffff; }
-.btn-ghost {
+.btn:hover:not(:disabled) { opacity: .9; }
+.btn:active:not(:disabled) { transform: scale(.985); opacity: .82; }
+/* Fading a filled slab just makes grey mud, and leaves the loudest thing on a
+   card as the button you cannot press. A disabled action reads as an outline
+   instead: still legible, no longer competing. */
+.btn:disabled {
   background: transparent;
-  color: var(--text);
+  color: var(--faint);
   box-shadow: inset 0 0 0 1px var(--line);
+  cursor: not-allowed;
 }
-.btn-block { width: 100%; }
-.btn-sm { min-height: 36px; padding: 0 12px; font-size: 14px; font-weight: 600; }
 
+.btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-sm);
+}
+.btn-safe { background: var(--ok); color: #ffffff; }
+.btn-danger { background: var(--danger-solid); color: #ffffff; }
+.btn-ghost {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--fill); opacity: 1; }
+.btn-block { width: 100%; }
+.btn-sm { min-height: 36px; padding: 0 13px; font-size: 13.5px; font-weight: 650; border-radius: 8px; }
+
+/* Focus is the accent's job — it is the one ring that has to be seen against
+   both ink buttons and white fields. */
 :where(button, a, input, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--accent-bright);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* ---------- Fields ---------- */
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 7px; }
+.field label { font-size: 12.5px; font-weight: 650; color: var(--muted); letter-spacing: -0.005em; }
 .field input,
 .field select {
   background: var(--surface);
   border: none;
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--text);
   border-radius: var(--r-btn);
   padding: 0 14px;
   /* 16px keeps iOS from zooming the viewport on focus. */
   font: 400 16px/1 var(--font);
-  min-height: 52px;
+  min-height: 50px;
+  transition: box-shadow .12s ease;
 }
-.field input:focus, .field select:focus { box-shadow: inset 0 0 0 2px var(--primary); outline: none; }
+.field input::placeholder { color: var(--faint); }
+.field input:focus, .field select:focus {
+  box-shadow: inset 0 0 0 2px var(--accent-bright);
+  outline: none;
+}
 .field select { padding-right: 34px; }
 
 /* ---------- Segmented tabs ---------- */
+/* The tab bar is the only thing pinned. On a screen this long, navigation that
+   scrolls away is not navigation — but pinning the wordmark above it too would
+   tie the tabs' offset to the header's exact height, which is a magic number
+   waiting to drift. The wordmark can scroll; the tabs cannot. */
 .tabs {
   display: flex;
-  gap: 0;
+  gap: 2px;
   border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: color-mix(in srgb, var(--ground) 94%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  margin: 0 -16px;
+  padding: 0 16px;
 }
 .tabs button {
   flex: 1;
   border: none;
   background: transparent;
   color: var(--muted);
-  font: 600 15px/1 var(--font);
-  letter-spacing: -0.01em;
-  padding: 14px 8px;
-  min-height: 48px;
+  font: 650 13.5px/1 var(--font);
+  letter-spacing: -0.014em;
+  padding: 13px 4px;
+  min-height: 46px;
   cursor: pointer;
-  /* The active tab is underscored in ink, not filled — the pattern these apps
-     use for top-level switching. */
-  box-shadow: inset 0 -2px 0 transparent;
+  position: relative;
+  transition: color .12s ease;
 }
-.tabs button[aria-selected="true"] {
-  color: var(--text);
-  box-shadow: inset 0 -2px 0 var(--text);
+.tabs button:hover { color: var(--text); }
+/* The live tab is marked in the brand colour — the one piece of persistent
+   wayfinding in the app, and the only place the accent outranks the ink. */
+.tabs button::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+  transition: background .14s ease;
 }
+.tabs button[aria-selected="true"] { color: var(--text); }
+.tabs button[aria-selected="true"]::after { background: var(--accent-bright); }
 
 /* ---------- Status pills ---------- */
 .pill {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  gap: 6px;
+  border-radius: var(--r-full);
   padding: 5px 11px;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
   background: var(--fill-strong);
-  color: var(--text);
+  color: var(--muted);
   white-space: nowrap;
+}
+/* A dot ahead of the label: readable at a glance, and readable in greyscale
+   for anyone who cannot separate the fills by hue. */
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: currentColor;
+  flex: none;
 }
 .pill-safe { background: var(--ok-fill); color: var(--ok); }
 .pill-warn { background: var(--warn-fill); color: var(--warn); }
 .pill-danger { background: var(--danger-fill); color: var(--danger); }
 
-/* ---------- Estimate meter ---------- */
+/* ---------- Estimate meter ----------
+   A wide band with a tick inside it, drawn on a track that runs cool-to-hot so
+   position alone carries meaning. The tick is the point estimate; the band is
+   the honest answer. */
 .meter {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--fill-strong);
+  height: 10px;
+  border-radius: var(--r-full);
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--ok) 22%, var(--fill-strong)),
+    color-mix(in srgb, var(--warn) 28%, var(--fill-strong)) 55%,
+    color-mix(in srgb, var(--danger) 34%, var(--fill-strong))
+  );
   overflow: visible;
   position: relative;
 }
-.meter-range { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: var(--text); opacity: .28; }
-.meter-point { position: absolute; top: -4px; width: 4px; height: 14px; border-radius: 2px; background: var(--text); }
+.meter-range {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  border-radius: var(--r-full);
+  background: var(--text);
+  opacity: .34;
+}
+.meter-point {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 18px;
+  border-radius: var(--r-full);
+  background: var(--text);
+  box-shadow: 0 0 0 3px var(--surface);
+}
 
-/* ---------- Alerts: a filled block, severity in the fill ---------- */
-.alert { border-radius: var(--r-card); padding: 14px 16px; background: var(--fill-strong); }
-.alert-info { background: var(--fill-strong); }
-.alert-warn { background: var(--warn-fill); color: var(--warn); }
-.alert-urgent { background: var(--danger-fill); color: var(--danger); }
+/* ---------- Alerts: a filled block, severity in the fill and the edge ------ */
+.alert {
+  border-radius: var(--r-card);
+  padding: 13px 15px;
+  background: var(--fill);
+  border-left: 3px solid var(--line-strong);
+}
+.alert-info { background: var(--fill); }
+.alert-warn { background: var(--warn-fill); color: var(--warn); border-left-color: var(--warn); }
+.alert-urgent { background: var(--danger-fill); color: var(--danger); border-left-color: var(--danger); }
 .alert-warn p, .alert-urgent p { color: inherit; font-weight: 500; }
 
 /* ---------- Drink chips: rows, not tiles ---------- */
 .chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .chip {
   border: none;
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   background: var(--surface);
   color: var(--text);
   border-radius: var(--r-btn);
@@ -136,10 +259,19 @@
   cursor: pointer;
   min-height: 62px;
   font-family: var(--font);
+  transition: box-shadow .12s ease, background .12s ease, transform .1s ease;
 }
-.chip:hover { box-shadow: inset 0 0 0 2px var(--primary); }
-.chip strong { display: block; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; }
+.chip:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--accent-bright); }
+.chip:active:not(:disabled) { transform: scale(.985); }
+.chip:disabled { opacity: .5; cursor: not-allowed; }
+.chip strong { display: block; font-size: 14.5px; font-weight: 650; letter-spacing: -0.016em; }
 .chip .tiny { color: var(--faint); }
+
+/* Selected state for chips used as a choice, not an action. */
+.chip-on {
+  box-shadow: inset 0 0 0 2px var(--accent-bright);
+  background: var(--accent-soft);
+}
 
 /* ---------- Timeline / list rows: hairline dividers, value right-aligned.
      This is the ride-picker row pattern — label and detail left, figure right. */
@@ -148,10 +280,11 @@
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 13px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--line);
 }
-.timeline li:last-child { border-bottom: none; }
+.timeline li:last-child { border-bottom: none; padding-bottom: 0; }
+.timeline li:first-child { padding-top: 0; }
 .timeline time {
   color: var(--faint);
   font-variant-numeric: tabular-nums;
@@ -161,23 +294,34 @@
 }
 
 /* ---------- Notices ---------- */
-.banner { border-radius: var(--r-card); padding: 13px 15px; font-size: 13.5px; line-height: 1.45; background: var(--warn-fill); color: var(--warn); font-weight: 500; }
+.banner {
+  border-radius: var(--r-card);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: var(--warn-fill);
+  color: var(--warn);
+  font-weight: 500;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
 .banner-danger { background: var(--danger-fill); color: var(--danger); }
 .banner-safe { background: var(--ok-fill); color: var(--ok); }
 
 /* ---------- SOS: the one place colour outranks the ink ---------- */
 .sos {
   width: 100%;
-  min-height: 72px;
+  min-height: 76px;
   border-radius: var(--r-card);
   font: 800 19px/1 var(--font);
-  letter-spacing: -0.01em;
-  background: var(--danger);
+  letter-spacing: 0.01em;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--danger-solid) 88%, #fff) 0%, var(--danger-solid) 100%);
   border: none;
   color: #ffffff;
   cursor: pointer;
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--danger-solid) 70%, transparent), var(--shadow-sm);
+  transition: transform .1s ease, box-shadow .12s ease;
 }
-.sos:active { transform: scale(.99); }
+.sos:active { transform: scale(.985); box-shadow: var(--shadow-sm); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -185,7 +329,7 @@
 
 /* ---------- Ride picker ----------
    Pick a product, then confirm — the fare sits right-aligned and bold, the
-   selected row carries a 2px ink outline. */
+   selected row carries a 2px accent outline. */
 .rides { list-style: none; margin: 0; padding: 0; }
 .rides li { border-bottom: 1px solid var(--line); }
 .rides li:last-child { border-bottom: none; }
@@ -206,20 +350,21 @@
   color: var(--text);
   min-height: 62px;
   box-shadow: inset 0 0 0 2px transparent;
+  transition: background .12s ease, box-shadow .12s ease;
 }
-.ride:hover { background: var(--fill-strong); }
-.ride-on { box-shadow: inset 0 0 0 2px var(--text); background: var(--surface); }
+.ride:hover { background: var(--fill); }
+.ride-on { box-shadow: inset 0 0 0 2px var(--accent-bright); background: var(--accent-soft); }
 
-.ride-name { display: flex; flex-direction: column; gap: 2px; font-size: 15.5px; font-weight: 600; letter-spacing: -0.01em; }
+.ride-name { display: flex; flex-direction: column; gap: 2px; font-size: 15.5px; font-weight: 650; letter-spacing: -0.016em; }
 .ride-eta { font-size: 13px; font-weight: 400; color: var(--faint); }
-.ride-fare { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.ride-fare { font-size: 16.5px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -0.026em; }
 
 /* Logging water is a positive secondary action: outlined, not filled, so it
    does not compete with the SOS for the eye. */
 .btn-water {
   background: transparent;
   color: var(--ok);
-  box-shadow: inset 0 0 0 1.5px var(--ok);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ok) 55%, transparent);
 }
 .btn-water:hover:not(:disabled) { background: var(--ok-fill); opacity: 1; }
 
@@ -231,35 +376,49 @@
 
 .avatar {
   width: 38px; height: 38px; flex: none;
-  border-radius: 50%;
+  border-radius: var(--r-full);
   background: var(--text); color: var(--ground);
   display: grid; place-items: center;
   font-size: 13.5px; font-weight: 700; letter-spacing: -0.02em;
 }
-.crew-count { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; min-width: 26px; text-align: right; }
+.crew-count { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; min-width: 26px; text-align: right; }
 
 /* A labelled divider, for "or join one". */
 .rule { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12.5px; }
 .rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
-/* Selected state for chips used as a choice, not an action. */
-.chip-on { box-shadow: inset 0 0 0 2px var(--text); background: var(--surface); }
-
 /* ---------- Plans ---------- */
 .plan { gap: 10px; }
-.plan-on { box-shadow: inset 0 0 0 2px var(--text); }
-.plan-price { font-size: 30px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+.plan-on {
+  box-shadow: inset 0 0 0 2px var(--accent-bright), var(--shadow);
+  border-color: transparent;
+}
+.plan-price { font-size: 31px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .plan-per { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: -0.01em; }
 
 /* Range input for the spending cap. */
-.field input[type="range"] { min-height: 32px; padding: 0; box-shadow: none; background: transparent; accent-color: var(--primary); }
+.field input[type="range"] {
+  min-height: 32px; padding: 0; box-shadow: none; background: transparent;
+  accent-color: var(--accent-bright);
+}
 
 /* ---------- Games ---------- */
 .game { gap: 10px; }
-.forfeit { border-left: 2px solid var(--line); padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
+.game h3 { font-size: 17px; font-weight: 750; letter-spacing: -0.026em; }
+/* The forfeit is the joke of each game — pulled out of the rules so it reads
+   as the punchline rather than another paragraph. */
+.forfeit {
+  border-left: 3px solid var(--accent-bright);
+  background: var(--accent-soft);
+  border-radius: 0 var(--r-btn) var(--r-btn) 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 
 /* ---------- The sober ask ---------- */
-.ask { box-shadow: inset 0 0 0 2px var(--text); background: var(--surface); }
+.ask { box-shadow: inset 0 0 0 2px var(--accent-bright), var(--shadow); border-color: transparent; }
 
 /* ---------- Party ---------- */
 .cat {
@@ -268,7 +427,7 @@
   font-family: var(--font); color: var(--text); text-align: left; min-height: 44px;
 }
 .cat > .grow { display: flex; flex-direction: column; gap: 2px; }
-.cat strong { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+.cat strong { font-size: 16px; font-weight: 700; letter-spacing: -0.022em; }
 .chev { font-size: 20px; font-weight: 600; color: var(--muted); width: 20px; text-align: center; }
 
 .stepper { display: flex; align-items: center; gap: 8px; }
@@ -277,11 +436,12 @@
 
 .total { border-top: 1px solid var(--line); padding-top: 12px; font-size: 17px; }
 
-/* Five tabs on a phone: tighter type and padding so nothing wraps. */
-.tabs button { padding: 13px 4px; font-size: 13.5px; }
-
 /* ---------- Medical escalation ---------- */
-.emergency-critical { box-shadow: inset 0 0 0 2px var(--danger); background: var(--danger-fill); }
+.emergency-critical {
+  box-shadow: inset 0 0 0 2px var(--danger), var(--shadow);
+  background: var(--danger-fill);
+  border-color: transparent;
+}
 .danger-headline { color: var(--danger); }
 
 .flags { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -299,14 +459,14 @@
 
 .script { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .script li {
-  background: var(--surface); border-radius: var(--r-btn); padding: 10px 12px;
+  background: var(--fill); border-radius: var(--r-btn); padding: 10px 12px;
   font-size: 14.5px; box-shadow: inset 0 0 0 1px var(--line);
 }
 
 /* Ride hand-off: a link, not a button, because it leaves the app. */
 .ride-link { text-decoration: none; justify-content: flex-start; padding: 12px 16px; min-height: 62px; }
 .ride-link > span { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
-.ride-link strong { font-size: 15.5px; font-weight: 600; }
+.ride-link strong { font-size: 15.5px; font-weight: 650; }
 
 /* Secure transport: set apart, because it is a different product with
    different law behind it — and a materially different price. */
@@ -322,4 +482,4 @@
 .list-plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .list-plain li::before { content: "— "; color: var(--faint); }
 
-.inline-link { color: inherit; font-weight: 700; text-decoration: underline; }
+.inline-link { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }

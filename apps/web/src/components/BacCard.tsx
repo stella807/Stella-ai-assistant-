@@ -23,18 +23,20 @@ export function BacCard({ bac }: { bac: BacEstimate }) {
   const pct = (v: number) => `${Math.min(100, (v / scaleMax) * 100)}%`;
 
   return (
-    <section className="card stack" aria-label="Estimated intoxication">
+    <section className="card card-hero stack" aria-label="Estimated intoxication">
       <div className="row-between">
         <h3>Estimated level</h3>
         <span className={BAND_PILL[bac.band]}>{BAND_LABEL[bac.band]}</span>
       </div>
 
       <div>
-        <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}>
+        <div className="num" style={{ fontSize: 38, fontWeight: 800, lineHeight: 1.05 }}>
           {bac.low.toFixed(3)}–{bac.high.toFixed(3)}
-          <span className="muted" style={{ fontSize: 15, fontWeight: 500 }}> %BAC</span>
+          <span className="muted" style={{ fontSize: 15, fontWeight: 550, letterSpacing: "-0.01em" }}> %BAC</span>
         </div>
-        <p className="tiny muted">Rough estimate from what was logged — not a measurement.</p>
+        <p className="tiny muted" style={{ marginTop: 4 }}>
+          Rough estimate from what was logged — not a measurement.
+        </p>
       </div>
 
       <div className="meter" role="img" aria-label={`Estimated between ${bac.low} and ${bac.high} percent BAC`}>

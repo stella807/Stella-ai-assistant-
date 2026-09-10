@@ -20,10 +20,12 @@ export function CheckInPrompt({ checkIn, onAnswer, busy }: {
   const due = msLeft <= 0;
 
   return (
-    <section className={due ? "card stack banner-danger" : "card stack"} aria-label="Check-in">
+    <section className={due ? "card card-hero card-alarm stack" : "card card-hero stack"} aria-label="Check-in">
       <div className="row-between">
         <h3>{due ? "Check in now" : "Next check-in"}</h3>
-        <span className={due ? "pill pill-danger" : "pill"}>{formatCountdown(msLeft)}</span>
+        {/* Tabular figures: the countdown reflows every second, and a pill that
+            changes width once a second is a twitch in the corner of the eye. */}
+        <span className={due ? "pill pill-danger num" : "pill num"}>{formatCountdown(msLeft)}</span>
       </div>
 
       {due ? (
