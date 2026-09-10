@@ -98,9 +98,20 @@ one is live as `venueSource`.
 
 Neither API returns a bar's structured drink menu — Places returns place details
 and Yelp returns business details plus, on some plans, a menu URL. So the drink
-list is inferred from the venue's categories and mapped onto our own catalogue,
-and anything unclassified falls back to the full catalogue rather than a guess.
-Yelp's terms restrict caching, so nothing venue-derived is written to our store.
+list is inferred, in `packages/core/src/venue-menu.ts`, from the signals the
+location APIs do return: the venue's name, its Places `primaryType` and `types`
+(or Yelp categories), and its price level. Nine archetypes, most specific
+first, so a place tagged `bar` + `restaurant` but named "Bourbon & Rye" reads as
+a whiskey bar. Price level reorders the result without ever adding a drink the
+archetype did not already offer.
+
+This is accuracy work, not convenience: the estimate in `bac.ts` is Widmark on
+grams of ethanol, so leading a brewery with the 6.8% craft pour instead of a
+generic 5% beer changes the number on every round. Anything unclassified falls
+back to the broad list and **says so in the UI** — an inferred menu that
+presents itself as the venue's real one is how someone logs the wrong drink all
+night. Yelp's terms restrict caching, so nothing venue-derived is written to
+our store.
 
 ## Swapping in real providers
 

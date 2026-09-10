@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 415 tests (7 Postgres tests skip without a database)
+pnpm test         # 425 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -39,6 +39,17 @@ an hour run out. A missed check-in alerts whoever is watching.
 **Drink logging.** Tap a drink from the current venue's menu, or the full
 catalog. Everything resolves to grams of ethanol and US standard drinks, so an
 IPA counts as 1.8 drinks and a shot as 1.0. Water is one tap and earns points.
+The menu is shaped by where you actually are: Google Places (or Yelp) gives the
+venue's name, type and price level, and `venue-menu.ts` turns those into the
+pours that place is likely to serve — a brewery leads with the 6.8% craft pour
+rather than a generic 5% beer, which changes the estimate on every round. No
+location API returns a real drink list, so the app names the guess on screen
+instead of passing it off as the venue's menu.
+
+**Dark, always.** Not a preference the app follows — it is used in a dim bar at
+1am by someone several drinks in, so the ground is black regardless of the
+phone's setting, the type is pure white at full contrast, and the tap targets
+and type scale run a notch larger than a sober-user app would need.
 
 **Intoxication estimate.** Widmark, decayed per drink from its own timestamp,
 presented as a wide range rather than a single number. See "Where we said no".

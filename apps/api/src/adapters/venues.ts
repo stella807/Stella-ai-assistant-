@@ -1,4 +1,5 @@
 import type { Venue, VenuePort } from "@safehubby/core";
+import { menuForVenue } from "@safehubby/core";
 import { mockVenues } from "./mock-providers.ts";
 
 /**
@@ -27,27 +28,13 @@ const YELP_KEY = process.env.YELP_API_KEY;
 const SEARCH_RADIUS_M = 800;
 const TIMEOUT_MS = 4000;
 
-/** Category keywords → drink ids from our catalogue. Order matters: first hit wins. */
-const CATEGORY_MENUS: { match: RegExp; drinks: string[] }[] = [
-  { match: /wine|vineyard|enoteca/i, drinks: ["wine-red", "wine-white", "seltzer", "na-water"] },
-  { match: /mexic|taqueria|cantina|tequila/i, drinks: ["cocktail-margarita", "shot-tequila", "beer-light", "seltzer", "na-soda"] },
-  { match: /brew|beer|taproom|pub/i, drinks: ["beer-regular", "beer-ipa", "beer-light", "seltzer", "na-water"] },
-  { match: /cocktail|lounge|speakeasy/i, drinks: ["cocktail-old-fashioned", "cocktail-mixed", "spirit-neat", "wine-red", "na-soda"] },
-  { match: /whisk|bourbon|scotch/i, drinks: ["shot-whiskey", "spirit-neat", "cocktail-old-fashioned", "beer-regular", "na-water"] },
-  { match: /coffee|cafe|café/i, drinks: ["na-coffee", "na-water", "na-soda"] },
-];
-
-const ALL_ALCOHOLIC = [
-  "beer-regular", "beer-ipa", "wine-red", "cocktail-mixed", "shot-whiskey", "na-water",
-];
-
-/** Public so the mapping is testable without a network call. */
-export function menuForCategories(categories: string[]): string[] {
-  const blob = categories.join(" ");
-  for (const rule of CATEGORY_MENUS) if (rule.match.test(blob)) return rule.drinks;
-  // Unclassified: offer everything rather than inventing a menu we cannot know.
-  return ALL_ALCOHOLIC;
-}
+/** Places reports price as an enum; the rest of the app works in 1-4. */
+const PRICE_LEVELS: Record<string, number | undefined> = {
+  PRICE_LEVEL_INEXPENSIVE: 1,
+  PRICE_LEVEL_MODERATE: 2,
+  PRICE_LEVEL_EXPENSIVE: 3,
+  PRICE_LEVEL_VERY_EXPENSIVE: 4,
+};
 
 async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<any> {
   const controller = new AbortController();
@@ -66,15 +53,24 @@ async function yelpNearby(at: { lat: number; lng: number }): Promise<Venue[]> {
     `&radius=${SEARCH_RADIUS_M}&categories=bars,restaurants&limit=12&sort_by=distance`;
   const data = await fetchJson(url, { Authorization: `Bearer ${YELP_KEY}` });
 
-  return (data.businesses ?? []).map((b: any): Venue => ({
-    id: `yelp:${b.id}`,
-    name: b.name,
-    lat: b.coordinates?.latitude ?? at.lat,
-    lng: b.coordinates?.longitude ?? at.lng,
-    menuDrinkIds: menuForCategories((b.categories ?? []).map((c: any) => `${c.alias} ${c.title}`)),
-    // Yelp does not expose structured food items; price level is all we get.
-    foodMenu: [],
-  }));
+  return (data.businesses ?? []).map((b: any): Venue => {
+    const menu = menuForVenue({
+      name: b.name,
+      types: (b.categories ?? []).map((c: any) => `${c.alias} ${c.title}`),
+      // Yelp reports price as a run of dollar signs; its length is the level.
+      priceLevel: typeof b.price === "string" ? b.price.length : undefined,
+    });
+    return {
+      id: `yelp:${b.id}`,
+      name: b.name,
+      lat: b.coordinates?.latitude ?? at.lat,
+      lng: b.coordinates?.longitude ?? at.lng,
+      menuDrinkIds: menu.drinkIds,
+      menuReason: menu.reason,
+      // Yelp does not expose structured food items.
+      foodMenu: [],
+    };
+  });
 }
 
 async function placesNearby(at: { lat: number; lng: number }): Promise<Venue[]> {
@@ -88,7 +84,8 @@ async function placesNearby(at: { lat: number; lng: number }): Promise<Venue[]> 
       headers: {
         "content-type": "application/json",
         "X-Goog-Api-Key": PLACES_KEY!,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.types,places.primaryType",
+        "X-Goog-FieldMask":
+          "places.id,places.displayName,places.location,places.types,places.primaryType,places.priceLevel",
       },
       body: JSON.stringify({
         includedTypes: ["bar", "restaurant", "night_club"],
@@ -98,14 +95,24 @@ async function placesNearby(at: { lat: number; lng: number }): Promise<Venue[]> 
     });
     if (!res.ok) throw new Error(`${res.status}`);
     const data = (await res.json()) as { places?: any[] };
-    return (data.places ?? []).map((p: any): Venue => ({
-      id: `places:${p.id}`,
-      name: p.displayName?.text ?? "Unnamed venue",
-      lat: p.location?.latitude ?? at.lat,
-      lng: p.location?.longitude ?? at.lng,
-      menuDrinkIds: menuForCategories([p.primaryType ?? "", ...(p.types ?? [])]),
-      foodMenu: [],
-    }));
+    return (data.places ?? []).map((p: any): Venue => {
+      const name = p.displayName?.text ?? "Unnamed venue";
+      const menu = menuForVenue({
+        name,
+        primaryType: p.primaryType,
+        types: p.types,
+        priceLevel: PRICE_LEVELS[p.priceLevel as string],
+      });
+      return {
+        id: `places:${p.id}`,
+        name,
+        lat: p.location?.latitude ?? at.lat,
+        lng: p.location?.longitude ?? at.lng,
+        menuDrinkIds: menu.drinkIds,
+        menuReason: menu.reason,
+        foodMenu: [],
+      };
+    });
   } finally {
     clearTimeout(timer);
   }

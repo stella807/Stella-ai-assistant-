@@ -49,6 +49,8 @@ export interface Venue {
   lng: number;
   /** Catalog drink ids this venue is known to serve, for fast logging. */
   menuDrinkIds: string[];
+  /** Why those drinks — an inferred menu says so rather than implying a real one. */
+  menuReason?: string;
   foodMenu: { id: string; name: string; priceCents: number }[];
 }
 

@@ -52,7 +52,7 @@
 .btn {
   appearance: none;
   font-family: var(--font);
-  font-size: 15.5px;
+  font-size: 16.5px;
   font-weight: 650;
   letter-spacing: -0.014em;
   border: none;
@@ -60,8 +60,9 @@
   background: var(--fill-strong);
   color: var(--text);
   padding: 0 18px;
-  /* 48px: a thumb target on a phone held one-handed, after a few drinks. */
-  min-height: 48px;
+  /* 52px, up from a normal app's 44-48: this is tapped one-handed, walking,
+     several drinks in. Fitts's law gets worse with every round. */
+  min-height: 52px;
   cursor: pointer;
   transition: transform .1s ease, opacity .12s ease, background .12s ease, box-shadow .12s ease;
 }
@@ -91,7 +92,7 @@
 }
 .btn-ghost:hover:not(:disabled) { background: var(--fill); opacity: 1; }
 .btn-block { width: 100%; }
-.btn-sm { min-height: 36px; padding: 0 13px; font-size: 13.5px; font-weight: 650; border-radius: 8px; }
+.btn-sm { min-height: 40px; padding: 0 14px; font-size: 14.5px; font-weight: 650; border-radius: 8px; }
 
 /* Focus is the accent's job — it is the one ring that has to be seen against
    both ink buttons and white fields. */
@@ -103,7 +104,7 @@
 
 /* ---------- Fields ---------- */
 .field { display: flex; flex-direction: column; gap: 7px; }
-.field label { font-size: 12.5px; font-weight: 650; color: var(--muted); letter-spacing: -0.005em; }
+.field label { font-size: 13.5px; font-weight: 650; color: var(--muted); letter-spacing: -0.005em; }
 .field input,
 .field select {
   background: var(--surface);
@@ -114,7 +115,7 @@
   padding: 0 14px;
   /* 16px keeps iOS from zooming the viewport on focus. */
   font: 400 16px/1 var(--font);
-  min-height: 50px;
+  min-height: 54px;
   transition: box-shadow .12s ease;
 }
 .field input::placeholder { color: var(--faint); }
@@ -147,10 +148,10 @@
   border: none;
   background: transparent;
   color: var(--muted);
-  font: 650 13.5px/1 var(--font);
+  font: 650 14.5px/1 var(--font);
   letter-spacing: -0.014em;
-  padding: 13px 4px;
-  min-height: 46px;
+  padding: 14px 4px;
+  min-height: 50px;
   cursor: pointer;
   position: relative;
   transition: color .12s ease;
@@ -178,8 +179,8 @@
   align-items: center;
   gap: 6px;
   border-radius: var(--r-full);
-  padding: 5px 11px;
-  font-size: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
   font-weight: 650;
   letter-spacing: -0.005em;
   background: var(--fill-strong);
@@ -247,24 +248,24 @@
 .alert-warn p, .alert-urgent p { color: inherit; font-weight: 500; }
 
 /* ---------- Drink chips: rows, not tiles ---------- */
-.chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .chip {
   border: none;
   box-shadow: inset 0 0 0 1px var(--line-strong);
   background: var(--surface);
   color: var(--text);
   border-radius: var(--r-btn);
-  padding: 12px;
+  padding: 14px 13px;
   text-align: left;
   cursor: pointer;
-  min-height: 62px;
+  min-height: 76px;
   font-family: var(--font);
   transition: box-shadow .12s ease, background .12s ease, transform .1s ease;
 }
 .chip:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--accent-bright); }
 .chip:active:not(:disabled) { transform: scale(.985); }
 .chip:disabled { opacity: .5; cursor: not-allowed; }
-.chip strong { display: block; font-size: 14.5px; font-weight: 650; letter-spacing: -0.016em; }
+.chip strong { display: block; font-size: 16px; font-weight: 680; letter-spacing: -0.018em; margin-bottom: 3px; }
 .chip .tiny { color: var(--faint); }
 
 /* Selected state for chips used as a choice, not an action. */
@@ -310,9 +311,9 @@
 /* ---------- SOS: the one place colour outranks the ink ---------- */
 .sos {
   width: 100%;
-  min-height: 76px;
+  min-height: 88px;
   border-radius: var(--r-card);
-  font: 800 19px/1 var(--font);
+  font: 800 22px/1 var(--font);
   letter-spacing: 0.01em;
   background: linear-gradient(180deg, color-mix(in srgb, var(--danger-solid) 88%, #fff) 0%, var(--danger-solid) 100%);
   border: none;

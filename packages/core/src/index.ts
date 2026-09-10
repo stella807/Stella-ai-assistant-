@@ -1,5 +1,6 @@
 export * from "./types.ts";
 export * from "./drinks.ts";
+export * from "./venue-menu.ts";
 export * from "./bac.ts";
 export * from "./checkins.ts";
 export * from "./alerts.ts";

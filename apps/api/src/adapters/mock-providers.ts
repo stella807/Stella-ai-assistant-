@@ -71,7 +71,8 @@ export const mockDelivery: DeliveryPort = {
 const VENUES: Venue[] = [
   {
     id: "v-anchor", name: "The Anchor Tavern", lat: 40.7148, lng: -74.0018,
-    menuDrinkIds: ["beer-regular", "beer-ipa", "wine-red", "shot-whiskey", "cocktail-old-fashioned", "na-water"],
+    menuDrinkIds: ["beer-regular", "beer-ipa", "wine-red", "shot-whiskey", "cocktail-old-fashioned"],
+    menuReason: "Pub — pints and well drinks",
     foodMenu: [
       { id: "f-wings", name: "Wings", priceCents: 1400 },
       { id: "f-burger", name: "Burger & fries", priceCents: 1800 },
@@ -80,7 +81,8 @@ const VENUES: Venue[] = [
   },
   {
     id: "v-marisol", name: "Marisol Cantina", lat: 40.7171, lng: -74.0064,
-    menuDrinkIds: ["cocktail-margarita", "shot-tequila", "beer-light", "seltzer", "na-soda"],
+    menuDrinkIds: ["cocktail-margarita", "shot-tequila", "beer-light", "seltzer"],
+    menuReason: "Agave bar — margaritas and tequila",
     foodMenu: [
       { id: "f-tacos", name: "Street tacos (3)", priceCents: 1500 },
       { id: "f-chips", name: "Chips & guac", priceCents: 1100 },
@@ -88,7 +90,8 @@ const VENUES: Venue[] = [
   },
   {
     id: "v-lantern", name: "Lantern Wine Bar", lat: 40.7112, lng: -73.9971,
-    menuDrinkIds: ["wine-red", "wine-white", "seltzer", "na-water"],
+    menuDrinkIds: ["wine-red", "wine-white", "seltzer"],
+    menuReason: "Wine bar — wine by the glass",
     foodMenu: [{ id: "f-board", name: "Cheese board", priceCents: 2200 }],
   },
 ];

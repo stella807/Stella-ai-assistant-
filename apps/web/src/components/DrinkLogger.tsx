@@ -41,6 +41,12 @@ export function DrinkLogger({ drinks, venues, onLog, busy }: Props) {
               <option key={v.id} value={v.id}>{v.name}</option>
             ))}
           </select>
+          {/* The menu is inferred from what the maps API says about this place —
+              neither Places nor Yelp returns a real drink list. Saying so is the
+              difference between a helpful shortcut and a quiet wrong number. */}
+          {!showAll && venue?.menuReason && (
+            <p className="tiny muted">{venue.menuReason} · tap Show all for the full list</p>
+          )}
         </div>
       )}
 
