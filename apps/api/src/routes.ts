@@ -1180,7 +1180,7 @@ export const routes: Record<string, Handler> = {
     let updated = round;
     if (round.gameId === "guess-the-tab") {
       updated = settleGuessTheTab(round, Number(body?.actualStandardDrinks ?? 0), ctx.now());
-    } else if (game.id === "ride-home-race" || game.id === "last-one-standing") {
+    } else if (game.id === "ride-home-race" || game.id === "last-one-standing" || game.id === "open-mic") {
       updated = settleWithWinner(round, String(body?.winnerId ?? ""), ctx.now());
     } else {
       updated = settleRound(round, String(body?.loserId ?? ""), ctx.now());

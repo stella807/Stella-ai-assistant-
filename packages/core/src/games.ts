@@ -24,7 +24,9 @@ export type GameId =
   | "check-in-roulette"
   | "guess-the-tab"
   | "last-one-standing"
-  | "ride-home-race";
+  | "ride-home-race"
+  | "open-mic"
+  | "roll-for-it";
 
 export interface GameDefinition {
   id: GameId;
@@ -86,6 +88,26 @@ export const GAMES: GameDefinition[] = [
       "The first player to book a ride and get home safe takes the round. It is the one race in the app worth winning, and the points say so.",
     forfeit: "Last one home owes the group a round of coffees tomorrow.",
     reward: 120,
+    minPlayers: 2,
+  },
+  {
+    id: "open-mic",
+    name: "Open Mic",
+    tagline: "Every water, one honest thing.",
+    howItWorks:
+      "Every time you log a water, you owe the table one honest thing — whatever's actually on your mind, no filter. Whoever logs the most water by the end of the night has said the most, and takes the round.",
+    forfeit: "Whoever went quietest gets the next round of water.",
+    reward: 70,
+    minPlayers: 2,
+  },
+  {
+    id: "roll-for-it",
+    name: "Roll for It",
+    tagline: "Hit the number, say something real.",
+    howItWorks:
+      "Before the round, the table agrees on a number 1 through 6. Take turns rolling — a real die, or a phone's — and whoever rolls that number has to say one genuinely good thing about being out with this group tonight, out loud, right now.",
+    forfeit: "Says one real, good thing about the group — no deflecting with a joke.",
+    reward: 50,
     minPlayers: 2,
   },
 ];

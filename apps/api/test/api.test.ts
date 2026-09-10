@@ -707,6 +707,22 @@ describe("games", () => {
     const mallory = await signup("game-mal@example.com", "Mallory");
     expect((await call("POST", `/api/games/rounds/${round.id}/settle`, { loserId: samId }, mallory.token)).status).toBe(404);
   });
+
+  it("settles Open Mic on a winner, like the other water/pacing games", async () => {
+    const round = (await call("POST", "/api/games/rounds", { gameId: "open-mic", players: players() }, sam)).json;
+    const settled = (await call("POST", `/api/games/rounds/${round.id}/settle`, { winnerId: jordanId }, sam)).json;
+    expect(settled.winnerId).toBe(jordanId);
+    expect(settled.status).toBe("settled");
+  });
+
+  it("settles Roll for It on whoever rolled the number, first report wins", async () => {
+    const round = (await call("POST", "/api/games/rounds", { gameId: "roll-for-it", players: players() }, sam)).json;
+    const settled = (await call("POST", `/api/games/rounds/${round.id}/settle`, { loserId: samId }, sam)).json;
+    expect(settled.loserId).toBe(samId);
+    // Second report is ignored, same rule as every other forfeit-style game.
+    const again = (await call("POST", `/api/games/rounds/${round.id}/settle`, { loserId: jordanId }, sam)).json;
+    expect(again.loserId).toBe(samId);
+  });
 });
 
 describe("food orders confirmed sober", () => {

@@ -56,7 +56,7 @@ export function GamesScreen({ account }: { account: Account }) {
       <div>
         <h2>Games</h2>
         <p className="small muted">
-          Five ways to make looking after each other competitive. None of them score on how much you drink.
+          Seven ways to make looking after each other competitive. None of them score on how much you drink.
         </p>
       </div>
 

@@ -44,6 +44,18 @@ describe("the game catalogue", () => {
     // @ts-expect-error exercising the runtime guard
     expect(() => findGame("beer-pong")).toThrow();
   });
+
+  it("ties Open Mic's forfeit to logging water, not to drinking", () => {
+    const openMic = findGame("open-mic");
+    expect(openMic.howItWorks.toLowerCase()).toContain("water");
+    expect(openMic.howItWorks.toLowerCase()).not.toMatch(/\b(shot|shots)\b/);
+  });
+
+  it("gives Roll for It a positive forfeit, never a drinking one", () => {
+    const roll = findGame("roll-for-it");
+    expect(roll.forfeit.toLowerCase()).not.toMatch(/\bdrink\b/);
+    expect(roll.howItWorks.toLowerCase()).not.toMatch(/\bdrink\b/);
+  });
 });
 
 describe("rounds", () => {
@@ -70,6 +82,11 @@ describe("rounds", () => {
     const r = settleWithWinner(startRound("r", "ride-home-race", P, T0), "riley", T0);
     expect(r.winnerId).toBe("riley");
     expect(r.status).toBe("settled");
+  });
+
+  it("settles Open Mic and Roll for It like the other round types", () => {
+    expect(settleWithWinner(startRound("r", "open-mic", P, T0), "riley", T0).winnerId).toBe("riley");
+    expect(settleRound(startRound("r", "roll-for-it", P, T0), "jordan", T0).loserId).toBe("jordan");
   });
 });
 

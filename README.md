@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 410 tests (7 Postgres tests skip without a database)
+pnpm test         # 415 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm build
 ```
@@ -100,10 +100,11 @@ filled in. Any single red flag routes to emergency services; it is not a score.
 The panel opens itself once the estimate is in the danger range. Never
 plan-gated.
 
-**Games.** Five of them — First Worried Text, Check-In Roulette, Guess the Tab,
-Last One Standing, Ride Home Race. Every one scores on checking in, pacing,
-water or getting home; none score on how much anyone drank, and a test asserts
-no forfeit involves drinking more. Rounds are played with your crew.
+**Games.** Seven of them — First Worried Text, Check-In Roulette, Guess the Tab,
+Last One Standing, Ride Home Race, Open Mic, Roll for It. Every one scores on
+checking in, pacing, water or getting home; none score on how much anyone
+drank, and a test asserts no forfeit involves drinking more. Rounds are played
+with your crew.
 
 **Party supply** *(built, held for a later release).* Chairs, tables, catering,
 drinks, decorations, entertainment and essentials. Behind the `party-supply`
