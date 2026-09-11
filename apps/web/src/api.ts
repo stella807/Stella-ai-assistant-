@@ -1,5 +1,8 @@
-import { apiBase } from "./native/platform.ts";
-import type { Alert, BacEstimate, CheckIn, LocationPing, NearbyStore, NightOut, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
+import { apiBase, platform } from "./native/platform.ts";
+import type {
+  Alert, BacEstimate, Charge, CheckIn, LocationPing, NearbyStore, NightOut, Plan, RecoveryPlan,
+  ShareGrant, Statement, Subscription, Venue,
+} from "@safehubby/core";
 
 export interface CrewMemberView {
   travelerId: string;
@@ -127,6 +130,26 @@ export interface PaymentMethod {
   last4: string;
   expMonth: number;
   expYear: number;
+}
+
+/** A ledger line, with the two strings the server pre-renders for display. */
+export type BillingCharge = Charge & { kindLabel: string; railNote: string };
+
+/**
+ * The whole account in one shape. Subscription and per-trip charges arrive
+ * together on purpose — they are one account, and splitting the request is how
+ * a UI ends up presenting them as two products.
+ */
+export interface Billing {
+  method: PaymentMethod | null;
+  live: boolean;
+  subscription: Subscription | null;
+  plan: Plan;
+  planNote: string;
+  statement: Statement;
+  charges: BillingCharge[];
+  rails: { rail: string; note: string }[];
+  trialDays: number;
 }
 
 export interface DriverApplicationInput {
@@ -286,9 +309,16 @@ export const api = {
   partyCart: () => request<{ lines: CartLine[]; summary: CartSummary }>("GET", "/api/party/cart"),
   savePartyCart: (lines: CartLine[]) => request<{ lines: CartLine[]; summary: CartSummary }>("POST", "/api/party/cart", { lines }),
 
+  /** The whole account's money in one call — see GET /api/billing. */
+  billing: () => request<Billing>("GET", "/api/billing"),
   subscribe: (planId: string, cadence: "monthly" | "annual") =>
-    request<{ plan: any; cadence: string; trialDays: number; billingConnected: boolean; note: string }>(
-      "POST", "/api/subscription", { planId, cadence }),
+    request<Billing & { charged: Charge | null; awaitingStoreReceipt: boolean; note: string }>(
+      "POST", "/api/subscription", { planId, cadence, platform: platform() }),
+  cancelSubscription: () =>
+    request<Billing & { note: string }>("POST", "/api/subscription/cancel", {}),
+  confirmStorePurchase: (chargeId: string, receipt: string) =>
+    request<Billing & { verified: boolean; note: string }>(
+      "POST", `/api/billing/charges/${chargeId}/confirm`, { receipt }),
 };
 
 export { ApiError };

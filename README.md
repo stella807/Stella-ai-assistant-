@@ -103,11 +103,19 @@ location history included. Account → Delete my account is real erasure, not
 deactivation: it takes the traveler's nights, traces, sessions and sharing with
 it, while leaving crews and shared game rounds standing for everyone else.
 
-**Plans.** A plan picker with monthly and annual pricing. Billing is not
-connected in this build: no real charge is ever made, and the screen says so.
-A card can be added on file (Account → Payment method) — that only enables a
-pre-authorization hold at the moment a ride or delivery is actually booked, see
-"Getting home"; it never charges anything by itself.
+**Payments.** One screen for everything Safehubby charges: the plan, the card
+on file, and every ride, secure-transport trip and pharmacy run, adding up to
+one total for the last 30 days. Plans start on a 14-day trial with nothing
+taken, changes mid-period are prorated rather than charged twice, and
+cancelling keeps the plan on until the period already paid for runs out.
+
+The one thing that cannot be single is the *settlement*: Apple and Google
+require a subscription bought inside their app to go through their billing, and
+forbid a delivery or a ride from going through it. So a line's rail is picked
+per charge, the screen says so when an account has actually used both, and
+everything else — the statement, the history, the total — is one account. No
+card processor or receipt verification is wired in yet; `docs/billing.md` says
+exactly what is and is not connected.
 
 **Drive for Safehubby.** A public application form, reachable before signing
 in, for people who want to drive directly for Safehubby rather than through
@@ -179,8 +187,11 @@ plus a real profit margin. Rides and deliveries are still passed through at
 cost on top of the subscription; bundling them would mean capping how often
 someone can get home safely. See `docs/fulfillment.md`.
 
-Safety basics are never paywalled — SOS, location sharing, and check-ins are
-free forever, and a test enforces it. Revenue is subscriptions, ride and
+Every plan starts on a 14-day trial with nothing charged, switching mid-period
+bills only the difference, and cancelling keeps the plan running until the
+period already paid for ends. Safety basics are never paywalled — SOS, location
+sharing, and check-ins are free forever, and a test enforces it. A declined card
+does not take them away either. Revenue is subscriptions, ride and
 delivery referrals, and venue partnerships.
 
 ## Where we said no
@@ -237,13 +248,14 @@ they can afford *not* to drive is the worst possible place to be wrong, and a
 pharmacy run that promises to charge a card it cannot charge is the second
 worst. The relevant flags are off in `features.ts` until a partnership exists.
 
-**No fake checkout.** The plan picker itself still never asks for card
-details, because subscription billing is not wired up. A card can be added
-separately, under Account, but only for the pre-authorization hold that backs
-automatic rides and delivery (see "Getting home") — adding one never charges
-anything, and there is no processor behind it yet (`docs/fulfillment.md`). A
-realistic-looking payment step for a charge that does not exist is a lie told
-to the user's face, which is why the card form says plainly what it is for.
+**No fake checkout.** The billing ledger is real — proration, trials,
+renewals, holds and the rail rules are all implemented and tested — but no card
+processor and no store receipt verification sit behind it yet. Rather than
+mime a convincing checkout, the code is explicit at every seam: adding a card
+charges nothing, a store purchase comes back `verified: false`, and the hourly
+sweep refuses to invent an App Store renewal it cannot observe, counting those
+as pending instead. `docs/billing.md` lists every gap. A realistic-looking
+payment step for a charge that does not exist is a lie told to the user's face.
 
 **No selling drinking data.** "Anonymized trend data" was on the monetization
 list. Location traces are notoriously re-identifiable and a bar-by-bar drinking

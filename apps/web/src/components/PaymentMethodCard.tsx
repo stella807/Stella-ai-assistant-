@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { api, type PaymentMethod } from "../api.ts";
 
 /**
- * The card that makes automatic booking possible without Safehubby fronting
- * the money. Adding one does not charge anything by itself — it only lets a
- * hold be placed at the moment an automatic ride or secure-transport trip is
- * actually booked, and Safehubby never spends before that hold exists.
+ * The one card on the account. It backs every charge that is not a store-billed
+ * subscription: rides, secure transport, pharmacy runs, and the subscription
+ * itself on the web. Adding one does not charge anything by itself — it lets a
+ * hold be placed at the moment a trip is actually booked, and Safehubby never
+ * spends before that hold exists.
  *
- * There is no real card processor wired in yet (see docs/fulfillment.md), so
- * this form is a stand-in for whatever replaces it — Stripe's card element,
- * most likely — and stores only the last four digits and an expiry, which is
- * all a real integration would ever hand back to the browser either way.
+ * There is no real card processor wired in yet (see docs/billing.md), so this
+ * form is a stand-in for whatever replaces it — Stripe's card element, most
+ * likely — and stores only the last four digits and an expiry, which is all a
+ * real integration would ever hand back to the browser either way.
  */
 export function PaymentMethodCard() {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
@@ -64,11 +65,10 @@ export function PaymentMethodCard() {
 
   return (
     <section className="card">
-      <h3>Payment method</h3>
+      <h3>Card on file</h3>
       <p className="small muted">
-        Needed for Safehubby to book an automatic ride or a secure-transport trip on your behalf. Nothing is
-        charged when you add a card — only when a ride is actually booked, and only up to what that ride
-        costs.
+        One card for everything: rides, secure transport, pharmacy runs, and your plan. Nothing is charged
+        when you add it — only when something actually happens, and only up to what that thing costs.
       </p>
 
       {method && !adding && (

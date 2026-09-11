@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
-  Alert, CarePackageAuth, CarePackageOrder, Crew, DriverApplication, GameRound, NightOut,
-  PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant,
+  Alert, CarePackageAuth, CarePackageOrder, Charge, Crew, DriverApplication, GameRound, NightOut,
+  PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant, Subscription,
 } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
 
@@ -45,13 +45,18 @@ export interface Db {
   partyCarts: Record<string, { sku: string; qty: number }[]>;
   paymentMethods: Record<string, PaymentMethodOnFile>;
   holds: PreAuthorization[];
+  /** One ledger for every charge — subscription, ride, delivery — so a single
+   *  screen can show the whole account. See wallet.ts. */
+  charges: Charge[];
+  subscriptions: Record<string, Subscription>;
   driverApplications: DriverApplication[];
   pushDevices: PushDevice[];
 }
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], driverApplications: [], pushDevices: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {},
+  driverApplications: [], pushDevices: [],
 };
 
 /** What routes need from a store, so the file and Postgres backings are

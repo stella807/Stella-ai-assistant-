@@ -22,6 +22,8 @@ export const SEED: Db = {
   pendingOrders: {},
   partyCarts: {},
   paymentMethods: {},
+  charges: [],
+  subscriptions: {},
   holds: [],
   driverApplications: [], pushDevices: [],
 };

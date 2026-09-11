@@ -26,6 +26,15 @@ client-supplied values.
 account. Adding one introduces the usual email-ownership attack surface and
 should be designed, not improvised.
 
+**Payment settlement.** The billing ledger, holds, proration and rail rules are
+implemented and tested, but nothing settles money yet: a card-rail charge is
+marked settled inline, and a store purchase is recorded from the receipt the
+client hands back without verifying it with Apple or Google. Until both are
+wired, a client could claim a store purchase it never made. The blast radius is
+a subscription tier, not another person's data — every billing route is scoped
+to the session and returns 404 on someone else's charge — but it is a real hole
+and `docs/billing.md` says where the two fixes go.
+
 ## Retention — built
 
 Location pings expire after **7 days** (`LOCATION_RETENTION_DAYS`). The sweep

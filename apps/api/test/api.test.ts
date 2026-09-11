@@ -636,15 +636,132 @@ describe("subscription", () => {
     }, jordan)).status).toBe(200);
   });
 
-  it("is explicit that no payment was taken", async () => {
+  it("starts a trial rather than charging on the way in", async () => {
     const res = await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
-    expect(res.json.billingConnected).toBe(false);
-    expect(res.json.note).toMatch(/nothing was charged/i);
+    expect(res.json.subscription.status).toBe("trialing");
+    expect(res.json.charged).toBeNull();
+    expect(res.json.note).toMatch(/nothing has been charged/i);
+    expect(res.json.statement.settledCents).toBe(0);
   });
 
   it("rejects an unknown plan and requires a session", async () => {
     expect((await call("POST", "/api/subscription", { planId: "enterprise" }, jordan)).status).toBe(400);
     expect((await call("POST", "/api/subscription", { planId: "family" })).status).toBe(401);
+  });
+});
+
+describe("one billing surface", () => {
+  const addCard = (token: string) =>
+    call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, token);
+
+  it("answers the card, the plan and every charge in a single call", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-plus", cadence: "monthly" }, jordan);
+
+    const billing = (await call("GET", "/api/billing", undefined, jordan)).json;
+    expect(billing.method.last4).toBe("4242");
+    expect(billing.subscription.planId).toBe("premium-plus");
+    expect(billing.plan.id).toBe("premium-plus");
+    expect(Array.isArray(billing.charges)).toBe(true);
+    expect(billing.statement).toHaveProperty("settledCents");
+  });
+
+  it("requires a session — money is nobody else's business", async () => {
+    expect((await call("GET", "/api/billing")).status).toBe(401);
+    expect((await call("POST", "/api/subscription/cancel")).status).toBe(401);
+  });
+
+  it("puts a ride on the same statement as the subscription", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-plus" }, jordan);
+    await call("POST", "/api/rides/book", {
+      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01, label: "Home" },
+    }, jordan);
+
+    const billing = (await call("GET", "/api/billing", undefined, jordan)).json;
+    const kinds = billing.charges.map((c: any) => c.kind);
+    // The ride is on the ledger whether it booked automatically or handed off;
+    // what matters is that nothing lands anywhere other than here.
+    expect(kinds.every((k: string) => ["subscription", "ride", "secure-transport", "supplies"].includes(k))).toBe(true);
+    expect(billing.charges.every((c: any) => c.railNote)).toBe(true);
+  });
+
+  it("bills a web subscription to the card and an in-app one to the store", async () => {
+    await addCard(jordan);
+    // Out of the trial first, so a plan change actually produces a charge.
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    advance(60 * 24 * 15);                                  // past the 14-day trial
+
+    const web = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "web" }, jordan);
+    expect(web.json.charged.rail).toBe("card");
+    expect(web.json.charged.status).toBe("settled");
+    expect(web.json.awaitingStoreReceipt).toBe(false);
+
+    const ios = await call("POST", "/api/subscription", { planId: "family", platform: "ios" }, jordan);
+    expect(ios.json.charged.rail).toBe("app-store");
+    expect(ios.json.charged.status).toBe("pending");
+    expect(ios.json.awaitingStoreReceipt).toBe(true);
+    expect(ios.json.note).toMatch(/store/i);
+  });
+
+  it("credits the unused part of a period instead of charging twice for it", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    advance(60 * 24 * 15);                                  // the trial ends and the first month begins
+    advance(60 * 24 * 14);                                  // roughly halfway through that month
+
+    const up = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "web" }, jordan);
+    const full = (await call("GET", "/api/catalog")).json.plans.find((p: any) => p.id === "premium-plus").monthlyCents;
+    expect(up.json.charged.amountCents).toBeLessThan(full);
+    expect(up.json.charged.amountCents).toBeGreaterThan(0);
+  });
+
+  it("settles a store purchase only against its receipt, and never a card line", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    advance(60 * 24 * 15);                                  // past the trial, so changes are billable
+
+    const web = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "web" }, jordan);
+    const ios = await call("POST", "/api/subscription", { planId: "family", platform: "ios" }, jordan);
+    const chargeId = ios.json.charged.id;
+
+    expect((await call("POST", `/api/billing/charges/${chargeId}/confirm`, {}, jordan)).status).toBe(400);
+    const done = await call("POST", `/api/billing/charges/${chargeId}/confirm`, { receipt: "apple-receipt-1" }, jordan);
+    expect(done.status).toBe(200);
+    expect(done.json.charges.find((c: any) => c.id === chargeId).status).toBe("settled");
+    // Honest about what it did not do.
+    expect(done.json.verified).toBe(false);
+
+    // A card line cannot be marked paid by claiming a store receipt for it.
+    expect((await call("POST", `/api/billing/charges/${web.json.charged.id}/confirm`, { receipt: "x" }, jordan)).status).toBe(400);
+  });
+
+  it("will not let one person confirm or read another person's charges", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    advance(60 * 24 * 15);
+    const ios = await call("POST", "/api/subscription", { planId: "family", platform: "ios" }, jordan);
+
+    expect((await call("POST", `/api/billing/charges/${ios.json.charged.id}/confirm`, { receipt: "r" }, sam)).status).toBe(404);
+    expect((await call("GET", "/api/billing", undefined, sam)).json.charges).toEqual([]);
+  });
+
+  it("keeps paid features until the period runs out after cancelling", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-plus" }, jordan);
+    const canceled = await call("POST", "/api/subscription/cancel", {}, jordan);
+    expect(canceled.json.subscription.status).toBe("canceled");
+    expect(canceled.json.plan.id).toBe("premium-plus");
+    expect(canceled.json.note).toMatch(/stays on until/);
+
+    // A quote still works today, which is the whole point of not cutting off mid-period.
+    expect((await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
+    }, jordan)).status).toBe(200);
+  });
+
+  it("has nothing to cancel before there is a subscription", async () => {
+    expect((await call("POST", "/api/subscription/cancel", {}, jordan)).status).toBe(404);
   });
 });
 

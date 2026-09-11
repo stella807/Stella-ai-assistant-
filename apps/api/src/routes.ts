@@ -18,12 +18,15 @@ import {
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold,
+  buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
+  kindLabel, railsUsed,
+  cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
   devicesFor, registerDevice, upsertDevice,
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
 import type {
-  Alert, ApplicationStatus, Basket, CartLine, CrewMemberFacts, DriverTier, Feature, GameId, NightOut,
-  OrderProvider, PlanId, RedFlagId, TriggerBand,
+  Alert, ApplicationStatus, Basket, Cadence, CartLine, ChargeKind, CrewMemberFacts, DriverTier,
+  Feature, GameId, NightOut, OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -33,6 +36,7 @@ import {
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
 import { guardianMessages } from "./notify.ts";
+import { renewDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
@@ -88,6 +92,21 @@ export interface Ctx {
 
 const unauthorized = () => new HttpError(401, "Sign in to continue.");
 
+/** What actually happened to the user's money, said plainly. */
+function noteFor(sub: Subscription, rail: string | null, dueCents: number): string {
+  if (sub.planId === "free") return "You are on the free plan. Nothing is charged.";
+  if (sub.status === "trialing") {
+    // Same date format describeSubscription uses: two spellings of the same
+    // day on one screen reads like two different dates.
+    const when = new Date(sub.currentPeriodEnd)
+      .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    return `Free for ${TRIAL_DAYS} days. Nothing has been charged — the first payment is on ${when}.`;
+  }
+  if (dueCents === 0) return "Plan changed. Nothing owed — the part of this period you already paid for covers it.";
+  if (rail === "card") return `Plan changed. $${(dueCents / 100).toFixed(2)} charged to your card, with any unused part of the old period credited.`;
+  return `Plan changed. $${(dueCents / 100).toFixed(2)} is due through the store's billing; confirm the purchase to finish.`;
+}
+
 /** Plan and display name for the signed-in actor, used by the fulfilment paths. */
 function planOf(ctx: Ctx, userId: string): PlanId {
   return (ctx.store.data.travelers.find((t) => t.id === userId)?.planId ?? "free") as PlanId;
@@ -117,34 +136,162 @@ function requirePaymentMethod(ctx: Ctx, userId: string): void {
 }
 
 /**
+ * The platform the request came from, which decides the rail a subscription
+ * settles on (see wallet.ts).
+ *
+ * Self-reported, and it has to be: only the client knows whether it is running
+ * inside the App Store build. A client that lied would be routing an in-app
+ * subscription around Apple's billing — which is the operator's compliance
+ * problem, not a way to take a user's money twice or reach anyone else's data,
+ * so it is not a boundary worth failing requests over. It is stored on the
+ * subscription so the rail is auditable after the fact.
+ */
+function platformFrom(value: unknown): Platform {
+  return value === "ios" || value === "android" ? value : "web";
+}
+
+/**
+ * Turns over any period that has run out before answering a billing question.
+ *
+ * The hourly sweep in main.ts catches accounts nobody touches, but it cannot be
+ * the only thing that renews: a trial that ended an hour ago has to be over the
+ * moment the user opens the billing screen, not whenever a timer next fires.
+ * Doing it on read as well as on a timer means the answer is the same either
+ * way, which is also what makes it testable without a clock running.
+ */
+function catchUpBilling(ctx: Ctx): void {
+  ctx.store.update((db) => void renewDueSubscriptions(db, ctx.now()));
+}
+
+function subscriptionOf(ctx: Ctx, userId: string): Subscription | null {
+  return ctx.store.data.subscriptions[userId] ?? null;
+}
+
+/**
+ * Adds a line to the one ledger. Every charge in the product goes through
+ * here — subscription, ride, secure transport, pharmacy run — so there is a
+ * single place that knows what someone has been billed and a single screen
+ * that can show it.
+ */
+function addCharge(ctx: Ctx, input: {
+  travelerId: string;
+  kind: ChargeKind;
+  description: string;
+  amountCents: number;
+  platform?: Platform;
+  reference?: string;
+  holdId?: string;
+}) {
+  const charge = recordCharge({
+    id: newId("ch"),
+    travelerId: input.travelerId,
+    kind: input.kind,
+    platform: input.platform ?? "web",
+    description: input.description,
+    amountCents: input.amountCents,
+    now: ctx.now(),
+    reference: input.reference,
+    holdId: input.holdId,
+  });
+  ctx.store.update((db) => void db.charges.push(charge));
+  return charge;
+}
+
+function updateCharge(ctx: Ctx, chargeId: string, fn: (c: NonNullable<typeof ctx.store.data.charges[number]>) => typeof c): void {
+  ctx.store.update((db) => {
+    const target = db.charges.find((c) => c.id === chargeId);
+    if (target) Object.assign(target, fn(target));
+  });
+}
+
+/** What the whole account looks like right now, in one object. */
+function billingState(ctx: Ctx, userId: string) {
+  catchUpBilling(ctx);
+  const now = ctx.now();
+  const method = ctx.store.data.paymentMethods[userId] ?? null;
+  const subscription = subscriptionOf(ctx, userId);
+  const mine = chargesFor(ctx.store.data.charges, userId)
+    .slice()
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return {
+    method,
+    live: hasLivePaymentMethod(ctx, userId),
+    subscription,
+    plan: findPlan(effectivePlan(subscription, now)),
+    planNote: describeSubscription(subscription, now),
+    statement: buildStatement(ctx.store.data.charges, userId, now),
+    charges: mine.slice(0, 50).map((c) => ({ ...c, kindLabel: kindLabel(c.kind), railNote: describeRail(c.rail) })),
+    rails: railsUsed(mine).map((rail) => ({ rail, note: describeRail(rail) })),
+    trialDays: TRIAL_DAYS,
+  };
+}
+
+/**
+ * A pharmacy run only reaches the ledger when Safehubby is the one paying for
+ * it. Without a fulfilment partnership the run hands off to the store and the
+ * user pays there, so putting a line on their Safehubby statement would be
+ * inventing a charge we never made — see carePackageState.
+ */
+function chargeForSupplies(ctx: Ctx, travelerId: string, basket: Basket, deliverTo: string): void {
+  if (!(isAutomatic(deliveryDispatcher().status) || isEnabled("pharmacy-ordering-api"))) return;
+  const cents = basketTotalCents(basket);
+  if (cents <= 0) return;
+  const charge = addCharge(ctx, {
+    travelerId,
+    kind: "supplies",
+    description: `${basket.name} to ${deliverTo}`,
+    amountCents: cents,
+  });
+  updateCharge(ctx, charge.id, (c) => settleCharge(c, ctx.now()));
+}
+
+/**
  * Runs a pay-then-bill booking behind a hold: reserve the estimate first,
  * capture only what the provider actually charges, release everything if the
  * booking fails. This is the mechanism that let per-transaction risk replace a
  * margin baked into the subscription price — see payment.ts.
+ *
+ * The hold and the ledger line are created together and resolved together: a
+ * user should never see a hold on their card with nothing on their statement
+ * explaining it, or a line on their statement that no hold backs.
  */
 async function bookWithHold<T extends { fareEstimateCents: number | null }>(
   ctx: Ctx,
   travelerId: string,
   estimateCents: number,
   doBook: () => Promise<T>,
+  line: { kind: ChargeKind; description: string },
 ): Promise<T> {
   const hold = authorizeHold({ id: newId("hold"), travelerId, estimateCents, now: ctx.now() });
   ctx.store.update((db) => void db.holds.push(hold));
+  const charge = addCharge(ctx, {
+    travelerId,
+    kind: line.kind,
+    description: line.description,
+    amountCents: hold.amountCents,
+    holdId: hold.id,
+  });
 
   try {
     const result = await doBook();
+    let captured = hold.amountCents;
     ctx.store.update((db) => {
       const target = db.holds.find((h) => h.id === hold.id);
       if (!target) return;
       const actual = result.fareEstimateCents ?? target.amountCents;
-      Object.assign(target, captureHold(target, Math.min(actual, target.amountCents), ctx.now()));
+      captured = Math.min(actual, target.amountCents);
+      Object.assign(target, captureHold(target, captured, ctx.now()));
     });
+    updateCharge(ctx, charge.id, (c) => settleCharge(c, ctx.now(), captured));
     return result;
   } catch (err) {
     ctx.store.update((db) => {
       const target = db.holds.find((h) => h.id === hold.id);
       if (target) Object.assign(target, releaseHold(target));
     });
+    updateCharge(ctx, charge.id, (c) =>
+      failCharge(c, err instanceof Error ? err.message : "The booking did not go through.", ctx.now()));
     throw err;
   }
 }
@@ -291,6 +438,10 @@ function refresh(ctx: Ctx, night: NightOut): NightOut {
   // dedupes by id against what is stored, so a standing condition notifies
   // once rather than on every poll.
   const fresh: Alert[] = [];
+  // Collected here rather than charged inside the transaction: addCharge opens
+  // its own store update, and nesting one inside another is how you get a
+  // half-written document.
+  const autoSent: { basket: Basket; deliverTo: string }[] = [];
   ctx.store.update((db) => {
     const target = db.nights.find((n) => n.id === night.id)!;
     target.checkIns = sweepMissedCheckIns(target.checkIns, now);
@@ -305,9 +456,11 @@ function refresh(ctx: Ctx, night: NightOut): NightOut {
       const band = estimateBac({ body: target.body, drinks: target.drinks, now }).band;
       if (shouldSendAutomatically({ auth: care.auth, band, existingOrders: care.orders })) {
         care.orders.push(buildOrder(newId("cp"), care.auth!.basketId, care.auth!.deliverTo, "auto", now));
+        autoSent.push({ basket: findBasket(care.auth!.basketId), deliverTo: care.auth!.deliverTo });
       }
     }
   });
+  for (const auto of autoSent) chargeForSupplies(ctx, night.travelerId, auto.basket, auto.deliverTo);
   notifyGuardians(ctx, fresh);
   return getNight(ctx, night.id);
 }
@@ -904,31 +1057,115 @@ export const routes: Record<string, Handler> = {
       const state = (db.carePackages[night.id] ??= { auth: null, orders: [] });
       state.orders.push(order);
     });
+    chargeForSupplies(ctx, night.travelerId, basket, order.deliverTo);
     return { order, totalCents: basketTotalCents(basket) };
   },
 
   /* ---------------- subscription ---------------- */
 
   /**
-   * Switches the plan. Billing is NOT connected — no card is taken and nothing
-   * is charged. Kept explicit in the response so no caller can mistake this
-   * for a completed purchase.
+   * Everything about this account's money, in one response.
+   *
+   * Deliberately one endpoint rather than three: the card, the subscription and
+   * the per-trip charges are one account, and a UI that has to stitch them
+   * together from separate calls ends up showing them as separate things. The
+   * rail each line settled on is included, but it is a footnote on a line, not
+   * a division of the response.
+   */
+  "GET /api/billing": (ctx) => billingState(ctx, actor(ctx)),
+
+  /**
+   * Starts or changes the subscription.
+   *
+   * Charges land on the same ledger as a ride home. What differs is only the
+   * rail: inside a store app, Apple or Google have to settle a digital
+   * subscription, so the line is recorded against that rail and marked pending
+   * until the store's receipt confirms it (`POST /api/billing/charges/:id/confirm`).
+   * On the web it is the card on file, and the card is required up front for
+   * the same reason a ride is: there is no point starting a trial that cannot
+   * convert.
    */
   "POST /api/subscription": (ctx, _p, body) => {
     const me = actor(ctx);
     const planId = body?.planId as PlanId;
-    const cadence = body?.cadence === "annual" ? "annual" : "monthly";
+    const cadence: Cadence = body?.cadence === "annual" ? "annual" : "monthly";
+    const platform = platformFrom(body?.platform);
     const plan = findPlan(planId);
+    catchUpBilling(ctx);
+    const existing = subscriptionOf(ctx, me);
+
+    const change = existing
+      ? changePlan({ subscription: existing, planId: plan.id, cadence, platform, now: ctx.now() })
+      : startSubscription({ travelerId: me, planId: plan.id, cadence, platform, now: ctx.now() });
+
+    const charge = change.due
+      ? addCharge(ctx, {
+        travelerId: me,
+        kind: "subscription",
+        description: change.due.description,
+        amountCents: change.due.cents,
+        platform,
+      })
+      : null;
+
     ctx.store.update((db) => {
+      db.subscriptions[me] = change.subscription;
       const traveler = db.travelers.find((t) => t.id === me)!;
-      traveler.planId = plan.id;
+      traveler.planId = effectivePlan(change.subscription, ctx.now());
     });
+
+    // A card charge settles inline here because there is no processor wired in
+    // yet; a store charge cannot, because only the store's receipt can say it
+    // happened. Both are explicit in the response rather than implied.
+    if (charge && charge.rail === "card") {
+      updateCharge(ctx, charge.id, (c) => settleCharge(c, ctx.now()));
+    }
+
     return {
-      plan,
-      cadence,
-      trialDays: TRIAL_DAYS,
-      billingConnected: false,
-      note: "Plan switched. Billing is not connected in this build — no payment method was taken and nothing was charged.",
+      ...billingState(ctx, me),
+      charged: charge,
+      awaitingStoreReceipt: charge?.rail !== "card" && charge !== null,
+      note: noteFor(change.subscription, charge?.rail ?? null, change.due?.cents ?? 0),
+    };
+  },
+
+  /** Cancels without cutting anyone off mid-period — see subscription.ts. */
+  "POST /api/subscription/cancel": (ctx) => {
+    const me = actor(ctx);
+    const existing = subscriptionOf(ctx, me);
+    if (!existing) throw new HttpError(404, "There is no subscription to cancel.");
+    const canceled = cancelSubscription(existing, ctx.now());
+    ctx.store.update((db) => {
+      db.subscriptions[me] = canceled;
+      const traveler = db.travelers.find((t) => t.id === me)!;
+      traveler.planId = effectivePlan(canceled, ctx.now());
+    });
+    return { ...billingState(ctx, me), note: describeSubscription(canceled, ctx.now()) };
+  },
+
+  /**
+   * Confirms a store purchase against a pending ledger line.
+   *
+   * The client hands back the App Store or Play receipt it got. This build
+   * records it and settles the line; a real deployment verifies the receipt
+   * with Apple or Google first, and this is the single place that has to
+   * change when it does. It refuses to settle a card line, so nothing can be
+   * marked paid by claiming a receipt for it.
+   */
+  "POST /api/billing/charges/:chargeId/confirm": (ctx, p, body) => {
+    const me = actor(ctx);
+    const chargeId = req(p, "chargeId");
+    const charge = ctx.store.data.charges.find((c) => c.id === chargeId);
+    if (!charge || charge.travelerId !== me) throw notFound("Charge");
+    if (charge.rail === "card") throw new HttpError(400, "A card charge is not settled by a store receipt.");
+    const receipt = String(body?.receipt ?? "").trim();
+    if (!receipt) throw new HttpError(400, "Missing the store receipt for this purchase.");
+
+    updateCharge(ctx, chargeId, (c) => settleCharge(c, ctx.now(), undefined, receipt));
+    return {
+      ...billingState(ctx, me),
+      verified: false,
+      note: "Recorded against your account. Receipt verification with the store is not wired in this build — see docs/billing.md.",
     };
   },
 
@@ -1043,6 +1280,7 @@ export const routes: Record<string, Handler> = {
         riderPhone: body?.phone,
         note: body?.note,
       }),
+      { kind: "secure-transport", description: `Secure transport to ${body?.dropoff?.label ?? "your drop-off"}` },
     );
     ctx.store.update((db) => {
       (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Secure ride home"));
@@ -1074,6 +1312,7 @@ export const routes: Record<string, Handler> = {
           riderPhone: body?.phone,
           note: body?.note,
         }),
+        { kind: "ride", description: `Ride to ${body?.dropoff?.label ?? "home"}` },
       );
       ctx.store.update((db) => {
         (db.points[travelerId] ??= []).push(

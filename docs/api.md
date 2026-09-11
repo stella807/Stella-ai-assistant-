@@ -30,6 +30,25 @@ session; a `travelerId` in a request body is ignored.
 | `GET` | `/api/travelers` | Seeded demo travelers. |
 | `GET` | `/api/travelers/:travelerId` | Profile, point balance, active grants. |
 
+## Billing
+
+One account, one ledger — the subscription and the per-trip charges are the
+same list. `docs/billing.md` explains the two settlement rails and what is not
+wired yet.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/billing` | The card, the subscription, the 30-day statement and the charge history, in one response. |
+| `POST` | `/api/subscription` | `{ planId, cadence?, platform? }`. Starts a trial or changes plan, prorated. Returns the same shape as `GET /api/billing` plus `charged` and `awaitingStoreReceipt`. |
+| `POST` | `/api/subscription/cancel` | Keeps the plan until the period already paid for ends. 404 if there is no subscription. |
+| `POST` | `/api/billing/charges/:chargeId/confirm` | `{ receipt }`. Settles a store-rail line. 400 on a card line; returns `verified: false` — the receipt is not checked with the store in this build. |
+| `GET` | `/api/account/payment-method` | `{ method, live }`. Never more than brand, last four and expiry. |
+| `POST` | `/api/account/payment-method` | Attach a card. Charges nothing. |
+| `POST` | `/api/account/payment-method/remove` | Detach it. |
+
+All of these require a session, and none of them return another traveler's
+charges.
+
 ## A night out
 
 | Method | Path | Notes |

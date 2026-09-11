@@ -22,6 +22,8 @@ export * from "./authz.ts";
 export * from "./points.ts";
 export * from "./games.ts";
 export * from "./billing.ts";
+export * from "./wallet.ts";
+export * from "./subscription.ts";
 export * from "./payment.ts";
 export * from "./driver-applications.ts";
 export * from "./ports.ts";

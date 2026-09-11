@@ -4,7 +4,7 @@ import { api, type Account } from "./api.ts";
 import { configError } from "./native/platform.ts";
 import { isEnabled } from "@safehubby/core";
 import { AuthScreen } from "./components/AuthScreen.tsx";
-import { PlansScreen } from "./components/PlansScreen.tsx";
+import { BillingScreen } from "./components/BillingScreen.tsx";
 import { GamesScreen } from "./components/GamesScreen.tsx";
 import { PartyScreen } from "./components/PartyScreen.tsx";
 import { AccountScreen } from "./components/AccountScreen.tsx";
@@ -73,7 +73,7 @@ export function App() {
             {isEnabled("party-supply") && (
               <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>Party</button>
             )}
-            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Plan</button>
+            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Payments</button>
           </div>
 
           {/* The sober ask outranks whatever tab you are on: it is a question
@@ -88,9 +88,9 @@ export function App() {
             <AccountScreen account={account} onDeleted={() => { setAccount(null); setRole("out"); }} />
           )}
           {role === "plans" && (
-            <PlansScreen
+            <BillingScreen
               currentPlanId={account.planId}
-              onChanged={(planId) => setAccount({ ...account, planId })}
+              onPlanChanged={(planId) => setAccount((a) => (a && a.planId !== planId ? { ...a, planId } : a))}
             />
           )}
         </>

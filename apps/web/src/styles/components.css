@@ -484,3 +484,19 @@
 .list-plain li::before { content: "— "; color: var(--faint); }
 
 .inline-link { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Billing ---------------------------------------------------------------- */
+
+/* An amount must never wrap or be squeezed by a long description: the number
+   is the thing being read. */
+.charge-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A charge that did not go through is still listed — a user who saw it pending
+   deserves to know what became of it — but it must not read as money taken. */
+.charge-amount.charge-void {
+  text-decoration: line-through;
+  color: var(--muted);
+}

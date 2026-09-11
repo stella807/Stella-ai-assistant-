@@ -1,4 +1,5 @@
 import { LOCATION_RETENTION_DAYS, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
+import { renewDueSubscriptions } from "./billing.ts";
 import { createApp, makeCtx } from "./server.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
   const sweepRetention = () => {
     let removed = 0;
     let released = 0;
+    let renewals = { renewed: 0, chargedCents: 0, storeRailPending: 0 };
     store.update((db) => {
       const now = new Date();
       const result = sweepLocationHistory(db.nights, now);
@@ -70,9 +72,18 @@ async function main(): Promise<void> {
       const before = db.holds.filter((h) => h.status === "held").length;
       db.holds = sweepExpiredHolds(db.holds, now);
       released = before - db.holds.filter((h) => h.status === "held").length;
+
+      // Periods have to actually turn over, or a paid plan runs forever unbilled.
+      renewals = renewDueSubscriptions(db, now);
     });
     if (removed > 0) console.log(`[safehubby] Retention: dropped ${removed} expired location ping(s)`);
     if (released > 0) console.log(`[safehubby] Released ${released} expired payment hold(s)`);
+    if (renewals.renewed > 0) {
+      console.log(`[safehubby] Renewed ${renewals.renewed} subscription(s), $${(renewals.chargedCents / 100).toFixed(2)}`);
+    }
+    if (renewals.storeRailPending > 0) {
+      console.log(`[safehubby] ${renewals.storeRailPending} store-billed subscription(s) awaiting a store notification — see docs/billing.md`);
+    }
   };
   sweepRetention();
   const retentionTimer = setInterval(sweepRetention, 60 * 60_000);
