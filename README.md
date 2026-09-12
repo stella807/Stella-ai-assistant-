@@ -130,10 +130,11 @@ transport, rather than an in-house hiring marketplace: Safehubby vets and
 employs nobody here, and there's no payroll baked into the price. The
 assistant pays with a single-use, spend-capped virtual card issued through
 Revolut Business — never the subscriber's own card, and never a same-night
-bank debit, which is too slow to fund one. Family-only, and its price went up
-again for it: not for a salary, but for the same category of standing cost
-that funds secure transport — the partner-network retainer and keeping the
-card-issuing balance funded. See `docs/concierge.md`.
+bank debit, which is too slow to fund one. On every paid tier, not just
+Family — Premium included — and every paid tier's price reflects that: not for
+a salary, but for the same category of standing cost that funds secure
+transport — the partner-network retainer and keeping the card-issuing balance
+funded. See `docs/concierge.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what
@@ -187,9 +188,9 @@ without spinning up a server.
 | Plan | Monthly | Annual | What it adds |
 |---|---|---|---|
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
-| Premium | $14.99 | $152.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
-| Premium Plus | $29.99 | $305.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
-| Family | $69.99 | $713.88 (15% off) | Six seats, extended contacts, secure transport, personal concierge, and the full pharmacy-run menu |
+| Premium | $17.99 | $183.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan, personal concierge |
+| Premium Plus | $33.99 | $346.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games, personal concierge |
+| Family | $69.99 | $713.88 (15% off) | Six seats, extended contacts, secure transport, and the full pharmacy-run menu |
 
 Automatic fulfilment means Safehubby books the provider on the rider's behalf,
 backed by a pre-authorization hold on the rider's own card so nothing is ever

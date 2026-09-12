@@ -257,12 +257,15 @@ holds precisely what the subscriber set, unlike the 25% buffer on a ride fare
 estimate. The person spending it is a stranger; the cap is a promise made to
 the subscriber, and padding it would break that promise by design.
 
-**Only the Family tier can reach it, and its price moved again for it.** A
-task's own cost is still capped per task, not open-ended like a ride fare —
-that part is the same as before. But the partner-network retainer and keeping
-the Revolut balance funded that issues each task's card (below) are both
-standing costs, the same category as secure transport's insurance contract,
-so Family's price absorbs them the same way. See `billing.ts` and
+**Every paid tier can reach it — Premium included, not just Family — and
+every paid tier's price absorbs a share of what that costs.** It started as a
+Family-only perk, priced in only there; it's now on `BASIC_FEATURES`, so
+Premium and Premium Plus both went up too. A task's own cost is still capped
+per task, not open-ended like a ride fare — that part hasn't changed. What
+moved is the partner-network retainer and keeping the Revolut balance funded
+that issues each task's card (below), both standing costs in the same
+category as secure transport's insurance contract, now spread across every
+paying subscriber rather than just Family. See `billing.ts` and
 `docs/concierge.md`.
 
 **Paying the assistant is a card issued per task, through Revolut Business —
@@ -333,9 +336,9 @@ of what plan someone is willing to pay for.
 | Plan | Monthly | Annual | Automatic? |
 |---|---|---|---|
 | Free | — | — | No |
-| Premium | $14.99 | $152.88 | No |
-| Premium Plus | $29.99 | $305.88 | Rides + delivery |
-| Family | $69.99 | $713.88 | Everything, plus secure transport, personal concierge, and the full pharmacy-run menu |
+| Premium | $17.99 | $183.88 | No |
+| Premium Plus | $33.99 | $346.88 | Rides + delivery |
+| Family | $69.99 | $713.88 | Everything, plus secure transport and the full pharmacy-run menu |
 
 Rides and deliveries are **passed through at the provider's price** on top of
 the subscription. Bundling them would mean capping how often someone can get

@@ -39,7 +39,7 @@ export function ConciergePanel({ account }: { account: Account }) {
         <h3>Personal concierge</h3>
         <p className="tiny muted">
           🔒 Send a vetted assistant for a bounded, capped-spend task — grab something, sit with a friend,
-          or check on someone in person. Part of the Family plan.
+          or check on someone in person. Included on every paid plan.
         </p>
       </section>
     );

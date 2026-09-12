@@ -122,13 +122,13 @@ applied to store receipts.
 
 ## Where it's gated, and what it costs
 
-`personal-concierge` is a Family-only feature (`billing.ts`), and Family's
-price did move for it, on top of what secure transport and the extended menu
-already added. A task's own cost is still capped by the subscriber per task,
-same as before — that part didn't change. What justifies the bump is two
-standing costs that exist whether or not a given subscriber ever books a task
-that month, the same category of reasoning as secure transport's insurance
-contract:
+`personal-concierge` is on `BASIC_FEATURES` (`billing.ts`) — every paid tier,
+Premium included, not a Family-only perk. It started Family-only; that gate
+was removed, and every paid tier's price now absorbs a share of what it
+costs. A task's own cost is still capped by the subscriber per task, same as
+before — that part didn't change. What moved is two standing costs that exist
+whether or not a given subscriber ever books a task that month, the same
+category of reasoning as secure transport's insurance contract:
 
 - The partner-network retainer itself.
 - Keeping the Revolut Business balance funded that issues each task's card —
@@ -138,8 +138,14 @@ contract:
 **This is not a salary line.** The assistants are independent partner-network
 professionals dispatched through that retainer, not Safehubby employees — see
 "What this is not" above. There is no payroll here to price in, which is
-exactly why this increase is smaller than putting concierge staff on payroll
-would have cost.
+exactly why these increases are smaller than putting concierge staff on
+payroll would have cost.
+
+**Every paid tier gets the same thing — no cheaper version for Premium.**
+Same categories, same `CONCIERGE_MIN_CAP_CENTS`/`CONCIERGE_MAX_CAP_CENTS`
+bounds, same disclosures. The spend cap exists to protect the subscriber and
+the card issuer, not to mark out a pricing tier, so there's no safety reason
+to make the cheapest paid plan's version of "send a stranger to help" worse.
 
 ## Configuring a real provider
 

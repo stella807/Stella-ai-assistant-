@@ -53,17 +53,19 @@ describe("plans", () => {
     expect(hasFeature("family", "secure-transport")).toBe(true);
   });
 
-  it("keeps personal concierge to the top tier, priced for its own standing costs", () => {
-    expect(hasFeature("premium-plus", "personal-concierge")).toBe(false);
+  it("puts personal concierge on every paid tier, never the free one", () => {
+    expect(hasFeature("free", "personal-concierge")).toBe(false);
+    expect(hasFeature("premium-basic", "personal-concierge")).toBe(true);
+    expect(hasFeature("premium-plus", "personal-concierge")).toBe(true);
     expect(hasFeature("family", "personal-concierge")).toBe(true);
-    // Family costs more than Plus for reasons beyond concierge alone (secure
-    // transport, the extended menu), but the gap has to exist at all — a
-    // Family-only feature priced the same as the tier below it isn't paying
-    // for anything.
-    const plus = findPlan("premium-plus");
-    const family = findPlan("family");
-    expect(family.monthlyCents).toBeGreaterThan(plus.monthlyCents);
-    expect(family.annualCents).toBeGreaterThan(plus.annualCents);
+  });
+
+  it("gives every paid tier the same concierge, not a cheaper version for the entry plan", () => {
+    // No lighter spend cap or narrower category list for Premium — the cap
+    // protects the subscriber and the card issuer, not a pricing tier.
+    for (const feature of ["personal-concierge"] as const) {
+      expect(hasFeature("premium-basic", feature)).toBe(hasFeature("family", feature));
+    }
   });
 
   it("rejects an unknown plan", () => {

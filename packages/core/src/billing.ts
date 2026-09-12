@@ -52,6 +52,9 @@ const BASIC_FEATURES: Feature[] = [
   "venue-menus",
   "bac-estimate",
   "recovery-plan",
+  // On every paid tier, not just Family — see the pricing comment below for
+  // why the standing costs behind it are spread the same way.
+  "personal-concierge",
 ];
 
 const PLUS_FEATURES: Feature[] = [
@@ -101,13 +104,13 @@ const PLUS_FEATURES: Feature[] = [
  *
  * Personal concierge (see concierge.ts) is mostly the same shape as rides and
  * delivery — a task's own cost is charged at exactly the spend cap the
- * subscriber set, never rolled into the subscription price. But Family went
- * up a third time for it anyway, for the same category of reason secure
- * transport did: standing costs that exist whether or not a given subscriber
- * ever books a task that month. Two of them:
+ * subscriber set, never rolled into the subscription price. It started as a
+ * Family-only perk, priced in only there; it is now on every paid tier, and
+ * the pricing follows the access — every paid tier absorbs a share of the two
+ * standing costs behind it, not just Family:
  *
  *   - The partner-network retainer itself (see docs/concierge.md) — the same
- *     shape as secure transport's insurance contract, and priced in the same
+ *     shape as secure transport's insurance contract, and priced the same
  *     way, as a fixed cost spread across subscribers rather than billed at
  *     cost per task.
  *   - Funding the Revolut Business balance that issues each task's spend-
@@ -119,8 +122,16 @@ const PLUS_FEATURES: Feature[] = [
  * Not a salary line: the assistants are independent partner-network
  * professionals dispatched through that retainer, not Safehubby employees —
  * see concierge.ts. There is no payroll here to price in, which is exactly
- * why this bump is smaller than what putting concierge staff on payroll
+ * why these bumps are smaller than what putting concierge staff on payroll
  * would have cost.
+ *
+ * One thing this deliberately does not do: give Premium a lighter version of
+ * concierge, or a lower spend cap, to keep some daylight between it and
+ * Family. Every paid tier gets the same feature, capped the same way
+ * (`CONCIERGE_MIN_CAP_CENTS`/`CONCIERGE_MAX_CAP_CENTS` in concierge.ts) — the
+ * spend cap protects the subscriber and the card issuer, not a pricing tier,
+ * and there is no safety reason to make the cheapest paid plan's version of
+ * "send a stranger to help" worse.
  */
 export const PLANS: Plan[] = [
   {
@@ -135,20 +146,20 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 1499,
-    annualCents: 15288,
+    monthlyCents: 1799,
+    annualCents: 18388,
     seats: 2,
     features: BASIC_FEATURES,
-    blurb: "Venue menus, detailed logging, intoxication estimates, and the recovery plan.",
+    blurb: "Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
   },
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 2999,
-    annualCents: 30588,
+    monthlyCents: 3399,
+    annualCents: 34688,
     seats: 2,
     features: PLUS_FEATURES,
-    blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history and group games. Add a card once; rides and deliveries are held then billed at cost, never fronted.",
+    blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history, group games, and a personal concierge. Add a card once; rides and deliveries are held then billed at cost, never fronted.",
   },
   {
     id: "family",
@@ -158,9 +169,8 @@ export const PLANS: Plan[] = [
     seats: 6,
     features: [
       ...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport", "extended-menu",
-      "personal-concierge",
     ],
-    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, the full pharmacy-run menu, and a personal concierge — a vetted partner-network professional for a bounded, capped-spend task in person.",
+    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, and the full pharmacy-run menu — real meals from different cuisines, not just a snack basket.",
   },
 ];
 

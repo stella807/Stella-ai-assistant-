@@ -1237,21 +1237,30 @@ describe("personal concierge", () => {
     ...over,
   });
 
-  it("is gated on the plan that includes it", async () => {
-    // Sam is premium-plus, which deliberately does not include it.
-    const res = await call("POST", "/api/concierge/quote", task(), sam);
-    expect(res.status).toBe(402);
+  it("is available on every paid tier, gated only on being free", async () => {
+    // Jordan stays free (see beforeEach) — no paid plan at all.
+    const free = await call("POST", "/api/concierge/quote", task(), jordan);
+    expect(free.status).toBe(402);
+
+    // Sam is premium-plus, not Family, and still gets past the gate — it's
+    // no longer a Family-exclusive perk. Handoff rather than a plan error,
+    // since no partner network is configured in tests.
+    const plus = await call("POST", "/api/concierge/quote", task(), sam);
+    expect(plus.status).toBe(503);
+
+    // The cheapest paid tier gets it too.
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    const basic = await call("POST", "/api/concierge/quote", task(), jordan);
+    expect(basic.status).toBe(503);
   });
 
   it("refuses when no partner network is configured, rather than pretending", async () => {
-    await call("POST", "/api/subscription", { planId: "family" }, sam);
     const res = await call("POST", "/api/concierge/quote", task(), sam);
     expect(res.status).toBe(503);
     expect(res.json.error).toMatch(/partner agreement/i);
   });
 
   it("validates the request before checking the provider", async () => {
-    await call("POST", "/api/subscription", { planId: "family" }, sam);
     const badCategory = await call("POST", "/api/concierge/quote", task({ category: "hire-a-hitman" }), sam);
     expect(badCategory.status).toBe(400);
 
@@ -1264,7 +1273,6 @@ describe("personal concierge", () => {
   });
 
   it("will not book without the disclosures acknowledged", async () => {
-    await call("POST", "/api/subscription", { planId: "family" }, sam);
     const res = await call("POST", "/api/concierge/tasks", task(), sam);
     expect(res.status).toBe(400);
     expect(res.json.error).toMatch(/acknowledged/i);
@@ -1293,7 +1301,6 @@ describe("personal concierge", () => {
   it("still lets a task book with no card issuer configured — issuing one is an add-on, not a precondition", async () => {
     // Dispatch itself is also unconfigured in tests, so this still 503s, but
     // on the dispatch provider's message, never on the card issuer's.
-    await call("POST", "/api/subscription", { planId: "family" }, sam);
     const res = await call("POST", "/api/concierge/tasks", { ...task(), acknowledgedDisclosures: true }, sam);
     expect(res.status).toBe(503);
     expect(res.json.error).toMatch(/Nearby Aide|partner agreement/i);
