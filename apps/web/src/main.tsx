@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { EmployeePortal } from "./components/EmployeePortal.tsx";
+import { LanguageProvider } from "./i18n.tsx";
 import "./styles/base.css";
 import "./styles/components.css";
 
@@ -16,6 +17,10 @@ const isEmployeeArea = window.location.pathname.replace(/\/$/, "") === "/employe
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isEmployeeArea ? <EmployeePortal /> : <App />}
+    {isEmployeeArea ? <EmployeePortal /> : (
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
+    )}
   </StrictMode>,
 );

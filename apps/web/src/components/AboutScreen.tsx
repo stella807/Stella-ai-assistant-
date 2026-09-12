@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLanguage } from "../i18n.tsx";
 
 /** Mission and leadership. Public-facing, plain, and grounded in the
  *  founder's own reason for building this rather than anyone else's story.
@@ -7,85 +8,46 @@ import { useState } from "react";
  *  same content instead of drifting apart over time. */
 
 export function MissionSection() {
+  const { t } = useLanguage();
   return (
     <section className="card stack">
-      <h2>Our mission</h2>
-      <p className="small">
-        Safehubby exists to help people get home safe, and to make sure no one has to face a risky moment
-        alone. A text answered, a ride called, or someone showing up in person can be the difference
-        between a bad night and a tragedy — and too many families have lost someone to a moment that
-        could have gone differently.
-      </p>
-      <p className="small">
-        We build for the person who couldn't get a ride, the friend who needed someone to check on them
-        and had no one to call, and the family who wishes there had been another option. Every feature
-        here — check-ins, a sober way home, emergency escalation, a vetted assistant who can show up in
-        person — exists because someone, somewhere, needed exactly that and didn't have it.
-      </p>
-      <p className="tiny muted">
-        Safehubby is not an emergency service and never tells anyone they are safe to drive. In an
-        emergency, call your local emergency number first.
-      </p>
+      <h2>{t("mission.heading")}</h2>
+      <p className="small">{t("mission.p1")}</p>
+      <p className="small">{t("mission.p2")}</p>
+      <p className="tiny muted">{t("mission.disclaimer")}</p>
     </section>
   );
 }
 
 export function LeadershipSection() {
+  const { t } = useLanguage();
   return (
     <section className="card stack">
-      <h2>Leadership</h2>
-      <p className="small"><strong>Luis Garcia</strong> — Founder &amp; CEO</p>
-      <p className="small">
-        I come from the healthcare sector, where I've seen firsthand how not having someone there in a
-        critical moment causes accidents, tragedies, and worse. That's the problem Safehubby exists to
-        solve — making sure help, a safe way home, or someone who shows up in person is never out of
-        reach when it matters most.
-      </p>
+      <h2>{t("leadership.heading")}</h2>
+      <p className="small"><strong>{t("leadership.name")}</strong></p>
+      <p className="small">{t("leadership.bio")}</p>
     </section>
   );
 }
 
-const FEATURES: { id: string; title: string; blurb: string }[] = [
-  {
-    id: "night-out",
-    title: "A safer night out",
-    blurb: "Log drinks, get a real-time BAC estimate, and automatic check-ins that catch a bad moment before it becomes a worse one.",
-  },
-  {
-    id: "watch",
-    title: "Someone watching out for you",
-    blurb: "Friends and family can follow your night and step in — a missed check-in alerts them right away, not the next morning.",
-  },
-  {
-    id: "ride-home",
-    title: "A sober way home",
-    blurb: "One tap orders a ride, delivery, or a secure-transport driver, so no one has to choose between a bad decision and no way home.",
-  },
-  {
-    id: "concierge",
-    title: "A vetted assistant, in person",
-    blurb: "Send a partner-network professional to grab something, check on a friend, or just be there — with a hard spend cap you set, never exceeded.",
-  },
-  {
-    id: "emergency",
-    title: "Medical escalation",
-    blurb: "Real red-flag detection for alcohol poisoning and head injury, with the correct emergency number and a script ready to read.",
-  },
-  {
-    id: "games",
-    title: "Pacing, gamified",
-    blurb: "Group games that reward checking in, drinking water, and getting home safe — never how much anyone drank.",
-  },
+const FEATURES: { id: string; titleKey: "what.nightOut.title" | "what.watch.title" | "what.rideHome.title" | "what.concierge.title" | "what.emergency.title" | "what.games.title"; blurbKey: "what.nightOut.blurb" | "what.watch.blurb" | "what.rideHome.blurb" | "what.concierge.blurb" | "what.emergency.blurb" | "what.games.blurb" }[] = [
+  { id: "night-out", titleKey: "what.nightOut.title", blurbKey: "what.nightOut.blurb" },
+  { id: "watch", titleKey: "what.watch.title", blurbKey: "what.watch.blurb" },
+  { id: "ride-home", titleKey: "what.rideHome.title", blurbKey: "what.rideHome.blurb" },
+  { id: "concierge", titleKey: "what.concierge.title", blurbKey: "what.concierge.blurb" },
+  { id: "emergency", titleKey: "what.emergency.title", blurbKey: "what.emergency.blurb" },
+  { id: "games", titleKey: "what.games.title", blurbKey: "what.games.blurb" },
 ];
 
 /** Genuinely interactive, not just decorative: each card expands in place to
  *  answer "what does that actually mean" without leaving the page. */
 export function WhatWeDoSection() {
+  const { t } = useLanguage();
   const [openId, setOpenId] = useState<string | null>(FEATURES[0]?.id ?? null);
 
   return (
     <section className="card stack">
-      <h2>What Safehubby does</h2>
+      <h2>{t("what.heading")}</h2>
       <div className="stack" style={{ gap: 8 }}>
         {FEATURES.map((f) => {
           const open = openId === f.id;
@@ -93,10 +55,10 @@ export function WhatWeDoSection() {
             <button key={f.id} className="card card-quiet" style={{ textAlign: "left" }}
               aria-expanded={open} onClick={() => setOpenId(open ? null : f.id)}>
               <div className="row-between">
-                <strong className="small">{f.title}</strong>
+                <strong className="small">{t(f.titleKey)}</strong>
                 <span className="tiny muted" aria-hidden="true">{open ? "−" : "+"}</span>
               </div>
-              {open && <p className="tiny muted" style={{ marginTop: 6 }}>{f.blurb}</p>}
+              {open && <p className="tiny muted" style={{ marginTop: 6 }}>{t(f.blurbKey)}</p>}
             </button>
           );
         })}
