@@ -568,7 +568,10 @@ function TaskDetail({ task, onBack, onChanged }: {
         {task.location.label && <p className="tiny muted">Near {task.location.label}</p>}
 
         <div className="row-between tiny muted">
-          <span>You'll be paid</span>
+          <span>
+            You'll be paid
+            {task.peopleCount > 1 && ` — covers ${task.peopleCount} people, so it pays more`}
+          </span>
           <span className="charge-amount">{money(task.assistantPayoutCents)}</span>
         </div>
         <div className="row-between tiny muted">

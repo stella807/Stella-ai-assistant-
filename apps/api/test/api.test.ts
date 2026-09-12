@@ -1422,7 +1422,7 @@ describe("concierge voice messages", () => {
     store.update((db) => {
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, assistantPayoutCents: 720, status: "in-progress",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, assistantPayoutCents: 720, peopleCount: 1, status: "in-progress",
         provider: "Nearby Aide", providerTaskId: "provider-task-1", chargeId: "ch_x", holdId: "hold_x",
         createdAt: clock.toISOString(),
       });
@@ -1494,7 +1494,7 @@ describe("concierge fee math and settlement", () => {
       db.charges.push(charge);
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, status: "in-progress",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, peopleCount: 1, status: "in-progress",
         provider: "Nearby Aide", providerTaskId: "provider-fee1", chargeId: charge.id, holdId: hold.id,
         createdAt: clock.toISOString(),
       });
@@ -1565,7 +1565,7 @@ describe("the service fee is shown to the customer in full", () => {
       db.charges.push(charge);
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, quickTask: true,
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, peopleCount: 1, quickTask: true,
         status: "in-progress", provider: "Nearby Aide", providerTaskId: "provider-fee-visible1",
         chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
       });
@@ -1611,7 +1611,7 @@ describe("concierge selfies", () => {
     store.update((db) => {
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, assistantPayoutCents: 720, status: "in-progress",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, assistantPayoutCents: 720, peopleCount: 1, status: "in-progress",
         provider: "Nearby Aide", providerTaskId: "provider-selfie1", chargeId: "ch_x", holdId: "hold_x",
         createdAt: clock.toISOString(),
       });
@@ -1659,7 +1659,7 @@ describe("concierge disputes — refund the customer, claw it back from the assi
       db.charges.push(charge);
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, status: "in-progress",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, peopleCount: 1, status: "in-progress",
         provider: "Nearby Aide", providerTaskId: "provider-dispute1", assistantId,
         chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
       });
@@ -1674,7 +1674,7 @@ describe("concierge disputes — refund the customer, claw it back from the assi
     store.update((db) => {
       db.conciergeTasks.push({
         id: inProgressId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, status: "in-progress",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, peopleCount: 1, status: "in-progress",
         provider: "Nearby Aide", assistantId, chargeId: "ch_x", holdId: "hold_x", createdAt: clock.toISOString(),
       });
     });
@@ -1723,7 +1723,7 @@ describe("concierge disputes — refund the customer, claw it back from the assi
       db.charges.push(settleCharge(charge, clock, totalCents));
       db.conciergeTasks.push({
         id: noAssistantId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, status: "completed",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, assistantPayoutCents, peopleCount: 1, status: "completed",
         provider: "Nearby Aide", chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
         completedAt: clock.toISOString(),
       });
@@ -1811,13 +1811,13 @@ describe("assistant portal", () => {
       db.conciergeTasks.push(
         {
           id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-          location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, assistantPayoutCents: 720, status: "in-progress",
+          location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, assistantPayoutCents: 720, peopleCount: 1, status: "in-progress",
           provider: "Nearby Aide", providerTaskId: "provider-portal1", assistantId,
           chargeId: "ch_x", holdId: "hold_x", createdAt: clock.toISOString(),
         },
         {
           id: otherTaskId, travelerId: jordanId, category: "run-errand", note: "Pick up a package",
-          location: { lat: 40.71, lng: -74.0 }, spendCapCents: 1500, serviceFeeCents: 900, assistantPayoutCents: 720, status: "in-progress",
+          location: { lat: 40.71, lng: -74.0 }, spendCapCents: 1500, serviceFeeCents: 900, assistantPayoutCents: 720, peopleCount: 1, status: "in-progress",
           provider: "Nearby Aide", providerTaskId: "provider-portal2", assistantId: otherAssistantId,
           chargeId: "ch_y", holdId: "hold_y", createdAt: clock.toISOString(),
         },
@@ -1965,7 +1965,7 @@ describe("biweekly payroll", () => {
     store.update((db) => {
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 30.2672, lng: -97.7431 }, spendCapCents: 2500, serviceFeeCents: 1125, assistantPayoutCents: 900,
+        location: { lat: 30.2672, lng: -97.7431 }, spendCapCents: 2500, serviceFeeCents: 1125, assistantPayoutCents: 900, peopleCount: 1,
         status: "completed", provider: "Nearby Aide", assistantId,
         chargeId: "ch_payroll1", holdId: "hold_payroll1", createdAt: completedAt, completedAt,
       });

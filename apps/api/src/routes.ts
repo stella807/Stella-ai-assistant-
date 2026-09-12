@@ -32,7 +32,7 @@ import {
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
-  ConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut,
+  ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut,
   OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
   PaymentProcessor, WalletType,
 } from "@safehubby/core";
@@ -258,14 +258,28 @@ function billingState(ctx: Ctx, userId: string) {
 
 /** Reads a concierge task request out of an untrusted body. Validated by the
  *  caller via `validateConciergeRequest` right after — this only shapes it. */
-function conciergeInputFrom(body: any): { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean } {
+function conciergeInputFrom(body: any): ConciergeTaskInput {
   return {
     category: body?.category,
     note: String(body?.note ?? ""),
     location: { lat: body?.location?.lat, lng: body?.location?.lng, label: body?.location?.label },
     spendCapCents: Number(body?.spendCapCents),
     quickTask: body?.quickTask === true,
+    ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
   };
+}
+
+/**
+ * How many people a task may be priced for: what the subscriber asked for,
+ * capped at the seats their plan actually includes. A two-seat Premium plan
+ * cannot book a six-person task, so the household multiplier can never be
+ * inflated past what someone is paying for — and the cap is applied here,
+ * where the plan is known, rather than in `packages/core`, which
+ * deliberately knows nothing about the plan catalogue.
+ */
+function peopleCountFor(ctx: Ctx, travelerId: string, input: ConciergeTaskInput): number {
+  const seats = findPlan(planOf(ctx, travelerId)).seats;
+  return Math.max(1, Math.min(input.peopleCount ?? 1, seats));
 }
 
 /** A traveler's own concierge task, or a 404 — never another account's. */
@@ -1707,11 +1721,16 @@ export const routes: Record<string, Handler> = {
       spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+    const people = peopleCountFor(ctx, me, input);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
-      serviceFeeCents: serviceFeeFor(input.category, input.quickTask),
-      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask),
+      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people),
+      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people),
       quickTaskEligible: isQuickTaskEligible(input.category),
+      peopleCount: people,
+      /** The ceiling the clamp above used, so the UI can offer exactly the
+       *  seats this plan includes rather than guessing. */
+      maxPeopleCount: findPlan(planOf(ctx, me)).seats,
     };
   },
 
@@ -1732,9 +1751,10 @@ export const routes: Record<string, Handler> = {
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
     requirePaymentMethod(ctx, me);
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
-    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask);
-    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask);
-    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask);
+    const peopleCount = peopleCountFor(ctx, me, input);
+    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount);
+    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount);
+    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     const quote = await concierge.quote({
@@ -1793,7 +1813,7 @@ export const routes: Record<string, Handler> = {
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
         location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
-        assistantPayoutCents,
+        assistantPayoutCents, peopleCount,
         quickTask: input.quickTask, status: "in-progress",
         provider: booked.provider, providerTaskId: booked.taskId, assistantId,
         assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,

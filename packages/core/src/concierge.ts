@@ -148,31 +148,74 @@ export function isQuickTaskEligible(category: ConciergeCategory): boolean {
   return QUICK_TASK_CATEGORIES.includes(category);
 }
 
-/** What the assistant earns for one task of this kind. Paid out in full —
- *  see `CONCIERGE_ASSISTANT_PAYOUT_CENTS`. */
-export function assistantPayoutFor(category: ConciergeCategory, quickTask?: boolean): number {
-  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]!;
-  return CONCIERGE_ASSISTANT_PAYOUT_CENTS[category];
+/**
+ * How much each person beyond the first adds to the assistant's payout, as a
+ * share of the one-person rate.
+ *
+ * Looking after a household of six is more work than looking after one
+ * person — more to carry, more orders to get right, more people to keep an
+ * eye on — so a flat rate would underpay the bigger job. But it is not six
+ * times the work either: it is still one trip to one place, and a linear
+ * multiplier would overcharge a family for what is mostly the same errand.
+ * So the first person is the full rate and each additional one adds a
+ * quarter of it — sublinear on purpose, and the one number to change if real
+ * assistants report that big households are harder than this assumes.
+ *
+ * `PLAN_SEATS` is the ceiling on who can be counted: `apps/api` clamps a
+ * task's `peopleCount` to the seats on the subscriber's plan, so a two-seat
+ * Premium plan cannot book a six-person task.
+ */
+export const HOUSEHOLD_INCREMENT = 0.25;
+
+/** The most people one task can cover, matching the largest plan's seats
+ *  (`billing.ts`). Kept here rather than imported so this module stays free
+ *  of the plan catalogue; the API clamps to the subscriber's own plan, which
+ *  may be smaller. */
+export const MAX_PEOPLE_PER_TASK = 6;
+
+/** The multiplier applied to a one-person rate for a task covering
+ *  `peopleCount` people. 1 person → 1.0, 2 → 1.25, 6 → 2.25. */
+export function householdMultiplier(peopleCount = 1): number {
+  const people = Math.max(1, Math.min(Math.floor(peopleCount), MAX_PEOPLE_PER_TASK));
+  return 1 + HOUSEHOLD_INCREMENT * (people - 1);
+}
+
+/** What the assistant earns for one task of this kind, for this many people.
+ *  Paid out in full — see `CONCIERGE_ASSISTANT_PAYOUT_CENTS`. */
+export function assistantPayoutFor(
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
+): number {
+  const base = quickTask && isQuickTaskEligible(category)
+    ? QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]!
+    : CONCIERGE_ASSISTANT_PAYOUT_CENTS[category];
+  return Math.round(base * householdMultiplier(peopleCount));
 }
 
 /** What the customer pays for the assistant's time: their payout grossed up
  *  so `CONCIERGE_FEE_MARGIN` is a share of this fee rather than a cut taken
  *  out of their pay. */
-export function serviceFeeFor(category: ConciergeCategory, quickTask?: boolean): number {
-  return Math.round(assistantPayoutFor(category, quickTask) / (1 - CONCIERGE_FEE_MARGIN));
+export function serviceFeeFor(
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
+): number {
+  return Math.round(assistantPayoutFor(category, quickTask, peopleCount) / (1 - CONCIERGE_FEE_MARGIN));
 }
 
 /** Safehubby's cut of one task — the gap between what the customer pays for
  *  the assistant's time and what the assistant receives. */
-export function conciergeMarginCents(category: ConciergeCategory, quickTask?: boolean): number {
-  return serviceFeeFor(category, quickTask) - assistantPayoutFor(category, quickTask);
+export function conciergeMarginCents(
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
+): number {
+  return serviceFeeFor(category, quickTask, peopleCount)
+    - assistantPayoutFor(category, quickTask, peopleCount);
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
  *  service fee. Both are exact — see `authorizeExactHold` in payment.ts —
  *  so this is a sum, never a padded estimate. */
-export function totalChargeCents(category: ConciergeCategory, spendCapCents: number, quickTask?: boolean): number {
-  return spendCapCents + serviceFeeFor(category, quickTask);
+export function totalChargeCents(
+  category: ConciergeCategory, spendCapCents: number, quickTask?: boolean, peopleCount = 1,
+): number {
+  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount);
 }
 
 /**
@@ -235,6 +278,12 @@ export interface ConciergeTaskInput {
    *  category it does not apply to; `validateConciergeRequest` rejects that
    *  combination outright instead. */
   quickTask?: boolean;
+  /** How many people this task is actually for — one person, or a whole
+   *  household. Scales what the assistant is paid (`householdMultiplier`),
+   *  since looking after six is more work than looking after one. Defaults
+   *  to 1. The API clamps this to the seats on the subscriber's plan, so it
+   *  is bounded by what they pay for, not by what they type. */
+  peopleCount?: number;
 }
 
 const MAX_NOTE_LENGTH = 280;
@@ -245,6 +294,11 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
   if (input.note.length > MAX_NOTE_LENGTH) throw new Error(`Keep the task description under ${MAX_NOTE_LENGTH} characters.`);
   if (input.quickTask && !isQuickTaskEligible(input.category)) {
     throw new Error(`${conciergeCategoryLabel(input.category)} isn't eligible for the quick-task discount.`);
+  }
+  if (input.peopleCount !== undefined) {
+    if (!Number.isInteger(input.peopleCount) || input.peopleCount < 1 || input.peopleCount > MAX_PEOPLE_PER_TASK) {
+      throw new Error(`A task can cover between 1 and ${MAX_PEOPLE_PER_TASK} people.`);
+    }
   }
   const maxCap = input.quickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS;
   if (
@@ -313,6 +367,10 @@ export interface ConciergeTask {
   /** What the assistant earns from this task — see `assistantPayoutFor`.
    *  This, not `serviceFeeCents`, is what `payroll.ts` pays out. */
   assistantPayoutCents: number;
+  /** How many people this task covered, which is what scaled the two
+   *  amounts above — kept on the task so a past payout stays explainable
+   *  after the rate card or the household increment changes. */
+  peopleCount: number;
   /** Whether this booked at the discounted quick-task fee — kept on the task
    *  itself (not re-derived from category) so history stays accurate even if
    *  the eligible-category list changes later. */

@@ -41,6 +41,11 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   const [totalCents, setTotalCents] = useState<number | null>(
     existingTask ? existingTask.spendCapCents + existingTask.serviceFeeCents : null,
   );
+  // How many people the task covers. Scales the assistant's pay and so the
+  // fee — the server clamps it to the plan's seats and reports the ceiling
+  // back, rather than this screen assuming what the plan allows.
+  const [peopleCount, setPeopleCount] = useState(existingTask?.peopleCount ?? 1);
+  const [maxPeopleCount, setMaxPeopleCount] = useState(1);
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -63,10 +68,16 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
   useEffect(() => {
     if (task) return;
-    api.conciergeQuote({ category, note, location, spendCapCents, quickTask })
-      .then((r) => { setServiceFeeCents(r.serviceFeeCents); setTotalCents(r.totalCents); })
+    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, peopleCount })
+      .then((r) => {
+        setServiceFeeCents(r.serviceFeeCents);
+        setTotalCents(r.totalCents);
+        setMaxPeopleCount(r.maxPeopleCount);
+        // The server may have clamped it to the plan's seats; follow its answer.
+        if (r.peopleCount !== peopleCount) setPeopleCount(r.peopleCount);
+      })
       .catch(() => {});
-  }, [task, category, note, location, spendCapCents, quickTask]);
+  }, [task, category, note, location, spendCapCents, quickTask, peopleCount]);
 
   useEffect(() => () => {
     activeRecording.current?.cancel();
@@ -77,7 +88,9 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     setBusy(true);
     setError(null);
     try {
-      const res = await api.bookConcierge({ category, note, location, spendCapCents, assistantId: assistant.id, quickTask });
+      const res = await api.bookConcierge({
+        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, peopleCount,
+      });
       setTask(res.task);
       onBooked(res.task);
     } catch (e) {
@@ -171,12 +184,32 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         {!task ? (
           <>
             <p className="small">Request: {note}</p>
+
+            {maxPeopleCount > 1 && (
+              <div className="field">
+                <label htmlFor="people-count">How many people is this for?</label>
+                <select id="people-count" value={peopleCount}
+                  onChange={(e) => setPeopleCount(Number(e.target.value))}>
+                  {Array.from({ length: maxPeopleCount }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>{n === 1 ? "Just me" : `${n} people`}</option>
+                  ))}
+                </select>
+                <span className="tiny muted">
+                  Looking after more people is more work, so the assistant is paid more for it. Your plan
+                  covers up to {maxPeopleCount}.
+                </span>
+              </div>
+            )}
+
             <div className="row-between tiny muted">
               <span>Spend cap (reimbursed purchase)</span>
               <span className="charge-amount">{money(spendCapCents)}</span>
             </div>
             <div className="row-between tiny muted">
-              <span>Service fee (pays your assistant)</span>
+              <span>
+                Service fee (pays your assistant)
+                {peopleCount > 1 && ` — for ${peopleCount} people`}
+              </span>
               <span className="charge-amount">{serviceFeeCents === null ? "…" : money(serviceFeeCents)}</span>
             </div>
             <div className="row-between small">

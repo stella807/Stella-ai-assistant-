@@ -12,7 +12,7 @@ const task = (over: Partial<ConciergeTask> = {}): ConciergeTask => ({
   // margin; payroll must read the payout, so the two are set apart here on
   // purpose rather than to the same number.
   location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500,
-  serviceFeeCents: 1125, assistantPayoutCents: 900,
+  serviceFeeCents: 1125, assistantPayoutCents: 900, peopleCount: 1,
   status: "completed", provider: "Nearby Aide", assistantId: "asst1",
   chargeId: "ch1", holdId: "hold1", createdAt: "2024-01-01T00:00:00.000Z",
   completedAt: "2024-01-01T12:00:00.000Z",

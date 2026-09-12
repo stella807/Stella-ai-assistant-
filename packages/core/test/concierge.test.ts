@@ -5,7 +5,9 @@ import {
   CONCIERGE_MIN_CAP_CENTS, CONCIERGE_TASK_MINUTES,
   MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
   QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  HOUSEHOLD_INCREMENT, MAX_PEOPLE_PER_TASK,
   annualEstimateCentsFor, assistantPayoutFor, conciergeCategoryLabel, conciergeMarginCents,
+  householdMultiplier,
   describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateDisputeReason, validateIdentityPhoto,
@@ -194,6 +196,80 @@ describe("quick-task discount", () => {
 
   it("still allows the standard, higher cap when not booked as a quick task", () => {
     expect(() => validateConciergeRequest(request({ spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 }))).not.toThrow();
+  });
+});
+
+describe("household scaling — a bigger family is more work, but not linearly", () => {
+  it("charges the plain rate for one person", () => {
+    expect(householdMultiplier(1)).toBe(1);
+    expect(assistantPayoutFor("grab-something", false, 1)).toBe(900);
+    expect(serviceFeeFor("grab-something", false, 1)).toBe(1125);
+  });
+
+  it("defaults to one person when the count is omitted", () => {
+    expect(householdMultiplier()).toBe(1);
+    expect(assistantPayoutFor("grab-something")).toBe(assistantPayoutFor("grab-something", false, 1));
+  });
+
+  it("adds the stated increment per extra person, not a full rate each", () => {
+    expect(householdMultiplier(2)).toBeCloseTo(1 + HOUSEHOLD_INCREMENT, 10);
+    expect(householdMultiplier(6)).toBeCloseTo(1 + HOUSEHOLD_INCREMENT * 5, 10);
+    // Sublinear on purpose: six people must cost well under six times one.
+    expect(householdMultiplier(6)).toBeLessThan(6);
+  });
+
+  it("scales a family of six to the expected published numbers", () => {
+    expect(assistantPayoutFor("grab-something", false, 6)).toBe(2025);
+    expect(assistantPayoutFor("run-errand", false, 6)).toBe(2025);
+    expect(assistantPayoutFor("check-in-person", false, 6)).toBe(2700);
+    expect(assistantPayoutFor("wait-with-someone", false, 6)).toBe(4050);
+  });
+
+  it("scales two people to the expected published numbers", () => {
+    expect(assistantPayoutFor("grab-something", false, 2)).toBe(1125);
+    expect(assistantPayoutFor("check-in-person", false, 2)).toBe(1500);
+    expect(assistantPayoutFor("wait-with-someone", false, 2)).toBe(2250);
+  });
+
+  it("keeps the margin on top of the scaled payout, at the same share", () => {
+    for (const people of [1, 2, 4, 6]) {
+      const payout = assistantPayoutFor("wait-with-someone", false, people);
+      const fee = serviceFeeFor("wait-with-someone", false, people);
+      expect(fee).toBeGreaterThan(payout);
+      expect(conciergeMarginCents("wait-with-someone", false, people)).toBe(fee - payout);
+      // Within a rounding cent of the stated share: both amounts are whole
+      // cents, so a multiplier like 1.75 can't land the ratio exactly on 0.2.
+      expect(conciergeMarginCents("wait-with-someone", false, people) / fee)
+        .toBeCloseTo(CONCIERGE_FEE_MARGIN, 3);
+      expect(Math.abs(fee - Math.round(payout / (1 - CONCIERGE_FEE_MARGIN)))).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("scales the quick-task rate the same way", () => {
+    expect(assistantPayoutFor("grab-something", true, 1)).toBe(500);
+    expect(assistantPayoutFor("grab-something", true, 6)).toBe(1125);
+  });
+
+  it("adds the scaled fee to the spend cap, leaving the cap itself untouched", () => {
+    // The cap is the subscriber's own ceiling for purchases; scaling pay for
+    // a bigger household must never quietly raise what can be spent.
+    expect(totalChargeCents("grab-something", 2500, false, 6))
+      .toBe(2500 + serviceFeeFor("grab-something", false, 6));
+  });
+
+  it("clamps a nonsense count rather than producing a nonsense rate", () => {
+    expect(householdMultiplier(0)).toBe(1);
+    expect(householdMultiplier(-4)).toBe(1);
+    expect(householdMultiplier(999)).toBe(householdMultiplier(MAX_PEOPLE_PER_TASK));
+    expect(householdMultiplier(2.7)).toBe(householdMultiplier(2));
+  });
+
+  it("rejects an out-of-range people count on a request", () => {
+    expect(() => validateConciergeRequest(request({ peopleCount: 0 }))).toThrow(/between 1 and/i);
+    expect(() => validateConciergeRequest(request({ peopleCount: 7 }))).toThrow(/between 1 and/i);
+    expect(() => validateConciergeRequest(request({ peopleCount: 2.5 }))).toThrow(/between 1 and/i);
+    expect(() => validateConciergeRequest(request({ peopleCount: 6 }))).not.toThrow();
+    expect(() => validateConciergeRequest(request())).not.toThrow();
   });
 });
 

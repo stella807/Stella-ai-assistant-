@@ -114,6 +114,49 @@ and `annualEstimateCentsFor` are both built on it, not on the customer fee,
 since quoting the grossed-up number to the person being paid would overstate
 their take-home by the margin.
 
+### Household scaling: bigger family, bigger payout
+
+A task for a family of six is more work than the same task for one person —
+more to carry, more orders to get right, more people to keep an eye on — so
+`peopleCount` on the task scales the assistant's payout by
+`householdMultiplier`: the first person is the full rate, and each additional
+one adds `HOUSEHOLD_INCREMENT` (25%) of it.
+
+| People | Multiplier | Grab something | Check on someone | Wait with someone |
+|---|---|---|---|---|
+| 1 | 1.00× | $9.00 | $12.00 | $18.00 |
+| 2 | 1.25× | $11.25 | $15.00 | $22.50 |
+| 6 | 2.25× | $20.25 | $27.00 | $40.50 |
+
+**Sublinear on purpose.** Six people is 2.25×, not 6× — it is still one trip
+to one place, and a linear multiplier would overcharge a family for what is
+mostly the same errand. `HOUSEHOLD_INCREMENT` is the one number to change if
+real assistants report that big households are harder than this assumes.
+
+The customer's fee follows automatically, since `serviceFeeFor` grosses up
+whatever the scaled payout is — so the margin stays at 20% of the fee at
+every household size (within a rounding cent; both amounts are whole cents,
+so a multiplier like 1.75 cannot land the ratio exactly on 0.2).
+
+**The plan's seats are the ceiling.** `peopleCountFor` in `routes.ts` clamps
+the requested count to `findPlan(planId).seats`, so a two-seat Premium or
+Premium Plus plan cannot book a six-person task and the multiplier can never
+be inflated past what someone is paying for. The clamp lives in `apps/api`,
+where the plan is known, rather than in `packages/core`, which deliberately
+knows nothing about the plan catalogue. `POST /api/concierge/quote` returns
+both the clamped `peopleCount` and the `maxPeopleCount` the plan allows, so
+the picker offers exactly the right seats instead of guessing.
+
+**What it does not touch: the spend cap, and therefore the card.** Scaling is
+applied to the *payout* only. The spend cap stays exactly what the subscriber
+chose, and the single-use Revolut card issued for the task is still capped at
+precisely that amount (`authorizeExactHold` + `issueCard`) — a bigger
+household means the subscriber may *choose* a bigger cap for a bigger grocery
+run, but nothing about paying the assistant more can raise the purchasing
+power handed to them. Those are two separate numbers on the task
+(`spendCapCents` and `assistantPayoutCents`), and this is the invariant that
+keeps them separate.
+
 ### The quick-task discount
 
 Not every task is a $9-18 job. Grabbing one named thing or running one
