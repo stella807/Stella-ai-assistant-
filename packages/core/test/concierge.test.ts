@@ -138,7 +138,9 @@ describe("the service fee — the customer's price, with the margin on top of th
   it("keeps the margin at the stated share of what the customer pays", () => {
     for (const c of CONCIERGE_CATEGORIES) {
       const share = conciergeMarginCents(c.id) / serviceFeeFor(c.id);
-      expect(share).toBeCloseTo(CONCIERGE_FEE_MARGIN, 4);
+      // Three decimals, not four: both sides are whole cents, so the ratio
+      // lands near 0.2003 rather than exactly on 0.2.
+      expect(share).toBeCloseTo(CONCIERGE_FEE_MARGIN, 3);
     }
   });
 
@@ -206,8 +208,8 @@ describe("quick-task discount", () => {
 describe("household scaling — a bigger family is more work, but not linearly", () => {
   it("charges the plain rate for one person", () => {
     expect(householdMultiplier(1)).toBe(1);
-    expect(assistantPayoutFor("grab-something", false, 1)).toBe(900);
-    expect(serviceFeeFor("grab-something", false, 1)).toBe(1125);
+    expect(assistantPayoutFor("grab-something", false, 1)).toBe(1050);
+    expect(serviceFeeFor("grab-something", false, 1)).toBe(1313);
   });
 
   it("defaults to one person when the count is omitted", () => {
@@ -223,16 +225,16 @@ describe("household scaling — a bigger family is more work, but not linearly",
   });
 
   it("scales a family of six to the expected published numbers", () => {
-    expect(assistantPayoutFor("grab-something", false, 6)).toBe(2025);
-    expect(assistantPayoutFor("run-errand", false, 6)).toBe(2250);
-    expect(assistantPayoutFor("check-in-person", false, 6)).toBe(2700);
-    expect(assistantPayoutFor("wait-with-someone", false, 6)).toBe(4050);
+    expect(assistantPayoutFor("grab-something", false, 6)).toBe(2363);
+    expect(assistantPayoutFor("run-errand", false, 6)).toBe(2588);
+    expect(assistantPayoutFor("check-in-person", false, 6)).toBe(3375);
+    expect(assistantPayoutFor("wait-with-someone", false, 6)).toBe(5288);
   });
 
   it("scales two people to the expected published numbers", () => {
-    expect(assistantPayoutFor("grab-something", false, 2)).toBe(1125);
-    expect(assistantPayoutFor("check-in-person", false, 2)).toBe(1500);
-    expect(assistantPayoutFor("wait-with-someone", false, 2)).toBe(2250);
+    expect(assistantPayoutFor("grab-something", false, 2)).toBe(1313);
+    expect(assistantPayoutFor("check-in-person", false, 2)).toBe(1875);
+    expect(assistantPayoutFor("wait-with-someone", false, 2)).toBe(2938);
   });
 
   it("keeps the margin on top of the scaled payout, at the same share", () => {
@@ -250,8 +252,8 @@ describe("household scaling — a bigger family is more work, but not linearly",
   });
 
   it("scales the quick-task rate the same way", () => {
-    expect(assistantPayoutFor("grab-something", true, 1)).toBe(500);
-    expect(assistantPayoutFor("grab-something", true, 6)).toBe(1125);
+    expect(assistantPayoutFor("grab-something", true, 1)).toBe(600);
+    expect(assistantPayoutFor("grab-something", true, 6)).toBe(1350);
   });
 
   it("adds the scaled fee to the spend cap, leaving the cap itself untouched", () => {

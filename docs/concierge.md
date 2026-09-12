@@ -728,45 +728,64 @@ Until these are set, `GET /api/fulfillment/status` reports `concierge.mode:
 missing — the same "never claim a provider we cannot verify" rule as every
 other adapter in `docs/fulfillment.md`.
 
-## Pay is indexed to the market
+## One rate, everywhere, set by the job
 
-One flat national rate was wrong in both directions at once. Against local
-mid-level personal-assistant rates it paid roughly **50% over market in Texas
-and 75% over in Puerto Rico** — which sounds generous until you notice the
-customer fee is derived from it (`serviceFeeFor`), so the same number also
-made the service most expensive, relative to local wages, in the two markets
-least able to absorb it.
+Pay was briefly indexed to each market, scaling Texas and Puerto Rico down
+from a flat card. **That was reversed.** It meant paying somebody in San Juan
+less than somebody in Los Angeles for the identical job — going to a stranger
+at night and sitting with them until they are steady — and the market research
+it was built from actually recommended the opposite: one flat rate set by the
+complexity of the role, which is automatically a premium where the local
+market is cheaper.
 
-`packages/core/src/market-pay.ts` indexes pay to the market a task actually
-happens in, with one guarantee: **no market pays below the top of its own
-local mid-level band.** That is a floor in `scalePayoutCents`, not a carefully
-chosen multiplier, because a multiplier is a number a later edit can nudge
-without noticing what it broke. `market-pay.test.ts` asserts it for every
-market, category and tier.
+The anchor is **$35/hour**, the floor of the *high-end* band in the most
+expensive market Safehubby operates in.
 
-| Task | Los Angeles | Texas | Puerto Rico |
-|---|---:|---:|---:|
-| Grab something | $9.00 | $7.25 | $6.50 |
-| Run an errand | $10.00 | $8.00 | $7.00 |
-| Check on someone | $12.00 | $9.75 | $8.50 |
-| Wait with someone | $18.00 | $14.75 | $12.75 |
-| *quick task* | *$5.00* | *$4.00* | *$3.50* |
-| **Implied hourly** | **$27–33** | **$22–27** | **$19–23** |
-| *local mid band* | *$24–27* | *$18–22* | *$15–19* |
+| Task | Typical | Assistant is paid | Per hour | Customer pays |
+|---|---:|---:|---:|---:|
+| Grab something | 18 min | **$10.50** | $35.00 | $13.13 |
+| Run an errand | 18 min | **$11.50** | $38.33 | $14.38 |
+| Check on someone | 25 min | **$15.00** | $36.00 | $18.75 |
+| Wait with someone | 40 min | **$23.50** | $35.25 | $29.38 |
+| *Quick task* | *10 min* | *$6.00* | *$36.00* | *$7.50* |
 
-Los Angeles is the reference market at 1.00, so the published national rate
-card is unchanged there; Texas and Puerto Rico scale from it. A task whose
-location is unknown is priced at the **most expensive** market
-(`DEFAULT_PAY_MARKET`) — an unknown location must never be the cheap path to
-underpaying somebody.
+### Why the high-end band and not the mid
 
-The market is resolved when the task is booked and stamped onto the task, so
-a later rate change never reprices work already agreed.
+| Market | Mid-level | High-end | $35/hr lands |
+|---|---|---|---|
+| Los Angeles | $24–27 | $35–50 | at the high-end floor |
+| Texas | $18–22 | $30–40 | above the high-end floor |
+| Puerto Rico | $15–19 | $25–32 | **above the entire local range** |
+
+This is not ordinary assistant work. It is going to a stranger's location at
+night, dealing with someone who has had too much, judging whether they need an
+ambulance, and carrying a spend card while doing it. Paying mid-market for
+that is a false economy in the one place the company cannot afford one — and a
+company with no brand, no reviews and two months to hire nine people needs to
+be clearly worth taking, not merely competitive.
+
+`market-pay.ts` keeps the local bands, and their job is no longer to scale
+anything: they are the evidence that one rate is a good rate in all three
+markets. `market-pay.test.ts` asserts every category and tier reaches the
+high-end band in every market, so a future rate cut cannot quietly drop below
+a local market without a test going red.
+
+### Paying more raises the margin
+
+The counter-intuitive part, worth stating because it is the reason this was
+affordable. The margin is a **share of the fee** (`CONCIERGE_FEE_MARGIN`), and
+the fee is derived from the payout — so raising pay raises Safehubby's
+absolute margin per task rather than eating it.
+
+Waiting with someone: the old $18 payout produced a $22.50 fee and $4.50 of
+margin. The new $23.50 produces a $29.38 fee and **$5.88** of margin. The bet
+is on the customer side, not the worker side: $29.38 for forty minutes is
+about $44/hour, which is inside what in-person task platforms already charge
+in these cities.
 
 ### A quick task is shorter, not cheaper per hour
 
 `QUICK_TASK_MINUTES` exists because the reduced tier used to be measured
-against the standard task's duration, which made a Puerto Rico quick task read
-as **$11.67/hr against a $15–19 band**. It pays less because it takes less
-time — so it is timed as the shorter job and then held to exactly the same
-floor as everything else.
+against the standard task's duration, which made it read as a worse rate for
+the same work. It pays less because it takes less time, and it is held to the
+same $35/hour floor as everything else.

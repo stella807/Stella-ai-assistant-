@@ -34,7 +34,7 @@ import {
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
   applyAdjustments, outstandingClawbackCents,
-  isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, DEFAULT_PAY_MARKET,
+  isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, REFERENCE_MARKET,
   type LaunchMarketId,
   hireFromApplication, isOnRoster, rosterFor, standDown,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
@@ -744,13 +744,12 @@ function requireServiceLive(ctx: Ctx): void {
 }
 
 /**
- * Which market's pay band a task is priced against: the one it actually
- * happens in. Called after `requireLaunchMarket`, so in practice this is
- * never null — but it falls back to the most expensive market rather than
- * the cheapest if that ever stops being true. See market-pay.ts.
+ * Which market a task happens in. No longer used for pay — that is one
+ * universal rate now (see market-pay.ts) — but still what decides which
+ * assistants on the roster can be offered for it.
  */
 function payMarketFor(location: { lat: number; lng: number }): LaunchMarketId {
-  return launchMarketFor(location)?.id ?? DEFAULT_PAY_MARKET;
+  return launchMarketFor(location)?.id ?? REFERENCE_MARKET;
 }
 
 /** Six characters from an unambiguous alphabet — no O/0, I/1 — read aloud in a bar. */
@@ -1928,14 +1927,10 @@ export const routes: Record<string, Handler> = {
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
     const people = peopleCountFor(ctx, me, input);
-    const market = payMarketFor(input.location);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
-      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people, market),
-      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people, market),
-      /** Which market's rate card this was priced against, so a quote can
-       *  explain itself rather than looking arbitrary. */
-      payMarket: market,
+      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people),
+      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people),
       quickTaskEligible: isQuickTaskEligible(input.category),
       peopleCount: people,
       /** The ceiling the clamp above used, so the UI can offer exactly the
@@ -1979,12 +1974,12 @@ export const routes: Record<string, Handler> = {
     }
     requirePaymentMethod(ctx, me);
     const peopleCount = peopleCountFor(ctx, me, input);
-    // Priced against the market the task happens in, and stamped onto the
-    // task below — so a later rate change never reprices work already agreed.
-    const market = payMarketFor(input.location);
-    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount, market);
-    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount, market);
-    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount, market);
+    // Stamped onto the task below, so a later rate change never reprices
+    // work already agreed. One universal rate — see market-pay.ts for why
+    // this does not vary by where the task happens.
+    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount);
+    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount);
+    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     // Only the partner network gets quoted. Our own roster is not a supplier

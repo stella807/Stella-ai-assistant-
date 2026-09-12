@@ -1,104 +1,99 @@
 import type { LaunchMarketId } from "./service-area.ts";
 
 /**
- * What an assistant's task pays in each launch market.
+ * The local wage bands in each market Safehubby operates in, and the check
+ * that its pay clears them.
  *
- * One flat national rate was the starting point, and it was wrong in both
- * directions at once. Measured against local mid-level personal-assistant
- * rates, the flat card paid roughly **50% over market in Texas and 75% over
- * in Puerto Rico** — which sounds generous until you notice the customer fee
- * is derived from it (`serviceFeeFor`), so the same flat number also made the
- * service most expensive, relative to local wages, in the two markets least
- * able to absorb it. A rate card that overpays the worker and overcharges the
- * customer in the same breath is not generous, it is just untethered.
+ * This module used to *scale* pay down to each market. That was reversed.
+ * Indexing meant paying somebody in San Juan less than somebody in Los
+ * Angeles for the identical job — going to a stranger at night and sitting
+ * with them until they are steady — and the research it was built from
+ * actually recommended the opposite: **one flat rate set by the complexity
+ * of the role, which is automatically a premium where the local market is
+ * cheaper.** See `CONCIERGE_ASSISTANT_PAYOUT_CENTS`.
  *
- * So pay is indexed to the market the task actually happens in, with one hard
- * guarantee: **no market pays below the top of its own local mid-level band.**
- * That is the floor in `payoutCentsFor`, and it is a floor rather than a
- * multiplier chosen carefully, because a multiplier is a number a future edit
- * can nudge without noticing what it broke. Being at or above the top of the
- * local mid band means Safehubby is a premium option for an assistant
- * everywhere it operates, not merely in the expensive city.
+ * So the bands survive, and their job changed. They are no longer an input
+ * to what anyone is paid; they are the evidence that one universal rate is a
+ * good rate in every market — checked in `market-pay.test.ts` against every
+ * category and tier, so a future rate cut cannot quietly drop below a local
+ * market without a test going red.
  *
- * Bands are mid-level personal-assistant hourly rates as surveyed across
- * Indeed/ZipRecruiter/Glassdoor market data. They are the input to a pay
- * decision, not a measurement of our own work, and they are the thing to
- * re-check when these markets move.
- *
- * This module deliberately imports nothing from `concierge.ts`, even though
- * that is where the rate card lives: concierge already imports from here, and
- * a cycle between the two would make the rate card's initialization order
- * depend on which file happened to be loaded first. Callers pass the base
- * rate and the minutes in.
+ * Deliberately imports nothing from `concierge.ts`, which imports the check
+ * from here; callers pass the payout and the minutes in.
  */
 
 export interface MarketPay {
   id: LaunchMarketId;
   label: string;
-  /** Local mid-level hourly band, in cents: [low, high]. */
+  /** Local mid-level personal-assistant hourly band, in cents: [low, high]. */
   midBandCents: [number, number];
-  /**
-   * Where this market's task rates sit relative to the reference market.
-   * Derived from the ratio of band midpoints, then rounded to something a
-   * person can hold in their head — the floor below is what actually
-   * guarantees the outcome, so this only has to be approximately right.
-   */
-  multiplier: number;
+  /** Local high-end / executive band, in cents. The anchor rate is set
+   *  against this one, because this work is not mid-level assistant work. */
+  highBandCents: [number, number];
 }
 
-/** Los Angeles is the reference market at 1.00: it has the highest local
- *  band, so every other market scales down from it rather than up. */
 export const MARKET_PAY: Record<LaunchMarketId, MarketPay> = {
-  "los-angeles": { id: "los-angeles", label: "Los Angeles", midBandCents: [2400, 2700], multiplier: 1.0 },
-  texas: { id: "texas", label: "Texas", midBandCents: [1800, 2200], multiplier: 0.8 },
-  "puerto-rico": { id: "puerto-rico", label: "Puerto Rico", midBandCents: [1500, 1900], multiplier: 0.7 },
+  "los-angeles": {
+    id: "los-angeles", label: "Los Angeles",
+    midBandCents: [2400, 2700], highBandCents: [3500, 5000],
+  },
+  texas: {
+    id: "texas", label: "Texas",
+    midBandCents: [1800, 2200], highBandCents: [3000, 4000],
+  },
+  "puerto-rico": {
+    id: "puerto-rico", label: "Puerto Rico",
+    midBandCents: [1500, 1900], highBandCents: [2500, 3200],
+  },
 };
 
-/** The market a task is priced against when its location is unknown or
- *  outside every launch market. The most expensive one, deliberately: an
- *  unknown location must never be the cheap path to underpaying somebody. */
-export const DEFAULT_PAY_MARKET: LaunchMarketId = "los-angeles";
+/** The most expensive market, and so the one the universal rate has to clear
+ *  to be a premium everywhere else by construction. */
+export const REFERENCE_MARKET: LaunchMarketId = "los-angeles";
 
-export function marketPayFor(market: LaunchMarketId | null | undefined): MarketPay {
-  return MARKET_PAY[market ?? DEFAULT_PAY_MARKET] ?? MARKET_PAY[DEFAULT_PAY_MARKET];
+export function marketPayFor(market?: LaunchMarketId | null): MarketPay {
+  return MARKET_PAY[market ?? REFERENCE_MARKET] ?? MARKET_PAY[REFERENCE_MARKET];
 }
 
-/** Rounds up to the nearest quarter, so a rounding cent always lands on the
- *  worker's side — the mirror of `commissionCentsFor` rounding down so it
- *  never lands on the house's. */
-function roundUpToQuarter(cents: number): number {
-  return Math.ceil(cents / 25) * 25;
-}
-
-/** The least a task of this length may pay in this market: the top of the
- *  local mid-level band, for the minutes the task actually takes. */
-export function marketFloorCents(minutes: number, market?: LaunchMarketId | null): number {
-  const [, bandTop] = marketPayFor(market).midBandCents;
-  return roundUpToQuarter((bandTop * minutes) / 60);
-}
-
-export interface ScalePayoutInput {
-  /** The national rate-card figure for this task, in cents. */
-  baseCents: number;
-  /** How long the task typically takes, for working out the hourly floor.
-   *  A reduced tier passes its own shorter duration, so its floor is the
-   *  local band applied to the shorter job. */
-  minutes: number;
-  market?: LaunchMarketId | null;
+/** What a payout works out to per hour, for a task of this length. */
+export function impliedHourlyCents(payoutCents: number, minutes: number): number {
+  if (minutes <= 0) throw new Error("A task's length must be positive to price it hourly.");
+  return Math.round((payoutCents * 60) / minutes);
 }
 
 /**
- * What one task pays in one market, before the household multiplier. Never
- * below the market's floor.
+ * The rate this whole card is anchored on: the floor of the reference
+ * market's high-end band. Every task rate is set so it lands at or above
+ * this, whatever its length.
  */
-export function scalePayoutCents(input: ScalePayoutInput): number {
-  const { multiplier } = marketPayFor(input.market);
-  const scaled = roundUpToQuarter(input.baseCents * multiplier);
-  return Math.max(scaled, marketFloorCents(input.minutes, input.market));
+export const ANCHOR_HOURLY_CENTS = MARKET_PAY[REFERENCE_MARKET].highBandCents[0];
+
+/** Whether a payout clears the top of a market's mid-level band — the
+ *  minimum any rate here must satisfy in every market. */
+export function clearsMidBand(payoutCents: number, minutes: number, market: LaunchMarketId): boolean {
+  return impliedHourlyCents(payoutCents, minutes) >= marketPayFor(market).midBandCents[1];
 }
 
-/** The hourly rate a payout works out to — the number that has to stay
- *  competitive, and the one the tests assert against. */
-export function impliedHourlyCents(payoutCents: number, minutes: number): number {
-  return Math.round((payoutCents * 60) / minutes);
+/** Whether a payout reaches a market's high-end band, which is where this
+ *  work actually sits in complexity. */
+export function reachesHighBand(payoutCents: number, minutes: number, market: LaunchMarketId): boolean {
+  return impliedHourlyCents(payoutCents, minutes) >= marketPayFor(market).highBandCents[0];
+}
+
+/** How a payout compares to a market, as something a person can read — used
+ *  in the employee portal so an assistant can see what their rate is worth
+ *  where they work, rather than being told a number with no context. */
+export function describePayAgainstMarket(
+  payoutCents: number, minutes: number, market: LaunchMarketId,
+): string {
+  const hourly = impliedHourlyCents(payoutCents, minutes);
+  const band = marketPayFor(market);
+  const dollars = (c: number) => `$${(c / 100).toFixed(0)}`;
+  if (hourly > band.highBandCents[1]) {
+    return `Above the top of the ${band.label} range for this work (${dollars(band.highBandCents[0])}-${dollars(band.highBandCents[1])}/hr).`;
+  }
+  if (hourly >= band.highBandCents[0]) {
+    return `In the high-end ${band.label} range for this work (${dollars(band.highBandCents[0])}-${dollars(band.highBandCents[1])}/hr).`;
+  }
+  return `Above the typical ${band.label} rate (${dollars(band.midBandCents[0])}-${dollars(band.midBandCents[1])}/hr).`;
 }

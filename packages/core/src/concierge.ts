@@ -43,8 +43,7 @@
  */
 
 import { approximateDecodedBytes } from "./voice-messages.ts";
-import { scalePayoutCents } from "./market-pay.ts";
-import type { LaunchMarketId } from "./service-area.ts";
+
 
 export type ConciergeCategory =
   | "grab-something"
@@ -95,13 +94,29 @@ export const CONCIERGE_MAX_CAP_CENTS = 30000;
  * to defer to the way a ride fare defers to Uber, so a fixed, disclosed
  * schedule is the honest choice over pretending to compute one from nothing.
  *
- * Real-world reference: BLS's 2024 median for personal/executive assistants
- * is roughly $45-50k/year in traditional employment, and gig-platform task
- * rates (TaskRabbit, Wonolo, and similar) commonly land in the $20-35/hour
- * range for comparable short, bounded, in-person work. These land in that
- * same range for a task of the stated typical length
- * (`CONCIERGE_TASK_MINUTES`), not a full-time salary — a task is minutes,
- * not a shift.
+ * **One universal rate, set by the complexity of the job rather than by the
+ * local cost of living.** Surveyed mid-level personal-assistant rates differ
+ * sharply by market — Los Angeles $24-27/hr, Texas $18-22, Puerto Rico
+ * $15-19 — and the obvious move is to index pay to them. That was tried and
+ * reversed: it meant paying somebody in San Juan less than somebody in Los
+ * Angeles for the identical job, in a company whose whole product is turning
+ * up for people.
+ *
+ * The anchor is **~$35/hour**, which is the floor of the *high-end* band in
+ * Los Angeles and sits above the high-end band entirely in Puerto Rico. So
+ * the same number is competitive in the expensive market and a real premium
+ * in the other two — which is exactly what a company with no brand, no
+ * reviews and two months to hire nine people needs it to be.
+ *
+ * High-end rather than mid is the right band because this is not ordinary
+ * assistant work. It is going to a stranger's location at night, dealing
+ * with someone who has had too much, judging whether they need an ambulance,
+ * and carrying a spend card while doing it. Paying mid-market for that is a
+ * false economy in the one place the company cannot afford one.
+ *
+ * Rates are per task of the stated typical length (`CONCIERGE_TASK_MINUTES`),
+ * not a salary — a task is minutes, not a shift. `market-pay.ts` holds the
+ * local bands and asserts this rate clears every one of them.
  *
  * This is the assistant's number, and it is exactly what `payroll.ts` pays
  * out — `earningsFor` reads `assistantPayoutCents` off the task, which is
@@ -109,13 +124,13 @@ export const CONCIERGE_MAX_CAP_CENTS = 30000;
  * the customer-facing fee (`serviceFeeFor`), never deducted from here.
  */
 export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<ConciergeCategory, number> = {
-  "grab-something": 900, // ~15-20 min round trip
+  "grab-something": 1050, // ~18 min round trip, at the anchor rate
   // A dollar above grabbing one named thing, on purpose: an errand is
   // open-scoped within the trip — a grocery run means a list, aisles, and
   // choices to make, not one counter to collect from.
-  "run-errand": 1000,
-  "check-in-person": 1200, // getting there and actually assessing someone takes longer
-  "wait-with-someone": 1800, // open-ended by nature; priced for a first ~30-45 min block
+  "run-errand": 1150,
+  "check-in-person": 1500, // getting there and actually assessing someone takes longer
+  "wait-with-someone": 2350, // open-ended by nature; priced for a first ~40 min block
 };
 
 /**
@@ -143,8 +158,8 @@ export const CONCIERGE_FEE_MARGIN = 0.2;
 export const QUICK_TASK_CATEGORIES: ConciergeCategory[] = ["grab-something", "run-errand"];
 
 export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory, number>> = {
-  "grab-something": 500,
-  "run-errand": 500,
+  "grab-something": 600,
+  "run-errand": 600,
 };
 
 export const QUICK_TASK_MAX_CAP_CENTS = 5000;
@@ -201,28 +216,21 @@ export function householdMultiplier(peopleCount = 1): number {
 }
 
 /**
- * What the assistant earns for one task of this kind, for this many people,
- * in this market. Paid out in full — see `CONCIERGE_ASSISTANT_PAYOUT_CENTS`.
+ * What the assistant earns for one task of this kind, for this many people.
+ * Paid out in full — see `CONCIERGE_ASSISTANT_PAYOUT_CENTS`.
  *
- * `market` is optional and defaults to the most expensive one
- * (`DEFAULT_PAY_MARKET`), so a caller that does not know where the task is
- * can never accidentally take the cheap branch. See market-pay.ts for why a
- * single national rate was wrong in both directions at once.
+ * Takes no market. Pay is one universal rate wherever the task happens: the
+ * same job at the same hour of the night is worth the same thing in San Juan
+ * as in Los Angeles, and `market-pay.ts` proves that rate is a premium in
+ * every market rather than scaling it down to each.
  */
 export function assistantPayoutFor(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
-  market?: LaunchMarketId | null,
 ): number {
   const quick = quickTask === true && isQuickTaskEligible(category);
-  const base = scalePayoutCents({
-    baseCents: quick
-      ? QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]!
-      : CONCIERGE_ASSISTANT_PAYOUT_CENTS[category],
-    // The quick tier's own duration, so its floor is the local band applied
-    // to the shorter job rather than to a job it is not doing.
-    minutes: minutesFor(category, quick),
-    market,
-  });
+  const base = quick
+    ? QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]!
+    : CONCIERGE_ASSISTANT_PAYOUT_CENTS[category];
   return Math.round(base * householdMultiplier(peopleCount));
 }
 
@@ -231,21 +239,17 @@ export function assistantPayoutFor(
  *  out of their pay. */
 export function serviceFeeFor(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
-  market?: LaunchMarketId | null,
 ): number {
-  return Math.round(
-    assistantPayoutFor(category, quickTask, peopleCount, market) / (1 - CONCIERGE_FEE_MARGIN),
-  );
+  return Math.round(assistantPayoutFor(category, quickTask, peopleCount) / (1 - CONCIERGE_FEE_MARGIN));
 }
 
 /** Safehubby's cut of one task — the gap between what the customer pays for
  *  the assistant's time and what the assistant receives. */
 export function conciergeMarginCents(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
-  market?: LaunchMarketId | null,
 ): number {
-  return serviceFeeFor(category, quickTask, peopleCount, market)
-    - assistantPayoutFor(category, quickTask, peopleCount, market);
+  return serviceFeeFor(category, quickTask, peopleCount)
+    - assistantPayoutFor(category, quickTask, peopleCount);
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
@@ -253,9 +257,8 @@ export function conciergeMarginCents(
  *  so this is a sum, never a padded estimate. */
 export function totalChargeCents(
   category: ConciergeCategory, spendCapCents: number, quickTask?: boolean, peopleCount = 1,
-  market?: LaunchMarketId | null,
 ): number {
-  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount, market);
+  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount);
 }
 
 /**
@@ -281,15 +284,11 @@ export const CONCIERGE_TASK_MINUTES: Record<ConciergeCategory, number> = {
  *  Built on the payout rather than the customer-facing fee on purpose. The
  *  portal presents this as what an assistant earns, so quoting the grossed-up
  *  fee here would overstate their take by the margin. */
-export function hourlyRateCentsFor(
-  category: ConciergeCategory, quickTask?: boolean, market?: LaunchMarketId | null,
-): number {
+export function hourlyRateCentsFor(category: ConciergeCategory, quickTask?: boolean): number {
   // `minutesFor`, not CONCIERGE_TASK_MINUTES: a quick task runs shorter, and
   // dividing its reduced pay by the standard task's duration understated the
   // rate on the one screen whose entire job is telling people what they earn.
-  return Math.round(
-    assistantPayoutFor(category, quickTask, 1, market) / (minutesFor(category, quickTask) / 60),
-  );
+  return Math.round(assistantPayoutFor(category, quickTask) / (minutesFor(category, quickTask) / 60));
 }
 
 /** A reasonable ceiling for the "how many of these a week" calculator below —
@@ -310,11 +309,10 @@ export const MAX_TASKS_PER_WEEK_ESTIMATE = 20;
  */
 export function annualEstimateCentsFor(
   category: ConciergeCategory, tasksPerWeek: number, quickTask?: boolean,
-  market?: LaunchMarketId | null,
 ): number {
   const perWeek = Math.max(0, Math.min(tasksPerWeek, MAX_TASKS_PER_WEEK_ESTIMATE));
   // The payout, not the customer's fee — same reasoning as `hourlyRateCentsFor`.
-  return assistantPayoutFor(category, quickTask, 1, market) * perWeek * 52;
+  return assistantPayoutFor(category, quickTask) * perWeek * 52;
 }
 
 export interface ConciergeTaskInput {

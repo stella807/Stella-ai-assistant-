@@ -1,159 +1,130 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_PAY_MARKET, MARKET_PAY, impliedHourlyCents, marketFloorCents, marketPayFor,
-  scalePayoutCents,
+  ANCHOR_HOURLY_CENTS, MARKET_PAY, REFERENCE_MARKET, clearsMidBand, describePayAgainstMarket,
+  impliedHourlyCents, marketPayFor, reachesHighBand,
 } from "../src/market-pay.ts";
 import {
-  CONCIERGE_ASSISTANT_PAYOUT_CENTS, CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES,
-  assistantPayoutFor, minutesFor, serviceFeeFor,
+  CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES, assistantPayoutFor, minutesFor, serviceFeeFor,
 } from "../src/concierge.ts";
 import { LAUNCH_MARKETS, type LaunchMarketId } from "../src/service-area.ts";
 
 const MARKETS = LAUNCH_MARKETS.map((m) => m.id);
+const hourly = (category: Parameters<typeof minutesFor>[0], quick = false) =>
+  impliedHourlyCents(assistantPayoutFor(category, quick), minutesFor(category, quick));
 
-describe("the market pay bands", () => {
-  it("covers every launch market — a market with no band would be priced by accident", () => {
-    for (const id of MARKETS) expect(MARKET_PAY[id]).toBeDefined();
+describe("the market bands", () => {
+  it("covers every market the company operates in", () => {
     expect(Object.keys(MARKET_PAY).sort()).toEqual([...MARKETS].sort());
   });
 
-  it("uses the most expensive market as the reference at 1.00", () => {
-    const reference = MARKET_PAY[DEFAULT_PAY_MARKET];
-    expect(reference.multiplier).toBe(1);
+  it("has a coherent mid and high band everywhere", () => {
     for (const id of MARKETS) {
-      expect(MARKET_PAY[id].multiplier).toBeLessThanOrEqual(1);
-      expect(MARKET_PAY[id].midBandCents[1]).toBeLessThanOrEqual(reference.midBandCents[1]);
+      const { midBandCents: [ml, mh], highBandCents: [hl, hh] } = MARKET_PAY[id];
+      expect(mh).toBeGreaterThan(ml);
+      expect(hh).toBeGreaterThan(hl);
+      expect(hl).toBeGreaterThan(mh);
     }
   });
 
-  it("has a coherent band in every market", () => {
+  it("treats the most expensive market as the reference", () => {
     for (const id of MARKETS) {
-      const [low, high] = MARKET_PAY[id].midBandCents;
-      expect(low).toBeGreaterThan(0);
-      expect(high).toBeGreaterThan(low);
+      expect(MARKET_PAY[id].highBandCents[0])
+        .toBeLessThanOrEqual(MARKET_PAY[REFERENCE_MARKET].highBandCents[0]);
     }
+    expect(ANCHOR_HOURLY_CENTS).toBe(MARKET_PAY[REFERENCE_MARKET].highBandCents[0]);
   });
 
-  it("falls back to the most expensive market when the location is unknown", () => {
-    // The important direction: an unknown location must never be the cheap
-    // path to underpaying somebody.
-    expect(marketPayFor(null).id).toBe(DEFAULT_PAY_MARKET);
-    expect(marketPayFor(undefined).id).toBe(DEFAULT_PAY_MARKET);
-    expect(marketPayFor("atlantis" as LaunchMarketId).id).toBe(DEFAULT_PAY_MARKET);
+  it("falls back to the most expensive market for an unknown one", () => {
+    expect(marketPayFor(null).id).toBe(REFERENCE_MARKET);
+    expect(marketPayFor("atlantis" as LaunchMarketId).id).toBe(REFERENCE_MARKET);
   });
 });
 
-describe("the competitive guarantee", () => {
+describe("one rate, and it is a good rate everywhere", () => {
   /**
-   * The promise this whole module exists to keep: in every market Safehubby
-   * operates in, every standard task pays at or above the **top** of that
-   * market's local mid-level band. Not the midpoint, and not the top of the
-   * cheapest market's band — the top of the local one.
-   *
-   * If a future rate or multiplier edit breaks this, the company has quietly
-   * become a below-market employer somewhere, which is exactly the kind of
-   * thing nobody notices from inside a diff.
+   * The promise the rate card is built on, and the reason market-indexed pay
+   * was reversed: the same job at the same hour of the night is worth the
+   * same thing in San Juan as in Los Angeles, and that one number has to be
+   * a rate worth taking in all three markets rather than only the cheap one.
    */
-  it("pays at or above the top of the local mid-level band, in every market and category", () => {
+  it("pays the anchor rate or better for every category", () => {
+    for (const { id } of CONCIERGE_CATEGORIES) {
+      expect(hourly(id), id).toBeGreaterThanOrEqual(ANCHOR_HOURLY_CENTS);
+    }
+  });
+
+  it("reaches the high-end band in every market, not just the mid band", () => {
+    // This work is not mid-level assistant work — it is going to a stranger
+    // at night and judging whether they need an ambulance. If a future rate
+    // cut drops it back into the mid band, this is what says so.
     for (const market of MARKETS) {
-      const bandTop = MARKET_PAY[market].midBandCents[1];
-      for (const { id: category } of CONCIERGE_CATEGORIES) {
-        const hourly = impliedHourlyCents(
-          assistantPayoutFor(category, false, 1, market),
-          minutesFor(category),
-        );
-        expect(hourly, `${market}/${category}`).toBeGreaterThanOrEqual(bandTop);
+      for (const { id } of CONCIERGE_CATEGORIES) {
+        expect(reachesHighBand(assistantPayoutFor(id), minutesFor(id), market), `${market}/${id}`).toBe(true);
+        expect(clearsMidBand(assistantPayoutFor(id), minutesFor(id), market), `${market}/${id}`).toBe(true);
       }
     }
   });
 
-  it("holds a quick task to the same bar — reduced pay for a shorter job, not a worse rate", () => {
-    // This one caught a real modelling gap: the reduced tier used to be
-    // measured against the standard task's minutes, which made a Puerto Rico
-    // quick task read as $11.67/hr against a $15-19 local band. It pays less
-    // because it takes less time, so it is timed as the shorter job and then
-    // held to exactly the same floor as everything else.
-    for (const market of MARKETS) {
-      const bandTop = MARKET_PAY[market].midBandCents[1];
-      for (const category of QUICK_TASK_CATEGORIES) {
-        const hourly = impliedHourlyCents(
-          assistantPayoutFor(category, true, 1, market),
-          minutesFor(category, true),
-        );
-        expect(hourly, `${market}/${category}`).toBeGreaterThanOrEqual(bandTop);
-      }
-    }
+  it("is a premium above the whole local range in the cheapest market", () => {
+    // Puerto Rico's high-end band tops out at $32; the anchor is $35, so the
+    // rate is above the entire local range. That is the "premium where the
+    // local market is cheaper" the research called for.
+    const pr = MARKET_PAY["puerto-rico"];
+    expect(ANCHOR_HOURLY_CENTS).toBeGreaterThan(pr.highBandCents[1]);
   });
 
-  it("prices a quick task as genuinely shorter, not just cheaper", () => {
+  it("holds a quick task to the same bar — shorter job, same rate", () => {
     for (const category of QUICK_TASK_CATEGORIES) {
-      expect(minutesFor(category, true)).toBeLessThan(minutesFor(category, false));
+      expect(hourly(category, true), category).toBeGreaterThanOrEqual(ANCHOR_HOURLY_CENTS);
       expect(assistantPayoutFor(category, true)).toBeLessThan(assistantPayoutFor(category, false));
+      expect(minutesFor(category, true)).toBeLessThan(minutesFor(category, false));
     }
+  });
+
+  it("pays the same wherever the task happens", () => {
+    // No market argument exists any more. This test is the record of why:
+    // paying somebody in San Juan less for the identical job was the thing
+    // being undone.
+    expect(assistantPayoutFor.length).toBeLessThanOrEqual(3);
   });
 });
 
-describe("how pay varies by market", () => {
-  it("pays less where the local market is cheaper, and the customer pays less too", () => {
-    const la = assistantPayoutFor("grab-something", false, 1, "los-angeles");
-    const tx = assistantPayoutFor("grab-something", false, 1, "texas");
-    const pr = assistantPayoutFor("grab-something", false, 1, "puerto-rico");
-    expect(la).toBeGreaterThan(tx);
-    expect(tx).toBeGreaterThan(pr);
-
-    // The point of indexing pay: the customer fee follows it down, so the
-    // service is not priced for Los Angeles in San Juan.
-    expect(serviceFeeFor("grab-something", false, 1, "puerto-rico"))
-      .toBeLessThan(serviceFeeFor("grab-something", false, 1, "los-angeles"));
-  });
-
-  it("leaves the reference market on exactly the published national rate card", () => {
-    // Indexing was meant to bring the cheaper markets into line, not to
-    // quietly reprice the market the card was written for.
-    for (const { id: category } of CONCIERGE_CATEGORIES) {
-      expect(assistantPayoutFor(category, false, 1, DEFAULT_PAY_MARKET))
-        .toBe(CONCIERGE_ASSISTANT_PAYOUT_CENTS[category]);
-    }
-  });
-
-  it("keeps the margin a share of the fee, not a cut of the pay, in every market", () => {
-    for (const market of MARKETS) {
-      const pay = assistantPayoutFor("run-errand", false, 1, market);
-      const fee = serviceFeeFor("run-errand", false, 1, market);
+describe("what the customer pays for it", () => {
+  it("keeps the margin a share of the fee, never a cut of the pay", () => {
+    for (const { id } of CONCIERGE_CATEGORIES) {
+      const pay = assistantPayoutFor(id);
+      const fee = serviceFeeFor(id);
       expect(fee).toBeGreaterThan(pay);
       expect((fee - pay) / fee).toBeCloseTo(0.2, 2);
     }
   });
 
-  it("still scales with household size on top of the market rate", () => {
-    for (const market of MARKETS) {
-      const one = assistantPayoutFor("grab-something", false, 1, market);
-      const six = assistantPayoutFor("grab-something", false, 6, market);
-      expect(six).toBeGreaterThan(one);
-    }
+  it("earns Safehubby more per task than the old cheaper card did", () => {
+    // Worth pinning, because it is the counter-intuitive part: the margin is
+    // a share of the fee and the fee is derived from the payout, so paying
+    // people more raises the absolute margin per task rather than lowering it.
+    const waitFee = serviceFeeFor("wait-with-someone");
+    const waitPay = assistantPayoutFor("wait-with-someone");
+    expect(waitFee - waitPay).toBeGreaterThan(450);
   });
 });
 
-describe("the scaler itself", () => {
-  it("rounds up to the quarter, so a rounding cent lands on the worker's side", () => {
-    const out = scalePayoutCents({ baseCents: 1000, minutes: 18, market: "texas" });
-    expect(out % 25).toBe(0);
+describe("telling an assistant what their rate is worth", () => {
+  it("says it beats the whole local range where it does", () => {
+    const text = describePayAgainstMarket(
+      assistantPayoutFor("wait-with-someone"), minutesFor("wait-with-someone"), "puerto-rico");
+    expect(text).toMatch(/above the top/i);
+    expect(text).toMatch(/Puerto Rico/);
   });
 
-  it("never returns less than the market floor", () => {
-    // A base of nearly nothing still has to clear the local band.
-    const out = scalePayoutCents({ baseCents: 1, minutes: 60, market: "puerto-rico" });
-    expect(out).toBe(marketFloorCents(60, "puerto-rico"));
-    expect(impliedHourlyCents(out, 60)).toBeGreaterThanOrEqual(MARKET_PAY["puerto-rico"].midBandCents[1]);
+  it("says it is in the high-end range where it is", () => {
+    const text = describePayAgainstMarket(
+      assistantPayoutFor("wait-with-someone"), minutesFor("wait-with-someone"), "los-angeles");
+    expect(text).toMatch(/high-end/i);
+    expect(text).toMatch(/Los Angeles/);
   });
 
-  it("scales the floor for a reduced tier rather than erasing the reduction", () => {
-    const full = scalePayoutCents({ baseCents: 900, minutes: 18, market: "texas" });
-    const half = scalePayoutCents({ baseCents: 500, minutes: 18, market: "texas", floorShare: 500 / 900 });
-    expect(half).toBeLessThan(full);
-  });
-
-  it("gives a floor proportional to how long the task runs", () => {
-    expect(marketFloorCents(40, "texas")).toBeGreaterThan(marketFloorCents(18, "texas"));
+  it("refuses to price a task of no length rather than dividing by zero", () => {
+    expect(() => impliedHourlyCents(1000, 0)).toThrow(/positive/i);
   });
 });
