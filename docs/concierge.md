@@ -383,6 +383,16 @@ bounded the same way voice clips are (`MAX_PHOTO_BYTES`, `validateIdentityPhoto`
 in `concierge.ts`) and stored the same way — inline, base64, in the same JSON
 document, with the same scaling caveat stated in `SECURITY.md`.
 
+A third, separate photo confirms *what happened* rather than *who met
+whom*: `completionPhoto` on `ConciergeTask`, captured by the assistant via
+`POST /api/assistant/tasks/:id/completion-photo` right before marking a task
+done. It reuses the exact same validation and storage machinery as the
+selfies above, but with `capture="environment"` (the rear camera) instead of
+`capture="user"`, since it's a photo of the delivered item or the completed
+service, not of a person. Optional, same as the selfies — a task can be
+marked complete without one, but a customer weighing whether to dispute a
+task has more to go on when one was attached.
+
 ## Where it's gated, and what it costs
 
 `personal-concierge` is on `BASIC_FEATURES` (`billing.ts`) — every paid tier,
@@ -469,6 +479,40 @@ assistant can see their own payout history and what they've earned but not
 yet been paid at `GET /api/assistant/payouts`; `POST /api/admin/payroll/run`
 (gated by `requireAdmin`) triggers a run immediately rather than waiting for
 the next hourly sweep, mainly for verifying the pipeline end to end.
+
+## Disputes: a refund for the customer, a clawback from the assistant
+
+Policy, not just a feature: if an assistant never delivered, or kept the
+money for something they didn't do, the loss is recovered from *them*, not
+absorbed by Safehubby. `POST /api/concierge/tasks/:id/dispute` (the
+customer's own action — no admin review step exists yet, a known future
+hardening point if this is ever abused) does two things atomically:
+
+1. Refunds the task's charge in full (`refundCharge` in `wallet.ts`) —
+   immediate, not conditional on what happens to the assistant next.
+2. If the task had an assigned assistant, opens an `AssistantAdjustment`
+   against them for the same amount (`packages/core/src/payroll.ts`) — a debt
+   that reduces their *future* payouts, oldest debt first, rather than a
+   line Safehubby writes off.
+
+A task can only be disputed once, and only after it's `completed` — a task
+still in progress gets cancelled instead, not disputed. The dispute reason
+(`validateDisputeReason`, capped at 280 characters) is stored on the task
+alongside `refundedCents`, so both sides can see what was claimed.
+
+`applyAdjustments` (`payroll.ts`) is the pure function `runPayroll` calls
+each period: it consumes open debts oldest-first against what an assistant
+earned that period, and returns what's actually payable. A period fully or
+partially absorbed by debt still settles — as `paid`, at whatever's left
+over, even `$0` — and its tasks still get tagged with a `payoutId`, since
+that pay was legitimately spent, just against a debt instead of a wire
+transfer. A `$0` payout skips the bank-destination and Revolut-provider
+checks entirely, since there's nothing to actually transfer; only a payout
+with something left to pay after debt still needs a destination on file and
+a configured payout provider, with the same retry-next-run behavior as
+before on a real transfer failure. `GET /api/assistant/portal` and
+`GET /api/assistant/payouts` both report `outstandingClawbackCents` so an
+assistant can see what they still owe.
 
 ## Configuring a real provider
 

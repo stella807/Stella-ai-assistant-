@@ -69,6 +69,27 @@ history), and any server-side validation that a routing number is a real,
 assigned ABA number rather than merely nine digits — `validatePayoutDestination`
 in `payroll.ts` checks shape, not registry membership. See `docs/concierge.md`.
 
+**A customer's dispute is self-actioned, with no review step.**
+`POST /api/concierge/tasks/:id/dispute` refunds a completed task and opens a
+clawback against the assigned assistant (`AssistantAdjustment` in
+`payroll.ts`) the moment a customer files it — there is no admin review, no
+appeal path for the assistant, and no rate limit on how many disputes one
+account can file. A real deployment should add a review step before the
+debt is final, since as built a customer (or a compromised account) can
+single-handedly put an assistant into debt with an unverifiable claim. See
+"Disputes" in `docs/concierge.md`.
+
+**Payment-method tokens are verified against the real processor, but nothing
+downstream charges through one yet.** `apps/api/src/adapters/stripe.ts` and
+`paypal.ts` correctly refuse to trust a client-claimed brand/last4/expiry
+once real credentials are configured — they resolve the browser SDK's own
+token against Stripe/PayPal's API instead. But no client-side Stripe.js or
+PayPal SDK integration exists yet to produce that token in the first place
+(`attachViaSdk` in `PaymentMethodCard.tsx` is a labeled gap, not a working
+call), and the existing hold/capture flow (`payment.ts`) still settles
+without a real processor call regardless of which one verified the method —
+see "Payment settlement" above and `docs/billing.md`.
+
 **Voice messages and identity photos stored inline in the document store,
 uncapped in aggregate.** `voice-messages.ts` and `concierge.ts` cap a single
 item (a 60s/~1.5MB clip, a ~1.5MB photo) but nothing caps how many accumulate

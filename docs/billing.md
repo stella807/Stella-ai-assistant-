@@ -41,9 +41,10 @@ actually used more than one.
 |---|---|
 | `packages/core/src/wallet.ts` | The ledger: `Charge`, `railFor`, `recordCharge`, `settleCharge`, `buildStatement` |
 | `packages/core/src/subscription.ts` | Lifecycle: trials, proration, renewal, cancellation, `effectivePlan` |
-| `packages/core/src/payment.ts` | The card on file and pre-authorization holds |
+| `packages/core/src/payment.ts` | The payment method on file and pre-authorization holds |
 | `packages/core/src/billing.ts` | The plan catalogue and what each plan unlocks |
 | `apps/api/src/billing.ts` | `renewDueSubscriptions` — the sweep that turns periods over |
+| `apps/api/src/adapters/stripe.ts`, `paypal.ts` | Verifying a client-tokenized payment method against the real processor — see "Payment processors" below |
 
 `wallet.ts` and `subscription.ts` are pure and fully tested; nothing in either
 talks to a processor.
@@ -70,14 +71,49 @@ talks to a processor.
 - **Real-world spend never reaches in-app purchase.** A table-driven test walks
   every `ChargeKind` × `Platform` pair and asserts it.
 
+## Payment processors
+
+`packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
+`apps/api/src/adapters/stripe.ts` / `paypal.ts` implement it — the same
+`ProviderStatus` automatic/handoff pattern as every other adapter in this
+app (Revolut cards, Revolut payouts, Uber, DoorDash). Their one job today is
+verification: the browser's own SDK tokenizes a method (Stripe.js, PayPal's
+JS SDK) and hands this server a token, and the adapter asks the real
+processor what that token actually is — brand, last 4, expiry — rather than
+trusting whatever the client claims. Neither adapter is configured without
+`STRIPE_SECRET_KEY` or `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` set, in
+which case `POST /api/account/payment-method` falls back to the same typed
+mock form this screen has always used, and `GET /api/payment/processors`
+reports both as `handoff` so the UI never claims a wallet or PayPal button
+works when it can't.
+
+**Apple Pay and Google Pay are not separate processors.** Both are wallets
+Stripe's own client SDK (the Payment Request Button / Payment Element)
+detects and surfaces automatically on top of the same card rails — a wallet
+token still verifies through the Stripe adapter, and `PaymentMethodOnFile.processor`
+records `"stripe"` either way, with `wallet` set only for display. Apple
+Pay's tab in `PaymentMethodCard.tsx` is only offered when the browser itself
+reports `ApplePaySession.canMakePayments()`; Google Pay has no equivalent
+client-only signal without loading Google's own SDK against a real merchant
+ID, so its availability is left to Stripe's own button to determine once
+that SDK is actually wired in.
+
 ## What is not wired yet
 
 Stated plainly, because the code says the same thing where it matters:
 
-- **No card processor.** A card-rail charge settles inline the moment it is
-  recorded. Stripe's manual-capture PaymentIntents map onto `authorizeHold` /
-  `captureHold` / `releaseHold` exactly; that swap is contained to
-  `apps/api/src/routes.ts` and `apps/api/src/billing.ts`.
+- **No hold capture or refund through a real processor.** A card-rail charge
+  still settles inline the moment it is recorded — Stripe's manual-capture
+  PaymentIntents map onto `authorizeHold` / `captureHold` / `releaseHold`
+  exactly, and PayPal has an equivalent authorize/capture flow, but neither
+  swap is made yet. That work is contained to `apps/api/src/routes.ts` and
+  `apps/api/src/billing.ts`; verifying the payment method itself (above) is
+  a separate, already-done step from actually moving money against it.
+- **No client-side Stripe.js/PayPal SDK integration.** `PaymentMethodCard.tsx`
+  has the tabs and the honest status reporting, but the actual "tokenize a
+  card, wallet, or PayPal login in the browser" call is a labeled gap
+  (`attachViaSdk` in that file) — wiring it in needs a real publishable key
+  and loading the processor's own script.
 - **No store receipt verification.** `POST /api/billing/charges/:id/confirm`
   records the receipt the client hands back and settles the line. A real
   deployment verifies it with Apple or Google first; the response says
