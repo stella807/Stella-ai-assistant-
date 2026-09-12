@@ -1,0 +1,75 @@
+/* Landing carousel -----------------------------------------------------
+   Native scroll-snap rather than a JS gesture handler: swiping on a phone
+   is the browser's job, and reimplementing it badly is how carousels end up
+   fighting the scroll. The dots and arrows just scroll the same container
+   programmatically. */
+
+.slides {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  align-items: flex-start;
+  scrollbar-width: none;
+  /* Height follows the slide actually on screen, set from JS — otherwise the
+     track stands as tall as the tallest slide and the short ones open a
+     canyon of empty space under their content. */
+  transition: height 180ms ease;
+  overflow-y: hidden;
+}
+.slides::-webkit-scrollbar { display: none; }
+
+.slide {
+  flex: 0 0 100%;
+  /* `start`, not `center`: centering inside a full-width track leaves the
+     neighbouring slides peeking through the gutter, which reads as a
+     rendering fault rather than an affordance. */
+  scroll-snap-align: start;
+  /* Each slide keeps the app's normal vertical rhythm inside it. */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-inline: 2px;
+}
+
+.slide-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 2px;
+}
+
+.slide-dots button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: width 140ms ease, background 140ms ease;
+}
+
+.slide-dots button[aria-current="true"] {
+  width: 22px;
+  background: var(--accent-bright);
+}
+
+.slide-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Reduced motion: no smooth jumps, and the auto-advance is skipped in the
+   component too — a carousel that moves on its own is exactly what this
+   setting is asking us not to do. */
+@media (prefers-reduced-motion: reduce) {
+  .slides { scroll-behavior: auto; transition: none; }
+  .slide-dots button { transition: none; }
+}

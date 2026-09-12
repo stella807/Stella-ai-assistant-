@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account } from "./api.ts";
 import { configError } from "./native/platform.ts";
 import { isEnabled } from "@safehubby/core";
-import { AuthScreen } from "./components/AuthScreen.tsx";
 import { BillingScreen } from "./components/BillingScreen.tsx";
 import { GamesScreen } from "./components/GamesScreen.tsx";
 import { PartyScreen } from "./components/PartyScreen.tsx";
@@ -25,9 +24,7 @@ export function App() {
   const [account, setAccount] = useState<Account | null>(null);
   const [ready, setReady] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [wantsSignup, setWantsSignup] = useState(false);
   const { language, setLanguage, t } = useLanguage();
-  const authRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.catalog().then((c) => setDrinks(c.drinks)).catch(() => setOffline(true));
@@ -62,9 +59,11 @@ export function App() {
         </div>
       )}
 
-      {/* Applying to drive needs no rider account, so it has to be reachable
-          from outside the auth gate below, not from inside it. */}
-      {role !== "drive" && (
+      {/* Applying to drive needs no rider account. While signed out, the
+          landing carousel's third slide is where that lives, so this would
+          just be the same button twice — it appears for signed-in riders,
+          who have no carousel. */}
+      {role !== "drive" && account && (
         <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setRole("drive")}>
           {t("app.drive")}
         </button>
@@ -73,17 +72,7 @@ export function App() {
       {role === "drive" ? (
         <DriveSignupScreen onBack={() => setRole("out")} />
       ) : !ready ? null : !account ? (
-        <>
-          <LandingIntro
-            onGetStarted={() => {
-              setWantsSignup(true);
-              authRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-          />
-          <div ref={authRef}>
-            <AuthScreen onSignedIn={setAccount} startInSignup={wantsSignup} />
-          </div>
-        </>
+        <LandingIntro onSignedIn={setAccount} onDrive={() => setRole("drive")} />
       ) : (
         <>
           <div className="tabs" role="tablist">
