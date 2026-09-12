@@ -2414,6 +2414,166 @@ describe("the Elite tier, held for a later release", () => {
   });
 });
 
+describe("the Elite luxury desk", () => {
+  const elite = async () => {
+    setFlag("elite-tier", true);
+    await call("POST", "/api/subscription", { planId: "elite" }, sam);
+  };
+
+  it("does not exist at all while the tier is unreleased", async () => {
+    expect((await call("GET", "/api/elite/services", undefined, sam)).status).toBe(404);
+    expect((await call("POST", "/api/elite/bookings", { serviceId: "jet-travel", brief: "x" }, sam)).status).toBe(404);
+  });
+
+  it("offers the luxury catalogue once a member is on Elite", async () => {
+    await elite();
+    try {
+      const res = await call("GET", "/api/elite/services", undefined, sam);
+      expect(res.status).toBe(200);
+      const ids = res.json.services.map((s: any) => s.id);
+      expect(ids).toContain("jet-travel");
+      expect(ids).toContain("concierge-doctor");
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("refuses the desk to a paid plan that is not Elite", async () => {
+    setFlag("elite-tier", true);
+    try {
+      // Sam stays premium-plus — the everything-for-everyday tier.
+      const res = await call("POST", "/api/elite/bookings", {
+        serviceId: "jet-travel", brief: "Austin to Aspen Friday, four of us",
+      }, sam);
+      expect(res.status).toBe(402);
+      const services = await call("GET", "/api/elite/services", undefined, sam);
+      expect(services.json.services).toEqual([]);
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("books without charging anything or placing a hold", async () => {
+    await elite();
+    try {
+      const before = store.data.charges.length;
+      const beforeHolds = store.data.holds.length;
+
+      const res = await call("POST", "/api/elite/bookings", {
+        serviceId: "jet-travel", brief: "Austin to Aspen Friday, four of us",
+      }, sam);
+      expect(res.status).toBe(200);
+      expect(res.json.booking.status).toBe("requested");
+      expect(res.json.booking.supplierQuoteCents).toBeUndefined();
+
+      // The whole point of the model: a $50,000 charter never touches
+      // Safehubby's ledger or the member's card.
+      expect(store.data.charges.length).toBe(before);
+      expect(store.data.holds.length).toBe(beforeHolds);
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("shows the Part 295 disclosures with a jet booking", async () => {
+    await elite();
+    try {
+      const res = await call("POST", "/api/elite/bookings", {
+        serviceId: "jet-travel", brief: "Austin to Aspen Friday",
+      }, sam);
+      const text = res.json.disclosures.join(" ");
+      expect(text).toMatch(/air carrier operating your flight is named/i);
+      expect(text).toMatch(/liability insurance/i);
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("refuses a concierge doctor when the symptoms need an ambulance", async () => {
+    await elite();
+    try {
+      const res = await call("POST", "/api/elite/bookings", {
+        serviceId: "concierge-doctor", brief: "Come to the house",
+        redFlags: ["unresponsive"],
+      }, sam);
+      expect(res.status).toBe(409);
+      expect(res.json.error).toMatch(/emergency services, not a house call/i);
+      expect(store.data.eliteBookings.filter((b) => b.serviceId === "concierge-doctor")).toEqual([]);
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("allows a concierge doctor for something that is not an emergency", async () => {
+    await elite();
+    try {
+      const res = await call("POST", "/api/elite/bookings", {
+        serviceId: "concierge-doctor", brief: "Nasty cold, would rather not sit in a waiting room",
+      }, sam);
+      expect(res.status).toBe(200);
+      expect(res.json.disclosures[0]).toMatch(/not emergency care/i);
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("quotes the supplier's price and Safehubby's disclosed commission", async () => {
+    await elite();
+    const prior = process.env.SAFEHUBBY_ADMIN_KEY;
+    process.env.SAFEHUBBY_ADMIN_KEY = "test-admin-key";
+    try {
+      const made = await call("POST", "/api/elite/bookings", {
+        serviceId: "jet-travel", brief: "Austin to Aspen Friday",
+      }, sam);
+      const res = await callAdmin(
+        "POST", `/api/admin/elite/bookings/${made.json.booking.id}/quote`,
+        { supplierQuoteCents: 5_000_000, operatorName: "Example Air Charter LLC" },
+      );
+      expect(res.status).toBe(200);
+      expect(res.json.booking.supplierQuoteCents).toBe(5_000_000);
+      expect(res.json.booking.commissionCents).toBe(400_000); // 8%
+      expect(res.json.booking.operatorName).toBe("Example Air Charter LLC");
+    } finally {
+      resetFlags();
+      if (prior === undefined) delete process.env.SAFEHUBBY_ADMIN_KEY;
+      else process.env.SAFEHUBBY_ADMIN_KEY = prior;
+    }
+  });
+
+  it("will not quote a jet without naming the operating carrier", async () => {
+    await elite();
+    const prior = process.env.SAFEHUBBY_ADMIN_KEY;
+    process.env.SAFEHUBBY_ADMIN_KEY = "test-admin-key";
+    try {
+      const made = await call("POST", "/api/elite/bookings", {
+        serviceId: "jet-travel", brief: "Austin to Aspen Friday",
+      }, sam);
+      const res = await callAdmin(
+        "POST", `/api/admin/elite/bookings/${made.json.booking.id}/quote`,
+        { supplierQuoteCents: 5_000_000 },
+      );
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/part 295/i);
+    } finally {
+      resetFlags();
+      if (prior === undefined) delete process.env.SAFEHUBBY_ADMIN_KEY;
+      else process.env.SAFEHUBBY_ADMIN_KEY = prior;
+    }
+  });
+
+  it("keeps one member's bookings out of another's", async () => {
+    await elite();
+    try {
+      await call("POST", "/api/elite/bookings", { serviceId: "jet-travel", brief: "Mine" }, sam);
+      await call("POST", "/api/subscription", { planId: "elite" }, jordan);
+      const mine = await call("GET", "/api/elite/bookings", undefined, jordan);
+      expect(mine.json.bookings).toEqual([]);
+    } finally {
+      resetFlags();
+    }
+  });
+});
+
 describe("payment method on file", () => {
   it("starts with none", async () => {
     const res = await call("GET", "/api/account/payment-method", undefined, sam);

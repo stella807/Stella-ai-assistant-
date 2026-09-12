@@ -28,6 +28,7 @@ export * from "./payment.ts";
 export * from "./driver-applications.ts";
 export * from "./driver-pay.ts";
 export * from "./concierge.ts";
+export * from "./elite.ts";
 export * from "./voice-messages.ts";
 export * from "./ports.ts";
 export * from "./payroll.ts";

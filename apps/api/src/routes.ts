@@ -1,6 +1,8 @@
 import {
   REWARD_CATALOG, DRINK_CATALOG,
   isPlanReleased, releasedPlans,
+  ELITE_SERVICES, commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService,
+  validateEliteRequest,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
   createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
@@ -34,7 +36,8 @@ import {
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
-  ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut,
+  ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DriverTier, EliteBooking, EliteServiceId,
+  Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
   PaymentProcessor, WalletType,
@@ -605,6 +608,16 @@ async function bookWithHold<T extends { fareEstimateCents: number | null }>(
       failCharge(c, err instanceof Error ? err.message : "The booking did not go through.", ctx.now()));
     throw err;
   }
+}
+
+/**
+ * The Elite desk is gated twice on purpose: the release flag and the plan
+ * feature. The flag check comes first, so a deployment that has not shipped
+ * Elite answers "no such thing" rather than "upgrade your plan".
+ */
+function requireElite(ctx: Ctx): void {
+  void ctx;
+  if (!isEnabled("elite-tier")) throw new HttpError(404, flagNote("elite-tier"));
 }
 
 /**
@@ -2782,6 +2795,107 @@ export const routes: Record<string, Handler> = {
       players.map((p) => [p.id, balance(ctx.store.data.points[p.id] ?? [], ctx.store.data.redemptions[p.id] ?? [])]),
     );
     return leaderboard(players, points);
+  },
+
+  /* ---------------- the Elite luxury desk ----------------
+     Held behind `elite-tier` (features.ts) along with the plan itself. No
+     money flows through Safehubby here: the member pays the operator, the
+     hotel, the practice, and the supplier pays Safehubby a disclosed
+     commission — see elite.ts for why that is the only model the payment
+     machinery can actually support at these amounts.
+     ------------------------------------------------------ */
+
+  "GET /api/elite/services": (ctx) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const plan = planOf(ctx, me);
+    return {
+      services: ELITE_SERVICES
+        .filter((s) => hasFeature(plan, s.feature))
+        .map((s) => ({
+          ...s,
+          disclosures: disclosuresFor(s.id),
+          // Commission is stated to the member, not buried. A disclosed
+          // commission is the difference between a broker and a markup.
+          commissionNote: s.commissionRate === 0
+            ? "Safehubby is paid nothing on this. You pay the practice directly."
+            : `You pay the supplier directly. Safehubby is paid ${(s.commissionRate * 100).toFixed(0)}% by them, disclosed up front.`,
+        })),
+    };
+  },
+
+  /**
+   * Opens a request on the desk. Deliberately creates no charge and no hold —
+   * `EliteBooking` has nowhere to put one. A quote comes back with the
+   * supplier's own price, and the member pays the supplier.
+   */
+  "POST /api/elite/bookings": (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const serviceId = body?.serviceId as EliteServiceId;
+    const input = { serviceId, brief: String(body?.brief ?? "") };
+    validateEliteRequest(input);
+
+    const service = findEliteService(serviceId);
+    requireFeature(ctx, me, service.feature);
+
+    // A concierge doctor is never an alternative to an ambulance. Assessed
+    // server-side from the reported red flags rather than trusted from the
+    // client, and refused outright rather than offered with a warning.
+    if (serviceId === "concierge-doctor") {
+      const flags = (body?.redFlags ?? []) as RedFlagId[];
+      const escalation = flags.length > 0 ? assess(flags).escalation : "stay-and-watch";
+      if (!doctorAvailableFor(escalation)) {
+        throw new HttpError(
+          409,
+          "Those symptoms need emergency services, not a house call. Call your local emergency number now.",
+        );
+      }
+    }
+
+    const booking: EliteBooking = {
+      id: newId("elite"), travelerId: me, serviceId, brief: input.brief.trim(),
+      status: "requested", createdAt: ctx.now().toISOString(),
+    };
+    ctx.store.update((db) => void db.eliteBookings.push(booking));
+    return { booking, disclosures: disclosuresFor(serviceId) };
+  },
+
+  "GET /api/elite/bookings": (ctx) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    return { bookings: ctx.store.data.eliteBookings.filter((b) => b.travelerId === me) };
+  },
+
+  /**
+   * The desk's own quote, entered by an operator with the admin key — there
+   * is no supplier API behind any of this yet, and inventing one would be
+   * exactly the fake capability this codebase refuses everywhere else.
+   * `operatorName` is required for jet travel because 14 CFR Part 295 makes
+   * naming the operating carrier a precondition of the member agreeing.
+   */
+  "POST /api/admin/elite/bookings/:bookingId/quote": (ctx, p, body) => {
+    requireAdmin(ctx);
+    const id = req(p, "bookingId");
+    const booking = ctx.store.data.eliteBookings.find((b) => b.id === id);
+    if (!booking) throw notFound("Booking");
+
+    const supplierQuoteCents = Math.round(Number(body?.supplierQuoteCents));
+    const commissionCents = commissionCentsFor(booking.serviceId, supplierQuoteCents);
+    const operatorName = body?.operatorName ? String(body.operatorName) : undefined;
+    if (booking.serviceId === "jet-travel" && !operatorName) {
+      throw new HttpError(400, "Name the operating air carrier — 14 CFR Part 295 requires it before the member agrees.");
+    }
+
+    ctx.store.update((db) => {
+      const b = db.eliteBookings.find((x) => x.id === id)!;
+      b.status = "quoted";
+      b.supplierQuoteCents = supplierQuoteCents;
+      b.commissionCents = commissionCents;
+      if (operatorName) b.operatorName = operatorName;
+      b.quotedAt = ctx.now().toISOString();
+    });
+    return { booking: ctx.store.data.eliteBookings.find((b) => b.id === id) };
   },
 
   /* ---------------- driver applications ----------------

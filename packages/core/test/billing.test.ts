@@ -62,7 +62,7 @@ describe("plans", () => {
     // `ALL_FEATURES` is exhaustive by construction — see its `satisfies
     // Record<Feature, true>` in billing.ts, which turns "someone added a
     // Feature and forgot to decide where it goes" into a compile error.
-    expect(ALL_FEATURES.length).toBe(26);
+    expect(ALL_FEATURES.length).toBe(27);
     for (const feature of ALL_FEATURES) {
       expect(hasFeature("premium-plus", feature)).toBe(!ELITE_ONLY.includes(feature));
     }

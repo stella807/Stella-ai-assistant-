@@ -107,6 +107,20 @@ who revealed what and when — both worth adding before a real partner network
 is onboarded, since an assistant account is the one credential in this system
 that can reach spending power. See `docs/concierge.md`.
 
+**The Elite tier offers a doctor to people who may be drunk.** This is the
+highest-stakes thing in the app and it is held behind the `elite-tier` flag,
+off. The guardrail is that `doctorAvailableFor` returns false whenever
+`assess` says `call-emergency`, so the option vanishes rather than being
+offered beside a warning, and `POST /api/elite/bookings` refuses with a 409
+naming emergency services. The escalation is computed server-side from
+reported red flags, never accepted from the client. What is *not* solved:
+nothing stops a member from simply not reporting a symptom, and the app cannot
+see what it is not told — so the disclosures lead with emergency care and the
+feature is worth a clinician's review, not just a code review, before the flag
+goes on. Safehubby also takes no commission on medical care
+(`MEDICAL_FEE_RULE`), which keeps referral-kickback and fee-splitting rules out
+of scope by design rather than by argument. See `docs/billing.md`.
+
 **Voice messages and identity photos stored inline in the document store,
 uncapped in aggregate.** `voice-messages.ts` and `concierge.ts` cap a single
 item (a 60s/~1.5MB clip, a ~1.5MB photo) but nothing caps how many accumulate

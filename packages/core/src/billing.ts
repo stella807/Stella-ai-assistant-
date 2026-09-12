@@ -43,7 +43,8 @@ export type Feature =
   | "luxury-property"
   | "event-production"
   | "premium-hospitality"
-  | "lifestyle-manager";
+  | "lifestyle-manager"
+  | "concierge-doctor";
 
 /**
  * Every member of `Feature`, as data rather than as a type.
@@ -82,6 +83,7 @@ const EVERY_FEATURE = {
   "event-production": true,
   "premium-hospitality": true,
   "lifestyle-manager": true,
+  "concierge-doctor": true,
 } satisfies Record<Feature, true>;
 
 export const ALL_FEATURES: Feature[] = Object.keys(EVERY_FEATURE) as Feature[];
@@ -126,6 +128,7 @@ export const ELITE_ONLY: Feature[] = [
   "event-production",
   "premium-hospitality",
   "lifestyle-manager",
+  "concierge-doctor",
 ];
 
 /**
@@ -271,7 +274,7 @@ export const PLANS: Plan[] = [
     annualCents: 249900,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
-    blurb: "Everything in Family, plus a dedicated lifestyle manager and the luxury desk: private aviation, yacht charter, villa and property sourcing, full event production, and premium hospitality and hotel access.",
+    blurb: "Everything in Family, plus a dedicated lifestyle manager and the luxury desk: jet travel, yacht charter, villa and property sourcing, full event production, premium hospitality, and access to a concierge doctor.",
   },
 ];
 

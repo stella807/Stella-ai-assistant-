@@ -80,14 +80,65 @@ lifestyle manager's time; the bookings pay for the desk.
 `ELITE_ONLY` in billing.ts, deliberately withheld from every everyday tier so
 a $69.99 Family plan is never silently handed a private jet desk:
 
-| Feature | Market rate it replaces |
-|---|---|
-| `private-aviation` | Brokers take 5–15% of charter (up to 30%); Safehubby targets 5–8% |
-| `yacht-charter` | Typically project fees or retainers against scope |
-| `luxury-property` | Villa and property sourcing, same retainer shape |
-| `event-production` | Planners charge 10–20% of budget, or $2,000–$50,000 flat |
-| `premium-hospitality` | Hotel advisors earn 5–10% supplier commission (Virtuoso 20–25%) |
-| `lifestyle-manager` | Luxury specialists bill $200–$500+/hour |
+| Service | Commission | Market it undercuts |
+|---|---|---|
+| Jet travel | **8%** | Charter brokers take 10–15%, up to 30% |
+| Yacht charter | 10% | Project fees or retainers against scope |
+| Villas and property | 10% | Same retainer shape as yachts |
+| Event production | 10% | Planners charge 10–20% of budget |
+| Hotels and hospitality | 10% | Advisors earn 5–10% (Virtuoso 20–25%) |
+| **Concierge doctor** | **0%** | Retainers run $1,500–$25,000/yr, commonly $2,000–$5,000 |
+| `lifestyle-manager` | n/a — included | Luxury specialists bill $200–$500+/hour |
+
+`ELITE_SERVICES` in `packages/core/src/elite.ts` carries these, and
+`commissionCentsFor` rounds **down**, so a rounding cent never lands in
+Safehubby's favour against the supplier's quote.
+
+### The money model: Safehubby never touches the supplier's price
+
+This is the part that made Elite a separate module rather than more
+`CONCIERGE_CATEGORIES` entries. A concierge task rides a single-use card
+capped at exactly `CONCIERGE_MAX_CAP_CENTS` ($300). A charter is
+$20,000–$100,000+. Safehubby cannot hold, front, or capture that, and
+pretending otherwise would mean a card it cannot fund.
+
+So an Elite booking has **no `chargeId`, no `holdId`, no `card`** — the type
+itself is the enforcement, and a test asserts those keys stay absent. The
+member pays the operator, the hotel, the practice directly; the supplier pays
+Safehubby a disclosed commission. `POST /api/elite/bookings` is tested to
+create zero charges and zero holds.
+
+That alignment is deliberate: Safehubby earns the same percentage on a
+$40,000 charter as a $60,000 one, so hunting the better deal costs it
+nothing.
+
+### Why the concierge doctor pays Safehubby zero
+
+Taking a percentage of a physician's fee for sending them a patient is the
+shape of a referral kickback — it runs into the federal Anti-Kickback Statute
+plus state fee-splitting and corporate-practice-of-medicine rules, which vary
+by state and are not something this codebase should guess at. The rate is
+`0` and a test exists specifically to stop someone "fixing" it.
+
+It also cannot be *included*. Concierge medicine retainers commonly run
+$2,000–$5,000/year — more than all of Elite. Elite buys the arranging, the
+vetting and the coordination; the member pays the practice its own retainer.
+
+### A concierge doctor is never an alternative to an ambulance
+
+`doctorAvailableFor(escalation)` returns false whenever `assess`
+(emergency.ts) says `call-emergency`, and `POST /api/elite/bookings` refuses
+with a 409 pointing at emergency services. The option **disappears** rather
+than appearing with a warning next to it, because a warning next to a button
+is still a button.
+
+This is the highest-stakes guardrail in the app. A red-flag night — suspected
+alcohol poisoning, a head injury — is exactly when a member with money might
+reach for a private doctor instead of an ambulance, and exactly when that
+choice could kill them. The check is server-side from the reported red flags,
+never trusted from the client, and
+`CONCIERGE_DOCTOR_DISCLOSURES[0]` leads with emergency care before it
+mentions the service at all.
 
 ### Why the feature list is derived, not hand-written
 
@@ -100,22 +151,27 @@ forgotten in either direction.
 
 ### Three things to settle before turning the flag on
 
-1. **The money flow does not reach this far.** `CONCIERGE_MAX_CAP_CENTS` is
-   $300 and every task rides a single-use card capped at exactly that. A jet
-   is $20,000–$100,000+. These bookings need the customer paying the supplier
-   directly with Safehubby taking commission, which is a different flow from
-   anything in `payment.ts` today — so they are a new kind of task, not new
-   entries in `CONCIERGE_CATEGORIES`.
-2. **Private aviation carries a legal duty.** [14 CFR Part 295](https://www.ecfr.gov/current/title-14/chapter-II/subchapter-A/part-295)
-   requires an air charter broker to disclose, *before contracting*: the air
-   carrier actually operating the flight, the capacity the broker acts in, and
-   the amount of liability insurance carried — or that none is. No licence or
-   registry is required, but those disclosures are mandatory. Shape it like
-   `SECURE_TRANSPORT_DISCLOSURES`, which already solves exactly this problem.
+1. ~~The money flow does not reach this far.~~ **Solved** — commission-only,
+   see above. Nothing here goes through `payment.ts`.
+2. ~~Private aviation carries a legal duty.~~ **Implemented** —
+   `JET_TRAVEL_DISCLOSURES` covers all three [14 CFR Part 295](https://www.ecfr.gov/current/title-14/chapter-II/subchapter-A/part-295)
+   pre-contract disclosures (operating carrier, the capacity the broker acts
+   in, liability insurance including its absence), and the quote route refuses
+   to price a jet without naming the operating carrier. **Still needs a
+   lawyer's read before launch** — the disclosures are written from the
+   regulation, not reviewed by counsel.
 3. **Commission needs relationships that don't exist.** Hotel commission needs
-   a host agency or consortium; jet commission needs operator agreements. Until
-   they exist every one of these earns $0, which is the real reason the flag is
-   off rather than a release-date preference.
+   a host agency or consortium; jet commission needs operator agreements; a
+   concierge-doctor network needs vetted practices, per state. Until they
+   exist every one of these earns $0 and there is nobody to fulfil a booking,
+   which is the real reason the flag is off rather than a release-date
+   preference.
+4. **Medical and aviation both want counsel, not just code.** Fee-splitting
+   rules vary by state, corporate practice of medicine restricts who may
+   employ clinicians, and HIPAA attaches the moment Safehubby handles health
+   information. The design avoids all three today by taking no medical
+   commission and passing on only what a member asks it to — but that is a
+   design choice to confirm, not a legal opinion.
 
 ## Rules the tests enforce
 
