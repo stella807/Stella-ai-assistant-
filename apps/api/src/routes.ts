@@ -34,7 +34,9 @@ import {
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
   applyAdjustments, outstandingClawbackCents,
-  isInLaunchMarket, launchMarketFor, launchMarketNames, DEFAULT_PAY_MARKET, type LaunchMarketId,
+  isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, DEFAULT_PAY_MARKET,
+  type LaunchMarketId,
+  hireFromApplication, isOnRoster, rosterFor, standDown,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -1862,16 +1864,48 @@ export const routes: Record<string, Handler> = {
     if (!CONCIERGE_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Unknown task type.");
     const location = coordsFrom(p);
     requireLaunchMarket(location);
-    if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
 
-    const listing = await concierge.listAssistants({ category, location });
-    const assistants: AssistantProfile[] = listing.map((a) => ({
-      id: a.id, name: a.name, bio: a.bio, photoUrl: a.photoUrl,
-      categories: a.categories as ConciergeCategory[],
+    // Safehubby's own hired people come first, and do not depend on a
+    // partner network being configured at all. This is the whole point of
+    // hiring: before this, an approved applicant existed in the database and
+    // could never be offered to anybody.
+    const now = ctx.now();
+    const market = payMarketFor(location);
+    const ours = rosterFor(ctx.store.data.assistants, { category: category as ConciergeCategory, market, now });
+    const assistants: AssistantProfile[] = ours.map((a) => ({
+      id: a.id,
+      name: a.name,
+      bio: a.bio,
+      categories: a.categories,
       maxConcurrentCustomers: a.maxConcurrentCustomers,
-      currentCustomers: a.currentCustomers,
+      // Counted from live tasks rather than trusted from elsewhere: this is
+      // our own roster, so the honest number is the one in our own database.
+      currentCustomers: ctx.store.data.conciergeTasks.filter(
+        (t) => t.assistantId === a.id && t.status === "in-progress").length,
     }));
-    return { assistants, available: assistants.filter(isAssistantAvailable).length };
+
+    // The partner network tops up the roster where one is configured. It is
+    // additive, never a precondition — an unconfigured partner used to make
+    // this whole route a 503, which would now hide our own staff behind
+    // somebody else's integration.
+    if (isAutomatic(concierge.status)) {
+      const listing = await concierge.listAssistants({ category, location });
+      for (const a of listing) {
+        assistants.push({
+          id: a.id, name: a.name, bio: a.bio, photoUrl: a.photoUrl,
+          categories: a.categories as ConciergeCategory[],
+          maxConcurrentCustomers: a.maxConcurrentCustomers,
+          currentCustomers: a.currentCustomers,
+        });
+      }
+    }
+
+    return {
+      assistants,
+      available: assistants.filter(isAssistantAvailable).length,
+      /** How many of these are Safehubby's own, so the UI can say so. */
+      inHouse: ours.length,
+    };
   },
 
   /**
@@ -1925,9 +1959,25 @@ export const routes: Record<string, Handler> = {
     if (body?.acknowledgedDisclosures !== true) {
       throw new HttpError(400, "The disclosures have to be acknowledged before booking.");
     }
-    if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
-    requirePaymentMethod(ctx, me);
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
+
+    // Booking one of our own people needs no partner network — they are on
+    // our roster, they sign into our portal, and we pay them. Requiring the
+    // partner here would have made every in-house hire unbookable, which is
+    // the same hole the roster route had one step earlier.
+    const ourAssistant = assistantId
+      ? ctx.store.data.assistants.find((a) => a.id === assistantId && isOnRoster(a, ctx.now()))
+      : undefined;
+    if (ourAssistant && !ourAssistant.categories.includes(input.category)) {
+      throw new HttpError(400, `${ourAssistant.name} is not dispatched for that kind of task.`);
+    }
+    // Whether anyone can do this at all comes before asking for money: a
+    // "add a payment method" answer to a task nobody can take just means
+    // adding a card and failing anyway.
+    if (!ourAssistant && !isAutomatic(concierge.status)) {
+      throw new HttpError(503, concierge.status.requires);
+    }
+    requirePaymentMethod(ctx, me);
     const peopleCount = peopleCountFor(ctx, me, input);
     // Priced against the market the task happens in, and stamped onto the
     // task below — so a later rate change never reprices work already agreed.
@@ -1937,11 +1987,18 @@ export const routes: Record<string, Handler> = {
     const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount, market);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
-    const quote = await concierge.quote({
-      category: input.category, note: input.note, location: input.location,
-      spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), assistantId,
-    });
-    if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+    // Only the partner network gets quoted. Our own roster is not a supplier
+    // we ask for a price — the rate card in concierge.ts already decided it,
+    // and that is the number the assistant is paid.
+    const quote = ourAssistant
+      ? null
+      : await concierge.quote({
+        category: input.category, note: input.note, location: input.location,
+        spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), assistantId,
+      });
+    if (!ourAssistant && !quote) {
+      throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+    }
 
     // The hold covers both the reimbursable purchase and the service fee
     // that pays the assistant — one exact number, never padded, same as
@@ -1979,17 +2036,27 @@ export const routes: Record<string, Handler> = {
     }
 
     try {
-      const booked = await concierge.book({
-        category: input.category, note: input.note, location: input.location,
-        spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
-        assistantId,
-        ...(portalCredentials?.tempPassword
-          ? { assistantPortalCredentials: { username: portalCredentials.username, tempPassword: portalCredentials.tempPassword } }
-          : {}),
-        // The reveal link goes to the partner's own dispatch system so it can
-        // reach the assistant — never back to the traveler's browser.
-        ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
-      });
+      // Dispatching one of our own is not an outbound call to anybody: the
+      // task lands in their portal, which they already sign into, and we pay
+      // them from the rate card. There is no partner to book with and no
+      // provider task id to carry.
+      const booked = ourAssistant
+        ? {
+          provider: "safehubby",
+          taskId: newId("disp"),
+          assistant: { id: ourAssistant.id, name: ourAssistant.name },
+        }
+        : await concierge.book({
+          category: input.category, note: input.note, location: input.location,
+          spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
+          assistantId,
+          ...(portalCredentials?.tempPassword
+            ? { assistantPortalCredentials: { username: portalCredentials.username, tempPassword: portalCredentials.tempPassword } }
+            : {}),
+          // The reveal link goes to the partner's own dispatch system so it
+          // can reach the assistant — never back to the traveler's browser.
+          ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
+        });
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
         location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
@@ -3236,6 +3303,74 @@ export const routes: Record<string, Handler> = {
       db.staffApplications[i] = reviewed;
     });
     return reviewed;
+  },
+
+  /**
+   * Admin: hire an approved applicant onto the roster.
+   *
+   * The missing link between two halves that each worked alone: applications
+   * could be approved and tasks could be dispatched, but dispatch only read
+   * the partner network, so somebody hired through this app could never be
+   * sent to a job. This is the only route that creates a dispatchable
+   * assistant, and it refuses anything not already approved.
+   *
+   * It also provisions their portal login and returns the temporary password
+   * **once**. It is not stored in readable form and cannot be shown again —
+   * relay it to the person and have them change it on first sign-in, which
+   * the portal forces.
+   */
+  "POST /api/staff/applications/:id/hire": async (ctx, p, body) => {
+    requireAdmin(ctx);
+    const id = req(p, "id");
+    const app = ctx.store.data.staffApplications.find((a) => a.id === id);
+    if (!app) throw notFound("Application");
+    if (ctx.store.data.assistants.some((a) => a.applicationId === id)) {
+      throw new HttpError(409, "That application has already been hired.");
+    }
+
+    const market = String(body?.market ?? "") as LaunchMarketId;
+    if (!LAUNCH_MARKETS.some((m) => m.id === market)) {
+      throw new HttpError(400, `Pick the market they work: ${launchMarketNames()}.`);
+    }
+
+    const assistant = hireFromApplication({
+      id: newId("asst"),
+      application: app,
+      market,
+      maxConcurrentCustomers: body?.maxConcurrentCustomers !== undefined
+        ? Number(body.maxConcurrentCustomers) : undefined,
+      bio: body?.bio ? String(body.bio) : undefined,
+      now: ctx.now(),
+    });
+
+    ctx.store.update((db) => void db.assistants.push(assistant));
+    const credentials = await provisionAssistantCredentials(ctx, assistant.id);
+    return { assistant, credentials };
+  },
+
+  /** Admin: the roster, including who has been stood down. */
+  "GET /api/staff/roster": (ctx) => {
+    requireAdmin(ctx);
+    const now = ctx.now();
+    return {
+      assistants: ctx.store.data.assistants,
+      active: ctx.store.data.assistants.filter((a) => isOnRoster(a, now)).length,
+    };
+  },
+
+  /** Admin: stand someone down. The record stays — they are still attached
+   *  to every task they worked and the pay owed for it. */
+  "POST /api/staff/roster/:assistantId/stand-down": (ctx, p) => {
+    requireAdmin(ctx);
+    const assistantId = req(p, "assistantId");
+    const assistant = ctx.store.data.assistants.find((a) => a.id === assistantId);
+    if (!assistant) throw notFound("Assistant");
+    const stood = standDown(assistant, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.assistants.findIndex((a) => a.id === assistantId);
+      db.assistants[i] = stood;
+    });
+    return stood;
   },
 
   /**

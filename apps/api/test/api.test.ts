@@ -8,7 +8,7 @@ import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runPayroll, type Ctx } from "../src/routes.ts";
-import { authorizeExactHold, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
+import { authorizeExactHold, assistantPayoutFor, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
 } from "@safehubby/core";
@@ -3279,5 +3279,144 @@ describe("nothing is dispatched before the service is live", () => {
     // Still blocked, but now for the real reason: no fulfilment partner is
     // wired up in this environment. The launch date is no longer the answer.
     expect(res.json.error ?? "").not.toMatch(/starts on/i);
+  });
+});
+
+describe("hiring somebody and actually sending them to a job", () => {
+  useAdminKey();
+
+  /** Texas, so the market-indexed pay applies rather than the default. */
+  const IN_TEXAS = { lat: 29.76, lng: -95.37 };
+
+  const withCard = (token: string) =>
+    call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, token);
+
+  const apply = (over: Record<string, unknown> = {}) => call("POST", "/api/staff/apply", {
+    role: "personal-assistant", fullName: "Rosa Delgado", email: "rosa@example.com",
+    phone: "2125550147", city: "Houston", state: "TX", hoursPerWeek: 20,
+    backgroundCheckConsent: true,
+    experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
+    ...over,
+  });
+
+  /** Application → approved → hired, which is the whole pipeline. */
+  const hireOne = async (over: Record<string, unknown> = {}, market = "texas") => {
+    const { json } = await apply(over);
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    return callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market, maxConcurrentCustomers: 2 });
+  };
+
+  it("makes an approved applicant dispatchable, which is the point of hiring them", async () => {
+    const hired = await hireOne();
+    expect(hired.status).toBe(200);
+    expect(hired.json.assistant.name).toBe("Rosa Delgado");
+    expect(hired.json.assistant.market).toBe("texas");
+    // And they can sign into the portal — hiring provisions the login.
+    expect(hired.json.credentials.username).toBeTruthy();
+    expect(hired.json.credentials.tempPassword).toBeTruthy();
+  });
+
+  it("shows them on the roster a customer actually sees, with no partner network configured", async () => {
+    /**
+     * The regression this whole feature exists for. Before it, the roster
+     * route read only the partner network and 503'd without one — so
+     * somebody hired through this app could never be offered to anybody.
+     */
+    await hireOne();
+    const res = await call("GET", `/api/concierge/assistants?category=wait-with-someone&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.inHouse).toBe(1);
+    expect(res.json.assistants[0].name).toBe("Rosa Delgado");
+    expect(res.json.available).toBe(1);
+  });
+
+  it("never offers an errand runner for waiting with or checking on someone", async () => {
+    await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kit@example.com" });
+
+    const errand = await call("GET", `/api/concierge/assistants?category=grab-something&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, sam);
+    expect(errand.json.inHouse).toBe(1);
+
+    const sitting = await call("GET", `/api/concierge/assistants?category=wait-with-someone&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, sam);
+    expect(sitting.json.inHouse).toBe(0);
+  });
+
+  it("keeps somebody hired for one market out of another market's roster", async () => {
+    await hireOne({}, "los-angeles");
+    const res = await call("GET", `/api/concierge/assistants?category=grab-something&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, sam);
+    expect(res.json.inHouse).toBe(0);
+  });
+
+  it("books one of our own without a partner network, at the market rate", async () => {
+    const hired = await hireOne();
+    const assistantId = hired.json.assistant.id;
+    await withCard(sam);
+
+    const booked = await call("POST", "/api/concierge/tasks", {
+      category: "wait-with-someone", note: "Sit with my friend Dani until her sister arrives",
+      location: IN_TEXAS, spendCapCents: 2500, acknowledgedDisclosures: true, assistantId,
+    }, sam);
+
+    expect(booked.status).toBe(200);
+    const task = store.data.conciergeTasks.at(-1)!;
+    expect(task.assistantId).toBe(assistantId);
+    // Texas pay band, not the Los Angeles default.
+    expect(task.assistantPayoutCents).toBe(assistantPayoutFor("wait-with-someone", false, 1, "texas"));
+  });
+
+  it("refuses to send somebody to a task their role does not cover", async () => {
+    const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kit@example.com" });
+    await withCard(sam);
+
+    const booked = await call("POST", "/api/concierge/tasks", {
+      category: "wait-with-someone", note: "Sit with my friend until her sister arrives",
+      location: IN_TEXAS, spendCapCents: 2500, acknowledgedDisclosures: true,
+      assistantId: hired.json.assistant.id,
+    }, sam);
+
+    expect(booked.status).toBe(400);
+    expect(booked.json.error).toMatch(/not dispatched for that kind of task/i);
+  });
+
+  it("will not hire the same application twice", async () => {
+    const { json } = await apply();
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    expect((await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas" })).status).toBe(200);
+    expect((await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas" })).status).toBe(409);
+  });
+
+  it("will not hire somebody nobody has reviewed", async () => {
+    const { json } = await apply();
+    const res = await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas" });
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/approved application/i);
+  });
+
+  it("needs a market, since that is what their pay is priced against", async () => {
+    const { json } = await apply();
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    const res = await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, {});
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/market/i);
+  });
+
+  it("takes somebody off the roster without deleting them", async () => {
+    const hired = await hireOne();
+    const id = hired.json.assistant.id;
+    const stood = await callAdmin("POST", `/api/staff/roster/${id}/stand-down`, {});
+    expect(stood.json.activeUntil).toBeTruthy();
+
+    advance(1);
+    const res = await call("GET", `/api/concierge/assistants?category=grab-something&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, sam);
+    expect(res.json.inHouse).toBe(0);
+    // The record survives — they are still attached to work they did.
+    expect(store.data.assistants).toHaveLength(1);
+  });
+
+  it("keeps the roster behind the admin secret", async () => {
+    expect((await call("GET", "/api/staff/roster")).status).toBe(401);
+    expect((await callAdmin("GET", "/api/staff/roster")).status).toBe(200);
   });
 });

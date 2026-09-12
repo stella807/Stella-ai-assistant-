@@ -108,6 +108,79 @@ and a licence — see `docs/driving.md`. Both pipelines share one set of review
 rules (`application-review.ts`), so "nothing is approved sight-unseen" holds
 for every role from one implementation.
 
+## How you actually hire someone
+
+Five steps, and step 4 is the one that was missing until now.
+
+```
+1. They apply            POST /api/staff/apply          (public, no account)
+2. You read it           GET  /api/staff/applications   (admin)
+3. You decide            POST .../review                submitted → under-review → approved
+4. You hire them         POST .../hire                  → on the roster, portal login issued
+5. They work             they sign into /employee, take tasks, get paid biweekly
+```
+
+**Nothing jumps from submitted straight to approved** — `application-review.ts`
+enforces that for every role in the company, drivers included. Step 4 refuses
+anything not already approved, so "hired" can never run ahead of "reviewed".
+
+### Step 4 is what makes a hire real
+
+Before it, the two halves of this app were each built properly and never
+joined up: applications could be approved, and tasks could be dispatched — but
+dispatch only ever read the **partner network's** roster. Somebody hired
+through this app existed in the database and **could never be sent to a job**.
+The budget below planned for nine field workers who had no way to appear in
+front of a customer.
+
+`POST /api/staff/applications/:id/hire` takes the market they work (which is
+also the pay band their tasks price against — see `docs/concierge.md`) and
+their capacity, puts them on the roster, and provisions their employee-portal
+login. **The temporary password is returned once and cannot be shown again** —
+relay it to them; the portal forces a change on first sign-in.
+
+### Who can be sent to what
+
+| Role | Grab something | Run an errand | Check on someone | Wait with someone |
+|---|:--:|:--:|:--:|:--:|
+| Personal assistant | ✓ | ✓ | ✓ | ✓ |
+| Errand runner | ✓ | ✓ | — | — |
+| Secretary | — | — | — | — |
+| Driver | — | — | — | — |
+
+The line between the two errand columns and the two right-hand ones is the
+important one, and it is not about how long the job takes. **An errand runner
+is hired to fetch a thing.** The moment the job is sitting with a stranger who
+has had too much and judging whether they need an ambulance, it is a different
+job with a different duty of care. Sending the cheapest available person to it
+would be the most consequential shortcut in this codebase, so `roster.ts`
+makes it impossible rather than discouraged — the booking route refuses it too,
+not just the listing.
+
+Secretaries and drivers take no concierge tasks at all. They are different
+jobs with their own pay (`staffing.ts`, `driver-pay.ts`).
+
+### Leaving
+
+`POST /api/staff/roster/:id/stand-down` takes someone off the roster without
+deleting them. The record stays, because they are still attached to every task
+they worked and the pay owed for it.
+
+### What this does not decide for you
+
+**Worker classification.** Everything here models people paid per task with
+their own stated capacity and hours, which is contractor-shaped — but the gas
+stipend, the insurance, and set shifts all push the other way, and the test
+differs by state (California's ABC test is the strictest of the three markets
+here). Get this wrong and the back-taxes and penalties dwarf the launch
+budget. It is a question for an employment lawyer in each market before the
+first offer goes out, not a setting in this app.
+
+**Background checks.** Every application requires consent (`staff-applications.ts`)
+because that is the field that makes the check possible. Running it is a
+vendor's job — Checkr, Sterling or similar — and the result belongs in the
+reviewer's decision at step 3.
+
 ## The mailing list
 
 During the window the honest offer to a visitor is not a signup button but a

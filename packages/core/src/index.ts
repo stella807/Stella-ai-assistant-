@@ -27,6 +27,7 @@ export * from "./application-review.ts";
 export * from "./market-pay.ts";
 export * from "./staffing.ts";
 export * from "./staff-applications.ts";
+export * from "./roster.ts";
 export * from "./newsletter.ts";
 export * from "./wallet.ts";
 export * from "./subscription.ts";
