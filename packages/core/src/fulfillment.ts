@@ -120,6 +120,43 @@ export const SECURE_TRANSPORT_DISCLOSURES = [
   "In an emergency, call your local emergency number first.",
 ];
 
+/**
+ * A personal-concierge task: a bounded, in-person job — see concierge.ts —
+ * dispatched to a partner-network professional. Shaped like SecureTransportPort
+ * on purpose (coverage checked before it is offered, a quote before booking),
+ * because the same "never claim a provider we cannot verify" rule applies.
+ */
+export interface ConciergeTaskRequest {
+  category: string;
+  note: string;
+  location: { lat: number; lng: number; label?: string };
+  spendCapCents: number;
+  requesterName: string;
+  requesterPhone?: string;
+}
+
+export interface ConciergeQuote {
+  provider: string;
+  etaMinutes: number;
+  description: string;
+}
+
+export interface BookedConciergeTask {
+  provider: string;
+  taskId: string;
+  etaMinutes: number | null;
+  trackingUrl: string | null;
+  assistant?: { name?: string; phone?: string };
+}
+
+export interface ConciergePort {
+  readonly status: ProviderStatus;
+  /** Whether the partner network covers this location, asked before it is offered. */
+  coversLocation(at: { lat: number; lng: number }): Promise<boolean>;
+  quote(input: ConciergeTaskRequest): Promise<ConciergeQuote | null>;
+  book(input: ConciergeTaskRequest): Promise<BookedConciergeTask>;
+}
+
 export function statusFor(id: string, name: string, configured: boolean, requires: string): ProviderStatus {
   return { id, name, mode: configured ? "automatic" : "handoff", requires };
 }

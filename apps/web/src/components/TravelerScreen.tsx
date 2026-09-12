@@ -10,6 +10,7 @@ import { SharingPanel } from "./SharingPanel.tsx";
 import { SosButton } from "./SosButton.tsx";
 import { CrewPanel } from "./CrewPanel.tsx";
 import { PharmacyPanel } from "./PharmacyPanel.tsx";
+import { ConciergePanel } from "./ConciergePanel.tsx";
 import { EmergencyPanel } from "./EmergencyPanel.tsx";
 import { currentFix, requestPermission, watchLocation, type StopWatching } from "../native/location.ts";
 import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } from "../native/notify.ts";
@@ -225,6 +226,8 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
           onChange={(carePackage) => setSummary({ ...summary, carePackage })}
         />
       )}
+
+      {!ended && <ConciergePanel account={account} />}
 
       {/* Sits directly above the SOS: the two things you reach for when it has
           gone wrong, in escalation order. */}

@@ -30,7 +30,8 @@ export type Feature =
   | "group-games"
   | "multi-profile"
   | "extended-sos-contacts"
-  | "extended-menu";
+  | "extended-menu"
+  | "personal-concierge";
 
 export interface Plan {
   id: PlanId;
@@ -97,6 +98,11 @@ const PLUS_FEATURES: Feature[] = [
  * top of the subscription. Bundling them would mean either capping how often
  * someone can get home safely, or pricing for the heaviest user and
  * overcharging everyone else. Neither is a good look on a safety product.
+ *
+ * Personal concierge (see concierge.ts) is the same shape as rides and
+ * delivery — access is gated to Family, but a task's own cost is charged at
+ * exactly the spend cap the subscriber set for it, never rolled into the
+ * subscription price. Family's price did not move for it.
  */
 export const PLANS: Plan[] = [
   {
@@ -134,8 +140,9 @@ export const PLANS: Plan[] = [
     seats: 6,
     features: [
       ...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport", "extended-menu",
+      "personal-concierge",
     ],
-    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, and the full pharmacy-run menu — real meals from different cuisines, not just a snack basket.",
+    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, the full pharmacy-run menu, and a personal concierge for a bounded, capped-spend task in person.",
   },
 ];
 

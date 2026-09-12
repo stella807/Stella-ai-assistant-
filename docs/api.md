@@ -88,6 +88,13 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `GET` | `/api/supplies/stores?lat=&lng=` | — |
 | `POST` | `/api/supplies/order` | `supply-delivery` |
 | `POST` | `/api/routes` | `safe-routes` |
+| `POST` | `/api/rides/secure` | `secure-transport` |
+| `GET` | `/api/fulfillment/status` | — (session) |
+| `POST` | `/api/concierge/quote` | `personal-concierge` |
+| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures }`. Holds exactly `spendCapCents` — see `docs/concierge.md`. |
+| `GET` | `/api/concierge/tasks` | — (session; your own tasks only) |
+| `POST` | `/api/concierge/tasks/:taskId/complete` | Settles the ledger line at `billedCents` (capped, defaults to the full cap if omitted) |
+| `POST` | `/api/concierge/tasks/:taskId/cancel` | Releases the hold; no charge |
 | `POST` | `/api/points/redeem` | — |
 | `POST` | `/api/push/devices` | — (session) |
 | `POST` | `/api/push/devices/remove` | — (session) |

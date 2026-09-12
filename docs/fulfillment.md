@@ -220,6 +220,49 @@ professional driver. Apple's 1.4.1 scrutiny applies to anything that reads as a
 safety guarantee, and the app already states plainly that it cannot dispatch an
 ambulance.
 
+## 4. Personal concierge
+
+A vetted, insured partner-network professional sent to do one bounded,
+in-person task — grab something from a named place, sit with a friend who
+should not be left alone, or check on someone in person. See
+`packages/core/src/concierge.ts` for the full reasoning; the short version is
+in `docs/concierge.md`.
+
+```bash
+railway variables \\
+  --set "CONCIERGE_PROVIDER=Nearby Aide" \\
+  --set "CONCIERGE_API_BASE=https://..." \\
+  --set "CONCIERGE_API_KEY=..."
+```
+
+Same shape as secure transport, deliberately: coverage checked before the
+option is offered, a quote before booking, and the adapter is provider-agnostic
+because no partner API was verified to write this against.
+
+| Call | Expected | Returns |
+|---|---|---|
+| Coverage | `GET /coverage?lat=&lng=` | `{ "covered": true }` |
+| Quote | `POST /quotes` | `{ "eta_minutes" }` |
+| Book | `POST /tasks` | `{ "id", "eta_minutes", "tracking_url", "assistant" }` |
+
+**This is a booking layer on a partner, not a hiring marketplace.** Safehubby
+employs nobody here and runs no background checks of its own. An open "hire a
+stranger" tab would put Safehubby in the business of vetting people who show
+up to someone's door at 1am, with none of the employment-law, insurance, or
+criminal-background infrastructure that requires — see `docs/concierge.md` for
+why that was ruled out rather than built partway.
+
+**The spend cap is exact, not padded.** `authorizeExactHold` in `payment.ts`
+holds precisely what the subscriber set, unlike the 25% buffer on a ride fare
+estimate. The person spending it is a stranger; the cap is a promise made to
+the subscriber, and padding it would break that promise by design.
+
+**Only the Family tier can reach it, and its price did not move for this.**
+Same reasoning as secure transport for the gating, but the cost model is
+different: a concierge task's cost is capped by the subscriber per task, not
+open-ended like a ride fare, so there is no fixed insurance cost to spread
+across the subscriber base the way secure transport has. See `billing.ts`.
+
 ## The pre-authorization hold, and why it didn't keep prices down
 
 `packages/core/src/payment.ts` adds a **pre-authorization hold** in front of
@@ -281,7 +324,7 @@ of what plan someone is willing to pay for.
 | Free | — | — | No |
 | Premium | $14.99 | $152.88 | No |
 | Premium Plus | $29.99 | $305.88 | Rides + delivery |
-| Family | $59.99 | $611.88 | Everything, plus secure transport and the full pharmacy-run menu |
+| Family | $59.99 | $611.88 | Everything, plus secure transport, personal concierge, and the full pharmacy-run menu |
 
 Rides and deliveries are **passed through at the provider's price** on top of
 the subscription. Bundling them would mean capping how often someone can get

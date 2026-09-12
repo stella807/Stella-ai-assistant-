@@ -1,7 +1,7 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
-  Alert, BacEstimate, Charge, CheckIn, LocationPing, NearbyStore, NightOut, Plan, RecoveryPlan,
-  ShareGrant, Statement, Subscription, Venue,
+  Alert, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, LocationPing, NearbyStore,
+  NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant, Statement, Subscription, Venue,
 } from "@safehubby/core";
 
 export interface CrewMemberView {
@@ -240,6 +240,19 @@ export const api = {
     }>("POST", "/api/rides/quote", { pickup, dropoff }),
   bookSecureRide: (pickup: any, dropoff: any) =>
     request<any>("POST", "/api/rides/secure", { pickup, dropoff, acknowledgedDisclosures: true }),
+  fulfillmentStatus: () =>
+    request<{ concierge: ProviderStatus; conciergeDisclosures: string[] }>("GET", "/api/fulfillment/status"),
+  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number }) =>
+    request<{ quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[] }>(
+      "POST", "/api/concierge/quote", input),
+  bookConcierge: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number }) =>
+    request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
+      "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),
+  conciergeTasks: () => request<{ tasks: ConciergeTask[] }>("GET", "/api/concierge/tasks"),
+  completeConcierge: (taskId: string, billedCents?: number) =>
+    request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
+  cancelConcierge: (taskId: string) =>
+    request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/cancel`, {}),
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),

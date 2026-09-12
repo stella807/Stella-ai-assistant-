@@ -1,6 +1,7 @@
 import type {
-  AutomaticDeliveryPort, AutomaticRidePort, BookedRide, DeliveryRequestInput,
-  DispatchedDelivery, RideRequestInput, SecureTransportPort, SecureTransportQuote,
+  AutomaticDeliveryPort, AutomaticRidePort, BookedConciergeTask, BookedRide, ConciergePort,
+  ConciergeQuote, ConciergeTaskRequest, DeliveryRequestInput, DispatchedDelivery, RideRequestInput,
+  SecureTransportPort, SecureTransportQuote,
 } from "@safehubby/core";
 import { SECURE_TRANSPORT_DISCLOSURES, statusFor } from "@safehubby/core";
 import { ridesFor, pharmacySearch } from "@safehubby/core";
@@ -318,6 +319,83 @@ export const secureTransport: SecureTransportPort = {
   },
 };
 
+/* -------------------------------------------------------------------------
+   Personal concierge — a bounded, in-person task done by a licensed partner-
+   network professional. Same shape as secure transport above, and the same
+   reasoning: this is a partner agreement, not an API key Safehubby can apply
+   for, so it stays handoff until one exists rather than guessing an endpoint.
+   ---------------------------------------------------------------------- */
+
+const CONCIERGE_BASE = process.env.CONCIERGE_API_BASE;
+const CONCIERGE_KEY = process.env.CONCIERGE_API_KEY;
+const CONCIERGE_NAME = process.env.CONCIERGE_PROVIDER ?? "Nearby Aide";
+
+export const concierge: ConciergePort = {
+  status: statusFor(
+    "concierge", CONCIERGE_NAME, Boolean(CONCIERGE_BASE && CONCIERGE_KEY),
+    `A partner agreement with ${CONCIERGE_NAME} (or another vetted, insured concierge network), then CONCIERGE_API_BASE and CONCIERGE_API_KEY.`,
+  ),
+
+  async coversLocation(at): Promise<boolean> {
+    if (!CONCIERGE_BASE || !CONCIERGE_KEY) return false;
+    try {
+      const url = `${CONCIERGE_BASE.replace(/\/$/, "")}/coverage?lat=${at.lat}&lng=${at.lng}`;
+      const res = await fetch(url, { headers: { authorization: `Bearer ${CONCIERGE_KEY}` } });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { covered?: boolean };
+      return data.covered === true;
+    } catch {
+      // Unreachable provider means not covered. Failing open would offer a
+      // task that never gets accepted.
+      return false;
+    }
+  },
+
+  async quote(input: ConciergeTaskRequest): Promise<ConciergeQuote | null> {
+    if (!CONCIERGE_BASE || !CONCIERGE_KEY) return null;
+    if (!(await this.coversLocation(input.location))) return null;
+
+    const data = await postJson(
+      `${CONCIERGE_BASE.replace(/\/$/, "")}/quotes`,
+      { authorization: `Bearer ${CONCIERGE_KEY}` },
+      { category: input.category, location: { latitude: input.location.lat, longitude: input.location.lng } },
+    );
+
+    return {
+      provider: CONCIERGE_NAME,
+      etaMinutes: Number(data.eta_minutes ?? 0),
+      description: `A ${CONCIERGE_NAME} assistant comes to you for this task.`,
+    };
+  },
+
+  async book(input: ConciergeTaskRequest): Promise<BookedConciergeTask> {
+    if (!CONCIERGE_BASE || !CONCIERGE_KEY) throw new Error(`${CONCIERGE_NAME} is not configured.`);
+    if (!(await this.coversLocation(input.location))) {
+      throw new Error(`${CONCIERGE_NAME} does not operate where you are right now.`);
+    }
+
+    const data = await postJson(
+      `${CONCIERGE_BASE.replace(/\/$/, "")}/tasks`,
+      { authorization: `Bearer ${CONCIERGE_KEY}` },
+      {
+        category: input.category,
+        note: input.note,
+        location: { latitude: input.location.lat, longitude: input.location.lng, label: input.location.label },
+        spend_cap_cents: input.spendCapCents,
+        requester: { name: input.requesterName, phone: input.requesterPhone },
+      },
+    );
+
+    return {
+      provider: CONCIERGE_NAME,
+      taskId: String(data.id ?? ""),
+      etaMinutes: typeof data.eta_minutes === "number" ? data.eta_minutes : null,
+      trackingUrl: data.tracking_url ?? null,
+      assistant: data.assistant ? { name: data.assistant.name, phone: data.assistant.phone } : undefined,
+    };
+  },
+};
+
 /**
  * Whichever fulfiller is configured, in order of how close it gets to done.
  *
@@ -337,6 +415,7 @@ export const fulfillmentStatus = () => ({
   delivery: deliveryDispatcher().status,
   walmart: walmartStatus(),
   secureTransport: secureTransport.status,
+  concierge: concierge.status,
   /** Links used whenever a provider is in handoff mode. */
   fallbacks: { rides: ridesFor, pharmacy: pharmacySearch, walmart: walmartLink },
 });

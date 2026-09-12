@@ -29,7 +29,8 @@ export type ChargeKind =
   | "ride"
   | "secure-transport"
   | "delivery"
-  | "supplies";
+  | "supplies"
+  | "concierge";
 
 /** How a charge settles. Not a user-facing choice — see `railFor`. */
 export type BillingRail = "card" | "app-store" | "play-store";
@@ -194,6 +195,7 @@ const KIND_LABEL: Record<ChargeKind, string> = {
   "secure-transport": "Secure transport",
   delivery: "Delivery",
   supplies: "Pharmacy runs",
+  concierge: "Concierge tasks",
 };
 
 export function kindLabel(kind: ChargeKind): string {

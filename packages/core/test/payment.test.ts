@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  HOLD_BUFFER, HOLD_TTL_HOURS, attachPaymentMethod, authorizeHold, canBookAutomatically,
-  captureHold, isHoldExpired, isMethodExpired, releaseHold, sweepExpiredHolds,
+  HOLD_BUFFER, HOLD_TTL_HOURS, attachPaymentMethod, authorizeExactHold, authorizeHold,
+  canBookAutomatically, captureHold, isHoldExpired, isMethodExpired, releaseHold, sweepExpiredHolds,
 } from "../src/payment.ts";
 
 const T0 = new Date("2026-06-15T12:00:00Z");
@@ -118,5 +118,32 @@ describe("canBookAutomatically", () => {
     const m = card({ expMonth: 7, expYear: 2026 });
     expect(canBookAutomatically(true, m, at(24 * 20))).toBe(true);   // still June
     expect(canBookAutomatically(true, m, at(24 * 60))).toBe(false);  // past July 31
+  });
+});
+
+describe("authorizeExactHold", () => {
+  it("holds exactly the cap given, with none of the ride buffer applied", () => {
+    const hold = authorizeExactHold({ id: "h1", travelerId: "sam", capCents: 2500, now: T0 });
+    expect(hold.amountCents).toBe(2500);
+    expect(hold.status).toBe("held");
+  });
+
+  it("never authorizes more than the ceiling — a padded hold would break the promise", () => {
+    const exact = authorizeExactHold({ id: "h1", travelerId: "sam", capCents: 2500, now: T0 });
+    const padded = authorizeHold({ id: "h2", travelerId: "sam", estimateCents: 2500, now: T0 });
+    expect(exact.amountCents).toBeLessThan(padded.amountCents);
+    expect(exact.amountCents).toBe(2500);
+  });
+
+  it("refuses a non-positive cap", () => {
+    expect(() => authorizeExactHold({ id: "h", travelerId: "sam", capCents: 0, now: T0 })).toThrow();
+    expect(() => authorizeExactHold({ id: "h", travelerId: "sam", capCents: -1, now: T0 })).toThrow();
+  });
+
+  it("captures and releases the same as any other hold", () => {
+    const hold = authorizeExactHold({ id: "h1", travelerId: "sam", capCents: 2500, now: T0 });
+    expect(captureHold(hold, 2500, T0).status).toBe("captured");
+    expect(() => captureHold(hold, 2501, T0)).toThrow(/exceeds the held/);
+    expect(releaseHold(hold).status).toBe("released");
   });
 });

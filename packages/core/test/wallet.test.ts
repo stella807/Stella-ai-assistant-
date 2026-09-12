@@ -25,7 +25,7 @@ describe("railFor", () => {
 
   it("never routes a real-world service or physical goods through in-app purchase", () => {
     // Apple and Google both forbid this, and a build that does it gets rejected.
-    const physical: ChargeKind[] = ["ride", "secure-transport", "delivery", "supplies"];
+    const physical: ChargeKind[] = ["ride", "secure-transport", "delivery", "supplies", "concierge"];
     const platforms: Platform[] = ["web", "ios", "android"];
     for (const kind of physical) {
       for (const platform of platforms) {
@@ -147,7 +147,7 @@ describe("buildStatement", () => {
   });
 
   it("labels every kind", () => {
-    const kinds: ChargeKind[] = ["subscription", "ride", "secure-transport", "delivery", "supplies"];
+    const kinds: ChargeKind[] = ["subscription", "ride", "secure-transport", "delivery", "supplies", "concierge"];
     for (const k of kinds) expect(kindLabel(k).length).toBeGreaterThan(0);
   });
 

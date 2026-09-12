@@ -122,6 +122,15 @@ in, for people who want to drive directly for Safehubby rather than through
 Uber or Instacart. Standard and secure-transport tiers, admin-reviewed. See
 `docs/driving.md`.
 
+**Personal concierge.** Send a vetted, insured partner-network professional
+for one bounded, in-person task — grab something, sit with a friend, check on
+someone — at a spend cap you set that is never exceeded. Deliberately a
+booking layer on an already-vetted partner, the same shape as secure
+transport, rather than an in-house hiring marketplace: Safehubby vets and
+employs nobody here. Family-only, and its price didn't move for it, since a
+task's cost is capped per-task rather than fixed like secure transport's
+insurance contract. See `docs/concierge.md`.
+
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what
 to say when the dispatcher picks up — with the location and drink log already

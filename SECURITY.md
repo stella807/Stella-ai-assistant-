@@ -35,6 +35,15 @@ a subscription tier, not another person's data — every billing route is scoped
 to the session and returns 404 on someone else's charge — but it is a real hole
 and `docs/billing.md` says where the two fixes go.
 
+**Concierge location sharing with a third party.** Booking a concierge task
+sends a live location fix to an external partner network, not just to a
+guardian inside Safehubby's own trust boundary — a new category of data flow
+this app hadn't made before. It is scoped as tightly as the domain allows (one
+fix, for one task, disclosed every time per `CONCIERGE_DISCLOSURES`), but there
+is no data-processing agreement template or retention commitment from a real
+partner yet; get one in place, and reviewed, before a real `CONCIERGE_API_KEY`
+is ever set. See `docs/concierge.md`.
+
 ## Retention — built
 
 Location pings expire after **7 days** (`LOCATION_RETENTION_DAYS`). The sweep

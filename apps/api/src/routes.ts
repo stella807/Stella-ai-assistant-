@@ -17,7 +17,8 @@ import {
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
-  attachPaymentMethod, authorizeHold, canBookAutomatically, captureHold, releaseHold,
+  attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
+  CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -25,13 +26,15 @@ import {
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
 import type {
-  Alert, ApplicationStatus, Basket, Cadence, CartLine, ChargeKind, CrewMemberFacts, DriverTier,
-  Feature, GameId, NightOut, OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
+  Alert, ApplicationStatus, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory, ConciergeTask,
+  CrewMemberFacts, DriverTier, Feature, GameId, NightOut, OrderProvider, Platform, PlanId, RedFlagId,
+  Subscription, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
 import {
-  deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates, uberForBusiness,
+  concierge, deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates,
+  uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -225,6 +228,24 @@ function billingState(ctx: Ctx, userId: string) {
     rails: railsUsed(mine).map((rail) => ({ rail, note: describeRail(rail) })),
     trialDays: TRIAL_DAYS,
   };
+}
+
+/** Reads a concierge task request out of an untrusted body. Validated by the
+ *  caller via `validateConciergeRequest` right after — this only shapes it. */
+function conciergeInputFrom(body: any): { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number } {
+  return {
+    category: body?.category,
+    note: String(body?.note ?? ""),
+    location: { lat: body?.location?.lat, lng: body?.location?.lng, label: body?.location?.label },
+    spendCapCents: Number(body?.spendCapCents),
+  };
+}
+
+/** A traveler's own concierge task, or a 404 — never another account's. */
+function conciergeTaskOf(ctx: Ctx, travelerId: string, taskId: string): ConciergeTask {
+  const task = ctx.store.data.conciergeTasks.find((t) => t.id === taskId && t.travelerId === travelerId);
+  if (!task) throw notFound("Task");
+  return task;
 }
 
 /**
@@ -1240,10 +1261,11 @@ export const routes: Record<string, Handler> = {
   /** What is switched on, and what each missing piece needs. */
   "GET /api/fulfillment/status": (ctx) => {
     actor(ctx);
-    const { rides, delivery, walmart, secureTransport: secure } = fulfillmentStatus();
+    const { rides, delivery, walmart, secureTransport: secure, concierge: aide } = fulfillmentStatus();
     return {
-      rides, delivery, walmart, secureTransport: secure, push: push.status,
+      rides, delivery, walmart, secureTransport: secure, concierge: aide, push: push.status,
       disclosures: SECURE_TRANSPORT_DISCLOSURES,
+      conciergeDisclosures: CONCIERGE_DISCLOSURES,
     };
   },
 
@@ -1286,6 +1308,146 @@ export const routes: Record<string, Handler> = {
       (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Secure ride home"));
     });
     return booked;
+  },
+
+  /* ---------------- personal concierge ---------------- */
+
+  /**
+   * Quotes a concierge task before booking, and is also how the app learns
+   * whether the partner network covers this location — the same two-step as
+   * secure transport, and for the same reason: never offer a task that cannot
+   * actually be accepted.
+   */
+  "POST /api/concierge/quote": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "personal-concierge");
+    const input = conciergeInputFrom(body);
+    validateConciergeRequest(input);
+    if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
+
+    const quote = await concierge.quote({
+      category: input.category, note: input.note, location: input.location,
+      spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
+    });
+    if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+    return { quote, disclosures: CONCIERGE_DISCLOSURES };
+  },
+
+  /**
+   * Books a concierge task. The hold is exact, not padded — see
+   * `authorizeExactHold` — because the spend cap here is a promise made to a
+   * stranger doing the spending, not a fare estimate with genuine slack in it.
+   */
+  "POST /api/concierge/tasks": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "personal-concierge");
+    const input = conciergeInputFrom(body);
+    validateConciergeRequest(input);
+    if (body?.acknowledgedDisclosures !== true) {
+      throw new HttpError(400, "The disclosures have to be acknowledged before booking.");
+    }
+    if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
+    requirePaymentMethod(ctx, me);
+
+    const quote = await concierge.quote({
+      category: input.category, note: input.note, location: input.location,
+      spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
+    });
+    if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+
+    const hold = authorizeExactHold({ id: newId("hold"), travelerId: me, capCents: input.spendCapCents, now: ctx.now() });
+    ctx.store.update((db) => void db.holds.push(hold));
+    const charge = addCharge(ctx, {
+      travelerId: me,
+      kind: "concierge",
+      description: `${conciergeCategoryLabel(input.category)} — ${input.note}`.slice(0, 140),
+      amountCents: input.spendCapCents,
+      holdId: hold.id,
+    });
+
+    try {
+      const booked = await concierge.book({
+        category: input.category, note: input.note, location: input.location,
+        spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
+      });
+      const task: ConciergeTask = {
+        id: newId("ct"), travelerId: me, category: input.category, note: input.note,
+        location: input.location, spendCapCents: input.spendCapCents, status: "in-progress",
+        provider: booked.provider, providerTaskId: booked.taskId, chargeId: charge.id, holdId: hold.id,
+        createdAt: ctx.now().toISOString(),
+      };
+      ctx.store.update((db) => void db.conciergeTasks.push(task));
+      ctx.store.update((db) => {
+        (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Sent a concierge instead of going alone"));
+      });
+      return { task, booked };
+    } catch (err) {
+      ctx.store.update((db) => {
+        const target = db.holds.find((h) => h.id === hold.id);
+        if (target) Object.assign(target, releaseHold(target));
+      });
+      updateCharge(ctx, charge.id, (c) =>
+        failCharge(c, err instanceof Error ? err.message : "The task could not be booked.", ctx.now()));
+      throw err;
+    }
+  },
+
+  "GET /api/concierge/tasks": (ctx) => {
+    const me = actor(ctx);
+    return {
+      tasks: ctx.store.data.conciergeTasks
+        .filter((t) => t.travelerId === me)
+        .slice()
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    };
+  },
+
+  /**
+   * Marks a task done and settles what it actually cost. The partner network
+   * is the one source of truth for that number; until its receipt-reporting
+   * is wired, this trusts what is passed in and otherwise settles at the full
+   * cap — never less by guesswork, because inventing a lower number would be
+   * fabricating a discount nobody earned.
+   */
+  "POST /api/concierge/tasks/:taskId/complete": (ctx, p, body) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+
+    const reported = Number(body?.billedCents);
+    const billed = Number.isFinite(reported) && reported >= 0
+      ? Math.min(Math.round(reported), task.spendCapCents)
+      : task.spendCapCents;
+
+    ctx.store.update((db) => {
+      const target = db.holds.find((h) => h.id === task.holdId);
+      if (target) Object.assign(target, captureHold(target, billed, ctx.now()));
+    });
+    updateCharge(ctx, task.chargeId, (c) => settleCharge(c, ctx.now(), billed));
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      t.status = "completed"; t.completedAt = ctx.now().toISOString(); t.billedCents = billed;
+    });
+    return { task: { ...task, status: "completed" as const, billedCents: billed } };
+  },
+
+  /** Releases the hold on a task that never happened — a change of plan
+   *  should not leave money reserved against nothing. */
+  "POST /api/concierge/tasks/:taskId/cancel": (ctx, p) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+
+    ctx.store.update((db) => {
+      const target = db.holds.find((h) => h.id === task.holdId);
+      if (target) Object.assign(target, releaseHold(target));
+    });
+    updateCharge(ctx, task.chargeId, (c) => failCharge(c, "Task canceled before completion.", ctx.now()));
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      t.status = "canceled";
+    });
+    return { task: { ...task, status: "canceled" as const } };
   },
 
   /** Records that a ride was taken instead of driving; the booking happens in

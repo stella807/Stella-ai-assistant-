@@ -1228,6 +1228,66 @@ describe("secure transport", () => {
   });
 });
 
+describe("personal concierge", () => {
+  const task = (over: Record<string, unknown> = {}) => ({
+    category: "grab-something",
+    note: "Grab a burger and fries from The Anchor Tavern",
+    location: { lat: 40.714, lng: -74.003, label: "The Anchor Tavern" },
+    spendCapCents: 2500,
+    ...over,
+  });
+
+  it("is gated on the plan that includes it", async () => {
+    // Sam is premium-plus, which deliberately does not include it.
+    const res = await call("POST", "/api/concierge/quote", task(), sam);
+    expect(res.status).toBe(402);
+  });
+
+  it("refuses when no partner network is configured, rather than pretending", async () => {
+    await call("POST", "/api/subscription", { planId: "family" }, sam);
+    const res = await call("POST", "/api/concierge/quote", task(), sam);
+    expect(res.status).toBe(503);
+    expect(res.json.error).toMatch(/partner agreement/i);
+  });
+
+  it("validates the request before checking the provider", async () => {
+    await call("POST", "/api/subscription", { planId: "family" }, sam);
+    const badCategory = await call("POST", "/api/concierge/quote", task({ category: "hire-a-hitman" }), sam);
+    expect(badCategory.status).toBe(400);
+
+    const overCap = await call("POST", "/api/concierge/quote", task({ spendCapCents: 999999 }), sam);
+    expect(overCap.status).toBe(400);
+    expect(overCap.json.error).toMatch(/spend cap/i);
+
+    const noNote = await call("POST", "/api/concierge/quote", task({ note: "" }), sam);
+    expect(noNote.status).toBe(400);
+  });
+
+  it("will not book without the disclosures acknowledged", async () => {
+    await call("POST", "/api/subscription", { planId: "family" }, sam);
+    const res = await call("POST", "/api/concierge/tasks", task(), sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/acknowledged/i);
+  });
+
+  it("requires a session for every route", async () => {
+    expect((await call("POST", "/api/concierge/quote", task())).status).toBe(401);
+    expect((await call("POST", "/api/concierge/tasks", task())).status).toBe(401);
+    expect((await call("GET", "/api/concierge/tasks")).status).toBe(401);
+  });
+
+  it("reports concierge status and its disclosures alongside the rest of fulfilment", async () => {
+    const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+    expect(res.concierge.mode).toBe("handoff");
+    expect(res.concierge.requires).toMatch(/partner agreement/i);
+    expect(res.conciergeDisclosures.join(" ")).toMatch(/not a Safehubby employee/i);
+  });
+
+  it("keeps one traveler's tasks out of another's list", async () => {
+    expect((await call("GET", "/api/concierge/tasks", undefined, jordan)).json.tasks).toEqual([]);
+  });
+});
+
 describe("grocery fulfilment", () => {
   it("reports Instacart as the delivery path and Walmart separately", async () => {
     const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;

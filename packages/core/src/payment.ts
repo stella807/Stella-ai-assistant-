@@ -109,6 +109,36 @@ export function authorizeHold(input: {
   };
 }
 
+/**
+ * Holds exactly the amount given, with no buffer.
+ *
+ * `authorizeHold` pads a provider's fare *estimate* because the real cost is
+ * genuinely uncertain — surge pricing, a longer route. A concierge spend cap
+ * (see concierge.ts) is not an estimate; it is a ceiling the subscriber chose
+ * on purpose, for money a stranger will be the one spending. Padding it would
+ * authorize more than what was promised, which is the one thing that feature
+ * cannot do.
+ */
+export function authorizeExactHold(input: {
+  id: string;
+  travelerId: string;
+  capCents: number;
+  now: Date;
+  currency?: string;
+  reference?: string;
+}): PreAuthorization {
+  if (input.capCents <= 0) throw new Error("Nothing to hold for.");
+  return {
+    id: input.id,
+    travelerId: input.travelerId,
+    amountCents: input.capCents,
+    currency: input.currency ?? "USD",
+    createdAt: input.now.toISOString(),
+    status: "held",
+    ...(input.reference ? { reference: input.reference } : {}),
+  };
+}
+
 export function isHoldExpired(hold: PreAuthorization, now: Date): boolean {
   return now.getTime() - new Date(hold.createdAt).getTime() > HOLD_TTL_HOURS * 3_600_000;
 }
