@@ -75,10 +75,11 @@ describe("what comes off the price", () => {
   it("takes the stated rate off a real plan price", () => {
     const premium = findPlan("premium-basic").monthlyCents; // 1799
     expect(launchDiscountCentsFor(premium, sub(inWindow), now)).toBe(Math.floor(premium * LAUNCH_DISCOUNT_RATE));
-    // 3% of $17.99 is 53 cents — small enough that the copy should not
-    // oversell it. See the module doc.
-    expect(launchDiscountCentsFor(premium, sub(inWindow), now)).toBe(53);
-    expect(discountedPriceCents(premium, sub(inWindow), now)).toBe(1746);
+    // 3% of $9.99 is 29 cents. It was 53 at the old $17.99 and the point
+    // stands harder now: the copy shows the amount, not the percentage, so
+    // nobody oversells a quarter. See the module doc.
+    expect(launchDiscountCentsFor(premium, sub(inWindow), now)).toBe(29);
+    expect(discountedPriceCents(premium, sub(inWindow), now)).toBe(970);
   });
 
   it("rounds down, so the discount is never a fraction more than promised", () => {
@@ -191,9 +192,9 @@ describe("the offer a shopper is shown, before they are a subscriber", () => {
   it("takes the rate OFF the price — it is not a charge of 3%", () => {
     // The whole bug this exists for: "3% off $17.99" is $17.46, not $0.54.
     const offer = launchOfferFor(premium, duringWindow);
-    expect(offer.fullCents).toBe(1799);
-    expect(offer.discountCents).toBe(53);
-    expect(offer.payCents).toBe(1746);
+    expect(offer.fullCents).toBe(999);
+    expect(offer.discountCents).toBe(29);
+    expect(offer.payCents).toBe(970);
     expect(offer.discounted).toBe(true);
     // The number a customer is charged must be the big one, not the small one.
     expect(offer.payCents).toBeGreaterThan(offer.fullCents * 0.9);

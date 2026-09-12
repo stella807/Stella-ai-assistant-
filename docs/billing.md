@@ -340,6 +340,83 @@ Two things renew, and they agree:
   billing question, so a trial that ended an hour ago is over the moment the
   user opens the screen rather than whenever a timer next fires.
 
+## What the plans cost, and why
+
+Priced against the market Safehubby competes with for a subscription dollar,
+which is **personal-safety apps** rather than concierge services.
+
+| | Monthly | Annual | Seats |
+|---|---:|---:|---:|
+| Free | $0 | $0 | 2 |
+| Premium | $9.99 | $99.99 | 2 |
+| Premium Plus | $19.99 | $199.99 | 2 |
+| Family | $29.99 | $299.99 | 6 |
+| *Elite (held)* | *$119.00* | *$1,199.99* | *6* |
+
+Measured September 2026:
+
+| Competitor | Monthly | Covers |
+|---|---:|---|
+| Life360 Silver | $7.99 | the whole circle |
+| Noonlight | $9.99 | one person |
+| Life360 Gold | $14.99 | the whole circle |
+| Citizen Protect | $20.00 | one person |
+| Life360 Platinum | $24.99 | the whole circle |
+
+The previous card asked **$33.99 for two seats and $69.99 for six** — 2.8x
+Life360's family tier, and above every safety app on the market, for a
+subscription that includes no concierge tasks at all. Tasks are billed on
+top. That is a hard thing to sell beside an app most families already have.
+
+**The subscription is the door, not the business.** The margin is the 20% on
+concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is commission
+rather than dues.
+
+### The trade-off, stated
+
+Cutting the price roughly doubles how many subscribers it takes to cover the
+recurring roster (`docs/budget.md`: **$4,256.67/month**):
+
+| Plan | Break-even subscribers | Was |
+|---|---:|---:|
+| Premium | 427 | 237 |
+| Premium Plus | 213 | 126 |
+| Family | 142 | 61 |
+
+This only pays off if the lower price brings proportionally more subscribers
+than it gives up per subscriber. At $33.99 against Life360's $24.99 family
+plan that was a hard bet; at $19.99 it is a reachable one.
+
+Annual is ~17% off, up from ~15%.
+
+### Elite moved because the tiers below it did
+
+Elite's binding competitor is not a London concierge house — it is the
+partner's own ~$99/month membership, which any member can simply buy. Family
+plus that is **$128.99**, so Elite has to sit under it or assembling the same
+thing yourself is strictly cheaper. Dropping Family to $29.99 made the old
+$149 untenable, and `billing.test.ts` is what caught it. Elite is $119.
+
+Lower dues also mean the desk needs **six members in year one** to carry
+itself rather than five (`eliteBreakEvenMembers`), and the point above which
+a member should join the partner desk directly rises to about **$57,100** of
+charter a year — the right direction, since cheaper dues keep Elite the
+better deal further up the spend curve.
+
+## What is not in the concierge
+
+The personal concierge ships on every paid tier. **Private aviation and the
+concierge doctor do not**, and they stay out while `elite-tier` is held.
+
+They are also the two entries in the catalogue that carry legal duties of
+their own — 14 CFR Part 295 broker disclosures for charter, and the federal
+Anti-Kickback Statute for anything resembling payment for a patient referral
+— so turning either on by accident is a regulatory exposure, not a feature
+arriving early. `billing.test.ts` asserts it against `releasedPlans()`
+(what the API actually serves) rather than against the flag, and separately
+checks that no concierge *category* is a jet or a doctor, since categories
+are the other door into the same mistake.
+
 ## Before the service is live
 
 The launch window is a **pre-launch** period: customers can sign up, and they

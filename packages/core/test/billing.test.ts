@@ -7,6 +7,7 @@ import { resetFlags, setFlag } from "../src/features.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
 import { estimateBac } from "../src/bac.ts";
 import { logDrink } from "../src/drinks.ts";
+import { CONCIERGE_CATEGORIES } from "../src/concierge.ts";
 
 describe("plans", () => {
   it("never paywalls SOS or location sharing", () => {
@@ -102,8 +103,10 @@ describe("plans", () => {
   it("prices Elite under assembling the same thing from separate memberships", () => {
     // The binding competitor isn't Quintessentially at $12,000-$44,000/yr —
     // it's the partner's own $99/mo membership, which a member can just buy.
-    // Family ($69.99) + a $99 partner membership is $169/mo; Elite has to
-    // beat that or there's no reason to take it. See docs/billing.md.
+    // Family ($29.99) + a $99 partner membership is $128.99; Elite has to
+    // beat that or there's no reason to take it. See docs/billing.md. This
+    // test is why Elite was repriced when the tiers below it moved: at the
+    // old $149 it had quietly become the more expensive way to buy itself.
     const PARTNER_OWN_MEMBERSHIP_CENTS = 9900;
     const elite = findPlan("elite");
     expect(elite.monthlyCents).toBeLessThan(findPlan("family").monthlyCents + PARTNER_OWN_MEMBERSHIP_CENTS);
@@ -132,6 +135,55 @@ describe("plans", () => {
     // protects the subscriber and the card issuer, not a pricing tier.
     for (const feature of ["personal-concierge"] as const) {
       expect(hasFeature("premium-basic", feature)).toBe(hasFeature("family", feature));
+    }
+  });
+
+  it("never lets a released plan reach jet travel or a concierge doctor", () => {
+    /**
+     * The scope decision, as a test rather than a promise.
+     *
+     * The personal concierge ships: someone goes and does a bounded, capped
+     * task for you. Private aviation and the concierge doctor do not, and
+     * they are the two entries in the catalogue that carry legal duties of
+     * their own — 14 CFR Part 295 broker disclosures for charter, and the
+     * federal Anti-Kickback Statute for anything that looks like paying for
+     * a patient referral. Turning either on by accident is not a feature
+     * creeping out early, it is a regulatory exposure.
+     *
+     * So this asserts it against the plans that are actually purchasable,
+     * whatever the flags happen to say.
+     */
+    const OFF_LIMITS = ["private-aviation", "concierge-doctor"] as const;
+    for (const plan of releasedPlans()) {
+      for (const feature of OFF_LIMITS) {
+        expect(hasFeature(plan.id, feature), `${plan.id}/${feature}`).toBe(false);
+      }
+      // But the concierge itself is on every paid tier — that is the thing
+      // being kept, and it is what the doctor and the jets are being kept
+      // apart from.
+      if (plan.monthlyCents > 0) expect(hasFeature(plan.id, "personal-concierge")).toBe(true);
+    }
+  });
+
+  it("keeps the whole luxury desk out of the catalogue while Elite is held", () => {
+    // releasedPlans() is what the API serves and the app renders, so this is
+    // the check that matters for anything a customer can actually buy.
+    expect(releasedPlans().map((p) => p.id)).not.toContain("elite");
+    for (const plan of releasedPlans()) {
+      for (const feature of ELITE_ONLY) {
+        expect(hasFeature(plan.id, feature), `${plan.id}/${feature}`).toBe(false);
+      }
+    }
+  });
+
+  it("offers no concierge category that is a jet or a doctor", () => {
+    // The other door into the same mistake: the concierge categories are
+    // what a subscriber actually picks from, and they are deliberately four
+    // mundane errands. If a luxury category is ever added here it bypasses
+    // the plan gate entirely.
+    const categories = CONCIERGE_CATEGORIES.map((c) => `${c.id} ${c.label} ${c.description}`.toLowerCase());
+    for (const text of categories) {
+      expect(text).not.toMatch(/jet|charter|flight|aviation|doctor|physician|medical/);
     }
   });
 

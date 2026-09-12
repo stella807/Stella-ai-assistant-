@@ -146,9 +146,11 @@ describe("validateEliteRequest", () => {
 describe("whether the Elite desk pays for itself", () => {
   const dues = findPlan("elite").monthlyCents; // 14900
 
-  it("needs five members in year one, four after, to carry the house membership", () => {
-    expect(eliteBreakEvenMembers(dues, true)).toBe(5);
-    expect(eliteBreakEvenMembers(dues, false)).toBe(4);
+  it("needs six members in year one, five after, to carry the house membership", () => {
+    // Moves with the dues: repricing Elite down to sit under the do-it-
+    // yourself alternative means more members are needed to carry the desk.
+    expect(eliteBreakEvenMembers(dues, true)).toBe(6);
+    expect(eliteBreakEvenMembers(dues, false)).toBe(5);
   });
 
   it("counts the initiation only in the first year", () => {
@@ -170,8 +172,8 @@ describe("whether the Elite desk pays for itself", () => {
     // The rule this exists for: a desk bought for two members is the most
     // expensive possible way to learn the tier has not sold yet.
     expect(eliteDeskIsViable(2, dues)).toBe(false);
-    expect(eliteDeskIsViable(4, dues)).toBe(false);
-    expect(eliteDeskIsViable(5, dues)).toBe(true);
+    expect(eliteDeskIsViable(5, dues)).toBe(false);
+    expect(eliteDeskIsViable(6, dues)).toBe(true);
     expect(eliteDeskIsViable(50, dues)).toBe(true);
   });
 
@@ -183,11 +185,13 @@ describe("whether the Elite desk pays for itself", () => {
   it("knows the spend above which a member should join the desk directly", () => {
     const jet = findEliteService("jet-travel");
     const crossover = directMembershipCrossoverCents(dues, jet.commissionRate);
-    // Around $52.6k of charter a year. Below it Elite is the cheaper way in;
+    // Around $57.1k of charter a year — it rose when the dues fell, which is
+    // the right direction: cheaper dues means Elite stays the better deal
+    // further up the spend curve. Below it Elite is the cheaper way in;
     // above it we should be telling them to go direct rather than selling
     // them the more expensive option.
-    expect(crossover).toBeGreaterThan(5_000_000);
-    expect(crossover).toBeLessThan(5_500_000);
+    expect(crossover).toBeGreaterThan(5_500_000);
+    expect(crossover).toBeLessThan(6_000_000);
 
     // Checked against the two costs rather than asserted: at the crossover
     // the member pays the same either way.

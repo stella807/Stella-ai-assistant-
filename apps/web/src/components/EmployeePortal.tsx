@@ -8,6 +8,7 @@ import {
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
+import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { isNative, platform } from "../native/platform.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
 
@@ -716,7 +717,12 @@ function TaskDetail({ task, onBack, onChanged }: {
     }
     setError(null);
     const started = await startRecording(MAX_VOICE_MESSAGE_SECONDS);
-    if (started === "denied") { setError("Microphone access was denied."); return; }
+    if (started === "denied") {
+      // Not a bare "denied": on iOS the prompt does not come back, so the
+      // only useful thing to say is where the switch is.
+      setError(`${permissionCopy("microphone").recovery} ${settingsPath("microphone")}`);
+      return;
+    }
     if (started === "unavailable") { setError("Voice messages aren't available in this browser."); return; }
     activeRecording.current = started;
     setIsRecording(true);

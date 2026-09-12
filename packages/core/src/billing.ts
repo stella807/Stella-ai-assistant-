@@ -228,6 +228,35 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * and there is no safety reason to make the cheapest paid plan's version of
  * "send a stranger to help" worse.
  */
+/**
+ * Priced against the market Safehubby actually competes with for a
+ * subscription dollar, which is personal-safety apps rather than concierge
+ * services.
+ *
+ * Measured (September 2026): Life360 Silver $7.99, Gold $14.99, Platinum
+ * $24.99 — and **each of those covers the whole circle, not one person**.
+ * Noonlight is $9.99. Citizen Protect is $20. The previous card asked
+ * $33.99 for two seats and $69.99 for six, which was 2.8x Life360's family
+ * tier and above every safety app on the market, for a subscription that
+ * does not include a single concierge task — tasks are billed on top. That
+ * is a hard thing to sell next to an app most families already have.
+ *
+ * So: Premium undercuts Life360 Gold, Premium Plus lands just under Citizen
+ * Protect and Platinum, and Family is a small premium over Platinum for six
+ * seats plus concierge access nobody else offers.
+ *
+ * **The subscription is the door, not the business.** Every tier's real
+ * margin is the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same
+ * way Elite's is commission rather than dues. Pricing the door low is what
+ * gets enough people through it for that margin to exist at all — the
+ * trade-off is real and is written down in docs/billing.md: break-even on
+ * the recurring roster roughly doubles at these prices, and only pays off if
+ * the lower price brings proportionally more subscribers than it gives up in
+ * revenue per subscriber.
+ *
+ * Annual is ~17% off, up from ~15%: a rounder, more legible saving, and the
+ * cadence worth pushing when the monthly price is this low.
+ */
 export const PLANS: Plan[] = [
   {
     id: "free",
@@ -241,8 +270,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 1799,
-    annualCents: 18388,
+    monthlyCents: 999,
+    annualCents: 9999,
     seats: 2,
     features: BASIC_FEATURES,
     blurb: "Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
@@ -250,8 +279,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 3399,
-    annualCents: 34688,
+    monthlyCents: 1999,
+    annualCents: 19999,
     seats: 2,
     features: PLUS_FEATURES,
     blurb: "Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
@@ -259,8 +288,8 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 6999,
-    annualCents: 71388,
+    monthlyCents: 2999,
+    annualCents: 29999,
     seats: 6,
     // Identical features to Premium Plus, by design — Family is the same
     // product for more people, not a longer feature list.
@@ -270,8 +299,13 @@ export const PLANS: Plan[] = [
   {
     id: "elite",
     name: "Elite",
-    monthlyCents: 14900,
-    annualCents: 149900,
+    // Repriced with the tiers below it. The binding competitor is not a
+    // London concierge house, it is the partner's own ~$99/mo membership,
+    // which a member can simply buy: Family plus that is $128.99, so Elite
+    // has to sit under it or assembling it yourself is strictly better.
+    // Dropping Family to $29.99 is what made $149 untenable here.
+    monthlyCents: 11900,
+    annualCents: 119999,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     blurb: "Everything in Family, plus a dedicated lifestyle manager and the luxury desk: jet travel, yacht charter, villa and property sourcing, full event production, premium hospitality, and access to a concierge doctor.",

@@ -3,6 +3,8 @@ import { CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapa
 import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
+import { permissionCopy, settingsPath } from "../native/permissions.ts";
+import { PermissionGate } from "./PermissionGate.tsx";
 import { readFileAsBase64 } from "../native/camera.ts";
 
 const money = (cents: number) => `$${(cents / 100).toFixed(0)}`;
@@ -123,7 +125,12 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
     setError(null);
     const started = await startRecording(MAX_VOICE_MESSAGE_SECONDS);
-    if (started === "denied") { setError("Microphone access was denied — allow it to send a voice message."); return; }
+    if (started === "denied") {
+      // Not "allow it": on iOS the prompt does not come back, so the only
+      // honest instruction is where the switch actually is.
+      setError(`${permissionCopy("microphone").recovery} ${settingsPath("microphone")}`);
+      return;
+    }
     if (started === "unavailable") { setError("Voice messages aren't available in this browser."); return; }
     activeRecording.current = started;
     setIsRecording(true);
@@ -380,10 +387,15 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
                 </div>
               ))}
             </div>
-            <button className={`record-button${isRecording ? " recording" : ""}`} disabled={busy && !isRecording} onClick={record}
-              aria-label={isRecording ? "Stop and send" : "Record a voice message"}>
-              {isRecording ? `${elapsed}s` : "●"}
-            </button>
+            {/* Explains itself before the OS dialog appears. On a native
+                build a refused microphone prompt is never shown again, so the
+                one chance to ask has to land on someone who knows why. */}
+            <PermissionGate name="microphone" compact>
+              <button className={`record-button${isRecording ? " recording" : ""}`} disabled={busy && !isRecording} onClick={record}
+                aria-label={isRecording ? "Stop and send" : "Record a voice message"}>
+                {isRecording ? `${elapsed}s` : "●"}
+              </button>
+            </PermissionGate>
             <p className="tiny muted" style={{ textAlign: "center" }}>
               {isRecording ? "Recording — tap to send" : `Tap to record, up to ${MAX_VOICE_MESSAGE_SECONDS}s`}
             </p>
