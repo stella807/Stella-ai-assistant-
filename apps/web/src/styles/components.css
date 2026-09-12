@@ -597,3 +597,18 @@
   object-fit: cover;
   border: 1px solid var(--line);
 }
+
+.pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.pay-table th, .pay-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.pay-table th {
+  color: var(--muted);
+  font-weight: 650;
+}

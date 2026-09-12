@@ -32,6 +32,17 @@ export function newSessionToken(): string {
 }
 
 /**
+ * A one-time, system-generated password for a freshly provisioned assistant
+ * account — see `provisionAssistantCredentials` in routes.ts. Shorter than a
+ * session token because a person has to type it once, on whatever device the
+ * partner network relayed it to; the account is expected to change it
+ * immediately after, so it does not need to be memorable or long-lived.
+ */
+export function newTempPassword(): string {
+  return randomBytes(9).toString("base64url");
+}
+
+/**
  * Password rules kept deliberately minimal: length is what actually matters,
  * and composition rules push people toward predictable substitutions.
  */
@@ -65,20 +76,35 @@ export function parseCookies(header: string | undefined): Record<string, string>
 
 export const SESSION_COOKIE = "sh_session";
 
-export function sessionCookie(token: string, secure: boolean): string {
+/**
+ * A second, distinct cookie for the employee/assistant portal — see
+ * `ASSISTANT_SESSION_TTL_MS` and routes.ts's `assistant/auth/*` routes. Kept
+ * entirely separate from `SESSION_COOKIE` so the two areas never share or
+ * confuse identity: a browser can hold a traveler session and an assistant
+ * session at once with no interaction between them, and signing out of one
+ * never touches the other.
+ */
+export const ASSISTANT_SESSION_COOKIE = "sh_assistant_session";
+
+/** Employee sessions are shorter-lived than a traveler's — a work portal
+ *  logged into on a shared or borrowed device is a different risk profile
+ *  than a personal safety app. */
+export const ASSISTANT_SESSION_TTL_MS = 12 * 3_600_000;
+
+export function sessionCookie(token: string, secure: boolean, name: string = SESSION_COOKIE, maxAgeMs: number = SESSION_TTL_MS): string {
   const parts = [
-    `${SESSION_COOKIE}=${token}`,
+    `${name}=${token}`,
     "Path=/",
     "HttpOnly",
     "SameSite=Lax",
-    `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`,
+    `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
   ];
   if (secure) parts.push("Secure");
   return parts.join("; ");
 }
 
-export function clearedCookie(secure: boolean): string {
-  const parts = [`${SESSION_COOKIE}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+export function clearedCookie(secure: boolean, name: string = SESSION_COOKIE): string {
+  const parts = [`${name}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
   if (secure) parts.push("Secure");
   return parts.join("; ");
 }

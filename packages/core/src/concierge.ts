@@ -147,6 +147,50 @@ export function totalChargeCents(category: ConciergeCategory, spendCapCents: num
   return spendCapCents + serviceFeeFor(category, quickTask);
 }
 
+/**
+ * Typical minutes a task of this category actually takes — the same
+ * estimate `CONCIERGE_SERVICE_FEE_CENTS`'s comment already states in prose,
+ * pulled out here so it can be computed with rather than just read. This is
+ * an assumption stated plainly, not a measurement: there is no real
+ * time-tracking in this prototype, so an hourly-equivalent rate is only ever
+ * as honest as this number is.
+ */
+export const CONCIERGE_TASK_MINUTES: Record<ConciergeCategory, number> = {
+  "grab-something": 18,
+  "run-errand": 18,
+  "check-in-person": 25,
+  "wait-with-someone": 40,
+};
+
+/** The per-task fee expressed as an hourly-equivalent rate, using
+ *  `CONCIERGE_TASK_MINUTES`'s stated typical duration — reference
+ *  information for the assistant portal's pay table, not a real hourly wage:
+ *  a task is paid per task, never metered by the minute. */
+export function hourlyRateCentsFor(category: ConciergeCategory, quickTask?: boolean): number {
+  return Math.round(serviceFeeFor(category, quickTask) / (CONCIERGE_TASK_MINUTES[category] / 60));
+}
+
+/** A reasonable ceiling for the "how many of these a week" calculator below —
+ *  above this, a category stops being a bounded task and starts being a job,
+ *  which is exactly the line this module's own doc says Safehubby does not
+ *  cross. */
+export const MAX_TASKS_PER_WEEK_ESTIMATE = 20;
+
+/**
+ * What steady, recurring work in one category could add up to over a year,
+ * *if* a customer keeps sending tasks at the given weekly rate — a
+ * transparent calculator for the assistant portal's pay table, not a
+ * contract or a commitment either side has made. Nothing about booking a
+ * single task changes because of this number; it exists only so an
+ * assistant (or the published rate card) can answer "what could this be
+ * worth over a year" with real math instead of a guess, using the actual
+ * per-task fee rather than an invented salary figure.
+ */
+export function annualEstimateCentsFor(category: ConciergeCategory, tasksPerWeek: number, quickTask?: boolean): number {
+  const perWeek = Math.max(0, Math.min(tasksPerWeek, MAX_TASKS_PER_WEEK_ESTIMATE));
+  return serviceFeeFor(category, quickTask) * perWeek * 52;
+}
+
 export interface ConciergeTaskInput {
   category: ConciergeCategory;
   /** What to do, in the subscriber's own words. Shown to the assistant before they accept. */

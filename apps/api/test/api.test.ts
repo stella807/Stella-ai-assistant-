@@ -6,6 +6,7 @@ import type { AddressInfo } from "node:net";
 import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
+import { hashPassword } from "../src/auth.ts";
 import type { Ctx } from "../src/routes.ts";
 import { authorizeExactHold, recordCharge, resetFlags, setFlag } from "@safehubby/core";
 
@@ -41,6 +42,26 @@ const signup = async (email: string, displayName: string) => {
   const res = await call("POST", "/api/auth/signup", { email, password: "a-long-enough-passphrase", displayName });
   const token = /sh_session=([^;]+)/.exec(res.setCookie ?? "")?.[1] ?? "";
   return { token, id: res.json.traveler?.id as string, res };
+};
+
+/**
+ * Provisions an assistant account directly in the store (mirroring
+ * `provisionAssistantCredentials` in routes.ts) and signs in, the way the
+ * partner network's relayed temp password would in reality. The employee
+ * portal is cookie-only, not Bearer — see readAssistantToken in server.ts —
+ * so callers get back a `Cookie` header to pass as `extraHeaders`, not a
+ * token to hand to `call`'s own `token` parameter.
+ */
+const assistantLogin = async (assistantId: string, password = "a-fine-assistant-password", mustChangePassword = true) => {
+  const passwordHash = await hashPassword(password);
+  store.update((db) => {
+    db.assistantCredentials[assistantId] = {
+      username: assistantId, passwordHash, mustChangePassword, createdAt: clock.toISOString(),
+    };
+  });
+  const res = await call("POST", "/api/assistant/auth/login", { username: assistantId, password });
+  const token = /sh_assistant_session=([^;]+)/.exec(res.setCookie ?? "")?.[1] ?? "";
+  return { cookie: { Cookie: `sh_assistant_session=${token}` }, res };
 };
 
 const advance = (minutes: number) => { clock = new Date(clock.getTime() + minutes * 60_000); };
@@ -1532,9 +1553,9 @@ describe("the service fee is hidden from the customer, not the assistant", () =>
     store.update((db) => {
       const t = db.conciergeTasks.find((x) => x.id === taskId)!;
       t.assistantId = assistantId;
-      db.assistantAccess[assistantId] = { token: "tok_hide1", createdAt: clock.toISOString() };
     });
-    const portal = await call("GET", `/api/assistant/portal?token=tok_hide1`);
+    const { cookie } = await assistantLogin(assistantId);
+    const portal = await call("GET", "/api/assistant/portal", undefined, null, cookie);
     const mine = portal.json.tasks.find((t: any) => t.id === taskId);
     expect(mine.serviceFeeCents).toBe(serviceFeeCents);
   });
@@ -1576,14 +1597,72 @@ describe("concierge selfies", () => {
   });
 });
 
+describe("employee sign-in", () => {
+  const assistantId = "asst-login1";
+
+  it("provisions credentials, then only signs in with the right password", async () => {
+    await assistantLogin(assistantId, "correct-horse-battery");
+    const wrong = await call("POST", "/api/assistant/auth/login", { username: assistantId, password: "wrong" });
+    expect(wrong.status).toBe(401);
+    const right = await call("POST", "/api/assistant/auth/login", { username: assistantId, password: "correct-horse-battery" });
+    expect(right.status).toBe(200);
+    expect(right.json.assistantId).toBe(assistantId);
+    expect(right.setCookie).toMatch(/sh_assistant_session=/);
+  });
+
+  it("404s an unknown username the same shape as a wrong password, not a different error", async () => {
+    const res = await call("POST", "/api/assistant/auth/login", { username: "nobody-provisioned", password: "whatever12345" });
+    expect(res.status).toBe(401);
+  });
+
+  it("reports mustChangePassword true for a freshly provisioned account", async () => {
+    const { res } = await assistantLogin(assistantId);
+    expect(res.json.mustChangePassword).toBe(true);
+  });
+
+  it("lets an assistant change their password, and the old one stops working", async () => {
+    const { cookie } = await assistantLogin(assistantId, "temp-password-1");
+    const changed = await call(
+      "POST", "/api/assistant/auth/change-password",
+      { currentPassword: "temp-password-1", newPassword: "a-new-real-password" }, null, cookie,
+    );
+    expect(changed.status).toBe(200);
+
+    const portalAfter = await call("GET", "/api/assistant/portal", undefined, null, cookie);
+    expect(portalAfter.json.mustChangePassword).toBe(false);
+
+    const oldPasswordLogin = await call("POST", "/api/assistant/auth/login", { username: assistantId, password: "temp-password-1" });
+    expect(oldPasswordLogin.status).toBe(401);
+    const newPasswordLogin = await call("POST", "/api/assistant/auth/login", { username: assistantId, password: "a-new-real-password" });
+    expect(newPasswordLogin.status).toBe(200);
+  });
+
+  it("rejects a password change with the wrong current password", async () => {
+    const { cookie } = await assistantLogin(assistantId, "temp-password-2");
+    const res = await call(
+      "POST", "/api/assistant/auth/change-password",
+      { currentPassword: "not-it", newPassword: "a-new-real-password" }, null, cookie,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("logs out and the session stops working", async () => {
+    const { cookie } = await assistantLogin(assistantId);
+    expect((await call("GET", "/api/assistant/portal", undefined, null, cookie)).status).toBe(200);
+    await call("POST", "/api/assistant/auth/logout", {}, null, cookie);
+    expect((await call("GET", "/api/assistant/portal", undefined, null, cookie)).status).toBe(401);
+  });
+});
+
 describe("assistant portal", () => {
   const assistantId = "asst-1";
   const otherAssistantId = "asst-2";
-  let token = "";
+  let cookie: Record<string, string> = {};
+  let otherCookie: Record<string, string> = {};
   let taskId = "";
   let otherTaskId = "";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     taskId = "ct_portal1";
     otherTaskId = "ct_portal2";
     store.update((db) => {
@@ -1601,21 +1680,20 @@ describe("assistant portal", () => {
           chargeId: "ch_y", holdId: "hold_y", createdAt: clock.toISOString(),
         },
       );
-      db.assistantAccess[assistantId] = { token: "assistant-token-1", createdAt: clock.toISOString() };
-      db.assistantAccess[otherAssistantId] = { token: "assistant-token-2", createdAt: clock.toISOString() };
     });
-    token = "assistant-token-1";
+    cookie = (await assistantLogin(assistantId)).cookie;
+    otherCookie = (await assistantLogin(otherAssistantId)).cookie;
   });
 
-  it("requires a valid token, not a session", async () => {
+  it("requires a valid employee session, not a token or a traveler session", async () => {
     expect((await call("GET", "/api/assistant/portal")).status).toBe(401);
-    expect((await call("GET", "/api/assistant/portal?token=bogus")).status).toBe(401);
-    // A traveler's own session does not substitute for a portal token.
+    expect((await call("GET", "/api/assistant/portal", undefined, null, { Cookie: "sh_assistant_session=bogus" })).status).toBe(401);
+    // A traveler's own session does not substitute for an assistant one.
     expect((await call("GET", "/api/assistant/portal", undefined, sam)).status).toBe(401);
   });
 
   it("shows only the tasks assigned to that assistant, with who they're for", async () => {
-    const res = await call("GET", `/api/assistant/portal?token=${token}`);
+    const res = await call("GET", "/api/assistant/portal", undefined, null, cookie);
     expect(res.status).toBe(200);
     expect(res.json.assistantId).toBe(assistantId);
     expect(res.json.tasks).toHaveLength(1);
@@ -1624,14 +1702,16 @@ describe("assistant portal", () => {
   });
 
   it("keeps one assistant's tasks completely out of another's reach", async () => {
-    expect((await call("GET", `/api/assistant/tasks/${otherTaskId}/voice-messages?token=${token}`)).status).toBe(404);
-    expect((await call("POST", `/api/assistant/tasks/${otherTaskId}/complete?token=${token}`, {})).status).toBe(404);
-    expect((await call("POST", `/api/assistant/tasks/${otherTaskId}/decline?token=${token}`, {})).status).toBe(404);
+    expect((await call("GET", `/api/assistant/tasks/${otherTaskId}/voice-messages`, undefined, null, cookie)).status).toBe(404);
+    expect((await call("POST", `/api/assistant/tasks/${otherTaskId}/complete`, {}, null, cookie)).status).toBe(404);
+    expect((await call("POST", `/api/assistant/tasks/${otherTaskId}/decline`, {}, null, cookie)).status).toBe(404);
+    // The other assistant's own session does reach it, though.
+    expect((await call("GET", `/api/assistant/tasks/${otherTaskId}/voice-messages`, undefined, null, otherCookie)).status).toBe(200);
   });
 
   it("lets the assistant send a voice message and the traveler read it", async () => {
     const clip = { audioBase64: Buffer.from("hello").toString("base64"), mimeType: "audio/webm", durationSeconds: 5 };
-    const sent = await call("POST", `/api/assistant/tasks/${taskId}/voice-messages?token=${token}`, clip);
+    const sent = await call("POST", `/api/assistant/tasks/${taskId}/voice-messages`, clip, null, cookie);
     expect(sent.status).toBe(200);
 
     const thread = await call("GET", `/api/concierge/tasks/${taskId}/voice-messages`, undefined, sam);
@@ -1641,21 +1721,21 @@ describe("assistant portal", () => {
 
   it("lets the assistant attach their own selfie, visible on the traveler's side", async () => {
     const photo = { base64: Buffer.from("assistant selfie").toString("base64"), mimeType: "image/jpeg" };
-    expect((await call("POST", `/api/assistant/tasks/${taskId}/selfie?token=${token}`, photo)).status).toBe(200);
+    expect((await call("POST", `/api/assistant/tasks/${taskId}/selfie`, photo, null, cookie)).status).toBe(200);
 
     const tasks = (await call("GET", "/api/concierge/tasks", undefined, sam)).json.tasks;
     expect(tasks.find((t: any) => t.id === taskId).identityPhotos.assistant.mimeType).toBe("image/jpeg");
   });
 
   it("lets the assistant mark the task done, settling the same way the traveler's own route would", async () => {
-    const res = await call("POST", `/api/assistant/tasks/${taskId}/complete?token=${token}`, { billedCents: 1000 });
+    const res = await call("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents: 1000 }, null, cookie);
     expect(res.status).toBe(200);
     expect(res.json.task.status).toBe("completed");
     expect(res.json.task.billedCents).toBe(1000);
   });
 
   it("lets the assistant decline, distinct from a subscriber-initiated cancel", async () => {
-    const res = await call("POST", `/api/assistant/tasks/${taskId}/decline?token=${token}`, {});
+    const res = await call("POST", `/api/assistant/tasks/${taskId}/decline`, {}, null, cookie);
     expect(res.status).toBe(200);
     expect(res.json.task.status).toBe("canceled");
     expect(res.json.task.declinedByAssistant).toBe(true);

@@ -139,12 +139,15 @@ export interface ConciergeTaskRequest {
   /** A specific assistant the subscriber picked from the roster, rather than
    *  leaving assignment to the network's own dispatch. */
   assistantId?: string;
-  /** The token that opens this assistant's tasks in Safehubby's assistant
-   *  portal (see `docs/concierge.md`) — forwarded so the partner network's
-   *  own dispatch can relay the portal link to the assistant through
-   *  whatever channel it already uses to reach them; Safehubby has none of
-   *  its own. */
-  assistantPortalToken?: string;
+  /** The sign-in for this assistant's account in Safehubby's employee
+   *  portal (see `docs/concierge.md`) — present only the first time this
+   *  assistant is booked, when the account is freshly provisioned. Forwarded
+   *  so the partner network's own dispatch can relay it to the assistant
+   *  through whatever channel it already uses to reach them; Safehubby has
+   *  none of its own. `tempPassword` is plaintext exactly once, here, and is
+   *  never stored or retrievable again — the assistant is expected to change
+   *  it on first login. */
+  assistantPortalCredentials?: { username: string; tempPassword: string };
 }
 
 export interface ConciergeQuote {

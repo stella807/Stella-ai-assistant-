@@ -3,7 +3,9 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { HttpError, makeLimiters, routes, type Ctx } from "./routes.ts";
 import { Store, type StoreLike } from "./store.ts";
-import { SESSION_COOKIE, clearedCookie, parseCookies, sessionCookie } from "./auth.ts";
+import {
+  ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS, SESSION_COOKIE, clearedCookie, parseCookies, sessionCookie,
+} from "./auth.ts";
 
 /**
  * Browsers send cookies cross-origin only for an explicitly allowlisted
@@ -129,16 +131,27 @@ export function createApp(base: Ctx) {
     }
 
     // Resolve identity before the handler runs; a route never sees a raw token.
+    // Travelers and assistants are two entirely separate identity spaces —
+    // different cookies, different session tables, resolved independently —
+    // so a browser can hold both at once with no interaction between them.
     const token = readToken(req);
+    const assistantToken = readAssistantToken(req);
     const ctx: Ctx = {
       ...base,
       actorId: resolveActor(base, token),
       sessionToken: token,
+      assistantActorId: resolveAssistantActor(base, assistantToken),
+      assistantSessionToken: assistantToken,
       clientKey: clientKey(req),
       adminKey: firstHeader(req.headers["x-admin-key"]),
       partnerKey: firstHeader(req.headers["x-concierge-key"]),
       setSession: (next) => {
-        res.setHeader("Set-Cookie", next === null ? clearedCookie(SECURE_COOKIES) : sessionCookie(next, SECURE_COOKIES));
+        appendSetCookie(res, next === null ? clearedCookie(SECURE_COOKIES) : sessionCookie(next, SECURE_COOKIES));
+      },
+      setAssistantSession: (next) => {
+        appendSetCookie(res, next === null
+          ? clearedCookie(SECURE_COOKIES, ASSISTANT_SESSION_COOKIE)
+          : sessionCookie(next, SECURE_COOKIES, ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS));
       },
     };
 
@@ -172,6 +185,19 @@ export function createApp(base: Ctx) {
   });
 }
 
+/**
+ * Appends rather than overwrites: a bare `res.setHeader("Set-Cookie", ...)`
+ * called twice on the same response replaces the first cookie instead of
+ * sending both, which would silently drop one identity's cookie the moment a
+ * single request ever needed to set both (it does not today, but nothing
+ * should depend on that never happening).
+ */
+function appendSetCookie(res: ServerResponse, value: string): void {
+  const existing = res.getHeader("Set-Cookie");
+  if (!existing) return void res.setHeader("Set-Cookie", value);
+  res.setHeader("Set-Cookie", [...(Array.isArray(existing) ? existing : [String(existing)]), value]);
+}
+
 function send(res: ServerResponse, status: number, payload: unknown, headOnly = false): void {
   const json = JSON.stringify(payload ?? null);
   res.writeHead(status, {
@@ -183,7 +209,7 @@ function send(res: ServerResponse, status: number, payload: unknown, headOnly = 
 
 export function makeCtx(store: StoreLike = new Store()): Ctx {
   return {
-    store, now: () => new Date(), actorId: null, clientKey: "local", limiters: makeLimiters(),
+    store, now: () => new Date(), actorId: null, assistantActorId: null, clientKey: "local", limiters: makeLimiters(),
     adminKey: null, partnerKey: null,
   };
 }
@@ -201,6 +227,26 @@ function resolveActor(ctx: Ctx, token: string | null): string | null {
   if (!session) return null;
   if (new Date(session.expiresAt).getTime() <= ctx.now().getTime()) return null;
   return session.userId;
+}
+
+/**
+ * The assistant portal's own identity, read from its own cookie only — no
+ * `Authorization: Bearer` fallback, unlike `readToken` above. Bearer support
+ * exists there for a native app that cannot rely on cookies; the assistant
+ * portal is browser-only for now, and giving it the same header would make a
+ * single `Authorization` value ambiguous between the two, separate identity
+ * spaces this is deliberately keeping apart.
+ */
+function readAssistantToken(req: IncomingMessage): string | null {
+  return parseCookies(req.headers.cookie)[ASSISTANT_SESSION_COOKIE] ?? null;
+}
+
+function resolveAssistantActor(ctx: Ctx, token: string | null): string | null {
+  if (!token) return null;
+  const session = ctx.store.data.assistantSessions.find((s) => s.token === token);
+  if (!session) return null;
+  if (new Date(session.expiresAt).getTime() <= ctx.now().getTime()) return null;
+  return session.assistantId;
 }
 
 /** Rate-limit key. Behind a proxy this needs the real client ip — see SECURITY.md. */

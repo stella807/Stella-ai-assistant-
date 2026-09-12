@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES,
-  CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, CONCIERGE_SERVICE_FEE_CENTS, MAX_PHOTO_BYTES,
-  QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS, QUICK_TASK_SERVICE_FEE_CENTS,
-  conciergeCategoryLabel, describeAssistantCapacity, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
+  CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, CONCIERGE_SERVICE_FEE_CENTS, CONCIERGE_TASK_MINUTES,
+  MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  QUICK_TASK_SERVICE_FEE_CENTS, annualEstimateCentsFor, conciergeCategoryLabel, describeAssistantCapacity,
+  hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateIdentityPhoto,
 } from "../src/concierge.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
@@ -172,6 +173,29 @@ describe("quick-task discount", () => {
 
   it("still allows the standard, higher cap when not booked as a quick task", () => {
     expect(() => validateConciergeRequest(request({ spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 }))).not.toThrow();
+  });
+});
+
+describe("pay-rate calculator — reference info, not a contract", () => {
+  it("computes an hourly-equivalent rate from the published fee and typical duration", () => {
+    for (const c of CONCIERGE_CATEGORIES) {
+      const expected = Math.round(serviceFeeFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60));
+      expect(hourlyRateCentsFor(c.id)).toBe(expected);
+    }
+  });
+
+  it("uses the discounted fee for the hourly rate when quickTask applies", () => {
+    expect(hourlyRateCentsFor("grab-something", true)).toBeLessThan(hourlyRateCentsFor("grab-something", false));
+  });
+
+  it("multiplies the per-task fee by a weekly cadence and 52 weeks", () => {
+    expect(annualEstimateCentsFor("grab-something", 3)).toBe(serviceFeeFor("grab-something") * 3 * 52);
+  });
+
+  it("never goes negative and caps an absurd weekly cadence rather than exploding", () => {
+    expect(annualEstimateCentsFor("grab-something", -5)).toBe(0);
+    expect(annualEstimateCentsFor("grab-something", 999))
+      .toBe(serviceFeeFor("grab-something") * MAX_TASKS_PER_WEEK_ESTIMATE * 52);
   });
 });
 

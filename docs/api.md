@@ -102,20 +102,25 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/concierge/tasks/:taskId/selfie` | `{ base64, mimeType }`. The subscriber's own selfie, shown to the assistant |
 | `POST` | `/api/concierge/webhooks/voice-message` | A partner-network integration posting an assistant's reply server-to-server, as an alternative to the portal below. Auth: `x-concierge-key` header matching `CONCIERGE_API_KEY`, not a session. |
 
-### Assistant portal — token-authenticated, not session-authenticated
+### Employee portal — its own session, its own cookie, not a traveler's
 
-The assistant has no Safehubby account; every route below takes `?token=`
-(the value from `assistant_token` in the portal URL) instead of a session
-cookie. See `docs/concierge.md`.
+A distinct identity space from everything above. An assistant signs in with
+a username and password (provisioned automatically the first time they're
+booked, relayed via the partner network — see `docs/concierge.md`), which
+sets a separate `sh_assistant_session` cookie. No `Authorization: Bearer`
+fallback here, unlike traveler sessions — see `docs/concierge.md` for why.
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/api/assistant/portal?token=` | Every task assigned to that token's assistant, with the requester's name |
-| `GET` | `/api/assistant/tasks/:taskId/voice-messages?token=` | That task's thread |
-| `POST` | `/api/assistant/tasks/:taskId/voice-messages?token=` | The assistant's own reply |
-| `POST` | `/api/assistant/tasks/:taskId/selfie?token=` | The assistant's own selfie, shown to the subscriber |
-| `POST` | `/api/assistant/tasks/:taskId/complete?token=` | `{ billedCents? }`. Same settlement rules as the subscriber's own complete route |
-| `POST` | `/api/assistant/tasks/:taskId/decline?token=` | Cancels the task, flagged as declined by the assistant rather than the subscriber |
+| `POST` | `/api/assistant/auth/login` | `{ username, password }` → `{ assistantId, mustChangePassword }`. Sets `sh_assistant_session`. |
+| `POST` | `/api/assistant/auth/logout` | Clears the session |
+| `POST` | `/api/assistant/auth/change-password` | `{ currentPassword, newPassword }`. Required before anything else works while `mustChangePassword` is true |
+| `GET` | `/api/assistant/portal` | Every task assigned to the signed-in assistant, with the requester's name, and `mustChangePassword` |
+| `GET` | `/api/assistant/tasks/:taskId/voice-messages` | That task's thread |
+| `POST` | `/api/assistant/tasks/:taskId/voice-messages` | The assistant's own reply |
+| `POST` | `/api/assistant/tasks/:taskId/selfie` | The assistant's own selfie, shown to the subscriber |
+| `POST` | `/api/assistant/tasks/:taskId/complete` | `{ billedCents? }`. Same settlement rules as the subscriber's own complete route |
+| `POST` | `/api/assistant/tasks/:taskId/decline` | Cancels the task, flagged as declined by the assistant rather than the subscriber |
 | `POST` | `/api/points/redeem` | — |
 | `POST` | `/api/push/devices` | — (session) |
 | `POST` | `/api/push/devices/remove` | — (session) |

@@ -151,10 +151,13 @@ portal always shows it in full. Each of you takes a selfie, shared with the
 other, so you can each confirm who you're meeting. Optionally name a specific
 real place — a Google Places search, with an embedded map when a browser Maps
 key is configured — rather than leave it to however the note happens to spell
-it. The assistant's own side is a plain link at `?assistant_token=...` — no
-Safehubby account, no sign-in — where they see everything assigned to them,
-reply by voice, take their own selfie, and mark a task done or decline it.
-See `docs/concierge.md`.
+it. The assistant's own side is a distinct employee portal at `/employee`
+— its own username/password sign-in and its own session cookie, entirely
+separate from a Safehubby customer account — where they see everything
+assigned to them, a transparent pay-rate table (per task, per hour, and what
+steady work could add up to per year, at a cadence they choose), reply by
+voice, take their own selfie, and mark a task done or decline it. See
+`docs/concierge.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what

@@ -278,23 +278,34 @@ export const api = {
     request<{ photo: IdentityPhoto }>("POST", `/api/concierge/tasks/${taskId}/selfie`, photo),
 
   /**
-   * The assistant portal's own calls, token-authenticated rather than
-   * session-authenticated — the caller has no Safehubby account. Every path
-   * carries the token as a query param, same as the server expects it.
+   * The employee portal's own sign-in — a distinct area from everything
+   * above, with its own session cookie (`sh_assistant_session`) rather than
+   * the traveler one `request()`'s `credentials: "include"` already carries.
+   * Both cookies ride along on every call automatically; the server reads
+   * only the one each route cares about, so the two never interfere.
    */
-  assistantPortal: (token: string) =>
-    request<{ assistantId: string; tasks: (ConciergeTask & { requesterName: string })[] }>(
-      "GET", `/api/assistant/portal?token=${encodeURIComponent(token)}`),
-  assistantVoiceMessages: (taskId: string, token: string) =>
-    request<{ messages: VoiceMessage[] }>("GET", `/api/assistant/tasks/${taskId}/voice-messages?token=${encodeURIComponent(token)}`),
-  assistantSendVoiceMessage: (taskId: string, token: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
-    request<{ id: string; createdAt: string }>("POST", `/api/assistant/tasks/${taskId}/voice-messages?token=${encodeURIComponent(token)}`, clip),
-  assistantSendSelfie: (taskId: string, token: string, photo: { base64: string; mimeType: string }) =>
-    request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/selfie?token=${encodeURIComponent(token)}`, photo),
-  assistantComplete: (taskId: string, token: string, billedCents?: number) =>
-    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete?token=${encodeURIComponent(token)}`, { billedCents }),
-  assistantDecline: (taskId: string, token: string) =>
-    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/decline?token=${encodeURIComponent(token)}`, {}),
+  assistantLogin: (username: string, password: string) =>
+    request<{ assistantId: string; mustChangePassword: boolean }>(
+      "POST", "/api/assistant/auth/login", { username, password }),
+  assistantLogout: () => request<{ ok: true }>("POST", "/api/assistant/auth/logout", {}),
+  assistantChangePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: true }>("POST", "/api/assistant/auth/change-password", { currentPassword, newPassword }),
+
+  /** Everything below is session-authenticated against that same cookie —
+   *  no token in the URL, unlike the old magic-link portal. */
+  assistantPortal: () =>
+    request<{ assistantId: string; mustChangePassword: boolean; tasks: (ConciergeTask & { requesterName: string })[] }>(
+      "GET", "/api/assistant/portal"),
+  assistantVoiceMessages: (taskId: string) =>
+    request<{ messages: VoiceMessage[] }>("GET", `/api/assistant/tasks/${taskId}/voice-messages`),
+  assistantSendVoiceMessage: (taskId: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
+    request<{ id: string; createdAt: string }>("POST", `/api/assistant/tasks/${taskId}/voice-messages`, clip),
+  assistantSendSelfie: (taskId: string, photo: { base64: string; mimeType: string }) =>
+    request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/selfie`, photo),
+  assistantComplete: (taskId: string, billedCents?: number) =>
+    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
+  assistantDecline: (taskId: string) =>
+    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/decline`, {}),
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),

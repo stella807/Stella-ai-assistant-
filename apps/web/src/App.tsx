@@ -13,8 +13,9 @@ import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
 import { HiringScreen } from "./components/HiringScreen.tsx";
+import { AboutScreen } from "./components/AboutScreen.tsx";
 
-type Role = "out" | "watching" | "games" | "party" | "plans" | "hiring" | "account" | "drive";
+type Role = "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account" | "drive";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -76,6 +77,7 @@ export function App() {
             )}
             <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Payments</button>
             <button role="tab" aria-selected={role === "hiring"} onClick={() => setRole("hiring")}>Hiring</button>
+            <button role="tab" aria-selected={role === "about"} onClick={() => setRole("about")}>About</button>
           </div>
 
           {/* The sober ask outranks whatever tab you are on: it is a question
@@ -96,6 +98,7 @@ export function App() {
             />
           )}
           {role === "hiring" && <HiringScreen account={account} />}
+          {role === "about" && <AboutScreen />}
         </>
       )}
 

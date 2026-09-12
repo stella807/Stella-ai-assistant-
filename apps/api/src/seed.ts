@@ -26,7 +26,8 @@ export const SEED: Db = {
   subscriptions: {},
   conciergeTasks: [],
   voiceMessages: [],
-  assistantAccess: {},
+  assistantCredentials: {},
+  assistantSessions: [],
   holds: [],
   driverApplications: [], pushDevices: [],
 };

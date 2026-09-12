@@ -46,8 +46,8 @@ import { guardianMessages } from "./notify.ts";
 import { renewDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
-  RateLimiter, hashPassword, newSessionToken, normalizeEmail, SESSION_TTL_MS,
-  sweepExpiredSessions, validatePassword, verifyPassword,
+  ASSISTANT_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword, normalizeEmail,
+  SESSION_TTL_MS, sweepExpiredSessions, validatePassword, verifyPassword,
 } from "./auth.ts";
 import { deleteAccount, exportAccount } from "./account.ts";
 
@@ -84,11 +84,20 @@ export interface Ctx {
   setSession?: (token: string | null) => void;
   /** The presented session token, so logout can delete exactly this session. */
   sessionToken?: string | null;
+  /**
+   * The signed-in assistant for this request (the employee portal),
+   * resolved from an entirely separate cookie and session table — see
+   * `AssistantSession` in store.ts. Never conflated with `actorId`: an
+   * assistant is not a traveler, and the two identity spaces share nothing.
+   */
+  assistantActorId: string | null;
+  setAssistantSession?: (token: string | null) => void;
+  assistantSessionToken?: string | null;
   clientKey: string;
   /** Per-instance, not module-global: one server's traffic must not throttle
    *  another's, and tests need isolation between instances. */
   limiters: {
-    login: RateLimiter; signup: RateLimiter; applications: RateLimiter;
+    login: RateLimiter; assistantLogin: RateLimiter; signup: RateLimiter; applications: RateLimiter;
     codes: RateLimiter; places: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
@@ -270,28 +279,36 @@ function travelerFacingTask(task: ConciergeTask): TravelerConciergeTask {
 }
 
 /**
- * The token that opens one assistant's tasks in the portal. Created the
- * first time that assistant is booked and reused after — one link an
- * assistant can keep, rather than a fresh one every task, so the portal
- * actually works as an ongoing organizer instead of a one-off.
+ * Provisions the employee-portal account for an assistant the first time
+ * they're booked, reused after — one account an assistant keeps, rather than
+ * a fresh link every task, so the portal works as an ongoing organizer. The
+ * temp password is returned only on creation: it exists in plaintext for
+ * exactly this one moment, to be relayed to the assistant the same way a
+ * portal link used to be (see `ConciergeTaskRequest.assistantPortalCredentials`)
+ * — it is never stored and can never be recovered, only reset.
  */
-function assistantTokenFor(ctx: Ctx, assistantId: string): string {
-  const existing = ctx.store.data.assistantAccess[assistantId];
-  if (existing) return existing.token;
-  const token = newSessionToken();
-  ctx.store.update((db) => { db.assistantAccess[assistantId] = { token, createdAt: ctx.now().toISOString() }; });
-  return token;
+async function provisionAssistantCredentials(
+  ctx: Ctx, assistantId: string,
+): Promise<{ username: string; tempPassword?: string }> {
+  const existing = ctx.store.data.assistantCredentials[assistantId];
+  if (existing) return { username: existing.username };
+  const username = assistantId;
+  const tempPassword = newTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
+  ctx.store.update((db) => {
+    db.assistantCredentials[assistantId] = {
+      username, passwordHash, mustChangePassword: true, createdAt: ctx.now().toISOString(),
+    };
+  });
+  return { username, tempPassword };
 }
 
-/** Resolves a portal token to the assistant it belongs to, or 401. Not a
- *  session — the caller is an assistant on the partner network, who has no
- *  Safehubby account to sign into. */
-function requireAssistantToken(ctx: Ctx, token: unknown): string {
-  const value = typeof token === "string" ? token : "";
-  if (!value) throw new HttpError(401, "Missing access token.");
-  const entry = Object.entries(ctx.store.data.assistantAccess).find(([, v]) => v.token === value);
-  if (!entry) throw new HttpError(401, "Bad or expired access token.");
-  return entry[0];
+/** Every assistant-portal route starts here — the employee-portal analogue
+ *  of `actor(ctx)`, resolved from its own session, never from a token in the
+ *  request. */
+function assistantActor(ctx: Ctx): string {
+  if (!ctx.assistantActorId) throw unauthorized();
+  return ctx.assistantActorId;
 }
 
 /** An assistant's own task, or 404 — never another assistant's, and never a
@@ -487,6 +504,10 @@ function newInviteCode(): string {
 export function makeLimiters() {
   return {
     login: new RateLimiter(8, 15 * 60_000),
+    // Its own budget, not shared with traveler login: an attacker hammering
+    // employee sign-in should never be able to throttle a real traveler
+    // trying to sign in from the same address, or vice versa.
+    assistantLogin: new RateLimiter(8, 15 * 60_000),
     signup: new RateLimiter(5, 60 * 60_000),
     // Public and unauthenticated — a driver application needs no account —
     // so it gets its own budget rather than borrowing signup's.
@@ -1524,7 +1545,7 @@ export const routes: Record<string, Handler> = {
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
     const serviceFeeCents = serviceFeeFor(input.category, input.quickTask);
     const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask);
-    const portalToken = assistantId ? assistantTokenFor(ctx, assistantId) : undefined;
+    const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     const quote = await concierge.quote({
       category: input.category, note: input.note, location: input.location,
@@ -1573,7 +1594,10 @@ export const routes: Record<string, Handler> = {
       const booked = await concierge.book({
         category: input.category, note: input.note, location: input.location,
         spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
-        assistantId, assistantPortalToken: portalToken,
+        assistantId,
+        ...(portalCredentials?.tempPassword
+          ? { assistantPortalCredentials: { username: portalCredentials.username, tempPassword: portalCredentials.tempPassword } }
+          : {}),
         // The reveal link goes to the partner's own dispatch system so it can
         // reach the assistant — never back to the traveler's browser.
         ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
@@ -1658,33 +1682,95 @@ export const routes: Record<string, Handler> = {
     return { photo };
   },
 
-  /* ---------------- assistant portal ---------------- */
+  /* ---------------- employee portal ---------------- */
+  // A distinct area from everything above: its own sign-in, its own session
+  // cookie, its own identity space. A traveler's session never reaches here
+  // and an assistant's session never reaches a traveler route — see
+  // `assistantActor` and the `Ctx.assistantActorId`/`actorId` split.
+
+  /**
+   * Signs an assistant into the employee portal. Rate-limited the same as
+   * traveler login, and checked against a dummy hash on an unknown username
+   * for the same timing reason.
+   */
+  "POST /api/assistant/auth/login": async (ctx, _p, body) => {
+    if (ctx.limiters.assistantLogin.hit(ctx.clientKey)) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
+    const username = String(body?.username ?? "").trim();
+    const entry = username
+      ? Object.entries(ctx.store.data.assistantCredentials).find(([, c]) => c.username === username)
+      : undefined;
+
+    const hash = entry?.[1].passwordHash ?? "scrypt$00$00";
+    const ok = await verifyPassword(String(body?.password ?? ""), hash);
+    if (!entry || !ok) throw new HttpError(401, "That username and password do not match.");
+    const [assistantId, credential] = entry;
+
+    const token = newSessionToken();
+    const now = ctx.now();
+    ctx.store.update((db) => {
+      db.assistantSessions = sweepExpiredSessions(db.assistantSessions, ctx.now());
+      db.assistantSessions.push({
+        token, assistantId, createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + ASSISTANT_SESSION_TTL_MS).toISOString(),
+      });
+    });
+    ctx.limiters.assistantLogin.reset(ctx.clientKey);
+    ctx.setAssistantSession?.(token);
+    return { assistantId, mustChangePassword: credential.mustChangePassword };
+  },
+
+  "POST /api/assistant/auth/logout": (ctx) => {
+    const token = ctx.assistantSessionToken;
+    if (token) ctx.store.update((db) => { db.assistantSessions = db.assistantSessions.filter((s) => s.token !== token); });
+    ctx.setAssistantSession?.(null);
+    return { ok: true };
+  },
+
+  /**
+   * Required before anything else in the portal is usable when
+   * `mustChangePassword` is set — a system-generated temp password should
+   * never quietly become someone's permanent one.
+   */
+  "POST /api/assistant/auth/change-password": async (ctx, _p, body) => {
+    const assistantId = assistantActor(ctx);
+    const credential = ctx.store.data.assistantCredentials[assistantId];
+    if (!credential) throw notFound("Account");
+    const ok = await verifyPassword(String(body?.currentPassword ?? ""), credential.passwordHash);
+    if (!ok) throw new HttpError(401, "That current password is not right.");
+    const pwError = validatePassword(body?.newPassword);
+    if (pwError) throw new HttpError(400, pwError);
+
+    const passwordHash = await hashPassword(String(body.newPassword));
+    ctx.store.update((db) => {
+      db.assistantCredentials[assistantId] = { ...credential, passwordHash, mustChangePassword: false };
+    });
+    return { ok: true };
+  },
 
   /**
    * Everything assigned to one assistant, in one call — the "organizer" this
-   * exists to be. Token-authenticated rather than session-authenticated: the
-   * caller is a partner-network professional with no Safehubby account, the
-   * same reasoning as the webhook below but for a person reading a screen
-   * instead of a server posting a message.
+   * exists to be. Session-authenticated like everything else in the portal;
+   * see the employee-portal section header above.
    */
-  "GET /api/assistant/portal": (ctx, p) => {
-    const assistantId = requireAssistantToken(ctx, p.token);
+  "GET /api/assistant/portal": (ctx) => {
+    const assistantId = assistantActor(ctx);
+    const mustChangePassword = ctx.store.data.assistantCredentials[assistantId]?.mustChangePassword ?? false;
     const tasks = ctx.store.data.conciergeTasks
       .filter((t) => t.assistantId === assistantId)
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((t) => ({ ...t, requesterName: nameOf(ctx, t.travelerId) }));
-    return { assistantId, tasks };
+    return { assistantId, mustChangePassword, tasks };
   },
 
   "GET /api/assistant/tasks/:taskId/voice-messages": (ctx, p) => {
-    const assistantId = requireAssistantToken(ctx, p.token);
+    const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     return { messages: voiceMessagesFor(ctx.store.data.voiceMessages, task.id) };
   },
 
   "POST /api/assistant/tasks/:taskId/voice-messages": (ctx, p, body) => {
-    const assistantId = requireAssistantToken(ctx, p.token);
+    const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     const message = recordVoiceMessage({
       id: newId("vm"), taskId: task.id, travelerId: task.travelerId, sender: "assistant",
@@ -1698,7 +1784,7 @@ export const routes: Record<string, Handler> = {
   /** The assistant's own selfie, shown to the subscriber so they can confirm
    *  who's arriving — the other half of the same disclosure. */
   "POST /api/assistant/tasks/:taskId/selfie": (ctx, p, body) => {
-    const assistantId = requireAssistantToken(ctx, p.token);
+    const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     const photo = identityPhotoFrom(body, ctx.now());
     ctx.store.update((db) => {
@@ -1709,7 +1795,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/assistant/tasks/:taskId/complete": (ctx, p, body) => {
-    const assistantId = requireAssistantToken(ctx, p.token);
+    const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     return { task: settleConciergeTask(ctx, task, body?.billedCents) };
   },
@@ -1717,7 +1803,7 @@ export const routes: Record<string, Handler> = {
   /** The assistant's own way to say no — see CONCIERGE_DISCLOSURES: they can
    *  decline anything unsafe, illegal, or outside what they agreed to do. */
   "POST /api/assistant/tasks/:taskId/decline": (ctx, p) => {
-    const assistantId = requireAssistantToken(ctx, p.token);
+    const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     return { task: releaseConciergeTask(ctx, task, true) };
   },

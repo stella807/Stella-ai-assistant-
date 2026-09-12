@@ -24,6 +24,28 @@ export interface Session {
   expiresAt: string;
 }
 
+/**
+ * An assistant's own sign-in, entirely separate from `Traveler`/`Session` —
+ * two distinct areas of the app, two distinct identity spaces. Keyed by
+ * `assistantId` (the partner network's own id), one credential per
+ * assistant. `mustChangePassword` is true from provisioning until the
+ * assistant sets their own password — see `provisionAssistantCredentials`
+ * in routes.ts.
+ */
+export interface AssistantCredential {
+  username: string;
+  passwordHash: string;
+  mustChangePassword: boolean;
+  createdAt: string;
+}
+
+export interface AssistantSession {
+  token: string;
+  assistantId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 /** Care-package state hangs off the night rather than off core's NightOut,
  *  which keeps the domain types free of a circular import. */
 export interface CarePackageState {
@@ -52,10 +74,11 @@ export interface Db {
   subscriptions: Record<string, Subscription>;
   conciergeTasks: ConciergeTask[];
   voiceMessages: VoiceMessage[];
-  /** Opens an assistant's own tasks in the portal — keyed by the partner
-   *  network's assistantId, created the first time that assistant is booked.
-   *  See routes.ts assistantTokenFor. */
-  assistantAccess: Record<string, { token: string; createdAt: string }>;
+  /** The employee portal's own sign-in — see AssistantCredential/AssistantSession
+   *  above. Provisioned the first time an assistant is booked; see routes.ts
+   *  provisionAssistantCredentials. */
+  assistantCredentials: Record<string, AssistantCredential>;
+  assistantSessions: AssistantSession[];
   driverApplications: DriverApplication[];
   pushDevices: PushDevice[];
 }
@@ -63,7 +86,7 @@ export interface Db {
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
   paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], voiceMessages: [],
-  assistantAccess: {},
+  assistantCredentials: {}, assistantSessions: [],
   driverApplications: [], pushDevices: [],
 };
 

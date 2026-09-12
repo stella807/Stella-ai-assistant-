@@ -71,17 +71,24 @@ them. Reusing one secret in both directions means a leak of either exposes
 both; a real deployment should mint the partner a separate, independently
 rotatable webhook secret. See `docs/concierge.md`.
 
-**The assistant portal authenticates with a bearer token carried in a URL.**
-`?assistant_token=...` is how an assistant reaches their own tasks, because
-there is no assistant identity system to authenticate against otherwise (see
-`docs/concierge.md`). A token in a URL can leak through referrer headers,
-browser history, or a screenshot in a way a token in an `Authorization`
-header does not. The token is long and random (`newSessionToken`, the same
-generator sessions use) so it isn't guessable, but a leaked link grants
-whoever has it full read/write access to that assistant's tasks — voice
-messages, selfies, and the ability to mark a task done or decline it — until
-someone thinks to ask the partner network for a fresh one. There is no
-rotation or expiry on this token today.
+**A freshly provisioned employee account's temp password travels through the
+partner network, in plaintext, exactly once.** `provisionAssistantCredentials`
+(`routes.ts`) generates a temp password and forwards it to the partner
+network's own `book()` call so their dispatch can relay it to the actual
+assistant — the same tradeoff the old magic-link token made, moved onto a
+password instead. It is never logged or stored in plaintext on Safehubby's
+side (only its hash is kept), but it does cross that one external API call
+unencrypted-at-the-application-layer (TLS covers transport), and whoever
+receives that relay has, briefly, the same access the assistant does until
+they sign in and change it (`mustChangePassword` forces this on first login,
+but does not force it *immediately* — a relay that is read by the wrong
+person before the real assistant signs in is a real, if narrow, window). A
+production deployment should track and expire an unclaimed temp password
+after a short window; nothing does that today. The employee session itself
+is shorter-lived than a traveler's (12h vs. 30 days, `ASSISTANT_SESSION_TTL_MS`),
+and login has its own rate-limit budget, separate from traveler login, so
+the two can never throttle each other from the same address. See
+`docs/concierge.md`.
 
 ## Retention — built
 

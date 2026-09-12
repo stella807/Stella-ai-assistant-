@@ -158,6 +158,10 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
               <strong>Held on your card now</strong>
               <strong className="charge-amount">{totalCents === null ? "…" : money(totalCents)}</strong>
             </div>
+            <p className="tiny muted">
+              Part of this total reimburses the purchase; the rest funds your assistant's time for this
+              task, on top of the spend cap above.
+            </p>
             <ul className="timeline">
               {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
             </ul>

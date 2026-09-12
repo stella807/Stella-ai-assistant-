@@ -129,6 +129,9 @@ assistant's own portal always sees their real `serviceFeeCents`. This is a
 customer-facing display choice, not a security boundary — the fee schedule
 itself is a public constant in `packages/core` — so it hides an itemized
 number from the UI without pretending the underlying rate card is secret.
+`AssistantModal.tsx` says, in one line and with no dollar figure, that part
+of the held total funds the assistant's time — customers see *that* their
+money funds a category of cost, just never the specific number.
 
 The two amounts are held together, not as separate transactions —
 `totalChargeCents` is `spendCapCents + serviceFeeFor(category)`, and that sum
@@ -259,28 +262,56 @@ outbound adapter already authenticates with, reused in both directions for
 now. A real deployment should give the partner network its own, separately
 rotatable secret rather than share the one the outbound calls use.
 
-## The assistant portal
+## The employee portal
 
-Reached at `<web app>/?assistant_token=...` — a link, not a login. There is
-no Safehubby account behind it: the token maps straight to an
-`assistantId` from the partner network's own roster (`assistantTokenFor` in
-`routes.ts`, minted the first time that assistant is booked and reused after,
-so it's one link an assistant can keep rather than a fresh one every task).
-Safehubby has no channel of its own to hand that link to an assistant — it's
-forwarded to the partner network's own `book()` call as `portal_token` so
-their dispatch can relay it however they already reach their people.
+A distinct area of the app from the customer-facing side — its own path
+(`/employee`), its own sign-in, and its own session cookie
+(`sh_assistant_session`, separate from a traveler's `sh_session`). Nothing
+here shares identity with a Safehubby customer account: an assistant is not
+a traveler, and the two identity spaces share nothing — not a session table,
+not a cookie, not a route.
 
-`main.tsx`, not `App.tsx`, decides whether to render the portal instead of
-the rider-facing app — before any of `App`'s own hooks or its sign-in gate
-exist, so an assistant's link can never end up depending on whether some
-rider happens to be signed in on the same device.
+**Provisioning.** The first time an assistant is booked, `POST /api/concierge/tasks`
+calls `provisionAssistantCredentials` (`routes.ts`), which creates an account
+(`username` = the partner network's own `assistantId`, a system-generated
+temporary password, hashed with the same scrypt scheme travelers' passwords
+use — see `auth.ts`) and forwards the plaintext temp password to the partner
+network's own `book()` call as `assistantPortalCredentials`, exactly once,
+the same way the portal used to forward a magic-link token: Safehubby has no
+channel of its own to reach an assistant directly, so it relies on the
+partner's dispatch to relay it however they already reach their people. The
+temp password is never stored — only its hash is — and can never be
+recovered, only reset by signing in and changing it.
 
-What it does, on purpose kept to exactly three things:
+**Signing in.** `POST /api/assistant/auth/login` (username + password) sets
+the `sh_assistant_session` cookie; `POST /api/assistant/auth/logout` clears
+it. `mustChangePassword` comes back `true` until the assistant changes their
+password via `POST /api/assistant/auth/change-password` — a
+system-generated password is never allowed to quietly become someone's
+permanent one, so `EmployeePortal.tsx` shows nothing else until it's changed.
+Sessions last 12 hours (`ASSISTANT_SESSION_TTL_MS`), shorter than a
+traveler's 30 days — a work portal on a shared or borrowed device is a
+different risk profile than a personal safety app.
+
+`main.tsx` decides which area to render — `EmployeePortal` for `/employee`,
+the customer-facing `App` for everything else — by path, before either
+component's own hooks exist, the same reasoning as the old token-based
+version: neither area's rendering can end up depending on the other's state.
+
+What the portal does, on purpose kept to exactly three things:
 
 - **See what's assigned.** `GET /api/assistant/portal` returns every task for
-  that `assistantId` — the requester's name, the note, the location, the
-  spend cap, and the service fee (what they're actually being paid).
-- **Talk to the customer.** The same async voice-message thread the rider
+  the signed-in assistant — the requester's name, the note, the location, the
+  spend cap, and the service fee (what they're actually being paid) — plus a
+  **pay-rate calculator**: the published per-task fee for every category,
+  expressed as an hourly-equivalent rate (`hourlyRateCentsFor` in
+  `concierge.ts`, using `CONCIERGE_TASK_MINUTES`'s stated typical duration),
+  and what steady work at a chosen weekly cadence could add up to over a year
+  (`annualEstimateCentsFor`). This is reference information computed from the
+  real published fee, not a wage, a contract, or a promise of hours — see
+  "What actually pays the assistant" above for why Safehubby publishes a
+  fixed rate card rather than negotiating one per task.
+- **Talk to the customer.** The same async voice-message thread the customer
   sees, from the other side — `POST`/`GET /api/assistant/tasks/:id/voice-messages`.
 - **Close the loop.** Mark a task done (optionally reporting what was
   actually spent, which settles for real rather than defaulting to the full
@@ -288,19 +319,19 @@ What it does, on purpose kept to exactly three things:
   store receipts) or decline it — the disclosure that an assistant can say no
   to anything unsafe, illegal, or outside what they agreed to, made real.
 
-Every one of those routes takes the token as a query param and checks it
-against `assistantAccess`, never a session — `requireAssistantToken` in
-`routes.ts` is the whole authorization model, and `assistantTaskOf` makes
-sure a token only ever reaches the tasks assigned to that specific
-`assistantId`, never another assistant's.
+Every one of those routes is session-authenticated against
+`db.assistantSessions`, never a token in the URL — `assistantActor(ctx)` in
+`routes.ts` is the whole authorization model (the direct analogue of
+`actor(ctx)` for travelers), and `assistantTaskOf` makes sure a session only
+ever reaches the tasks assigned to that specific `assistantId`, never another
+assistant's.
 
-**The token in a URL is a real, stated tradeoff, not an oversight.** A URL
-can leak through referrer headers, browser history, or a screenshot in a way
-a bearer token in an `Authorization` header does not. It was chosen anyway
-because there is no assistant identity system to authenticate against
-otherwise, and because it matches how the partner network already reaches an
-assistant — a link, not a username and password Safehubby would have to
-issue and manage. See `SECURITY.md`.
+**Why cookie-only, no `Authorization: Bearer` fallback the way traveler
+sessions have.** Bearer support exists for travelers because a native app
+build can't always rely on cookies; the employee portal is browser-only for
+now, and giving it the same header would make a single `Authorization` value
+ambiguous between two identity spaces this is deliberately keeping apart. See
+`SECURITY.md`.
 
 ## Naming a real place
 
