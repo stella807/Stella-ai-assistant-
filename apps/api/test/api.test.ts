@@ -7,7 +7,7 @@ import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import type { Ctx } from "../src/routes.ts";
-import { resetFlags, setFlag } from "@safehubby/core";
+import { authorizeExactHold, recordCharge, resetFlags, setFlag } from "@safehubby/core";
 
 let server: ReturnType<typeof createApp>;
 let base: string;
@@ -1341,7 +1341,7 @@ describe("concierge voice messages", () => {
     store.update((db) => {
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
-        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, status: "in-progress",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, status: "in-progress",
         provider: "Nearby Aide", providerTaskId: "provider-task-1", chargeId: "ch_x", holdId: "hold_x",
         createdAt: clock.toISOString(),
       });
@@ -1392,6 +1392,199 @@ describe("concierge voice messages", () => {
     );
     expect(res.status).toBe(503);
   });
+});
+
+describe("concierge fee math and settlement", () => {
+  let taskId = "";
+  const spendCapCents = 2500;
+  const serviceFeeCents = 900;
+  const totalCents = spendCapCents + serviceFeeCents;
+
+  beforeEach(() => {
+    taskId = "ct_fee1";
+    const hold = authorizeExactHold({ id: "hold_fee1", travelerId: samId, capCents: totalCents, now: clock });
+    const charge = recordCharge({
+      id: "ch_fee1", travelerId: samId, kind: "concierge", platform: "web",
+      description: "Grab a burger", amountCents: totalCents, now: clock,
+    });
+    store.update((db) => {
+      db.holds.push(hold);
+      db.charges.push(charge);
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, status: "in-progress",
+        provider: "Nearby Aide", providerTaskId: "provider-fee1", chargeId: charge.id, holdId: hold.id,
+        createdAt: clock.toISOString(),
+      });
+    });
+  });
+
+  it("settles the purchase plus the full service fee, never just one or the other", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents: 1800 }, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.task.billedCents).toBe(1800);
+
+    const billing = (await call("GET", "/api/billing", undefined, sam)).json;
+    const line = billing.charges.find((c: any) => c.id === "ch_fee1");
+    expect(line.status).toBe("settled");
+    expect(line.amountCents).toBe(1800 + serviceFeeCents);
+  });
+
+  it("charges the service fee in full even when nothing was purchased", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents: 0 }, sam);
+    expect(res.json.task.billedCents).toBe(0);
+    const billing = (await call("GET", "/api/billing", undefined, sam)).json;
+    expect(billing.charges.find((c: any) => c.id === "ch_fee1").amountCents).toBe(serviceFeeCents);
+  });
+
+  it("defaults to the full spend cap plus the service fee when nothing is reported", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam);
+    expect(res.json.task.billedCents).toBe(spendCapCents);
+    const billing = (await call("GET", "/api/billing", undefined, sam)).json;
+    expect(billing.charges.find((c: any) => c.id === "ch_fee1").amountCents).toBe(totalCents);
+  });
+
+  it("never settles above what was held, whatever billedCents claims", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents: 999999 }, sam);
+    expect(res.json.task.billedCents).toBe(spendCapCents); // capped, not the absurd reported figure
+  });
+
+  it("releases the whole hold and charges nothing on cancel", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/cancel`, {}, sam);
+    expect(res.status).toBe(200);
+    const billing = (await call("GET", "/api/billing", undefined, sam)).json;
+    const line = billing.charges.find((c: any) => c.id === "ch_fee1");
+    expect(line.status).toBe("failed");
+  });
+
+  it("refuses to settle or cancel a task twice", async () => {
+    await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam);
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam)).status).toBe(400);
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/cancel`, {}, sam)).status).toBe(400);
+  });
+});
+
+describe("concierge selfies", () => {
+  let taskId = "";
+
+  beforeEach(() => {
+    taskId = "ct_selfie1";
+    store.update((db) => {
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, status: "in-progress",
+        provider: "Nearby Aide", providerTaskId: "provider-selfie1", chargeId: "ch_x", holdId: "hold_x",
+        createdAt: clock.toISOString(),
+      });
+    });
+  });
+
+  const photo = () => ({ base64: Buffer.from("a small test photo").toString("base64"), mimeType: "image/jpeg" });
+
+  it("lets the traveler attach their own selfie to the task", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/selfie`, photo(), sam);
+    expect(res.status).toBe(200);
+    const tasks = (await call("GET", "/api/concierge/tasks", undefined, sam)).json.tasks;
+    expect(tasks.find((t: any) => t.id === taskId).identityPhotos.traveler.mimeType).toBe("image/jpeg");
+  });
+
+  it("rejects a non-image or oversized capture", async () => {
+    const badType = await call("POST", `/api/concierge/tasks/${taskId}/selfie`, { ...photo(), mimeType: "audio/webm" }, sam);
+    expect(badType.status).toBe(400);
+    const empty = await call("POST", `/api/concierge/tasks/${taskId}/selfie`, { ...photo(), base64: "" }, sam);
+    expect(empty.status).toBe(400);
+  });
+
+  it("will not let a stranger attach a selfie to someone else's task", async () => {
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/selfie`, photo(), jordan)).status).toBe(404);
+  });
+});
+
+describe("assistant portal", () => {
+  const assistantId = "asst-1";
+  const otherAssistantId = "asst-2";
+  let token = "";
+  let taskId = "";
+  let otherTaskId = "";
+
+  beforeEach(() => {
+    taskId = "ct_portal1";
+    otherTaskId = "ct_portal2";
+    store.update((db) => {
+      db.conciergeTasks.push(
+        {
+          id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+          location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900, status: "in-progress",
+          provider: "Nearby Aide", providerTaskId: "provider-portal1", assistantId,
+          chargeId: "ch_x", holdId: "hold_x", createdAt: clock.toISOString(),
+        },
+        {
+          id: otherTaskId, travelerId: jordanId, category: "run-errand", note: "Pick up a package",
+          location: { lat: 40.71, lng: -74.0 }, spendCapCents: 1500, serviceFeeCents: 900, status: "in-progress",
+          provider: "Nearby Aide", providerTaskId: "provider-portal2", assistantId: otherAssistantId,
+          chargeId: "ch_y", holdId: "hold_y", createdAt: clock.toISOString(),
+        },
+      );
+      db.assistantAccess[assistantId] = { token: "assistant-token-1", createdAt: clock.toISOString() };
+      db.assistantAccess[otherAssistantId] = { token: "assistant-token-2", createdAt: clock.toISOString() };
+    });
+    token = "assistant-token-1";
+  });
+
+  it("requires a valid token, not a session", async () => {
+    expect((await call("GET", "/api/assistant/portal")).status).toBe(401);
+    expect((await call("GET", "/api/assistant/portal?token=bogus")).status).toBe(401);
+    // A traveler's own session does not substitute for a portal token.
+    expect((await call("GET", "/api/assistant/portal", undefined, sam)).status).toBe(401);
+  });
+
+  it("shows only the tasks assigned to that assistant, with who they're for", async () => {
+    const res = await call("GET", `/api/assistant/portal?token=${token}`);
+    expect(res.status).toBe(200);
+    expect(res.json.assistantId).toBe(assistantId);
+    expect(res.json.tasks).toHaveLength(1);
+    expect(res.json.tasks[0].id).toBe(taskId);
+    expect(res.json.tasks[0].requesterName).toBe("Sam");
+  });
+
+  it("keeps one assistant's tasks completely out of another's reach", async () => {
+    expect((await call("GET", `/api/assistant/tasks/${otherTaskId}/voice-messages?token=${token}`)).status).toBe(404);
+    expect((await call("POST", `/api/assistant/tasks/${otherTaskId}/complete?token=${token}`, {})).status).toBe(404);
+    expect((await call("POST", `/api/assistant/tasks/${otherTaskId}/decline?token=${token}`, {})).status).toBe(404);
+  });
+
+  it("lets the assistant send a voice message and the traveler read it", async () => {
+    const clip = { audioBase64: Buffer.from("hello").toString("base64"), mimeType: "audio/webm", durationSeconds: 5 };
+    const sent = await call("POST", `/api/assistant/tasks/${taskId}/voice-messages?token=${token}`, clip);
+    expect(sent.status).toBe(200);
+
+    const thread = await call("GET", `/api/concierge/tasks/${taskId}/voice-messages`, undefined, sam);
+    expect(thread.json.messages).toHaveLength(1);
+    expect(thread.json.messages[0].sender).toBe("assistant");
+  });
+
+  it("lets the assistant attach their own selfie, visible on the traveler's side", async () => {
+    const photo = { base64: Buffer.from("assistant selfie").toString("base64"), mimeType: "image/jpeg" };
+    expect((await call("POST", `/api/assistant/tasks/${taskId}/selfie?token=${token}`, photo)).status).toBe(200);
+
+    const tasks = (await call("GET", "/api/concierge/tasks", undefined, sam)).json.tasks;
+    expect(tasks.find((t: any) => t.id === taskId).identityPhotos.assistant.mimeType).toBe("image/jpeg");
+  });
+
+  it("lets the assistant mark the task done, settling the same way the traveler's own route would", async () => {
+    const res = await call("POST", `/api/assistant/tasks/${taskId}/complete?token=${token}`, { billedCents: 1000 });
+    expect(res.status).toBe(200);
+    expect(res.json.task.status).toBe("completed");
+    expect(res.json.task.billedCents).toBe(1000);
+  });
+
+  it("lets the assistant decline, distinct from a subscriber-initiated cancel", async () => {
+    const res = await call("POST", `/api/assistant/tasks/${taskId}/decline?token=${token}`, {});
+    expect(res.status).toBe(200);
+    expect(res.json.task.status).toBe("canceled");
+    expect(res.json.task.declinedByAssistant).toBe(true);
+  });
+
 });
 
 describe("grocery fulfilment", () => {

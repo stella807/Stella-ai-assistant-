@@ -140,7 +140,15 @@ customers they're comfortable handling at once (1-3, their own stated
 comfort level, not a number Safehubby sets). Once booked, an in-app voice
 message thread with that assistant opens in a popup — async clips, not a
 live call, so an assistant mid-task is never expected to have a hand free
-for a ringing phone. See `docs/concierge.md`.
+for a ringing phone. A separate, published service fee (published rate card,
+$9-$18 by task type) is what actually pays the assistant for their time — the
+spend cap only ever reimburses what they buy, the same way a ride fare passes
+through to a driver rather than being their wage. Each of you takes a selfie,
+shared with the other, so you can each confirm who you're meeting. The
+assistant's own side is a plain link at `?assistant_token=...` — no
+Safehubby account, no sign-in — where they see everything assigned to them,
+reply by voice, take their own selfie, and mark a task done or decline it.
+See `docs/concierge.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what

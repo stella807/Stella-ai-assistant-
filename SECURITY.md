@@ -53,14 +53,15 @@ details for partner-network assistants would live inside Safehubby's own
 Revolut account before this can go live, which is its own data-handling
 surface to review, on top of the API integration itself. See `docs/concierge.md`.
 
-**Voice messages stored inline in the document store, uncapped in aggregate.**
-`voice-messages.ts` caps a single clip (60s, ~1.5MB decoded) but nothing caps
-how many clips accumulate across a task or an account over time, and they are
-stored base64-encoded inline in the same JSON document as everything else —
-the scaling problem already flagged for the store in general, made concrete
-by media instead of text. A real deployment should push clips to object
-storage and store a URL here, and should add a retention sweep the way
-`retention.ts` already does for location history. See `docs/concierge.md`.
+**Voice messages and identity photos stored inline in the document store,
+uncapped in aggregate.** `voice-messages.ts` and `concierge.ts` cap a single
+item (a 60s/~1.5MB clip, a ~1.5MB photo) but nothing caps how many accumulate
+across a task or an account over time, and they are stored base64-encoded
+inline in the same JSON document as everything else — the scaling problem
+already flagged for the store in general, made concrete by media instead of
+text. A real deployment should push both to object storage and store a URL
+here, and should add a retention sweep the way `retention.ts` already does
+for location history. See `docs/concierge.md`.
 
 **The inbound concierge webhook reuses the outbound API key as its secret.**
 `POST /api/concierge/webhooks/voice-message` is the only route in this API a
@@ -69,6 +70,18 @@ against `CONCIERGE_API_KEY` — the same key the outbound adapter sends to
 them. Reusing one secret in both directions means a leak of either exposes
 both; a real deployment should mint the partner a separate, independently
 rotatable webhook secret. See `docs/concierge.md`.
+
+**The assistant portal authenticates with a bearer token carried in a URL.**
+`?assistant_token=...` is how an assistant reaches their own tasks, because
+there is no assistant identity system to authenticate against otherwise (see
+`docs/concierge.md`). A token in a URL can leak through referrer headers,
+browser history, or a screenshot in a way a token in an `Authorization`
+header does not. The token is long and random (`newSessionToken`, the same
+generator sessions use) so it isn't guessable, but a leaked link grants
+whoever has it full read/write access to that assistant's tasks — voice
+messages, selfies, and the ability to mark a task done or decline it — until
+someone thinks to ask the partner network for a fresh one. There is no
+rotation or expiry on this token today.
 
 ## Retention — built
 

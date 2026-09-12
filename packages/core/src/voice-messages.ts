@@ -51,7 +51,9 @@ export interface RecordVoiceMessageInput {
 
 /** Rough size of the decoded audio from its base64 length, without actually
  *  decoding it — good enough to enforce a ceiling before it is stored. */
-function approximateDecodedBytes(base64: string): number {
+/** Exported for reuse wherever else a base64 upload needs a size ceiling
+ *  before storage — see identity photos in concierge.ts. */
+export function approximateDecodedBytes(base64: string): number {
   const clean = base64.replace(/[^A-Za-z0-9+/=]/g, "");
   const padding = clean.endsWith("==") ? 2 : clean.endsWith("=") ? 1 : 0;
   return Math.floor((clean.length * 3) / 4) - padding;

@@ -1,8 +1,8 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask,
-  LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant, Statement,
-  Subscription, Venue, VoiceMessage,
+  IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
+  Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
 export interface CrewMemberView {
@@ -264,6 +264,27 @@ export const api = {
     request<{ id: string; createdAt: string }>("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip),
   voiceMessages: (taskId: string) =>
     request<{ messages: VoiceMessage[] }>("GET", `/api/concierge/tasks/${taskId}/voice-messages`),
+  sendSelfie: (taskId: string, photo: { base64: string; mimeType: string }) =>
+    request<{ photo: IdentityPhoto }>("POST", `/api/concierge/tasks/${taskId}/selfie`, photo),
+
+  /**
+   * The assistant portal's own calls, token-authenticated rather than
+   * session-authenticated — the caller has no Safehubby account. Every path
+   * carries the token as a query param, same as the server expects it.
+   */
+  assistantPortal: (token: string) =>
+    request<{ assistantId: string; tasks: (ConciergeTask & { requesterName: string })[] }>(
+      "GET", `/api/assistant/portal?token=${encodeURIComponent(token)}`),
+  assistantVoiceMessages: (taskId: string, token: string) =>
+    request<{ messages: VoiceMessage[] }>("GET", `/api/assistant/tasks/${taskId}/voice-messages?token=${encodeURIComponent(token)}`),
+  assistantSendVoiceMessage: (taskId: string, token: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
+    request<{ id: string; createdAt: string }>("POST", `/api/assistant/tasks/${taskId}/voice-messages?token=${encodeURIComponent(token)}`, clip),
+  assistantSendSelfie: (taskId: string, token: string, photo: { base64: string; mimeType: string }) =>
+    request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/selfie?token=${encodeURIComponent(token)}`, photo),
+  assistantComplete: (taskId: string, token: string, billedCents?: number) =>
+    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete?token=${encodeURIComponent(token)}`, { billedCents }),
+  assistantDecline: (taskId: string, token: string) =>
+    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/decline?token=${encodeURIComponent(token)}`, {}),
   bookRide: (providerId: string, pickup: any, dropoff: any) =>
     request<{ bookingId: string; trackingUrl: string }>("POST", "/api/rides/book", { providerId, pickup, dropoff }),
   supplies: () => request<any[]>("GET", "/api/supplies"),

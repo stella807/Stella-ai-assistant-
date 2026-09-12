@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES,
-  CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, conciergeCategoryLabel, describeAssistantCapacity,
-  isAssistantAvailable, validateConciergeRequest,
+  CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, CONCIERGE_SERVICE_FEE_CENTS, MAX_PHOTO_BYTES,
+  conciergeCategoryLabel, describeAssistantCapacity, isAssistantAvailable, serviceFeeFor,
+  totalChargeCents, validateConciergeRequest, validateIdentityPhoto,
 } from "../src/concierge.ts";
-import type { AssistantProfile, ConciergeTaskInput } from "../src/concierge.ts";
+import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
 
 const request = (over: Partial<ConciergeTaskInput> = {}): ConciergeTaskInput => ({
   category: "grab-something",
@@ -102,5 +103,54 @@ describe("assistant roster", () => {
   it("says plainly when someone is full up", () => {
     expect(describeAssistantCapacity(profile({ maxConcurrentCustomers: 1, currentCustomers: 1 })))
       .toMatch(/at capacity/i);
+  });
+});
+
+describe("the service fee — what actually pays the assistant", () => {
+  it("has a published rate for every category", () => {
+    for (const c of CONCIERGE_CATEGORIES) {
+      expect(CONCIERGE_SERVICE_FEE_CENTS[c.id]).toBeGreaterThan(0);
+      expect(serviceFeeFor(c.id)).toBe(CONCIERGE_SERVICE_FEE_CENTS[c.id]);
+    }
+  });
+
+  it("prices a longer, open-ended task higher than a quick errand", () => {
+    expect(serviceFeeFor("wait-with-someone")).toBeGreaterThan(serviceFeeFor("grab-something"));
+  });
+
+  it("is additive with the spend cap, never folded into or replacing it", () => {
+    const category: ConciergeCategory = "grab-something";
+    const total = totalChargeCents(category, 2500);
+    expect(total).toBe(2500 + serviceFeeFor(category));
+  });
+
+  it("mentions the service fee and the selfie check in what a subscriber agrees to", () => {
+    expect(CONCIERGE_DISCLOSURES.join(" ")).toMatch(/service fee/i);
+    expect(CONCIERGE_DISCLOSURES.join(" ")).toMatch(/selfie/i);
+  });
+});
+
+describe("validateIdentityPhoto", () => {
+  const photo = (over: Partial<{ base64: string; mimeType: string }> = {}) => ({
+    base64: Buffer.from("a small test photo").toString("base64"),
+    mimeType: "image/jpeg",
+    ...over,
+  });
+
+  it("accepts a normal photo", () => {
+    expect(() => validateIdentityPhoto(photo())).not.toThrow();
+  });
+
+  it("rejects an empty capture", () => {
+    expect(() => validateIdentityPhoto(photo({ base64: "" }))).toThrow(/no photo/i);
+  });
+
+  it("rejects anything not declared as an image", () => {
+    expect(() => validateIdentityPhoto(photo({ mimeType: "audio/webm" }))).toThrow(/doesn't look like a photo/i);
+  });
+
+  it("caps how large the encoded photo can be", () => {
+    const huge = "A".repeat(MAX_PHOTO_BYTES * 2);
+    expect(() => validateIdentityPhoto(photo({ base64: huge }))).toThrow(/too large/i);
   });
 });

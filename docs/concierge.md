@@ -67,6 +67,49 @@ before every booking, not just the first, the same reasoning as
 - Location is shared with the assistant only for the task's duration.
 - Not an emergency service — call your local emergency number for those.
 
+## What actually pays the assistant: the service fee
+
+Easy to miss, so it's worth saying plainly: the spend cap is not the
+assistant's pay. It's what they're reimbursed for buying on the subscriber's
+behalf — the burger, the supplies — the same way a ride fare passes through
+to a driver rather than being the driver's wage. Before `serviceFeeFor`
+existed, nothing in this feature compensated the assistant for their time at
+all.
+
+`CONCIERGE_SERVICE_FEE_CENTS` in `concierge.ts` is a published rate per
+category, held and charged on top of the spend cap:
+
+| Category | Fee | Why |
+|---|---|---|
+| Grab something | $9.00 | A quick round trip, minutes of work |
+| Run an errand | $9.00 | Same shape as grabbing something |
+| Check on someone | $12.00 | Getting there and actually assessing someone takes longer |
+| Wait with someone | $18.00 | Open-ended by nature — priced for a first ~30-45 min block |
+
+This is a fixed rate card, not a provider quote, and that's a deliberate
+choice: there's no real-time "labor pricing" API the way a ride fare defers
+to Uber's own pricing engine, so a fixed, disclosed schedule beats pretending
+to compute one from nothing. Of each fee, most is the payout the partner
+network passes to the assistant who did the work; the rest is Safehubby's
+margin (`CONCIERGE_FEE_MARGIN`, 20%), stated so the number is traceable
+rather than arbitrary.
+
+The two amounts are held together, not as separate transactions —
+`totalChargeCents` is `spendCapCents + serviceFeeFor(category)`, and that sum
+is what `authorizeExactHold` reserves. At settlement, the service fee is
+captured in full regardless of what the purchase itself came to; only the
+purchase side is capped by what was actually spent. Someone who sends an
+assistant to grab a $12 burger under a $25 cap is charged $12 + the $9 fee —
+never $25 + $9, and never $9 alone just because the purchase came in low.
+
+For where this money actually goes and roughly how it compares to real gig
+work: BLS's 2024 median for a traditionally employed personal/executive
+assistant runs around $45-50k/year; gig-platform task rates (TaskRabbit,
+Wonolo, and similar) for short, bounded, in-person work commonly land around
+$20-35/hour. These fees were set to land an assistant's per-task payout in
+that same range for a task of the category's typical length — not to
+approximate a salary, since a task is minutes, not a shift.
+
 ## Paying the assistant: a single-use card, not a shared account
 
 The original version of this idea gave personal assistants "single-use debit
@@ -179,6 +222,71 @@ reverse. It's gated by `requirePartnerNetwork`, which checks an
 outbound adapter already authenticates with, reused in both directions for
 now. A real deployment should give the partner network its own, separately
 rotatable secret rather than share the one the outbound calls use.
+
+## The assistant portal
+
+Reached at `<web app>/?assistant_token=...` — a link, not a login. There is
+no Safehubby account behind it: the token maps straight to an
+`assistantId` from the partner network's own roster (`assistantTokenFor` in
+`routes.ts`, minted the first time that assistant is booked and reused after,
+so it's one link an assistant can keep rather than a fresh one every task).
+Safehubby has no channel of its own to hand that link to an assistant — it's
+forwarded to the partner network's own `book()` call as `portal_token` so
+their dispatch can relay it however they already reach their people.
+
+`main.tsx`, not `App.tsx`, decides whether to render the portal instead of
+the rider-facing app — before any of `App`'s own hooks or its sign-in gate
+exist, so an assistant's link can never end up depending on whether some
+rider happens to be signed in on the same device.
+
+What it does, on purpose kept to exactly three things:
+
+- **See what's assigned.** `GET /api/assistant/portal` returns every task for
+  that `assistantId` — the requester's name, the note, the location, the
+  spend cap, and the service fee (what they're actually being paid).
+- **Talk to the customer.** The same async voice-message thread the rider
+  sees, from the other side — `POST`/`GET /api/assistant/tasks/:id/voice-messages`.
+- **Close the loop.** Mark a task done (optionally reporting what was
+  actually spent, which settles for real rather than defaulting to the full
+  cap — the honest way to close the gap `docs/billing.md` already flags for
+  store receipts) or decline it — the disclosure that an assistant can say no
+  to anything unsafe, illegal, or outside what they agreed to, made real.
+
+Every one of those routes takes the token as a query param and checks it
+against `assistantAccess`, never a session — `requireAssistantToken` in
+`routes.ts` is the whole authorization model, and `assistantTaskOf` makes
+sure a token only ever reaches the tasks assigned to that specific
+`assistantId`, never another assistant's.
+
+**The token in a URL is a real, stated tradeoff, not an oversight.** A URL
+can leak through referrer headers, browser history, or a screenshot in a way
+a bearer token in an `Authorization` header does not. It was chosen anyway
+because there is no assistant identity system to authenticate against
+otherwise, and because it matches how the partner network already reaches an
+assistant — a link, not a username and password Safehubby would have to
+issue and manage. See `SECURITY.md`.
+
+## Identity photos: a selfie from each side
+
+`IdentityPhoto` in `concierge.ts` — one selfie from the subscriber, one from
+the assistant, attached to the task, not to either account. Neither is
+required to book or to work a task; a missing one just means that side
+skipped it.
+
+- `POST /api/concierge/tasks/:id/selfie` — the subscriber's own, shown to the
+  assistant in the portal so they can confirm who they're meeting before they
+  arrive.
+- `POST /api/assistant/tasks/:id/selfie` (token-authenticated) — the
+  assistant's own, shown to the subscriber in the same voice-message view so
+  they can confirm who's coming.
+
+Captured with the browser's native camera-capture file input
+(`apps/web/src/native/camera.ts`) rather than a live `getUserMedia` preview —
+it needs one photo, not a viewfinder, and the OS's own camera app already
+does framing and a shutter better than a custom one would. Validated and
+bounded the same way voice clips are (`MAX_PHOTO_BYTES`, `validateIdentityPhoto`
+in `concierge.ts`) and stored the same way — inline, base64, in the same JSON
+document, with the same scaling caveat stated in `SECURITY.md`.
 
 ## Where it's gated, and what it costs
 

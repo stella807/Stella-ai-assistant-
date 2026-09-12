@@ -92,13 +92,29 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `GET` | `/api/fulfillment/status` | — (session) |
 | `POST` | `/api/concierge/quote` | `personal-concierge` |
 | `GET` | `/api/concierge/assistants?category=&lat=&lng=` | `personal-concierge`. The partner network's roster for that category near that location — see `docs/concierge.md`. |
-| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures, assistantId? }`. Holds exactly `spendCapCents` — see `docs/concierge.md`. |
+| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures, assistantId? }`. Holds `spendCapCents` plus the category's service fee — see `docs/concierge.md`. |
 | `GET` | `/api/concierge/tasks` | — (session; your own tasks only) |
-| `POST` | `/api/concierge/tasks/:taskId/complete` | Settles the ledger line at `billedCents` (capped, defaults to the full cap if omitted) |
+| `POST` | `/api/concierge/tasks/:taskId/complete` | `{ billedCents? }`. Settles the purchase at `billedCents` (capped, defaults to the full spend cap) plus the service fee in full |
 | `POST` | `/api/concierge/tasks/:taskId/cancel` | Releases the hold; no charge |
 | `POST` | `/api/concierge/tasks/:taskId/voice-messages` | `{ audioBase64, mimeType, durationSeconds }`. A voice clip to the assistant, capped at `MAX_VOICE_MESSAGE_SECONDS`. |
 | `GET` | `/api/concierge/tasks/:taskId/voice-messages` | The thread for that task, oldest first |
-| `POST` | `/api/concierge/webhooks/voice-message` | The one inbound route in this API — the partner network posts an assistant's reply. Auth: `x-concierge-key` header matching `CONCIERGE_API_KEY`, not a session. |
+| `POST` | `/api/concierge/tasks/:taskId/selfie` | `{ base64, mimeType }`. The subscriber's own selfie, shown to the assistant |
+| `POST` | `/api/concierge/webhooks/voice-message` | A partner-network integration posting an assistant's reply server-to-server, as an alternative to the portal below. Auth: `x-concierge-key` header matching `CONCIERGE_API_KEY`, not a session. |
+
+### Assistant portal — token-authenticated, not session-authenticated
+
+The assistant has no Safehubby account; every route below takes `?token=`
+(the value from `assistant_token` in the portal URL) instead of a session
+cookie. See `docs/concierge.md`.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/assistant/portal?token=` | Every task assigned to that token's assistant, with the requester's name |
+| `GET` | `/api/assistant/tasks/:taskId/voice-messages?token=` | That task's thread |
+| `POST` | `/api/assistant/tasks/:taskId/voice-messages?token=` | The assistant's own reply |
+| `POST` | `/api/assistant/tasks/:taskId/selfie?token=` | The assistant's own selfie, shown to the subscriber |
+| `POST` | `/api/assistant/tasks/:taskId/complete?token=` | `{ billedCents? }`. Same settlement rules as the subscriber's own complete route |
+| `POST` | `/api/assistant/tasks/:taskId/decline?token=` | Cancels the task, flagged as declined by the assistant rather than the subscriber |
 | `POST` | `/api/points/redeem` | — |
 | `POST` | `/api/push/devices` | — (session) |
 | `POST` | `/api/push/devices/remove` | — (session) |

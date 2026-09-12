@@ -423,6 +423,10 @@ export const concierge: ConciergePort = {
         // The card is for the assistant to spend from, not for the partner
         // network to hold — passed along so their dispatch can hand it off.
         card: input.card ? { last4: input.card.last4, reveal_url: input.card.revealUrl } : undefined,
+        // Same idea for the assistant portal: Safehubby has no channel of its
+        // own to the assistant, so the link travels through whichever one
+        // the partner's dispatch already uses.
+        portal_token: input.assistantPortalToken,
       },
     );
 

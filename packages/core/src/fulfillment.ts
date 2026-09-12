@@ -139,6 +139,12 @@ export interface ConciergeTaskRequest {
   /** A specific assistant the subscriber picked from the roster, rather than
    *  leaving assignment to the network's own dispatch. */
   assistantId?: string;
+  /** The token that opens this assistant's tasks in Safehubby's assistant
+   *  portal (see `docs/concierge.md`) — forwarded so the partner network's
+   *  own dispatch can relay the portal link to the assistant through
+   *  whatever channel it already uses to reach them; Safehubby has none of
+   *  its own. */
+  assistantPortalToken?: string;
 }
 
 export interface ConciergeQuote {

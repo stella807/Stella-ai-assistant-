@@ -107,7 +107,8 @@ export function ConciergePanel({ account }: { account: Account }) {
                 <div>
                   <strong className="small">{t.note}</strong>
                   <div className="tiny muted">
-                    {t.provider} · capped at {money(t.spendCapCents)}
+                    {t.provider} · {money(t.spendCapCents + t.serviceFeeCents)} held
+                    ({money(t.spendCapCents)} cap + {money(t.serviceFeeCents)} fee)
                     {t.card && ` · paying on a card ending ${t.card.last4} — not yours`}
                   </div>
                 </div>

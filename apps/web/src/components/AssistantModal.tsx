@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity } from "@safehubby/core";
+import {
+  CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity, serviceFeeFor,
+  totalChargeCents,
+} from "@safehubby/core";
 import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
+import { readFileAsBase64 } from "../native/camera.ts";
 
 const money = (cents: number) => `$${(cents / 100).toFixed(0)}`;
 
@@ -42,6 +46,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
   // effect below only ever runs its cleanup on unmount.
   const activeRecording = useRef<ActiveRecording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const selfieInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!task) return;
@@ -98,6 +103,25 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
   };
 
+  const captureSelfie = async (file: File | undefined) => {
+    if (!file || !task) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const photo = await readFileAsBase64(file);
+      const res = await api.sendSelfie(task.id, photo);
+      setTask((t) => (t ? { ...t, identityPhotos: { ...t.identityPhotos, traveler: res.photo } } : t));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save that photo");
+    } finally {
+      setBusy(false);
+      if (selfieInput.current) selfieInput.current.value = "";
+    }
+  };
+
+  const serviceFeeCents = serviceFeeFor(category);
+  const totalCents = totalChargeCents(category, spendCapCents);
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={assistant.name}>
@@ -118,9 +142,19 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
 
         {!task ? (
           <>
-            <p className="small">
-              Request: {note} — capped at {money(spendCapCents)}.
-            </p>
+            <p className="small">Request: {note}</p>
+            <div className="row-between tiny muted">
+              <span>Spend cap (reimbursed purchase)</span>
+              <span className="charge-amount">{money(spendCapCents)}</span>
+            </div>
+            <div className="row-between tiny muted">
+              <span>Service fee (pays your assistant)</span>
+              <span className="charge-amount">{money(serviceFeeCents)}</span>
+            </div>
+            <div className="row-between small">
+              <strong>Held on your card now</strong>
+              <strong className="charge-amount">{money(totalCents)}</strong>
+            </div>
             <ul className="timeline">
               {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
             </ul>
@@ -135,8 +169,36 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
         ) : (
           <>
             <p className="tiny muted">
-              Sent — capped at {money(task.spendCapCents)}. Leave a voice message if there's more to say.
+              Sent — {money(totalCents)} held ({money(spendCapCents)} spend cap + {money(serviceFeeCents)} service
+              fee). Leave a voice message if there's more to say.
             </p>
+
+            <div className="row-between">
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                {task.identityPhotos?.assistant ? (
+                  <img className="selfie-thumb" alt="Your assistant"
+                    src={`data:${task.identityPhotos.assistant.mimeType};base64,${task.identityPhotos.assistant.base64}`} />
+                ) : (
+                  <span className="tiny muted">No photo from them yet</span>
+                )}
+              </div>
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                {task.identityPhotos?.traveler ? (
+                  <img className="selfie-thumb" alt="Your selfie"
+                    src={`data:${task.identityPhotos.traveler.mimeType};base64,${task.identityPhotos.traveler.base64}`} />
+                ) : (
+                  <button className="btn btn-sm" disabled={busy} onClick={() => selfieInput.current?.click()}>
+                    Take my selfie
+                  </button>
+                )}
+                <input ref={selfieInput} type="file" accept="image/*" capture="user" hidden
+                  onChange={(e) => captureSelfie(e.target.files?.[0])} />
+              </div>
+            </div>
+            <p className="tiny muted">
+              A selfie from each of you is shared with the other, so you can confirm who you're meeting.
+            </p>
+
             <div className="voice-thread" aria-live="polite">
               {messages.length === 0 && <p className="tiny muted">No messages yet.</p>}
               {messages.map((m) => (

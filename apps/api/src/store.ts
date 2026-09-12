@@ -52,6 +52,10 @@ export interface Db {
   subscriptions: Record<string, Subscription>;
   conciergeTasks: ConciergeTask[];
   voiceMessages: VoiceMessage[];
+  /** Opens an assistant's own tasks in the portal — keyed by the partner
+   *  network's assistantId, created the first time that assistant is booked.
+   *  See routes.ts assistantTokenFor. */
+  assistantAccess: Record<string, { token: string; createdAt: string }>;
   driverApplications: DriverApplication[];
   pushDevices: PushDevice[];
 }
@@ -59,6 +63,7 @@ export interface Db {
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
   paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], voiceMessages: [],
+  assistantAccess: {},
   driverApplications: [], pushDevices: [],
 };
 

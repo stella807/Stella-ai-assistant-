@@ -19,7 +19,8 @@ import {
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
-  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor,
+  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, totalChargeCents,
+  validateIdentityPhoto,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -28,8 +29,8 @@ import {
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
-  ConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, NightOut, OrderProvider, Platform,
-  PlanId, RedFlagId, Subscription, TriggerBand,
+  ConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut, OrderProvider,
+  Platform, PlanId, RedFlagId, Subscription, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -253,6 +254,93 @@ function conciergeTaskOf(ctx: Ctx, travelerId: string, taskId: string): Concierg
   const task = ctx.store.data.conciergeTasks.find((t) => t.id === taskId && t.travelerId === travelerId);
   if (!task) throw notFound("Task");
   return task;
+}
+
+/**
+ * The token that opens one assistant's tasks in the portal. Created the
+ * first time that assistant is booked and reused after — one link an
+ * assistant can keep, rather than a fresh one every task, so the portal
+ * actually works as an ongoing organizer instead of a one-off.
+ */
+function assistantTokenFor(ctx: Ctx, assistantId: string): string {
+  const existing = ctx.store.data.assistantAccess[assistantId];
+  if (existing) return existing.token;
+  const token = newSessionToken();
+  ctx.store.update((db) => { db.assistantAccess[assistantId] = { token, createdAt: ctx.now().toISOString() }; });
+  return token;
+}
+
+/** Resolves a portal token to the assistant it belongs to, or 401. Not a
+ *  session — the caller is an assistant on the partner network, who has no
+ *  Safehubby account to sign into. */
+function requireAssistantToken(ctx: Ctx, token: unknown): string {
+  const value = typeof token === "string" ? token : "";
+  if (!value) throw new HttpError(401, "Missing access token.");
+  const entry = Object.entries(ctx.store.data.assistantAccess).find(([, v]) => v.token === value);
+  if (!entry) throw new HttpError(401, "Bad or expired access token.");
+  return entry[0];
+}
+
+/** An assistant's own task, or 404 — never another assistant's, and never a
+ *  task nobody picked a specific assistant for. */
+function assistantTaskOf(ctx: Ctx, assistantId: string, taskId: string): ConciergeTask {
+  const task = ctx.store.data.conciergeTasks.find((t) => t.id === taskId && t.assistantId === assistantId);
+  if (!task) throw notFound("Task");
+  return task;
+}
+
+/**
+ * Settles a task's charge — shared by the traveler's own "mark done" and the
+ * assistant portal's, so the two paths can never drift into different rules
+ * for what gets captured. The service fee is owed in full regardless of what
+ * the reimbursable purchase came to; only the purchase side is capped by what
+ * was actually reported.
+ */
+function settleConciergeTask(ctx: Ctx, task: ConciergeTask, billedCents: unknown): ConciergeTask {
+  if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+  const reported = Number(billedCents);
+  const purchaseCents = Number.isFinite(reported) && reported >= 0
+    ? Math.min(Math.round(reported), task.spendCapCents)
+    : task.spendCapCents;
+  const totalCents = purchaseCents + task.serviceFeeCents;
+
+  if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
+  ctx.store.update((db) => {
+    const target = db.holds.find((h) => h.id === task.holdId);
+    if (target) Object.assign(target, captureHold(target, totalCents, ctx.now()));
+  });
+  updateCharge(ctx, task.chargeId, (c) => settleCharge(c, ctx.now(), totalCents));
+  ctx.store.update((db) => {
+    const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+    t.status = "completed"; t.completedAt = ctx.now().toISOString(); t.billedCents = purchaseCents;
+  });
+  return { ...task, status: "completed" as const, completedAt: ctx.now().toISOString(), billedCents: purchaseCents };
+}
+
+/** Releases a task's hold with nothing captured — shared by a subscriber's
+ *  own cancel and the assistant portal's decline. */
+function releaseConciergeTask(ctx: Ctx, task: ConciergeTask, declinedByAssistant: boolean): ConciergeTask {
+  if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+  if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
+  ctx.store.update((db) => {
+    const target = db.holds.find((h) => h.id === task.holdId);
+    if (target) Object.assign(target, releaseHold(target));
+  });
+  updateCharge(ctx, task.chargeId, (c) =>
+    failCharge(c, declinedByAssistant ? "Declined by the assistant." : "Task canceled before completion.", ctx.now()));
+  ctx.store.update((db) => {
+    const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+    t.status = "canceled";
+    if (declinedByAssistant) t.declinedByAssistant = true;
+  });
+  return { ...task, status: "canceled" as const, ...(declinedByAssistant ? { declinedByAssistant: true } : {}) };
+}
+
+/** Reads and validates a captured selfie from an untrusted body. */
+function identityPhotoFrom(body: any, now: Date): IdentityPhoto {
+  const input = { base64: String(body?.base64 ?? ""), mimeType: String(body?.mimeType ?? "") };
+  validateIdentityPhoto(input);
+  return { ...input, capturedAt: now.toISOString() };
 }
 
 /**
@@ -1377,7 +1465,10 @@ export const routes: Record<string, Handler> = {
       spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
-    return { quote, disclosures: CONCIERGE_DISCLOSURES };
+    return {
+      quote, disclosures: CONCIERGE_DISCLOSURES,
+      serviceFeeCents: serviceFeeFor(input.category), totalCents: totalChargeCents(input.category, input.spendCapCents),
+    };
   },
 
   /**
@@ -1396,6 +1487,9 @@ export const routes: Record<string, Handler> = {
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
     requirePaymentMethod(ctx, me);
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
+    const serviceFeeCents = serviceFeeFor(input.category);
+    const totalCents = totalChargeCents(input.category, input.spendCapCents);
+    const portalToken = assistantId ? assistantTokenFor(ctx, assistantId) : undefined;
 
     const quote = await concierge.quote({
       category: input.category, note: input.note, location: input.location,
@@ -1403,13 +1497,16 @@ export const routes: Record<string, Handler> = {
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
 
-    const hold = authorizeExactHold({ id: newId("hold"), travelerId: me, capCents: input.spendCapCents, now: ctx.now() });
+    // The hold covers both the reimbursable purchase and the service fee
+    // that pays the assistant — one exact number, never padded, same as
+    // either piece would be on its own.
+    const hold = authorizeExactHold({ id: newId("hold"), travelerId: me, capCents: totalCents, now: ctx.now() });
     ctx.store.update((db) => void db.holds.push(hold));
     const charge = addCharge(ctx, {
       travelerId: me,
       kind: "concierge",
-      description: `${conciergeCategoryLabel(input.category)} — ${input.note}`.slice(0, 140),
-      amountCents: input.spendCapCents,
+      description: `${conciergeCategoryLabel(input.category)} — ${input.note} ($${(serviceFeeCents / 100).toFixed(2)} service fee included)`.slice(0, 160),
+      amountCents: totalCents,
       holdId: hold.id,
     });
 
@@ -1439,14 +1536,14 @@ export const routes: Record<string, Handler> = {
       const booked = await concierge.book({
         category: input.category, note: input.note, location: input.location,
         spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
-        assistantId,
+        assistantId, assistantPortalToken: portalToken,
         // The reveal link goes to the partner's own dispatch system so it can
         // reach the assistant — never back to the traveler's browser.
         ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
       });
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
-        location: input.location, spendCapCents: input.spendCapCents, status: "in-progress",
+        location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents, status: "in-progress",
         provider: booked.provider, providerTaskId: booked.taskId, assistantId,
         assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,
         createdAt: ctx.now().toISOString(),
@@ -1485,35 +1582,17 @@ export const routes: Record<string, Handler> = {
 
   /**
    * Marks a task done and settles what it actually cost. The partner network
-   * is the one source of truth for that number; until its receipt-reporting
-   * is wired, this trusts what is passed in and otherwise settles at the full
-   * cap — never less by guesswork, because inventing a lower number would be
-   * fabricating a discount nobody earned.
+   * is the one source of truth for the purchase amount; until its
+   * receipt-reporting is wired, this trusts what is passed in and otherwise
+   * settles at the full cap — never less by guesswork, because inventing a
+   * lower number would be fabricating a discount nobody earned. The service
+   * fee is never in question — it's owed in full for the time spent, whatever
+   * the purchase came to.
    */
   "POST /api/concierge/tasks/:taskId/complete": (ctx, p, body) => {
     const me = actor(ctx);
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
-    if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
-
-    const reported = Number(body?.billedCents);
-    const billed = Number.isFinite(reported) && reported >= 0
-      ? Math.min(Math.round(reported), task.spendCapCents)
-      : task.spendCapCents;
-
-    // The card is single-use already, but a done task should not leave a
-    // provider-side card record lingering active if it somehow went unused.
-    if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
-
-    ctx.store.update((db) => {
-      const target = db.holds.find((h) => h.id === task.holdId);
-      if (target) Object.assign(target, captureHold(target, billed, ctx.now()));
-    });
-    updateCharge(ctx, task.chargeId, (c) => settleCharge(c, ctx.now(), billed));
-    ctx.store.update((db) => {
-      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
-      t.status = "completed"; t.completedAt = ctx.now().toISOString(); t.billedCents = billed;
-    });
-    return { task: { ...task, status: "completed" as const, billedCents: billed } };
+    return { task: settleConciergeTask(ctx, task, body?.billedCents) };
   },
 
   /** Releases the hold on a task that never happened — a change of plan
@@ -1521,21 +1600,113 @@ export const routes: Record<string, Handler> = {
   "POST /api/concierge/tasks/:taskId/cancel": (ctx, p) => {
     const me = actor(ctx);
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
-    if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+    return { task: releaseConciergeTask(ctx, task, false) };
+  },
 
-    // A canceled task should not leave a live, spend-capped card behind —
-    // best-effort, the same as the failure path in the booking route.
-    if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
-    ctx.store.update((db) => {
-      const target = db.holds.find((h) => h.id === task.holdId);
-      if (target) Object.assign(target, releaseHold(target));
-    });
-    updateCharge(ctx, task.chargeId, (c) => failCharge(c, "Task canceled before completion.", ctx.now()));
+  /**
+   * The subscriber's own selfie for this task, shown to the assistant in the
+   * portal so they can confirm who they're meeting before they arrive. Never
+   * required to book; a missing one just means this side skipped it.
+   */
+  "POST /api/concierge/tasks/:taskId/selfie": (ctx, p, body) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    const photo = identityPhotoFrom(body, ctx.now());
     ctx.store.update((db) => {
       const t = db.conciergeTasks.find((x) => x.id === task.id)!;
-      t.status = "canceled";
+      t.identityPhotos = { ...t.identityPhotos, traveler: photo };
     });
-    return { task: { ...task, status: "canceled" as const } };
+    return { photo };
+  },
+
+  /* ---------------- assistant portal ---------------- */
+
+  /**
+   * Everything assigned to one assistant, in one call — the "organizer" this
+   * exists to be. Token-authenticated rather than session-authenticated: the
+   * caller is a partner-network professional with no Safehubby account, the
+   * same reasoning as the webhook below but for a person reading a screen
+   * instead of a server posting a message.
+   */
+  "GET /api/assistant/portal": (ctx, p) => {
+    const assistantId = requireAssistantToken(ctx, p.token);
+    const tasks = ctx.store.data.conciergeTasks
+      .filter((t) => t.assistantId === assistantId)
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((t) => ({ ...t, requesterName: nameOf(ctx, t.travelerId) }));
+    return { assistantId, tasks };
+  },
+
+  "GET /api/assistant/tasks/:taskId/voice-messages": (ctx, p) => {
+    const assistantId = requireAssistantToken(ctx, p.token);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    return { messages: voiceMessagesFor(ctx.store.data.voiceMessages, task.id) };
+  },
+
+  "POST /api/assistant/tasks/:taskId/voice-messages": (ctx, p, body) => {
+    const assistantId = requireAssistantToken(ctx, p.token);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    const message = recordVoiceMessage({
+      id: newId("vm"), taskId: task.id, travelerId: task.travelerId, sender: "assistant",
+      audioBase64: String(body?.audioBase64 ?? ""), mimeType: String(body?.mimeType ?? ""),
+      durationSeconds: Number(body?.durationSeconds), now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.voiceMessages.push(message));
+    return { id: message.id, createdAt: message.createdAt };
+  },
+
+  /** The assistant's own selfie, shown to the subscriber so they can confirm
+   *  who's arriving — the other half of the same disclosure. */
+  "POST /api/assistant/tasks/:taskId/selfie": (ctx, p, body) => {
+    const assistantId = requireAssistantToken(ctx, p.token);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    const photo = identityPhotoFrom(body, ctx.now());
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      t.identityPhotos = { ...t.identityPhotos, assistant: photo };
+    });
+    return { photo };
+  },
+
+  "POST /api/assistant/tasks/:taskId/complete": (ctx, p, body) => {
+    const assistantId = requireAssistantToken(ctx, p.token);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    return { task: settleConciergeTask(ctx, task, body?.billedCents) };
+  },
+
+  /** The assistant's own way to say no — see CONCIERGE_DISCLOSURES: they can
+   *  decline anything unsafe, illegal, or outside what they agreed to do. */
+  "POST /api/assistant/tasks/:taskId/decline": (ctx, p) => {
+    const assistantId = requireAssistantToken(ctx, p.token);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    return { task: releaseConciergeTask(ctx, task, true) };
+  },
+
+  /**
+   * The one route the partner network's own system calls into rather than a
+   * person on the portal — for an integration that posts messages
+   * server-to-server instead of using Safehubby's UI. Kept alongside the
+   * portal, not instead of it: a partner network is free to use either.
+   */
+  "POST /api/concierge/webhooks/voice-message": (ctx, _p, body) => {
+    requirePartnerNetwork(ctx);
+    const providerTaskId = String(body?.providerTaskId ?? "");
+    const task = ctx.store.data.conciergeTasks.find((t) => t.providerTaskId === providerTaskId);
+    if (!task) throw notFound("Task");
+
+    const message = recordVoiceMessage({
+      id: newId("vm"),
+      taskId: task.id,
+      travelerId: task.travelerId,
+      sender: "assistant",
+      audioBase64: String(body?.audioBase64 ?? ""),
+      mimeType: String(body?.mimeType ?? ""),
+      durationSeconds: Number(body?.durationSeconds),
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.voiceMessages.push(message));
+    return { id: message.id, received: true };
   },
 
   /**
@@ -1566,32 +1737,6 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
     return { messages: voiceMessagesFor(ctx.store.data.voiceMessages, task.id) };
-  },
-
-  /**
-   * Where an assistant's reply arrives — the partner network calls this, we
-   * never poll them for it. Keyed by their own task id, since that is the
-   * only id they have; matched back to our traveler and our task before the
-   * message is stored anywhere a traveler could read it.
-   */
-  "POST /api/concierge/webhooks/voice-message": (ctx, _p, body) => {
-    requirePartnerNetwork(ctx);
-    const providerTaskId = String(body?.providerTaskId ?? "");
-    const task = ctx.store.data.conciergeTasks.find((t) => t.providerTaskId === providerTaskId);
-    if (!task) throw notFound("Task");
-
-    const message = recordVoiceMessage({
-      id: newId("vm"),
-      taskId: task.id,
-      travelerId: task.travelerId,
-      sender: "assistant",
-      audioBase64: String(body?.audioBase64 ?? ""),
-      mimeType: String(body?.mimeType ?? ""),
-      durationSeconds: Number(body?.durationSeconds),
-      now: ctx.now(),
-    });
-    ctx.store.update((db) => void db.voiceMessages.push(message));
-    return { id: message.id, received: true };
   },
 
   /** Records that a ride was taken instead of driving; the booking happens in
