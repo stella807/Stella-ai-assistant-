@@ -270,6 +270,9 @@ export const api = {
     request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
   cancelConcierge: (taskId: string) =>
     request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/cancel`, {}),
+  disputeConcierge: (taskId: string, reason: string) =>
+    request<{ task: ConciergeTask; refundedCents: number; clawedBack: boolean }>(
+      "POST", `/api/concierge/tasks/${taskId}/dispute`, { reason }),
   sendVoiceMessage: (taskId: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
     request<{ id: string; createdAt: string }>("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip),
   voiceMessages: (taskId: string) =>
@@ -294,14 +297,32 @@ export const api = {
   /** Everything below is session-authenticated against that same cookie —
    *  no token in the URL, unlike the old magic-link portal. */
   assistantPortal: () =>
-    request<{ assistantId: string; mustChangePassword: boolean; tasks: (ConciergeTask & { requesterName: string })[] }>(
-      "GET", "/api/assistant/portal"),
+    request<{
+      assistantId: string; mustChangePassword: boolean; tasks: (ConciergeTask & { requesterName: string })[];
+      unpaidEarningsCents: number; outstandingClawbackCents: number;
+    }>("GET", "/api/assistant/portal"),
+  assistantSetPayoutDestination: (accountHolderName: string, routingNumber: string, accountNumber: string) =>
+    request<{ accountHolderName: string; accountNumberLast4: string }>(
+      "POST", "/api/assistant/payout-destination", { accountHolderName, routingNumber, accountNumber }),
+  assistantPayoutDestination: () =>
+    request<{ destination: { accountHolderName: string; accountNumberLast4: string } | null }>(
+      "GET", "/api/assistant/payout-destination"),
+  assistantPayouts: () =>
+    request<{
+      payouts: {
+        id: string; periodStart: string; periodEnd: string; totalCents: number;
+        status: "pending" | "paid" | "failed"; paidAt?: string; failureReason?: string;
+      }[];
+      unpaidEarningsCents: number; outstandingClawbackCents: number;
+    }>("GET", "/api/assistant/payouts"),
   assistantVoiceMessages: (taskId: string) =>
     request<{ messages: VoiceMessage[] }>("GET", `/api/assistant/tasks/${taskId}/voice-messages`),
   assistantSendVoiceMessage: (taskId: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
     request<{ id: string; createdAt: string }>("POST", `/api/assistant/tasks/${taskId}/voice-messages`, clip),
   assistantSendSelfie: (taskId: string, photo: { base64: string; mimeType: string }) =>
     request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/selfie`, photo),
+  assistantSendCompletionPhoto: (taskId: string, photo: { base64: string; mimeType: string }) =>
+    request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/completion-photo`, photo),
   assistantComplete: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
   assistantDecline: (taskId: string) =>

@@ -8,7 +8,7 @@ import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runPayroll, type Ctx } from "../src/routes.ts";
-import { authorizeExactHold, previousPayoutPeriod, recordCharge, resetFlags, setFlag } from "@safehubby/core";
+import { authorizeExactHold, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
 
 let server: ReturnType<typeof createApp>;
 let base: string;
@@ -1612,6 +1612,105 @@ describe("concierge selfies", () => {
   });
 });
 
+describe("concierge disputes — refund the customer, claw it back from the assistant", () => {
+  const assistantId = "asst_dispute1";
+  const spendCapCents = 2500;
+  const serviceFeeCents = 900;
+  let taskId = "";
+
+  beforeEach(async () => {
+    taskId = "ct_dispute1";
+    const totalCents = spendCapCents + serviceFeeCents;
+    const hold = authorizeExactHold({ id: "hold_dispute1", travelerId: samId, capCents: totalCents, now: clock });
+    const charge = recordCharge({
+      id: "ch_dispute1", travelerId: samId, kind: "concierge", platform: "web",
+      description: "Grab a burger", amountCents: totalCents, now: clock,
+    });
+    store.update((db) => {
+      db.holds.push(hold);
+      db.charges.push(charge);
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, status: "in-progress",
+        provider: "Nearby Aide", providerTaskId: "provider-dispute1", assistantId,
+        chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
+      });
+    });
+    // Mark it done for real, through the actual route, so the charge is
+    // genuinely settled the way a dispute would find it in practice.
+    await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam);
+  });
+
+  it("refuses to dispute a task that's still in progress", async () => {
+    const inProgressId = "ct_dispute_ip";
+    store.update((db) => {
+      db.conciergeTasks.push({
+        id: inProgressId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, status: "in-progress",
+        provider: "Nearby Aide", assistantId, chargeId: "ch_x", holdId: "hold_x", createdAt: clock.toISOString(),
+      });
+    });
+    const res = await call("POST", `/api/concierge/tasks/${inProgressId}/dispute`, { reason: "Never showed up" }, sam);
+    expect(res.status).toBe(400);
+  });
+
+  it("requires a real explanation", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/dispute`, { reason: "" }, sam);
+    expect(res.status).toBe(400);
+  });
+
+  it("refunds the full settled amount and opens a clawback against the assigned assistant", async () => {
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/dispute`, { reason: "Never showed up and kept the money" }, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.refundedCents).toBe(spendCapCents + serviceFeeCents);
+    expect(res.json.clawedBack).toBe(true);
+    expect(res.json.task.disputed).toBe(true);
+    expect(res.json.task.refundedCents).toBe(spendCapCents + serviceFeeCents);
+
+    const billing = (await call("GET", "/api/billing", undefined, sam)).json;
+    expect(billing.charges.find((c: any) => c.id === "ch_dispute1").status).toBe("refunded");
+
+    const [adjustment] = store.data.assistantAdjustments.filter((a) => a.assistantId === assistantId);
+    expect(adjustment.totalCents).toBe(spendCapCents + serviceFeeCents);
+    expect(adjustment.remainingCents).toBe(spendCapCents + serviceFeeCents);
+    expect(adjustment.taskId).toBe(taskId);
+  });
+
+  it("cannot be disputed twice", async () => {
+    await call("POST", `/api/concierge/tasks/${taskId}/dispute`, { reason: "Never showed up" }, sam);
+    const again = await call("POST", `/api/concierge/tasks/${taskId}/dispute`, { reason: "Still not showing up" }, sam);
+    expect(again.status).toBe(400);
+  });
+
+  it("still refunds a task with no assigned assistant, but invents no one to claw back from", async () => {
+    const noAssistantId = "ct_dispute_noone";
+    const totalCents = spendCapCents + serviceFeeCents;
+    const hold = authorizeExactHold({ id: "hold_dispute_noone", travelerId: samId, capCents: totalCents, now: clock });
+    const charge = recordCharge({
+      id: "ch_dispute_noone", travelerId: samId, kind: "concierge", platform: "web",
+      description: "Grab a burger", amountCents: totalCents, now: clock,
+    });
+    store.update((db) => {
+      db.holds.push(hold);
+      db.charges.push(settleCharge(charge, clock, totalCents));
+      db.conciergeTasks.push({
+        id: noAssistantId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, status: "completed",
+        provider: "Nearby Aide", chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
+        completedAt: clock.toISOString(),
+      });
+    });
+    const res = await call("POST", `/api/concierge/tasks/${noAssistantId}/dispute`, { reason: "Never showed up" }, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.clawedBack).toBe(false);
+    expect(store.data.assistantAdjustments.filter((a) => a.taskId === noAssistantId)).toEqual([]);
+  });
+
+  it("will not let a stranger dispute someone else's task", async () => {
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/dispute`, { reason: "Never showed up" }, jordan)).status).toBe(404);
+  });
+});
+
 describe("employee sign-in", () => {
   const assistantId = "asst-login1";
 
@@ -1749,6 +1848,17 @@ describe("assistant portal", () => {
     expect(res.json.task.billedCents).toBe(1000);
   });
 
+  it("lets the assistant attach a completion photo, visible on the traveler's side, separate from the identity selfies", async () => {
+    const photo = { base64: Buffer.from("the delivered burger").toString("base64"), mimeType: "image/jpeg" };
+    const res = await call("POST", `/api/assistant/tasks/${taskId}/completion-photo`, photo, null, cookie);
+    expect(res.status).toBe(200);
+
+    const tasks = (await call("GET", "/api/concierge/tasks", undefined, sam)).json.tasks;
+    const mine = tasks.find((t: any) => t.id === taskId);
+    expect(mine.completionPhoto.mimeType).toBe("image/jpeg");
+    expect(mine.identityPhotos).toBeUndefined();
+  });
+
   it("lets the assistant decline, distinct from a subscriber-initiated cancel", async () => {
     const res = await call("POST", `/api/assistant/tasks/${taskId}/decline`, {}, null, cookie);
     expect(res.status).toBe(200);
@@ -1880,6 +1990,54 @@ describe("biweekly payroll", () => {
     expect(res.json.payouts[0].status).toBe("failed");
     // Still unpaid — a failed attempt never resolves what's actually owed.
     expect(res.json.unpaidEarningsCents).toBe(900);
+  });
+
+  it("settles with no transfer, no destination needed, when a clawback exactly consumes the period's earnings", async () => {
+    store.update((db) => {
+      db.assistantAdjustments.push({
+        id: "adj_exact", assistantId, taskId: "ct_other_dispute", reason: "Customer dispute",
+        totalCents: 900, remainingCents: 900, createdAt: clock.toISOString(),
+      });
+    });
+    const result = await runPayroll(ctx);
+    expect(result).toEqual({ paid: 1, failed: 0, totalCents: 0 });
+    const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+    expect(payout.status).toBe("paid");
+    expect(payout.totalCents).toBe(0);
+    expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBe(payout.id);
+    expect(store.data.assistantAdjustments.find((a) => a.id === "adj_exact")?.remainingCents).toBe(0);
+  });
+
+  it("carries the rest of a clawback forward when it's bigger than one period's earnings", async () => {
+    store.update((db) => {
+      db.assistantAdjustments.push({
+        id: "adj_big", assistantId, taskId: "ct_other_dispute", reason: "Customer dispute",
+        totalCents: 1500, remainingCents: 1500, createdAt: clock.toISOString(),
+      });
+    });
+    const result = await runPayroll(ctx);
+    expect(result).toEqual({ paid: 1, failed: 0, totalCents: 0 });
+    expect(store.data.assistantAdjustments.find((a) => a.id === "adj_big")?.remainingCents).toBe(600);
+    // The task's earnings were legitimately spent against the debt, so it's
+    // accounted for even though no money moved this period.
+    expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeTruthy();
+  });
+
+  it("nets a partial clawback against earnings before attempting a real transfer, and never reduces the debt on a failed attempt", async () => {
+    store.update((db) => {
+      db.assistantAdjustments.push({
+        id: "adj_partial", assistantId, taskId: "ct_other_dispute", reason: "Customer dispute",
+        totalCents: 300, remainingCents: 300, createdAt: clock.toISOString(),
+      });
+    });
+    const result = await runPayroll(ctx);
+    expect(result.failed).toBe(1); // no payout destination on file, so the net 600 can't actually be sent
+    const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+    expect(payout.totalCents).toBe(600);
+    // Nothing was actually resolved, so the debt is untouched and the task
+    // stays eligible for a retry next run.
+    expect(store.data.assistantAdjustments.find((a) => a.id === "adj_partial")?.remainingCents).toBe(300);
+    expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeUndefined();
   });
 
   it("requires the admin key to trigger a run manually", async () => {

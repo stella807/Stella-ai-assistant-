@@ -5,7 +5,7 @@ import {
   MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   QUICK_TASK_SERVICE_FEE_CENTS, annualEstimateCentsFor, conciergeCategoryLabel, describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
-  totalChargeCents, validateConciergeRequest, validateIdentityPhoto,
+  totalChargeCents, validateConciergeRequest, validateDisputeReason, validateIdentityPhoto,
 } from "../src/concierge.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
 
@@ -196,6 +196,22 @@ describe("pay-rate calculator — reference info, not a contract", () => {
     expect(annualEstimateCentsFor("grab-something", -5)).toBe(0);
     expect(annualEstimateCentsFor("grab-something", 999))
       .toBe(serviceFeeFor("grab-something") * MAX_TASKS_PER_WEEK_ESTIMATE * 52);
+  });
+});
+
+describe("validateDisputeReason", () => {
+  it("accepts a real explanation", () => {
+    expect(() => validateDisputeReason("The assistant never showed up and kept the money.")).not.toThrow();
+  });
+
+  it("rejects a blank claim", () => {
+    expect(() => validateDisputeReason("")).toThrow(/describe what happened/i);
+    expect(() => validateDisputeReason("   ")).toThrow(/describe what happened/i);
+  });
+
+  it("bounds the length", () => {
+    expect(() => validateDisputeReason("x".repeat(281))).toThrow(/under 280 characters/i);
+    expect(() => validateDisputeReason("x".repeat(280))).not.toThrow();
   });
 });
 

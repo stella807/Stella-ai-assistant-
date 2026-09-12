@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  PAYROLL_PERIOD_DAYS, earningsFor, payoutPeriodFor, previousPayoutPeriod, totalEarningsCents,
-  unpaidEarningsCents, validatePayoutDestination,
+  PAYROLL_PERIOD_DAYS, applyAdjustments, earningsFor, outstandingClawbackCents, payoutPeriodFor,
+  previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
 } from "../src/payroll.ts";
+import type { AssistantAdjustment } from "../src/payroll.ts";
 import type { ConciergeTask } from "../src/concierge.ts";
 
 const task = (over: Partial<ConciergeTask> = {}): ConciergeTask => ({
@@ -117,5 +118,59 @@ describe("validatePayoutDestination", () => {
   it("bounds the account number to a plausible length", () => {
     expect(() => validatePayoutDestination(destination({ accountNumber: "12" }))).toThrow(/account number/i);
     expect(() => validatePayoutDestination(destination({ accountNumber: "1".repeat(20) }))).toThrow(/account number/i);
+  });
+});
+
+const adjustment = (over: Partial<AssistantAdjustment> = {}): AssistantAdjustment => ({
+  id: "adj1", assistantId: "asst1", taskId: "ct_disputed", reason: "customer dispute",
+  totalCents: 2500, remainingCents: 2500, createdAt: "2024-01-01T00:00:00.000Z",
+  ...over,
+});
+
+describe("applyAdjustments — clawing back a dispute from future pay", () => {
+  it("pays out everything when there is no debt", () => {
+    expect(applyAdjustments(900, [])).toEqual({ payableCents: 900, consumed: [] });
+  });
+
+  it("consumes debt before anything is paid out", () => {
+    const result = applyAdjustments(900, [adjustment({ remainingCents: 500 })]);
+    expect(result.payableCents).toBe(400);
+    expect(result.consumed).toEqual([{ id: "adj1", amountCents: 500 }]);
+  });
+
+  it("pays nothing, and only partially consumes the debt, when earnings are less than what's owed", () => {
+    const result = applyAdjustments(300, [adjustment({ remainingCents: 2500 })]);
+    expect(result.payableCents).toBe(0);
+    expect(result.consumed).toEqual([{ id: "adj1", amountCents: 300 }]);
+  });
+
+  it("applies the oldest debt first when there is more than one", () => {
+    const older = adjustment({ id: "adj-old", remainingCents: 200, createdAt: "2024-01-01T00:00:00.000Z" });
+    const newer = adjustment({ id: "adj-new", remainingCents: 200, createdAt: "2024-02-01T00:00:00.000Z" });
+    const result = applyAdjustments(300, [newer, older]);
+    expect(result.consumed).toEqual([
+      { id: "adj-old", amountCents: 200 },
+      { id: "adj-new", amountCents: 100 },
+    ]);
+    expect(result.payableCents).toBe(0);
+  });
+
+  it("ignores an adjustment that has already been fully applied", () => {
+    const result = applyAdjustments(900, [adjustment({ remainingCents: 0 })]);
+    expect(result).toEqual({ payableCents: 900, consumed: [] });
+  });
+});
+
+describe("outstandingClawbackCents", () => {
+  it("sums every open adjustment's remaining balance", () => {
+    expect(outstandingClawbackCents([
+      adjustment({ id: "a", remainingCents: 500 }),
+      adjustment({ id: "b", remainingCents: 300 }),
+      adjustment({ id: "c", remainingCents: 0 }),
+    ])).toBe(800);
+  });
+
+  it("is zero with nothing outstanding", () => {
+    expect(outstandingClawbackCents([])).toBe(0);
   });
 });

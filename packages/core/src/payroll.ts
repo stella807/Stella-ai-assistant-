@@ -139,3 +139,58 @@ export function validatePayoutDestination(input: PayoutDestinationInput): void {
   if (!/^\d{9}$/.test(input.routingNumber)) throw new Error("Routing number must be exactly 9 digits.");
   if (!/^\d{4,17}$/.test(input.accountNumber)) throw new Error("That account number doesn't look right.");
 }
+
+/**
+ * A clawback against an assistant's future pay — created when a customer's
+ * dispute over a stolen or never-delivered task is upheld and refunded. The
+ * loss is recovered from the assistant who didn't deliver rather than
+ * absorbed by Safehubby, per policy: see `disputeConciergeTask` in
+ * routes.ts, which creates one of these alongside the customer's refund.
+ *
+ * `remainingCents` shrinks as later payroll runs apply new earnings against
+ * it (`applyAdjustments`) until it reaches zero; `totalCents` is the
+ * original amount, kept for the record even once it's fully applied. There
+ * is deliberately no "credit" direction here yet — only a debt an assistant
+ * can owe, never a bonus this module invents on its own.
+ */
+export interface AssistantAdjustment {
+  id: string;
+  assistantId: string;
+  taskId: string;
+  reason: string;
+  totalCents: number;
+  remainingCents: number;
+  createdAt: string;
+}
+
+/**
+ * Applies what an assistant earned this payroll run against any outstanding
+ * clawback debt before anything is actually paid out — oldest debt first,
+ * so a dispute from months ago is settled before a more recent one. Pure:
+ * returns what to actually pay and how much of each adjustment to consume,
+ * so the caller (`runPayroll` in routes.ts) decides how to persist it
+ * rather than this function reaching into a database.
+ */
+export function applyAdjustments(
+  earnedCents: number, adjustments: AssistantAdjustment[],
+): { payableCents: number; consumed: { id: string; amountCents: number }[] } {
+  let remaining = earnedCents;
+  const consumed: { id: string; amountCents: number }[] = [];
+  const oldestFirst = [...adjustments]
+    .filter((a) => a.remainingCents > 0)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const adjustment of oldestFirst) {
+    if (remaining <= 0) break;
+    const amountCents = Math.min(remaining, adjustment.remainingCents);
+    consumed.push({ id: adjustment.id, amountCents });
+    remaining -= amountCents;
+  }
+  return { payableCents: remaining, consumed };
+}
+
+/** The total still owed back, across every open adjustment — what the
+ *  assistant's portal shows so a clawback is never a silent surprise the
+ *  next time they check their pay. */
+export function outstandingClawbackCents(adjustments: AssistantAdjustment[]): number {
+  return adjustments.reduce((sum, a) => sum + a.remainingCents, 0);
+}

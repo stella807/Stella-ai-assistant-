@@ -44,6 +44,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [disputing, setDisputing] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
   // The live handle lives in a ref, not state: `record()` below both starts
   // and stops the same recording, and a `useEffect` keyed on a state value
   // that changes as part of that same flow would tear the recorder down out
@@ -132,6 +134,22 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     }
   };
 
+  const submitDispute = async () => {
+    if (!task) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.disputeConcierge(task.id, disputeReason);
+      setTask(res.task);
+      setDisputing(false);
+      setDisputeReason("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not file that report");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={assistant.name}>
@@ -208,6 +226,45 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
             <p className="tiny muted">
               A selfie from each of you is shared with the other, so you can confirm who you're meeting.
             </p>
+
+            {task.status === "completed" && (
+              <div className="stack" style={{ gap: 6 }}>
+                {task.completionPhoto ? (
+                  <>
+                    <p className="tiny muted">Proof of completion, from your assistant:</p>
+                    <img className="selfie-thumb" alt="What your assistant delivered" style={{ width: 96, height: 96 }}
+                      src={`data:${task.completionPhoto.mimeType};base64,${task.completionPhoto.base64}`} />
+                  </>
+                ) : (
+                  <p className="tiny muted">Your assistant didn't attach a completion photo for this one.</p>
+                )}
+
+                {task.disputed ? (
+                  <p className="tiny muted">
+                    Reported and refunded — {money(task.refundedCents ?? 0)} back to your card.
+                  </p>
+                ) : disputing ? (
+                  <>
+                    <div className="field">
+                      <label htmlFor="dispute-reason">What happened?</label>
+                      <textarea id="dispute-reason" maxLength={280} rows={2} value={disputeReason}
+                        onChange={(e) => setDisputeReason(e.target.value)}
+                        placeholder="Never showed up, and I was still charged." />
+                    </div>
+                    <div className="row">
+                      <button className="btn btn-sm grow" disabled={busy} onClick={() => setDisputing(false)}>Cancel</button>
+                      <button className="btn btn-sm btn-primary grow" disabled={busy || !disputeReason.trim()} onClick={submitDispute}>
+                        Submit report
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setDisputing(true)}>
+                    Report a problem — never showed up or kept the money
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="voice-thread" aria-live="polite">
               {messages.length === 0 && <p className="tiny muted">No messages yet.</p>}

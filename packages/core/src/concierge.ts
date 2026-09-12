@@ -229,6 +229,20 @@ export function conciergeCategoryLabel(id: ConciergeCategory): string {
   return CONCIERGE_CATEGORIES.find((c) => c.id === id)?.label ?? id;
 }
 
+const MAX_DISPUTE_REASON_LENGTH = 280;
+
+/** What a customer has to say before a dispute is upheld and refunded — see
+ *  `disputeConciergeTask` in routes.ts. Kept to the same shape as
+ *  `validateConciergeRequest`'s note check: a real explanation, not a blank
+ *  claim, but no attempt here to judge whether the claim is true — that is
+ *  a review-process question, not a string-validation one. */
+export function validateDisputeReason(reason: string): void {
+  if (!reason.trim()) throw new Error("Describe what happened so this can be reviewed.");
+  if (reason.length > MAX_DISPUTE_REASON_LENGTH) {
+    throw new Error(`Keep the explanation under ${MAX_DISPUTE_REASON_LENGTH} characters.`);
+  }
+}
+
 /**
  * Shown before every concierge task is dispatched, not just the first one:
  * the person being sent is a stranger, however vetted, and the whole safety
@@ -277,6 +291,22 @@ export interface ConciergeTask {
    *  see `validateIdentityPhoto`. Neither is required to book or to work a
    *  task; a missing one just means that side skipped it. */
   identityPhotos?: { traveler?: IdentityPhoto; assistant?: IdentityPhoto };
+  /** The assistant's own photo of the actual delivered item or completed
+   *  service — the burger handed over, the friend checked on, the errand
+   *  actually run — attached when they mark the task done. Separate from
+   *  the identity selfies above: those confirm *who* met whom; this confirms
+   *  *what* happened. Optional, the same as the selfies, and validated the
+   *  same way (`validateIdentityPhoto` doesn't care what the photo is of). */
+  completionPhoto?: IdentityPhoto;
+  /** Set once a customer's dispute over this task (never delivered, or the
+   *  assistant kept the money) has been upheld and refunded — see
+   *  `disputeConciergeTask` in routes.ts. `refundedCents` is what came back
+   *  to the customer; the same amount becomes an `AssistantAdjustment`
+   *  against that assistant's future pay, per policy: the loss is recovered
+   *  from the assistant who didn't deliver, not absorbed by Safehubby. */
+  disputed?: boolean;
+  disputeReason?: string;
+  refundedCents?: number;
   chargeId: string;
   holdId: string;
   createdAt: string;

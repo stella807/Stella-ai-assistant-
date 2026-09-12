@@ -20,10 +20,11 @@ import {
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, totalChargeCents,
-  isQuickTaskEligible, validateIdentityPhoto,
+  isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
+  applyAdjustments, outstandingClawbackCents,
   isInLaunchMarket, launchMarketNames,
-  buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
+  buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
   devicesFor, registerDevice, upsertDevice,
@@ -327,13 +328,40 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
     const earnings = earningsFor(ctx.store.data.conciergeTasks, assistantId, period);
     if (earnings.length === 0) continue;
 
-    const amountCents = totalEarningsCents(earnings);
+    const earnedCents = totalEarningsCents(earnings);
     const taskIds = earnings.map((e) => e.taskId);
+    // Any open clawback (see AssistantAdjustment, disputeConciergeTask) comes
+    // out of this period's earnings before a cent is actually paid out.
+    const openAdjustments = ctx.store.data.assistantAdjustments.filter(
+      (a) => a.assistantId === assistantId && a.remainingCents > 0,
+    );
+    const { payableCents, consumed } = applyAdjustments(earnedCents, openAdjustments);
+
     const payoutId = newId("payout");
     const base = {
       id: payoutId, assistantId, periodStart: period.start.toISOString(), periodEnd: period.end.toISOString(),
-      taskIds, totalCents: amountCents, createdAt: ctx.now().toISOString(),
+      taskIds, totalCents: payableCents, createdAt: ctx.now().toISOString(),
     };
+    const applyConsumed = (db: typeof ctx.store.data) => {
+      for (const c of consumed) {
+        const adj = db.assistantAdjustments.find((a) => a.id === c.id);
+        if (adj) adj.remainingCents -= c.amountCents;
+      }
+    };
+
+    // Fully or partially absorbed by an outstanding clawback — nothing to
+    // transfer, so this settles immediately with no payout provider involved.
+    // The underlying tasks' earnings are still spent, just against debt
+    // instead of a bank transfer, so they're tagged the same as a real payout.
+    if (payableCents === 0) {
+      ctx.store.update((db) => {
+        db.payouts.push({ ...base, status: "paid", paidAt: ctx.now().toISOString() });
+        applyConsumed(db);
+        for (const t of db.conciergeTasks) if (taskIds.includes(t.id)) t.payoutId = payoutId;
+      });
+      paid += 1;
+      continue;
+    }
 
     const destination = ctx.store.data.assistantPayoutDestinations[assistantId];
     const reason = !destination
@@ -351,14 +379,15 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
     try {
       const recipient = openPayoutDestination(destination!, cipher!);
       const result = await revolutPayouts.payOut({
-        amountCents, currency: "USD", recipient, reference: payoutId,
+        amountCents: payableCents, currency: "USD", recipient, reference: payoutId,
       });
       ctx.store.update((db) => {
         db.payouts.push({ ...base, status: "paid", paidAt: ctx.now().toISOString(), providerReference: result.payoutId });
+        applyConsumed(db);
         for (const t of db.conciergeTasks) if (taskIds.includes(t.id)) t.payoutId = payoutId;
       });
       paid += 1;
-      totalCents += amountCents;
+      totalCents += payableCents;
     } catch (err) {
       const failureReason = err instanceof Error ? err.message : "Payout failed.";
       ctx.store.update((db) => void db.payouts.push({ ...base, status: "failed", failureReason }));
@@ -422,6 +451,46 @@ function releaseConciergeTask(ctx: Ctx, task: ConciergeTask, declinedByAssistant
     if (declinedByAssistant) t.declinedByAssistant = true;
   });
   return { ...task, status: "canceled" as const, ...(declinedByAssistant ? { declinedByAssistant: true } : {}) };
+}
+
+/**
+ * A customer's dispute over a completed task — never delivered, or the
+ * assistant kept the money — upheld and refunded. Policy: the loss comes
+ * out of the assistant's own future pay, not Safehubby's margin, so this
+ * both refunds the charge in full and opens an `AssistantAdjustment` for
+ * the same amount against whichever assistant was assigned. A task with no
+ * assistant on record (the network's own generic dispatch, no specific
+ * person picked) still gets refunded — there's simply no one to claw the
+ * loss back from, which is said in the response rather than silently
+ * skipped.
+ */
+function disputeConciergeTask(ctx: Ctx, task: ConciergeTask, reason: string): { task: ConciergeTask; refundedCents: number; clawedBack: boolean } {
+  if (task.status !== "completed") {
+    throw new HttpError(400, "Only a completed task can be disputed — cancel one still in progress instead.");
+  }
+  if (task.disputed) throw new HttpError(400, "This task has already been disputed.");
+  validateDisputeReason(reason);
+
+  const charge = ctx.store.data.charges.find((c) => c.id === task.chargeId);
+  if (!charge || charge.status !== "settled") {
+    throw new HttpError(400, "This task's charge can't be refunded — it may already be refunded elsewhere.");
+  }
+  const refundedCents = charge.amountCents;
+
+  updateCharge(ctx, task.chargeId, (c) => refundCharge(c, ctx.now()));
+  ctx.store.update((db) => {
+    const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+    t.disputed = true; t.disputeReason = reason; t.refundedCents = refundedCents;
+    if (t.assistantId) {
+      db.assistantAdjustments.push({
+        id: newId("adj"), assistantId: t.assistantId, taskId: t.id, reason: `Customer dispute: ${reason}`.slice(0, 300),
+        totalCents: refundedCents, remainingCents: refundedCents, createdAt: ctx.now().toISOString(),
+      });
+    }
+  });
+
+  const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
+  return { task: updated, refundedCents, clawedBack: Boolean(task.assistantId) };
 }
 
 /** Reads and validates a captured selfie from an untrusted body. */
@@ -1753,6 +1822,21 @@ export const routes: Record<string, Handler> = {
     return { photo };
   },
 
+  /**
+   * Reports theft or non-delivery on a task the assistant already marked
+   * done. Refunds the customer in full and, per policy, claws the same
+   * amount back from the assistant's own future pay rather than Safehubby
+   * absorbing it — see `disputeConciergeTask`. Actioned immediately on the
+   * customer's word, the same trust model `settleConciergeTask`'s own
+   * `billedCents` already runs on; a review step before payout would be the
+   * natural next hardening if this is abused.
+   */
+  "POST /api/concierge/tasks/:taskId/dispute": (ctx, p, body) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    return disputeConciergeTask(ctx, task, String(body?.reason ?? ""));
+  },
+
   /* ---------------- employee portal ---------------- */
   // A distinct area from everything above: its own sign-in, its own session
   // cookie, its own identity space. A traveler's session never reaches here
@@ -1834,6 +1918,9 @@ export const routes: Record<string, Handler> = {
     return {
       assistantId, mustChangePassword, tasks,
       unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId),
+      outstandingClawbackCents: outstandingClawbackCents(
+        ctx.store.data.assistantAdjustments.filter((a) => a.assistantId === assistantId),
+      ),
     };
   },
 
@@ -1878,7 +1965,12 @@ export const routes: Record<string, Handler> = {
       .filter((p) => p.assistantId === assistantId)
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return { payouts, unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId) };
+    return {
+      payouts, unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId),
+      outstandingClawbackCents: outstandingClawbackCents(
+        ctx.store.data.assistantAdjustments.filter((a) => a.assistantId === assistantId),
+      ),
+    };
   },
 
   "GET /api/assistant/tasks/:taskId/voice-messages": (ctx, p) => {
@@ -1908,6 +2000,24 @@ export const routes: Record<string, Handler> = {
     ctx.store.update((db) => {
       const t = db.conciergeTasks.find((x) => x.id === task.id)!;
       t.identityPhotos = { ...t.identityPhotos, assistant: photo };
+    });
+    return { photo };
+  },
+
+  /**
+   * Proof of what actually happened — the delivered item, the friend
+   * checked on, the errand actually run — separate from the identity
+   * selfies above, which only confirm who met whom. Optional, same as
+   * those; attaching one before marking a task done gives the customer
+   * something concrete rather than just the assistant's word.
+   */
+  "POST /api/assistant/tasks/:taskId/completion-photo": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    const photo = identityPhotoFrom(body, ctx.now());
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      t.completionPhoto = photo;
     });
     return { photo };
   },

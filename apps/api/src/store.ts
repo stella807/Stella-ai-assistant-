@@ -1,9 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
-  Alert, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew, DriverApplication,
-  GameRound, NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant, Subscription,
-  VoiceMessage,
+  Alert, AssistantAdjustment, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew,
+  DriverApplication, GameRound, NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice,
+  ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
 
@@ -101,6 +101,9 @@ export interface Db {
   /** The record of every biweekly payout actually sent — see payroll.ts and
    *  routes.ts's runPayroll. */
   payouts: AssistantPayout[];
+  /** Clawbacks against an assistant's future pay — see AssistantAdjustment
+   *  in payroll.ts and disputeConciergeTask in routes.ts. */
+  assistantAdjustments: AssistantAdjustment[];
   driverApplications: DriverApplication[];
   pushDevices: PushDevice[];
 }
@@ -109,7 +112,7 @@ const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
   paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], voiceMessages: [],
   assistantCredentials: {}, assistantSessions: [],
-  assistantPayoutDestinations: {}, payouts: [],
+  assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], pushDevices: [],
 };
 

@@ -215,12 +215,148 @@ function PayRates({ onBack }: { onBack: () => void }) {
   );
 }
 
+/**
+ * Where a biweekly payout is actually sent, plus the record of every one
+ * already paid. The bank account is entered here, by the assistant, never
+ * by Safehubby staff — see docs/concierge.md. An outstanding clawback (see
+ * `AssistantAdjustment` in payroll.ts) is shown plainly, since it directly
+ * reduces the next payout rather than being a silent deduction.
+ */
+function PayoutSettings({ onBack }: { onBack: () => void }) {
+  const [destination, setDestination] = useState<{ accountHolderName: string; accountNumberLast4: string } | null | undefined>(undefined);
+  const [payouts, setPayouts] = useState<{
+    id: string; periodStart: string; periodEnd: string; totalCents: number;
+    status: "pending" | "paid" | "failed"; paidAt?: string; failureReason?: string;
+  }[]>([]);
+  const [unpaid, setUnpaid] = useState(0);
+  const [owed, setOwed] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [accountHolderName, setAccountHolderName] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    api.assistantPayoutDestination().then((r) => setDestination(r.destination)).catch(() => setDestination(null));
+    api.assistantPayouts().then((r) => {
+      setPayouts(r.payouts);
+      setUnpaid(r.unpaidEarningsCents);
+      setOwed(r.outstandingClawbackCents);
+    }).catch(() => {});
+  };
+  useEffect(load, []);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.assistantSetPayoutDestination(accountHolderName.trim(), routingNumber.trim(), accountNumber.trim());
+      setDestination(res);
+      setEditing(false);
+      setAccountHolderName(""); setRoutingNumber(""); setAccountNumber("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save that bank account");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="stack">
+      <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>← All tasks</button>
+
+      <section className="card stack">
+        <h3>Get paid</h3>
+        <p className="tiny muted">
+          Paid biweekly, straight to this account, for every task you've completed since your last payout.
+        </p>
+        <div className="row-between tiny muted">
+          <span>Earned, not yet paid</span>
+          <span className="charge-amount">{money(unpaid)}</span>
+        </div>
+        {owed > 0 && (
+          <div className="row-between tiny muted">
+            <span>Owed back from a customer dispute</span>
+            <span className="charge-amount">−{money(owed)}</span>
+          </div>
+        )}
+        {owed > 0 && (
+          <p className="tiny muted">
+            A customer's dispute over an undelivered task was upheld, and that amount comes out of your next
+            payout(s) before anything is sent — see your task history for which one.
+          </p>
+        )}
+
+        {!editing && destination && (
+          <div className="row-between">
+            <span className="small">{destination.accountHolderName} — ending in {destination.accountNumberLast4}</span>
+            <button className="btn btn-sm btn-ghost" onClick={() => setEditing(true)}>Change</button>
+          </div>
+        )}
+        {!editing && destination === null && (
+          <button className="btn btn-block" onClick={() => setEditing(true)}>Add a bank account</button>
+        )}
+        {editing && (
+          <>
+            <div className="field">
+              <label htmlFor="pd-name">Name on the account</label>
+              <input id="pd-name" value={accountHolderName} onChange={(e) => setAccountHolderName(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="pd-routing">Routing number</label>
+              <input id="pd-routing" inputMode="numeric" maxLength={9} value={routingNumber}
+                onChange={(e) => setRoutingNumber(e.target.value.replace(/\D/g, ""))} />
+            </div>
+            <div className="field">
+              <label htmlFor="pd-account">Account number</label>
+              <input id="pd-account" inputMode="numeric" value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))} />
+            </div>
+            <div className="row">
+              <button className="btn grow" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn btn-primary grow"
+                disabled={busy || !accountHolderName.trim() || routingNumber.length !== 9 || accountNumber.length < 4}
+                onClick={save}>
+                Save
+              </button>
+            </div>
+          </>
+        )}
+        {error && <div className="banner banner-danger">{error}</div>}
+      </section>
+
+      <section className="card stack">
+        <h3>Payout history</h3>
+        {payouts.length === 0 && <p className="tiny muted">Nothing paid out yet.</p>}
+        {payouts.length > 0 && (
+          <ul className="timeline">
+            {payouts.map((p) => (
+              <li key={p.id}>
+                <div className="row-between">
+                  <span className="small">
+                    {new Date(p.periodStart).toLocaleDateString()} – {new Date(p.periodEnd).toLocaleDateString()}
+                  </span>
+                  <strong className="charge-amount">{money(p.totalCents)}</strong>
+                </div>
+                <span className={`pill${p.status === "paid" ? " pill-safe" : ""}`}>{p.status}</span>
+                {p.status === "failed" && p.failureReason && <p className="tiny muted">{p.failureReason}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
   const [assistantId, setAssistantId] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [tasks, setTasks] = useState<PortalTask[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPay, setShowPay] = useState(false);
+  const [showPayouts, setShowPayouts] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -257,11 +393,14 @@ function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
         <TaskDetail task={selected} onBack={() => setSelectedId(null)} onChanged={load} />
       ) : showPay ? (
         <PayRates onBack={() => setShowPay(false)} />
+      ) : showPayouts ? (
+        <PayoutSettings onBack={() => setShowPayouts(false)} />
       ) : (
         <div className="stack">
-          <button className="btn btn-sm" style={{ alignSelf: "flex-start" }} onClick={() => setShowPay(true)}>
-            See pay rates
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn-sm" onClick={() => setShowPay(true)}>See pay rates</button>
+            <button className="btn btn-sm" onClick={() => setShowPayouts(true)}>Get paid</button>
+          </div>
 
           {active.length === 0 && past.length === 0 && (
             <p className="small muted">Nothing assigned to you right now.</p>
@@ -314,6 +453,7 @@ function TaskDetail({ task, onBack, onChanged }: {
   const activeRecording = useRef<ActiveRecording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selfieInput = useRef<HTMLInputElement>(null);
+  const completionInput = useRef<HTMLInputElement>(null);
 
   const loadMessages = () => api.assistantVoiceMessages(task.id).then((r) => setMessages(r.messages)).catch(() => {});
   useEffect(() => { loadMessages(); }, [task.id]);
@@ -363,6 +503,22 @@ function TaskDetail({ task, onBack, onChanged }: {
     } finally {
       setBusy(false);
       if (selfieInput.current) selfieInput.current.value = "";
+    }
+  };
+
+  const captureCompletionPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const photo = await readFileAsBase64(file);
+      await api.assistantSendCompletionPhoto(task.id, photo);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save that photo");
+    } finally {
+      setBusy(false);
+      if (completionInput.current) completionInput.current.value = "";
     }
   };
 
@@ -476,6 +632,26 @@ function TaskDetail({ task, onBack, onChanged }: {
             <input id="billed" type="number" inputMode="decimal" placeholder={(task.spendCapCents / 100).toFixed(2)}
               value={billed} onChange={(e) => setBilled(e.target.value)} />
           </div>
+          <div className="row-between" style={{ alignItems: "center" }}>
+            <div className="row" style={{ gap: 8, alignItems: "center" }}>
+              {task.completionPhoto ? (
+                <img className="selfie-thumb" alt="What you delivered"
+                  src={`data:${task.completionPhoto.mimeType};base64,${task.completionPhoto.base64}`} />
+              ) : (
+                <span className="tiny muted">No proof-of-completion photo yet</span>
+              )}
+              <button className="btn btn-sm" disabled={busy} onClick={() => completionInput.current?.click()}>
+                {task.completionPhoto ? "Retake photo" : "Add a photo"}
+              </button>
+              <input ref={completionInput} type="file" accept="image/*" capture="environment" hidden
+                onChange={(e) => captureCompletionPhoto(e.target.files?.[0])} />
+            </div>
+          </div>
+          <p className="tiny muted">
+            A photo of what you actually delivered — the item, or the person you checked on — shown to{" "}
+            {task.requesterName} as proof. Optional, but the honest way to close out a task with no room
+            for a dispute over whether it happened.
+          </p>
           <button className="btn btn-primary btn-block" disabled={busy} onClick={complete}>Mark done</button>
           <button className="btn btn-ghost btn-block" disabled={busy} onClick={decline}>
             Decline — unsafe, illegal, or not what I agreed to
