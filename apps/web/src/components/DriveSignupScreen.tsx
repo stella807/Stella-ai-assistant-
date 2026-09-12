@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DRIVER_RATE_CARD, driverEarningsCents } from "@safehubby/core";
 import { api, type DriverApplicationInput } from "../api.ts";
 
 /**
@@ -108,6 +109,26 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
           {tier === "secure-transport"
             ? "For licensed protective-services, military, or law-enforcement professionals. Requires a verifiable protective-services licence in addition to everything below."
             : "A driving licence, a roadworthy vehicle, and a background check."}
+        </p>
+      </section>
+
+      <section className="card">
+        <h3>Pay</h3>
+        <p className="small">
+          ${(DRIVER_RATE_CARD[tier].baseCents / 100).toFixed(2)} per trip, plus{" "}
+          ${(DRIVER_RATE_CARD[tier].perMileCents / 100).toFixed(2)}/mile and{" "}
+          ${(DRIVER_RATE_CARD[tier].perMinuteCents / 100).toFixed(2)}/minute — a base, plus what the trip
+          actually costs in distance and time, not one flat number for every trip length.
+        </p>
+        <p className="tiny muted">
+          Example: a 5-mile, 15-minute trip pays about ${(driverEarningsCents(tier, 5, 15) / 100).toFixed(2)}.
+          {tier === "secure-transport"
+            ? " Higher than standard by design — it reflects the real, ongoing cost of a licensed protective-services driver's insurance and training, not a premium for the job sounding riskier."
+            : ""}
+        </p>
+        <p className="tiny muted">
+          Nobody is dispatched from this list yet — see the note after you apply. This is the rate that
+          will apply once driving for Safehubby is live, published now rather than decided later.
         </p>
       </section>
 

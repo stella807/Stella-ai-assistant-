@@ -8,6 +8,31 @@ whenever Safehubby does staff its own drivers, most of `secure-transport`
 above it, the vetting pipeline is already built and tested rather than bolted
 on under pressure.
 
+## Pay: its own scale, separate from concierge
+
+`packages/core/src/driver-pay.ts` defines `DRIVER_RATE_CARD` — a base fare
+plus a per-mile and per-minute rate, set independently for each `DriverTier`.
+This is not the same rate card personal-concierge assistants are paid from
+(`CONCIERGE_SERVICE_FEE_CENTS` in `concierge.ts`), and deliberately shaped
+differently: a concierge task is a bounded, discrete job priced flat per
+category and explicitly never metered by the minute, while driving is
+inherently variable-length work, so it is priced the way real per-trip
+driving already is — a base, plus what the trip actually cost in distance
+and time. `secure-transport` is not a multiplier on `standard`; it has its
+own, higher numbers across the board, for the same reason that tier's
+customer-facing fare is "substantially higher" — a licensed
+protective-services driver's insurance and training are real, ongoing
+overhead standard driving doesn't carry.
+
+The rate is disclosed on the application screen itself
+(`DriveSignupScreen.tsx`), with a worked example for a 5-mile, 15-minute
+trip, the same "show the real number before anyone commits" ethic the
+concierge assistant portal's pay-rate table already follows. There is no
+payroll wiring behind it yet, on purpose: nobody is dispatched from this
+list today (see below), so there is nothing for a payout run to pay against.
+Add one — likely mirroring `payroll.ts`'s biweekly sweep — once trips are
+actually being assigned.
+
 ## Two tiers
 
 `packages/core/src/driver-applications.ts` defines `DriverTier` as `"standard"`
