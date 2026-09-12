@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
   QUICK_TASK_MAX_CAP_CENTS,
-  hasFeature, isAssistantAvailable, isQuickTaskEligible,
+  hasFeature, isAssistantAvailable, isQuickTaskEligible, minutesFor,
+  serviceFeeFor, totalChargeCents,
 } from "@safehubby/core";
 import type {
   AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
@@ -12,7 +13,13 @@ import { currentFix, type Fix } from "../native/location.ts";
 import type { Account } from "../api.ts";
 import { AssistantModal } from "./AssistantModal.tsx";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+/** Exact, to the cent. Amounts here are prices somebody agrees to and
+ *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
+ *  number the customer did not actually accept. */
+const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+/** Whole dollars, for the spend-cap slider, which steps in fives and so can
+ *  never have cents to lose. */
+const dollars = (cents: number) => `$${(cents / 100).toFixed(0)}`;
 
 /**
  * A real embedded map for the chosen place, when a browser-safe Maps key is
@@ -133,6 +140,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const effectiveQuickTask = quickTask && quickEligible;
   const maxCapDollars = (effectiveQuickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS) / 100;
   const spendCapCents = Math.round(Math.min(capDollars, maxCapDollars) * 100);
+  // Priced with the same functions the server charges with, so what is shown
+  // here and what lands on the statement cannot drift apart. One person,
+  // because that is what this form books — `peopleCountFor` on the server
+  // defaults to 1 and this panel sends no count, so quoting plan seats here
+  // would overstate the fee for a Family subscriber booking for themselves.
+  const serviceFee = serviceFeeFor(category, effectiveQuickTask);
+  const totalHeld = totalChargeCents(category, spendCapCents, effectiveQuickTask);
 
   const browse = async () => {
     setBusy(true);
@@ -303,7 +317,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <input type="checkbox" checked={quickTask}
             onChange={(e) => { setQuickTask(e.target.checked); setRoster(null); }} />
           <span className="small">
-            This is quick and simple — book at the discounted rate (capped at {money(QUICK_TASK_MAX_CAP_CENTS)} spend).
+            This is quick and simple — book at the discounted rate (capped at {dollars(QUICK_TASK_MAX_CAP_CENTS)} spend).
           </span>
         </label>
       )}
@@ -313,7 +327,30 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         <input id="concierge-cap" type="range" min={CONCIERGE_MIN_CAP_CENTS / 100} max={maxCapDollars}
           step={5} value={Math.min(capDollars, maxCapDollars)}
           onChange={(e) => { setCapDollars(Number(e.target.value)); setRoster(null); }} />
-        <span className="small">{money(spendCapCents)}</span>
+        <span className="small">{dollars(spendCapCents)}</span>
+      </div>
+
+      {/* What this costs, before agreeing to it rather than after.
+          Everything here comes from the same core functions the server
+          charges with, so the number shown is the number taken — the panel
+          used to show the fee only once the task already existed, which
+          meant picking a cap and finding out afterwards. */}
+      <div className="price-breakdown">
+        <div className="row-between">
+          <span className="small">Service fee</span>
+          <span className="small charge-amount">{money(serviceFee)}</span>
+        </div>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          Pays your assistant for about {minutesFor(category, effectiveQuickTask)} minutes of their time.
+        </p>
+        <div className="row-between" style={{ marginTop: 6 }}>
+          <span className="small"><strong>Held now</strong></span>
+          <span className="small charge-amount"><strong>{money(totalHeld)}</strong></span>
+        </div>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          {money(spendCapCents)} cap + {money(serviceFee)} fee. The cap is a ceiling, not a price — you are
+          charged for what is actually spent, and never a cent over it.
+        </p>
       </div>
 
       {roster === null && (

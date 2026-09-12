@@ -669,3 +669,15 @@
     padding-inline: 8px;
   }
 }
+
+/* The price of a task, shown before agreeing to it. Set apart from the form
+   fields above so the number reads as a summary rather than another input. */
+.price-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
