@@ -34,6 +34,7 @@ import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
   ConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut,
   OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
+  PaymentProcessor, WalletType,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -43,6 +44,8 @@ import {
 } from "./adapters/fulfillment.ts";
 import { revolutCards } from "./adapters/cards.ts";
 import { revolutPayouts } from "./adapters/payouts.ts";
+import { stripeProcessor } from "./adapters/stripe.ts";
+import { paypalProcessor } from "./adapters/paypal.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -945,20 +948,58 @@ export const routes: Record<string, Handler> = {
    * the money. Never returns a full card number — there is nothing here to
    * leak past the last four digits and an expiry.
    */
+  /**
+   * Which processors can actually verify a payment method right now. Apple
+   * Pay and Google Pay aren't listed separately — both are wallets Stripe
+   * surfaces on its own, so their availability is a client-side capability
+   * check (`PaymentRequest.canMakePayment()`) against the same `stripe`
+   * entry, not a separate backend integration. See stripe.ts's doc comment.
+   */
+  "GET /api/payment/processors": () => ({
+    processors: [stripeProcessor.status, paypalProcessor.status],
+  }),
+
   "GET /api/account/payment-method": (ctx) => {
     const me = actor(ctx);
     const method = ctx.store.data.paymentMethods[me] ?? null;
     return { method, live: hasLivePaymentMethod(ctx, me) };
   },
 
-  "POST /api/account/payment-method": (ctx, _p, body) => {
+  "POST /api/account/payment-method": async (ctx, _p, body) => {
     const me = actor(ctx);
+    const processor: PaymentProcessor = body?.processor === "paypal" ? "paypal" : "stripe";
+    const wallet: WalletType | undefined =
+      body?.wallet === "apple-pay" || body?.wallet === "google-pay" ? body.wallet : undefined;
+    const port = processor === "paypal" ? paypalProcessor : stripeProcessor;
+
+    let brand = String(body?.brand ?? "");
+    let last4 = String(body?.last4 ?? "");
+    let expMonth = Number(body?.expMonth);
+    let expYear = Number(body?.expYear);
+
+    // When the real processor is configured, trust only what it reports back
+    // for a token the browser's own SDK produced — never the brand/last4/expiry
+    // a client claims. Without real credentials, this falls back to the typed
+    // mock form the UI has always offered, the same handoff discipline every
+    // other adapter in this app follows.
+    if (isAutomatic(port.status)) {
+      const token = String(body?.token ?? "");
+      if (!token) throw new HttpError(400, `Missing ${port.status.name} payment token.`);
+      const verified = await port.verifyMethod(token);
+      brand = verified.brand;
+      last4 = verified.last4;
+      expMonth = verified.expMonth;
+      expYear = verified.expYear;
+    }
+
     const method = attachPaymentMethod({
       id: newId("pm"),
-      brand: String(body?.brand ?? ""),
-      last4: String(body?.last4 ?? ""),
-      expMonth: Number(body?.expMonth),
-      expYear: Number(body?.expYear),
+      processor,
+      ...(wallet ? { wallet } : {}),
+      brand,
+      last4,
+      expMonth,
+      expYear,
       now: ctx.now(),
     });
     ctx.store.update((db) => { db.paymentMethods[me] = method; });

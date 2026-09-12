@@ -248,6 +248,30 @@ export interface PayoutPort {
   }): Promise<{ payoutId: string }>;
 }
 
+/**
+ * Verifying a card or wallet with the real processor, once the browser's own
+ * SDK has already tokenized it. The server here never sees a raw card
+ * number — `token` is whatever the processor's client-side library hands
+ * back (a Stripe PaymentMethod id, a PayPal-vaulted payment token id) — and
+ * `verifyMethod` asks the processor what that token actually is, rather than
+ * trusting whatever brand/last4 the browser claims. Apple Pay and Google Pay
+ * are not separate entries here: both are wallets Stripe's own Payment
+ * Request Button / Payment Element surface on top of the same card rails, so
+ * a wallet-sourced token still verifies through the Stripe adapter — see
+ * `PaymentMethodOnFile.processor` in payment.ts and docs/billing.md.
+ */
+export interface VerifiedMethod {
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+}
+
+export interface ChargeProcessorPort {
+  readonly status: ProviderStatus;
+  verifyMethod(token: string): Promise<VerifiedMethod>;
+}
+
 export function statusFor(id: string, name: string, configured: boolean, requires: string): ProviderStatus {
   return { id, name, mode: configured ? "automatic" : "handoff", requires };
 }

@@ -2178,6 +2178,47 @@ describe("payment method on file", () => {
     const jordanCheck = await call("GET", "/api/account/payment-method", undefined, jordan);
     expect(jordanCheck.json.method).toBeNull();
   });
+
+  it("defaults an unspecified method to the stripe processor", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(res.json.method.processor).toBe("stripe");
+    expect(res.json.method.wallet).toBeUndefined();
+  });
+
+  it("records a paypal method with no wallet", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      processor: "paypal", brand: "PayPal", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(res.json.method.processor).toBe("paypal");
+    expect(res.json.method.wallet).toBeUndefined();
+  });
+
+  it("records which wallet was used through Stripe", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      processor: "stripe", wallet: "apple-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(res.json.method.processor).toBe("stripe");
+    expect(res.json.method.wallet).toBe("apple-pay");
+  });
+
+  it("rejects a wallet claimed against paypal instead of stripe", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      processor: "paypal", wallet: "google-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("payment processor status", () => {
+  it("reports stripe and paypal as handoff without real credentials configured", async () => {
+    const res = await call("GET", "/api/payment/processors", undefined, sam);
+    expect(res.status).toBe(200);
+    const ids = res.json.processors.map((p: { id: string }) => p.id);
+    expect(ids).toEqual(["stripe", "paypal"]);
+    for (const p of res.json.processors) expect(p.mode).toBe("handoff");
+  });
 });
 
 describe("ride quote reflects the missing card, not a generic note, once the provider is the only other gap", () => {

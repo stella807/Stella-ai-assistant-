@@ -17,8 +17,22 @@ import type { Iso8601 } from "./types.ts";
  * to what was held, release what was not used — do not change when it does.
  */
 
+/**
+ * The real backend that settled this method. PayPal is genuinely a second
+ * processor; Apple Pay and Google Pay are not — both are wallets that
+ * Stripe's own client-side SDK surfaces on top of the same card rails
+ * (Payment Request Button / Payment Element), so a wallet method's
+ * `processor` is still `"stripe"`. `wallet` records which button the
+ * customer actually tapped, for display only — it changes nothing about how
+ * the method settles. See `ChargeProcessorPort` in fulfillment.ts.
+ */
+export type PaymentProcessor = "stripe" | "paypal";
+export type WalletType = "apple-pay" | "google-pay";
+
 export interface PaymentMethodOnFile {
   id: string;
+  processor: PaymentProcessor;
+  wallet?: WalletType;
   /** Never a full card number. This is the only thing worth storing that way. */
   brand: string;
   last4: string;
@@ -29,6 +43,8 @@ export interface PaymentMethodOnFile {
 
 export interface AttachMethodInput {
   id: string;
+  processor: PaymentProcessor;
+  wallet?: WalletType;
   brand: string;
   last4: string;
   expMonth: number;
@@ -43,9 +59,14 @@ export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFi
   }
   if (!isFuture(input.expMonth, input.expYear, input.now)) throw new Error("That card has expired.");
   if (!input.brand.trim()) throw new Error("Missing card brand.");
+  if (input.wallet && input.processor !== "stripe") {
+    throw new Error("Apple Pay and Google Pay are only offered through Stripe.");
+  }
 
   return {
     id: input.id,
+    processor: input.processor,
+    ...(input.wallet ? { wallet: input.wallet } : {}),
     brand: input.brand.trim(),
     last4: input.last4,
     expMonth: input.expMonth,

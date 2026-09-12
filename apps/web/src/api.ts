@@ -125,12 +125,37 @@ export interface Account {
   homeLabel: string;
 }
 
+export type PaymentProcessor = "stripe" | "paypal";
+export type WalletType = "apple-pay" | "google-pay";
+
 export interface PaymentMethod {
   id: string;
+  processor: PaymentProcessor;
+  wallet?: WalletType;
   brand: string;
   last4: string;
   expMonth: number;
   expYear: number;
+}
+
+export interface ProcessorStatus {
+  id: string;
+  name: string;
+  mode: "automatic" | "handoff" | "unavailable";
+  requires: string;
+}
+
+export interface AttachPaymentMethodInput {
+  processor: PaymentProcessor;
+  wallet?: WalletType;
+  /** The processor's own client-tokenized id — a Stripe PaymentMethod id or a
+   *  PayPal payment-token id. Required only once the processor is
+   *  `automatic`; the manual fields below are the handoff-mode fallback. */
+  token?: string;
+  brand?: string;
+  last4?: string;
+  expMonth?: number;
+  expYear?: number;
 }
 
 /** A ledger line, with the two strings the server pre-renders for display. */
@@ -194,8 +219,9 @@ export const api = {
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),
-  attachPaymentMethod: (brand: string, last4: string, expMonth: number, expYear: number) =>
-    request<{ method: PaymentMethod }>("POST", "/api/account/payment-method", { brand, last4, expMonth, expYear }),
+  paymentProcessors: () => request<{ processors: ProcessorStatus[] }>("GET", "/api/payment/processors"),
+  attachPaymentMethod: (input: AttachPaymentMethodInput) =>
+    request<{ method: PaymentMethod }>("POST", "/api/account/payment-method", input),
   removePaymentMethod: () => request<{ removed: true }>("POST", "/api/account/payment-method/remove", {}),
 
   applyToDrive: (input: DriverApplicationInput) =>
