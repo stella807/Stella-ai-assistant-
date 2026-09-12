@@ -2368,6 +2368,52 @@ describe("Uber Guest Trips wiring", () => {
   });
 });
 
+describe("the Elite tier, held for a later release", () => {
+  it("is absent from the catalogue while its flag is off", async () => {
+    const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
+    expect(ids).not.toContain("elite");
+    expect(ids).toContain("family");
+  });
+
+  it("cannot be subscribed to, and says why rather than 404-ing blankly", async () => {
+    const res = await call("POST", "/api/subscription", { planId: "elite" }, sam);
+    expect(res.status).toBe(404);
+    expect(res.json.error).toMatch(/later release/i);
+  });
+
+  it("appears and becomes subscribable once the flag is on", async () => {
+    setFlag("elite-tier", true);
+    try {
+      const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
+      expect(ids).toContain("elite");
+
+      const res = await call("POST", "/api/subscription", { planId: "elite" }, sam);
+      expect(res.status).toBe(200);
+      expect(res.json.plan.id).toBe("elite");
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("unlocks the luxury desk only on Elite", async () => {
+    setFlag("elite-tier", true);
+    try {
+      // Sam is premium-plus by default — the everything-for-everyday tier,
+      // which deliberately stops short of private aviation.
+      const before = (await call("GET", "/api/billing", undefined, sam)).json;
+      expect(before.plan.features).not.toContain("private-aviation");
+
+      await call("POST", "/api/subscription", { planId: "elite" }, sam);
+      const after = (await call("GET", "/api/billing", undefined, sam)).json;
+      expect(after.plan.features).toContain("private-aviation");
+      expect(after.plan.features).toContain("yacht-charter");
+      expect(after.plan.features).toContain("lifestyle-manager");
+    } finally {
+      resetFlags();
+    }
+  });
+});
+
 describe("payment method on file", () => {
   it("starts with none", async () => {
     const res = await call("GET", "/api/account/payment-method", undefined, sam);

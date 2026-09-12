@@ -9,7 +9,9 @@
  * partnerships — all of which the user can see.
  */
 
-export type PlanId = "free" | "premium-basic" | "premium-plus" | "family";
+import { isEnabled } from "./features.ts";
+
+export type PlanId = "free" | "premium-basic" | "premium-plus" | "family" | "elite";
 
 export type Feature =
   | "location-sharing"
@@ -31,7 +33,17 @@ export type Feature =
   | "multi-profile"
   | "extended-sos-contacts"
   | "extended-menu"
-  | "personal-concierge";
+  | "personal-concierge"
+  // Elite-only, and held for a later release behind the `elite-tier` flag —
+  // see ELITE_ONLY below and docs/billing.md. Each one needs a real supplier
+  // relationship before it can be turned on, and two of them carry legal
+  // duties of their own.
+  | "private-aviation"
+  | "yacht-charter"
+  | "luxury-property"
+  | "event-production"
+  | "premium-hospitality"
+  | "lifestyle-manager";
 
 /**
  * Every member of `Feature`, as data rather than as a type.
@@ -64,6 +76,12 @@ const EVERY_FEATURE = {
   "extended-sos-contacts": true,
   "extended-menu": true,
   "personal-concierge": true,
+  "private-aviation": true,
+  "yacht-charter": true,
+  "luxury-property": true,
+  "event-production": true,
+  "premium-hospitality": true,
+  "lifestyle-manager": true,
 } satisfies Record<Feature, true>;
 
 export const ALL_FEATURES: Feature[] = Object.keys(EVERY_FEATURE) as Feature[];
@@ -93,19 +111,40 @@ const BASIC_FEATURES: Feature[] = [
 ];
 
 /**
- * Premium Plus is the everything tier — literally `ALL_FEATURES`, not a
- * hand-maintained list that happens to match it today. On top of what
- * Premium has, that means: automatic fulfilment (Safehubby books and pays on
- * the user's behalf through the business APIs, then bills it on — that float
- * is a real part of what this tier costs), ride booking, supply delivery,
- * safe routes, history, group games, and the four that used to be withheld
- * for Family — `secure-transport`, `extended-menu`, `extended-sos-contacts`
- * and `multi-profile`. See the pricing comment below for what bundling those
- * last four down a tier does to the cost base, and for what Family is for now.
+ * The luxury-lifestyle catalogue, held off every everyday tier.
+ *
+ * These are not "more of the same" — they are a different business, priced
+ * the way the concierge industry actually prices them (see docs/billing.md
+ * for the researched market rates). Keeping them in their own list is what
+ * lets `PLUS_FEATURES` stay "everything a normal subscriber gets" without
+ * silently handing a $69.99 Family plan a private jet desk.
  */
-// Copied rather than aliased so a plan's `features` is never the same array
-// object as the exported `ALL_FEATURES`.
-const PLUS_FEATURES: Feature[] = [...ALL_FEATURES];
+export const ELITE_ONLY: Feature[] = [
+  "private-aviation",
+  "yacht-charter",
+  "luxury-property",
+  "event-production",
+  "premium-hospitality",
+  "lifestyle-manager",
+];
+
+/**
+ * Premium Plus is the everything tier for everyday use — every feature
+ * except the Elite-only catalogue, derived from `ALL_FEATURES` rather than
+ * hand-maintained. On top of what Premium has, that means: automatic
+ * fulfilment (Safehubby books and pays on the user's behalf through the
+ * business APIs, then bills it on — that float is a real part of what this
+ * tier costs), ride booking, supply delivery, safe routes, history, group
+ * games, and the four that used to be withheld for Family —
+ * `secure-transport`, `extended-menu`, `extended-sos-contacts` and
+ * `multi-profile`.
+ *
+ * Deriving it this way keeps the guarantee that matters: adding a `Feature`
+ * is still a compile error until it is listed in `EVERY_FEATURE`, and the
+ * author then has to decide whether it belongs in `ELITE_ONLY` or lands on
+ * the everyday tiers. Nothing can be added and quietly forgotten.
+ */
+const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes(f));
 
 /**
  * Pricing.
@@ -225,7 +264,46 @@ export const PLANS: Plan[] = [
     features: PLUS_FEATURES,
     blurb: "The same everything as Premium Plus, for up to six people instead of two — one household, one bill, and a lower price per person.",
   },
+  {
+    id: "elite",
+    name: "Elite",
+    monthlyCents: 24900,
+    annualCents: 249900,
+    seats: 6,
+    features: [...PLUS_FEATURES, ...ELITE_ONLY],
+    blurb: "Everything in Family, plus a dedicated lifestyle manager and the luxury desk: private aviation, yacht charter, villa and property sourcing, full event production, and premium hospitality and hotel access.",
+  },
 ];
+
+/**
+ * Elite is built and held for a later release — `isEnabled("elite-tier")`
+ * gates it out of the catalogue and out of `changePlan`, the same way party
+ * supply ships dark (see features.ts). It is listed in `PLANS` rather than
+ * kept in a branch so it stays compiled, typed and tested meanwhile.
+ *
+ * **Why $249/month.** Researched against what the market actually charges
+ * (docs/billing.md has the sources): Quintessentially's entry tier runs
+ * roughly $2,500-$3,800/year and its Elite tier $19,000-$31,700; established
+ * luxury concierge firms charge $10,000-$50,000/year, and ultra-premium
+ * engagements start around $50,000. At $2,499/year Elite undercuts even the
+ * cheapest of those while carrying the high-end catalogue.
+ *
+ * That is only sustainable because the luxury desk earns on the supplier
+ * side, not from the membership: a 5-8% commission on one $50,000 jet
+ * charter is $2,500-$4,000, more than a year of membership. The subscription
+ * buys access and the lifestyle manager's time; the bookings are what pay
+ * for the desk. Pricing the membership like a retainer instead would mean
+ * competing with Quintessentially on its own terms, at a tenth of its
+ * supplier network.
+ */
+export function isPlanReleased(id: PlanId): boolean {
+  return id === "elite" ? isEnabled("elite-tier") : true;
+}
+
+/** The plans a subscriber can actually see and choose today. */
+export function releasedPlans(): Plan[] {
+  return PLANS.filter((p) => isPlanReleased(p.id));
+}
 
 /**
  * Secure transport is not bundled into any subscription. A protective-service

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ALL_FEATURES, PLANS, annualSavingsPercent, findPlan, formatPrice, hasFeature } from "../src/billing.ts";
+import {
+  ALL_FEATURES, ELITE_ONLY, PLANS, annualSavingsPercent, findPlan, formatPrice, hasFeature,
+  isPlanReleased, releasedPlans,
+} from "../src/billing.ts";
+import { resetFlags, setFlag } from "../src/features.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
 import { estimateBac } from "../src/bac.ts";
 import { logDrink } from "../src/drinks.ts";
@@ -54,14 +58,52 @@ describe("plans", () => {
     expect(hasFeature("family", "secure-transport")).toBe(true);
   });
 
-  it("gives Premium Plus every feature there is", () => {
+  it("gives Premium Plus every feature except the Elite-only catalogue", () => {
     // `ALL_FEATURES` is exhaustive by construction — see its `satisfies
     // Record<Feature, true>` in billing.ts, which turns "someone added a
-    // Feature and forgot about the top tiers" into a compile error.
-    expect(ALL_FEATURES.length).toBe(20);
+    // Feature and forgot to decide where it goes" into a compile error.
+    expect(ALL_FEATURES.length).toBe(26);
     for (const feature of ALL_FEATURES) {
-      expect(hasFeature("premium-plus", feature)).toBe(true);
+      expect(hasFeature("premium-plus", feature)).toBe(!ELITE_ONLY.includes(feature));
     }
+  });
+
+  it("keeps the luxury catalogue off every everyday tier", () => {
+    for (const feature of ELITE_ONLY) {
+      for (const plan of ["free", "premium-basic", "premium-plus", "family"] as const) {
+        expect(hasFeature(plan, feature)).toBe(false);
+      }
+      expect(hasFeature("elite", feature)).toBe(true);
+    }
+  });
+
+  it("gives Elite everything, the everyday features included", () => {
+    for (const feature of ALL_FEATURES) {
+      expect(hasFeature("elite", feature)).toBe(true);
+    }
+  });
+
+  it("holds Elite back until its flag is on, and never hides a shipped plan", () => {
+    expect(isPlanReleased("elite")).toBe(false);
+    expect(releasedPlans().map((p) => p.id)).not.toContain("elite");
+    // Every other tier has shipped and must always be listed.
+    for (const plan of PLANS.filter((p) => p.id !== "elite")) {
+      expect(isPlanReleased(plan.id)).toBe(true);
+      expect(releasedPlans().map((p) => p.id)).toContain(plan.id);
+    }
+
+    setFlag("elite-tier", true);
+    expect(isPlanReleased("elite")).toBe(true);
+    expect(releasedPlans().map((p) => p.id)).toContain("elite");
+    resetFlags();
+    expect(isPlanReleased("elite")).toBe(false);
+  });
+
+  it("prices Elite under the cheapest researched luxury-concierge membership", () => {
+    // Quintessentially's entry tier is roughly $2,500+/yr; established
+    // luxury firms start around $10,000/yr. See docs/billing.md.
+    expect(findPlan("elite").annualCents).toBeLessThan(250000);
+    expect(findPlan("elite").monthlyCents).toBeGreaterThan(findPlan("family").monthlyCents);
   });
 
   it("makes Family the same features as Premium Plus, differing only in seats", () => {

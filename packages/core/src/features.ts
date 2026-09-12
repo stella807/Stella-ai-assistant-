@@ -25,6 +25,7 @@
  */
 
 export type FeatureFlag =
+  | "elite-tier"
   | "party-supply"
   | "ride-booking-api"
   | "food-ordering-api"
@@ -38,6 +39,11 @@ export interface FlagDefinition {
 }
 
 export const FLAGS: FlagDefinition[] = [
+  {
+    id: "elite-tier",
+    enabled: false,
+    note: "The Elite luxury-lifestyle plan is built and held for a later release. Turning it on needs the supplier relationships behind it — see docs/billing.md.",
+  },
   {
     id: "party-supply",
     enabled: false,

@@ -5,14 +5,16 @@ import type {
   DriverApplication, GameRound, NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice,
   ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
-import type { PointEntry, Redemption } from "@safehubby/core";
+import type { PlanId, PointEntry, Redemption } from "@safehubby/core";
 
 export interface Traveler {
   id: string;
   email: string;
   passwordHash: string;
   displayName: string;
-  planId: "free" | "premium-basic" | "premium-plus" | "family";
+  // The canonical union from billing.ts rather than a copy of it — a copy
+  // silently goes stale the moment a tier is added.
+  planId: PlanId;
   homeLabel: string;
   emergencyContacts: { name: string; phone: string }[];
 }

@@ -49,6 +49,74 @@ actually used more than one.
 `wallet.ts` and `subscription.ts` are pure and fully tested; nothing in either
 talks to a processor.
 
+## The Elite tier — built, and held for a later release
+
+`isEnabled("elite-tier")` is **off** (features.ts), so Elite is absent from
+`GET /api/catalog` and `POST /api/subscription` refuses it with the flag's own
+note. It lives in `PLANS` rather than a branch so it stays compiled, typed and
+tested meanwhile — the same "ships dark rather than being deleted and
+rewritten" reasoning party supply already follows.
+
+**$249/month, or $2,499/year.** Priced against what the market actually
+charges:
+
+| Competitor | Annual |
+|---|---|
+| Quintessentially, entry ("Devoted") | ~$2,500–$3,800 |
+| Quintessentially, Elite | ~$19,000–$31,700 |
+| Established luxury concierge firms | $10,000–$50,000 |
+| Ultra-premium engagements | $50,000–$100,000+ |
+| **Safehubby Elite** | **$2,499** |
+
+So Elite undercuts even the cheapest tier of the best-known name in the
+category while carrying the high-end catalogue. That is only sustainable
+because **the luxury desk earns on the supplier side, not from the
+membership**: a 5–8% commission on one $50,000 jet charter is $2,500–$4,000,
+more than a year of membership. The subscription buys access and the
+lifestyle manager's time; the bookings pay for the desk.
+
+### What's in it
+
+`ELITE_ONLY` in billing.ts, deliberately withheld from every everyday tier so
+a $69.99 Family plan is never silently handed a private jet desk:
+
+| Feature | Market rate it replaces |
+|---|---|
+| `private-aviation` | Brokers take 5–15% of charter (up to 30%); Safehubby targets 5–8% |
+| `yacht-charter` | Typically project fees or retainers against scope |
+| `luxury-property` | Villa and property sourcing, same retainer shape |
+| `event-production` | Planners charge 10–20% of budget, or $2,000–$50,000 flat |
+| `premium-hospitality` | Hotel advisors earn 5–10% supplier commission (Virtuoso 20–25%) |
+| `lifestyle-manager` | Luxury specialists bill $200–$500+/hour |
+
+### Why the feature list is derived, not hand-written
+
+`PLUS_FEATURES` is `ALL_FEATURES.filter((f) => !ELITE_ONLY.includes(f))`. That
+keeps the guarantee that matters: `EVERY_FEATURE`'s
+`satisfies Record<Feature, true>` still makes adding a `Feature` a compile
+error until it's listed, and the author then has to decide whether it's
+Elite-only or lands on the everyday tiers. Nothing can be added and quietly
+forgotten in either direction.
+
+### Three things to settle before turning the flag on
+
+1. **The money flow does not reach this far.** `CONCIERGE_MAX_CAP_CENTS` is
+   $300 and every task rides a single-use card capped at exactly that. A jet
+   is $20,000–$100,000+. These bookings need the customer paying the supplier
+   directly with Safehubby taking commission, which is a different flow from
+   anything in `payment.ts` today — so they are a new kind of task, not new
+   entries in `CONCIERGE_CATEGORIES`.
+2. **Private aviation carries a legal duty.** [14 CFR Part 295](https://www.ecfr.gov/current/title-14/chapter-II/subchapter-A/part-295)
+   requires an air charter broker to disclose, *before contracting*: the air
+   carrier actually operating the flight, the capacity the broker acts in, and
+   the amount of liability insurance carried — or that none is. No licence or
+   registry is required, but those disclosures are mandatory. Shape it like
+   `SECURE_TRANSPORT_DISCLOSURES`, which already solves exactly this problem.
+3. **Commission needs relationships that don't exist.** Hotel commission needs
+   a host agency or consortium; jet commission needs operator agreements. Until
+   they exist every one of these earns $0, which is the real reason the flag is
+   off rather than a release-date preference.
+
 ## Rules the tests enforce
 
 - **A trial is never charged on the way in.** A paid plan starts in a 14-day

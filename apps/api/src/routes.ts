@@ -1,5 +1,6 @@
 import {
-  PLANS, REWARD_CATALOG, DRINK_CATALOG,
+  REWARD_CATALOG, DRINK_CATALOG,
+  isPlanReleased, releasedPlans,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
   createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
@@ -1059,7 +1060,10 @@ export const routes: Record<string, Handler> = {
 
   "GET /api/catalog": () => ({
     drinks: DRINK_CATALOG,
-    plans: PLANS,
+    // Only what has actually shipped: the Elite tier is built and held
+    // behind `elite-tier` (see features.ts), so it is absent here rather
+    // than listed as something a subscriber can't have.
+    plans: releasedPlans(),
     rewards: REWARD_CATALOG,
   }),
 
@@ -1476,6 +1480,7 @@ export const routes: Record<string, Handler> = {
     const cadence: Cadence = body?.cadence === "annual" ? "annual" : "monthly";
     const platform = platformFrom(body?.platform);
     const plan = findPlan(planId);
+    if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
     catchUpBilling(ctx);
     const existing = subscriptionOf(ctx, me);
 
