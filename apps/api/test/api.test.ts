@@ -601,9 +601,15 @@ describe("pharmacy run", () => {
     expect((await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "food" }, mallory.token)).status).toBe(404);
   });
 
-  describe("extended menu (Family-only baskets)", () => {
-    it("marks premium baskets locked for a Premium Plus account, unlocked baskets for everyone", async () => {
-      // Sam is premium-plus by default (see beforeEach), which does not include extended-menu.
+  describe("extended menu (premium baskets)", () => {
+    // Sam is premium-plus by default (see beforeEach), which now includes
+    // `extended-menu` — Premium Plus is the everything tier. Premium
+    // ("premium-basic") is the cheapest paid plan that still doesn't have it,
+    // so it's what these gate tests downgrade to.
+    const downgradeToBasic = () => call("POST", "/api/subscription", { planId: "premium-basic" }, sam);
+
+    it("marks premium baskets locked below the top tiers, unlocked baskets for everyone", async () => {
+      await downgradeToBasic();
       const { baskets } = (await call("GET", "/api/care-package/baskets", undefined, sam)).json;
       const pizza = baskets.find((b: any) => b.id === "pizza-night");
       const hydration = baskets.find((b: any) => b.id === "hydration");
@@ -611,23 +617,32 @@ describe("pharmacy run", () => {
       expect(hydration.locked).toBe(false);
     });
 
-    it("refuses to authorize a premium basket without the Family plan", async () => {
+    it("refuses to authorize a premium basket on a plan that can't run one at all", async () => {
+      await downgradeToBasic();
       const nightId = (await startNight()).json.night.id;
       const res = await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
         basketId: "pizza-night", capCents: 3000, triggerBand: "high", deliverTo: "Home",
       }, sam);
+      // 402, but on `supply-delivery` rather than `extended-menu`: now that
+      // the extended menu comes with every plan that has supply-delivery,
+      // the supply-delivery gate is always the one that fires first on this
+      // route. Asserting only the status keeps this test about the refusal
+      // rather than about which of two gates got there first.
       expect(res.status).toBe(402);
-      expect(res.json.error).toMatch(/Family plan/i);
     });
 
-    it("refuses to hand-send a premium basket without the Family plan", async () => {
+    it("refuses to hand-send a premium basket on a plan without the extended menu", async () => {
+      // The hand-send path doesn't require `supply-delivery` (a partner is
+      // paying, out of their own pocket), so this is where the basket-tier
+      // gate is actually still reachable.
+      await downgradeToBasic();
       const nightId = (await startNight()).json.night.id;
       const res = await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "burger-and-fries" }, sam);
       expect(res.status).toBe(402);
+      expect(res.json.error).toMatch(/extended menu/i);
     });
 
-    it("unlocks the full menu once the traveler is on the Family plan", async () => {
-      await call("POST", "/api/subscription", { planId: "family" }, sam);
+    it("unlocks the full menu on Premium Plus, with no upgrade to Family needed", async () => {
       const nightId = (await startNight()).json.night.id;
 
       const { baskets } = (await call("GET", "/api/care-package/baskets", undefined, sam)).json;
@@ -1223,12 +1238,23 @@ describe("automatic fulfilment", () => {
 
 describe("secure transport", () => {
   it("is gated on the plan that includes it", async () => {
-    // Sam is premium-plus, which deliberately does not include it.
+    // Jordan stays free (see beforeEach). Premium Plus now includes secure
+    // transport, so the gate has to be checked from below it.
+    const res = await call("POST", "/api/rides/secure", {
+      acknowledgedDisclosures: true,
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, jordan);
+    expect(res.status).toBe(402);
+  });
+
+  it("is included on Premium Plus, with no upgrade to Family needed", async () => {
+    // Sam is premium-plus (see beforeEach). Past the plan gate, so the only
+    // thing left to refuse on is the missing provider — a 503, not a 402.
     const res = await call("POST", "/api/rides/secure", {
       acknowledgedDisclosures: true,
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
     }, sam);
-    expect(res.status).toBe(402);
+    expect(res.status).toBe(503);
   });
 
   it("refuses when no licensed provider is configured, rather than pretending", async () => {
@@ -1242,7 +1268,6 @@ describe("secure transport", () => {
   });
 
   it("will not book without the disclosures acknowledged", async () => {
-    await call("POST", "/api/subscription", { planId: "family" }, sam);
     const res = await call("POST", "/api/rides/secure", {
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
     }, sam);

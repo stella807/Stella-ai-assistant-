@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS, annualSavingsPercent, findPlan, formatPrice, hasFeature } from "../src/billing.ts";
+import { ALL_FEATURES, PLANS, annualSavingsPercent, findPlan, formatPrice, hasFeature } from "../src/billing.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
 import { estimateBac } from "../src/bac.ts";
 import { logDrink } from "../src/drinks.ts";
@@ -47,10 +47,28 @@ describe("plans", () => {
     expect(hasFeature("premium-plus", "automatic-delivery")).toBe(true);
   });
 
-  it("keeps secure transport to the top tier and never on the free one", () => {
+  it("keeps secure transport off the free tier, but on every paid one", () => {
     expect(hasFeature("free", "secure-transport")).toBe(false);
-    expect(hasFeature("premium-plus", "secure-transport")).toBe(false);
+    expect(hasFeature("premium-basic", "secure-transport")).toBe(false);
+    expect(hasFeature("premium-plus", "secure-transport")).toBe(true);
     expect(hasFeature("family", "secure-transport")).toBe(true);
+  });
+
+  it("gives Premium Plus every feature there is", () => {
+    // `ALL_FEATURES` is exhaustive by construction — see its `satisfies
+    // Record<Feature, true>` in billing.ts, which turns "someone added a
+    // Feature and forgot about the top tiers" into a compile error.
+    expect(ALL_FEATURES.length).toBe(20);
+    for (const feature of ALL_FEATURES) {
+      expect(hasFeature("premium-plus", feature)).toBe(true);
+    }
+  });
+
+  it("makes Family the same features as Premium Plus, differing only in seats", () => {
+    // Family is the household tier, not a longer feature list. If these ever
+    // diverge again, the blurbs and docs/billing.md are wrong too.
+    expect([...findPlan("family").features].sort()).toEqual([...findPlan("premium-plus").features].sort());
+    expect(findPlan("family").seats).toBeGreaterThan(findPlan("premium-plus").seats);
   });
 
   it("puts personal concierge on every paid tier, never the free one", () => {

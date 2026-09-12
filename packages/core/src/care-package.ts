@@ -17,8 +17,8 @@ import type { Iso8601 } from "./types.ts";
  *
  * The menu is deliberately a closed, curated list rather than an open cart —
  * "standard" baskets for every paid plan, "premium" ones (more variety, real
- * meals from different cuisines) gated to Family via the `extended-menu`
- * feature in billing.ts. There is no path to add an arbitrary item, and there
+ * meals from different cuisines) gated behind the `extended-menu` feature in
+ * billing.ts, which comes with Premium Plus and Family. There is no path to add an arbitrary item, and there
  * never will be one for alcohol: an automatic run fires because someone is
  * already impaired, and sending more alcohol to that person is the opposite
  * of what this feature exists to do. That is a product line this app does not

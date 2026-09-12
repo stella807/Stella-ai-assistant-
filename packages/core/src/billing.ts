@@ -33,6 +33,41 @@ export type Feature =
   | "extended-menu"
   | "personal-concierge";
 
+/**
+ * Every member of `Feature`, as data rather than as a type.
+ *
+ * Written as a Record keyed by the union rather than a plain array so that
+ * `satisfies` makes it exhaustive: adding a new `Feature` without adding it
+ * here is a compile error. That is what actually holds Premium Plus's
+ * "includes everything" promise together — `PLUS_FEATURES` is this list, so
+ * a feature added later lands on the top tiers automatically instead of
+ * being silently withheld until someone notices.
+ */
+const EVERY_FEATURE = {
+  "location-sharing": true,
+  "automatic-rides": true,
+  "automatic-delivery": true,
+  "secure-transport": true,
+  "check-ins": true,
+  "drink-count": true,
+  sos: true,
+  "drink-details": true,
+  "venue-menus": true,
+  "bac-estimate": true,
+  "recovery-plan": true,
+  "ride-booking": true,
+  "supply-delivery": true,
+  "safe-routes": true,
+  "history-analytics": true,
+  "group-games": true,
+  "multi-profile": true,
+  "extended-sos-contacts": true,
+  "extended-menu": true,
+  "personal-concierge": true,
+} satisfies Record<Feature, true>;
+
+export const ALL_FEATURES: Feature[] = Object.keys(EVERY_FEATURE) as Feature[];
+
 export interface Plan {
   id: PlanId;
   name: string;
@@ -57,19 +92,20 @@ const BASIC_FEATURES: Feature[] = [
   "personal-concierge",
 ];
 
-const PLUS_FEATURES: Feature[] = [
-  ...BASIC_FEATURES,
-  "ride-booking",
-  "supply-delivery",
-  "safe-routes",
-  "history-analytics",
-  "group-games",
-  // Automatic fulfilment: Safehubby books and pays on the user's behalf
-  // through the business APIs, then bills it on. That float is the reason
-  // these tiers cost what they do.
-  "automatic-rides",
-  "automatic-delivery",
-];
+/**
+ * Premium Plus is the everything tier — literally `ALL_FEATURES`, not a
+ * hand-maintained list that happens to match it today. On top of what
+ * Premium has, that means: automatic fulfilment (Safehubby books and pays on
+ * the user's behalf through the business APIs, then bills it on — that float
+ * is a real part of what this tier costs), ride booking, supply delivery,
+ * safe routes, history, group games, and the four that used to be withheld
+ * for Family — `secure-transport`, `extended-menu`, `extended-sos-contacts`
+ * and `multi-profile`. See the pricing comment below for what bundling those
+ * last four down a tier does to the cost base, and for what Family is for now.
+ */
+// Copied rather than aliased so a plan's `features` is never the same array
+// object as the exported `ALL_FEATURES`.
+const PLUS_FEATURES: Feature[] = [...ALL_FEATURES];
 
 /**
  * Pricing.
@@ -84,18 +120,35 @@ const PLUS_FEATURES: Feature[] = [
  * is not something an individual contractor or Safehubby itself can buy
  * piecemeal — it has to come from a contract with an already-licensed,
  * already-insured security firm (see docs/driving.md), and that contract
- * costs real money every month whether or not a given Family subscriber ever
- * books a secure-transport trip. Spreading that fixed cost, plus an actual
- * profit margin instead of pricing at cost, across the paid tiers is why
- * Premium and Premium Plus went back up too, not just Family.
+ * costs real money every month whether or not a given subscriber ever books
+ * a secure-transport trip. Spreading that fixed cost, plus an actual profit
+ * margin instead of pricing at cost, across the paid tiers is why Premium
+ * and Premium Plus went back up too, not just Family.
  *
- * Family went up again on top of that, for a second reason: the wider
- * pharmacy-run menu behind `extended-menu` (see care-package.ts) is more real
- * food, sourced and priced like actual takeout rather than a snack basket,
- * and it costs Safehubby more per basket to offer. It stays a Family-only
- * perk rather than something every tier absorbs the cost of, and pricing it
- * in is what keeps the wider menu a margin-positive feature instead of one
- * that quietly eats the plan's profit.
+ * **Premium Plus is now the everything tier, and Family differs only by
+ * seats.** `secure-transport` and `extended-menu` used to be withheld from
+ * Premium Plus specifically so their standing costs could be priced into
+ * Family alone — the security firm's monthly contract above, and the wider
+ * pharmacy-run menu (see care-package.ts), which is real takeout-grade food
+ * and costs more per basket than a snack basket does. Those costs did not go
+ * away when the features moved down; they are now spread across Premium Plus
+ * subscribers too, at an unchanged $33.99. That is a deliberate margin
+ * trade, not an oversight: a tier that visibly holds back the safest way
+ * home is a worse product than one that doesn't, and a simpler ladder
+ * ("everything, for one or two people" vs "everything, for six") converts
+ * better than one that asks a subscriber to audit a feature matrix. If the
+ * secure-transport retainer turns out to be the line item that decides
+ * whether this is profitable, the honest lever is Premium Plus's own price,
+ * not re-fencing the feature.
+ *
+ * What this leaves Family to justify its price with is seats, and seats
+ * alone: six instead of two, which is a real per-person discount
+ * ($11.67/seat against $17.00) and the same shape every household plan
+ * uses. **`seats` is not enforced anywhere in code yet** — nothing counts
+ * profiles or crew members against it — so it is currently a published
+ * number rather than a limit. That was tolerable while Family also carried
+ * exclusive features; now that it doesn't, enforcing `seats` is what keeps
+ * the tier meaningful, and is the next thing to build here.
  *
  * Ride and delivery costs are still passed through at the provider's price on
  * top of the subscription. Bundling them would mean either capping how often
@@ -159,7 +212,7 @@ export const PLANS: Plan[] = [
     annualCents: 34688,
     seats: 2,
     features: PLUS_FEATURES,
-    blurb: "Safehubby books your ride and sends supplies itself — no hand-off, no app-switching. Plus safe routes, history, group games, and a personal concierge. Add a card once; rides and deliveries are held then billed at cost, never fronted.",
+    blurb: "Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
     id: "family",
@@ -167,10 +220,10 @@ export const PLANS: Plan[] = [
     monthlyCents: 6999,
     annualCents: 71388,
     seats: 6,
-    features: [
-      ...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport", "extended-menu",
-    ],
-    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, and the full pharmacy-run menu — real meals from different cuisines, not just a snack basket.",
+    // Identical features to Premium Plus, by design — Family is the same
+    // product for more people, not a longer feature list.
+    features: PLUS_FEATURES,
+    blurb: "The same everything as Premium Plus, for up to six people instead of two — one household, one bill, and a lower price per person.",
   },
 ];
 

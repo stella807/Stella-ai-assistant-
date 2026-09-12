@@ -693,10 +693,15 @@ function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
   }
 }
 
-/** The wider pharmacy-run menu is a Family-only perk, not something every basket needs. */
+/** The wider pharmacy-run menu comes with Premium Plus and Family, not with
+ *  every plan — see `extended-menu` in billing.ts. Reachable in practice
+ *  only from the hand-send path: the authorize path requires
+ *  `supply-delivery` first, and every plan that has that now also has the
+ *  extended menu. Kept rather than deleted because the two features are
+ *  separate decisions and could be priced apart again. */
 function requireBasketAccess(ctx: Ctx, travelerId: string, basket: Basket): void {
   if (basket.tier === "premium" && !hasFeature(planOf(ctx, travelerId), "extended-menu")) {
-    throw new HttpError(402, `"${basket.name}" is part of the Family plan's extended menu. Upgrade to unlock it.`);
+    throw new HttpError(402, `"${basket.name}" is part of the extended menu, included with Premium Plus and Family. Upgrade to unlock it.`);
   }
 }
 

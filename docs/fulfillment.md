@@ -212,7 +212,7 @@ after.
 multiples of a normal ride. Folding it into a monthly price would mean either
 rationing it — rationing the safest way home is indefensible on this product —
 or charging everyone for what few will use. It is billed per trip at the
-provider's rate, and only the Family tier can reach it.
+provider's rate, and reachable on Premium Plus and Family.
 
 **App Store framing.** Do not describe this as security, protection, or an
 emergency service in the store listing; describe it as transport with a licensed
@@ -306,17 +306,17 @@ driver, and that insurance is not cheap.** An armed driver's liability,
 commercial-livery and E&O coverage is not something bought piecemeal per trip
 or per freelance contractor — see `docs/driving.md` — it comes from a standing
 contract with an already-licensed, already-insured security firm, and that
-contract costs money every month whether or not a Family subscriber books a
+contract costs money every month whether or not a given subscriber books a
 trip that month. The higher prices below fund that fixed cost across the
 subscriber base, plus an actual profit margin, rather than pricing at cost.
 
 ## The extended pharmacy-run menu is a paid perk, not a free-for-all cart
 
 `packages/core/src/care-package.ts` gates part of its basket catalog behind
-the `extended-menu` feature, which only the Family plan has. Premium and
-Premium Plus still get the original four baskets (hydration, morning-after,
-a quick bite, a hot meal); Family additionally gets four more real-meal
-options — pizza, a burger, a takeout bowl, brunch — priced and sourced like
+the `extended-menu` feature, which Premium Plus and Family have. Free and
+Premium still get the original four baskets (hydration, morning-after,
+a quick bite, a hot meal); the top two tiers additionally get four more
+real-meal options — pizza, a burger, a takeout bowl, brunch — priced and sourced like
 actual takeout rather than a snack basket. `GET /api/care-package/baskets`
 returns every basket with a `locked` flag computed from the signed-in
 account's plan, and `POST /.../authorize` and `POST /.../send` both re-check
@@ -337,8 +337,8 @@ of what plan someone is willing to pay for.
 |---|---|---|---|
 | Free | — | — | No |
 | Premium | $17.99 | $183.88 | No |
-| Premium Plus | $33.99 | $346.88 | Rides + delivery |
-| Family | $69.99 | $713.88 | Everything, plus secure transport and the full pharmacy-run menu |
+| Premium Plus | $33.99 | $346.88 | Everything — rides, delivery, secure transport, the full pharmacy-run menu |
+| Family | $69.99 | $713.88 | The same everything, for six people instead of two |
 
 Rides and deliveries are **passed through at the provider's price** on top of
 the subscription. Bundling them would mean capping how often someone can get

@@ -81,8 +81,8 @@ happens *while sober*, with a hard cap, and the API refuses one from someone
 already impaired; payment happens in the customer's own account, so Safehubby
 never charges a card on a drunk person's say-so. Walmart is the tracked
 fallback. Every basket is a fixed, curated list — real meals, never a
-free-form cart, and never alcohol; Family unlocks a wider menu (pizza, burgers,
-a takeout bowl, brunch) on top of the base set everyone gets. With
+free-form cart, and never alcohol; Premium Plus and Family unlock a wider menu
+(pizza, burgers, a takeout bowl, brunch) on top of the base set everyone gets. With
 `GOOGLE_PLACES_API_KEY` configured, a real nearby store can be named as a
 preference on the order — Google Maps can show you a real Walgreens three
 blocks away, but it has no idea what Instacart's internal id for that
@@ -233,8 +233,8 @@ without spinning up a server.
 |---|---|---|---|
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
 | Premium | $17.99 | $183.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan, personal concierge |
-| Premium Plus | $33.99 | $346.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games, personal concierge |
-| Family | $69.99 | $713.88 (15% off) | Six seats, extended contacts, secure transport, and the full pharmacy-run menu |
+| Premium Plus | $33.99 | $346.88 (15% off) | **Everything**: automatic rides and delivery, secure transport, the full pharmacy-run menu, safe routes, history, games, extended contacts, personal concierge |
+| Family | $69.99 | $713.88 (15% off) | The same everything as Premium Plus, for six people instead of two |
 
 Automatic fulfilment means Safehubby books the provider on the rider's behalf,
 backed by a pre-authorization hold on the rider's own card so nothing is ever
