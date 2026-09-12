@@ -88,15 +88,41 @@ reports both as `handoff` so the UI never claims a wallet or PayPal button
 works when it can't.
 
 **Apple Pay and Google Pay are not separate processors.** Both are wallets
-Stripe's own client SDK (the Payment Request Button / Payment Element)
-detects and surfaces automatically on top of the same card rails — a wallet
+Stripe's own client SDK surfaces on top of the same card rails — a wallet
 token still verifies through the Stripe adapter, and `PaymentMethodOnFile.processor`
-records `"stripe"` either way, with `wallet` set only for display. Apple
-Pay's tab in `PaymentMethodCard.tsx` is only offered when the browser itself
-reports `ApplePaySession.canMakePayments()`; Google Pay has no equivalent
-client-only signal without loading Google's own SDK against a real merchant
-ID, so its availability is left to Stripe's own button to determine once
-that SDK is actually wired in.
+records `"stripe"` either way, with `wallet` set only for display.
+
+### Configuring Stripe
+
+Stripe needs **two** keys, in two different places, and the UI reports them
+separately so a half-configured setup doesn't look like one vague failure:
+
+```bash
+# Server — verifies whatever token the browser produces. Never shipped to a client.
+railway variables --set "STRIPE_SECRET_KEY=sk_live_..."
+
+# Web build — baked into the bundle at build time, like VITE_API_URL.
+# A publishable key is designed to ship to browsers and is not a secret.
+VITE_STRIPE_PUBLISHABLE_KEY=pk_live_... pnpm --filter @safehubby/web build
+```
+
+With both set, `PaymentMethodCard.tsx` loads Stripe.js
+(`apps/web/src/native/stripe.ts`) and:
+
+- **Card** mounts Stripe's real Card Element, so the card fields live in
+  Stripe's iframe and neither this app nor its server ever sees a raw card
+  number — only the PaymentMethod id, which `adapters/stripe.ts` then
+  re-verifies against Stripe's API rather than trusting the browser.
+- **Apple Pay / Google Pay** go through Stripe's Payment Request sheet.
+  Availability comes from Stripe's own `canMakePayment()` — the real answer
+  for both wallets, replacing the earlier `ApplePaySession` sniff. The sheet
+  asks for a zero total and never confirms a payment: attaching a method is
+  not a purchase, and the actual money movement happens later via
+  `authorizeExactHold` at booking time.
+
+With the publishable key missing, Card falls back to the typed-in stand-in
+form this screen has always had, and the wallet tabs say which half is
+missing. Nothing is ever presented as working when it isn't.
 
 ## What is not wired yet
 
@@ -109,11 +135,17 @@ Stated plainly, because the code says the same thing where it matters:
   swap is made yet. That work is contained to `apps/api/src/routes.ts` and
   `apps/api/src/billing.ts`; verifying the payment method itself (above) is
   a separate, already-done step from actually moving money against it.
-- **No client-side Stripe.js/PayPal SDK integration.** `PaymentMethodCard.tsx`
-  has the tabs and the honest status reporting, but the actual "tokenize a
-  card, wallet, or PayPal login in the browser" call is a labeled gap
-  (`attachViaSdk` in that file) — wiring it in needs a real publishable key
-  and loading the processor's own script.
+- **No PayPal client SDK.** PayPal's server side (`adapters/paypal.ts`) is
+  ready to verify a vaulted payment-token id, but loading PayPal's own
+  checkout SDK to produce one is still a labeled gap (`attachPaypal` in
+  `PaymentMethodCard.tsx`). Stripe, by contrast, is wired end to end — see
+  "Configuring Stripe" above.
+- **The Stripe integration has not been exercised against a live account.**
+  The code follows Stripe's documented Elements and Payment Request APIs, but
+  with no test keys available here it has only been verified to compile, to
+  pass lint and the suite, and to degrade correctly to the stand-in form when
+  unconfigured. Run a Stripe test-mode key through it before trusting it in
+  production.
 - **No store receipt verification.** `POST /api/billing/charges/:id/confirm`
   records the receipt the client hands back and settles the line. A real
   deployment verifies it with Apple or Google first; the response says
