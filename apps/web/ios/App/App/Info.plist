@@ -28,6 +28,24 @@
 	<string>Safehubby shares your location with the person you chose, so they know you got home.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Safehubby keeps sharing your location while your phone is in your pocket, so the person watching tonight can find you if you stop answering.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Safehubby keeps sharing your location while your phone is in your pocket, so the person watching tonight can find you if you stop answering.</string>
+	<!-- The camera is used for one-off photos, never a viewfinder left open:
+	     the selfie that confirms an assistant is who they say they are, the
+	     photo that unlocks a spend request, and the receipt afterwards.
+	     Without this key iOS terminates the app the moment the capture input
+	     is tapped, rather than showing a prompt. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Safehubby uses the camera for the photos that keep a task honest — the assistant's selfie, what they are about to buy, and the receipt after.</string>
+	<!-- Voice messages to and from the assistant working your task. Recorded
+	     through MediaRecorder in the webview, which still needs the native
+	     permission string or the process is killed. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Safehubby records a voice message when typing is harder than talking — to the assistant on your task, and to the person watching out for you.</string>
+	<!-- A photo can be chosen from the library instead of taken, so the
+	     picker needs its own reason. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Safehubby lets you attach a photo you already have instead of taking a new one.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -47,13 +65,28 @@
       </array>
     </dict>
 	</dict>
+	<!-- Background location is the whole reason this app is a native shell
+	     rather than a web build: iOS gives web apps none, and an app whose
+	     job is knowing where someone is while the phone is in their pocket
+	     cannot do it from a foreground tab. Declaring the mode is what makes
+	     the Always authorization above actually deliver updates. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
+	<!-- Safehubby uses HTTPS and the platform's own crypto, nothing custom
+	     and nothing restricted, so the export-compliance question is answered
+	     once here rather than on every single upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

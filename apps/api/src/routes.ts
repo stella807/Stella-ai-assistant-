@@ -3,6 +3,7 @@ import {
   isPlanReleased, releasedPlans,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
+  SERVICE_LIVE_AT, serviceIsLive,
   HIRING_BENEFITS, PRELAUNCH_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
   reviewStaffApplication, submitStaffApplication, withdrawStaffApplication,
   addSubscriber, activeSubscribers, newUnsubscribeToken, unsubscribe,
@@ -710,6 +711,34 @@ function requireLaunchMarket(location: { lat: number; lng: number }): void {
   if (!isInLaunchMarket(location)) {
     throw new HttpError(503, `Personal concierge is only available in ${launchMarketNames()} for now.`);
   }
+}
+
+/**
+ * Nothing that dispatches a real person runs before the service is live.
+ *
+ * The pre-launch window is two months of hiring with no roster to dispatch
+ * from, and the promise made at signup is explicit: you are not charged, and
+ * you are not served, until launch day. Billing already honours the first
+ * half (`billingStartsAt`); this is the second.
+ *
+ * Without it these routes still fail — no fulfilment provider is configured
+ * — but they fail with "the concierge partner is not configured", which is
+ * an operator's sentence, not an answer to the person asking. Somebody who
+ * signed up during the launch party should be told when the service starts,
+ * because that is a date we chose and they agreed to.
+ *
+ * Deliberately not applied to quotes, plan changes, check-ins, SOS or
+ * location sharing. The safety basics are free and live from day one — the
+ * app's own rule — and a launch window is no reason to stop someone telling
+ * a friend where they are.
+ */
+function requireServiceLive(ctx: Ctx): void {
+  if (serviceIsLive(ctx.now())) return;
+  const when = new Date(SERVICE_LIVE_AT).toDateString();
+  throw new HttpError(
+    503,
+    `Safehubby's dispatch service starts on ${when}. You're signed up and nothing is being charged until then — check-ins, location sharing and SOS work now.`,
+  );
 }
 
 /**
@@ -1765,6 +1794,7 @@ export const routes: Record<string, Handler> = {
    */
   "POST /api/rides/secure": async (ctx, _p, body) => {
     const me = actor(ctx);
+    requireServiceLive(ctx);
     requireFeature(ctx, me, "secure-transport");
     // Validate the request before checking whether the service can run it: a
     // malformed booking is a 400 whether or not a provider happens to be up.
@@ -1887,6 +1917,7 @@ export const routes: Record<string, Handler> = {
    */
   "POST /api/concierge/tasks": async (ctx, _p, body) => {
     const me = actor(ctx);
+    requireServiceLive(ctx);
     requireFeature(ctx, me, "personal-concierge");
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input);
@@ -2944,6 +2975,7 @@ export const routes: Record<string, Handler> = {
    * supplier's own price, and the member pays the supplier.
    */
   "POST /api/elite/bookings": async (ctx, _p, body) => {
+    requireServiceLive(ctx);
     const me = actor(ctx);
     requireElite(ctx);
     const serviceId = body?.serviceId as EliteServiceId;

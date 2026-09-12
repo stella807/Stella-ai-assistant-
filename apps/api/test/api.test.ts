@@ -3219,3 +3219,65 @@ describe("the launch mailing list", () => {
     expect(res.json.delivery.mode).toBe("handoff");
   });
 });
+
+
+describe("nothing is dispatched before the service is live", () => {
+  /** The promise made at signup during the launch party has two halves:
+   *  you are not charged, and you are not served, until launch day. */
+  const beforeLaunch = new Date("2026-10-15T20:00:00Z");
+
+  it("turns down a concierge booking with the date the service starts", async () => {
+    clock = beforeLaunch;
+    const res = await call("POST", "/api/concierge/tasks", {
+      category: "grab-something", note: "Grab a burger from The Anchor Tavern",
+      location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500,
+      acknowledgedDisclosures: true,
+    }, sam);
+
+    expect(res.status).toBe(503);
+    // The operator's sentence ("the partner is not configured") is not an
+    // answer to the person asking — this is a date we chose.
+    expect(res.json.error).toMatch(/starts on/i);
+    expect(res.json.error).not.toMatch(/not configured/i);
+  });
+
+  it("says plainly that nothing is being charged either", async () => {
+    clock = beforeLaunch;
+    const res = await call("POST", "/api/concierge/tasks", {
+      category: "grab-something", note: "Grab a burger from The Anchor Tavern",
+      location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500,
+      acknowledgedDisclosures: true,
+    }, sam);
+    expect(res.json.error).toMatch(/nothing is being charged/i);
+  });
+
+  it("leaves the safety basics working, which are free and live from day one", async () => {
+    clock = beforeLaunch;
+    // Starting a night, checking in and sharing location are the whole point
+    // of the app and are never gated on a launch date.
+    const night = await call("POST", "/api/nights", {
+      weightKg: 82, drinkLimit: 4, homeAddressLabel: "142 Rowan St",
+    }, sam);
+    expect(night.status).toBe(200);
+
+    const ping = await call("POST", `/api/nights/${night.json.night.id}/location`, {
+      lat: 40.714, lng: -74.003, accuracyMeters: 20,
+    }, sam);
+    expect(ping.status).toBe(200);
+
+    const sos = await call("POST", `/api/nights/${night.json.night.id}/sos`, {}, sam);
+    expect(sos.status).toBe(200);
+  });
+
+  it("stops gating the moment the service is live", async () => {
+    clock = new Date("2027-01-01T20:00:00Z");
+    const res = await call("POST", "/api/concierge/tasks", {
+      category: "grab-something", note: "Grab a burger from The Anchor Tavern",
+      location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500,
+      acknowledgedDisclosures: true,
+    }, sam);
+    // Still blocked, but now for the real reason: no fulfilment partner is
+    // wired up in this environment. The launch date is no longer the answer.
+    expect(res.json.error ?? "").not.toMatch(/starts on/i);
+  });
+});

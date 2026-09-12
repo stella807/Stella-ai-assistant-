@@ -59,6 +59,22 @@ function PlaceMap({ place }: { place: NearbyStore }) {
  */
 export type HiringKind = "errand" | "concierge";
 
+/** What the panel calls itself, per tab. A card headed "Personal concierge"
+ *  sitting under a tab labelled "Small errands" is the two disagreeing about
+ *  what you just picked. */
+const COPY_FOR: Record<HiringKind, { heading: string; blurb: string; locked: string }> = {
+  errand: {
+    heading: "Small errand",
+    blurb: "One short, specific job — grab a thing, run an errand — capped at exactly what you set below, never more.",
+    locked: "🔒 Send someone for a quick pickup or errand, at a spend cap you set. Included on every paid plan.",
+  },
+  concierge: {
+    heading: "Personal concierge",
+    blurb: "Send someone for one bounded task, capped at exactly what you set below — never more, whatever it ends up costing.",
+    locked: "🔒 Send a vetted assistant to wait with a friend or check on someone in person. Included on every paid plan.",
+  },
+};
+
 const CATEGORIES_FOR: Record<HiringKind, ConciergeCategory[]> = {
   errand: QUICK_TASK_CATEGORIES,
   concierge: CONCIERGE_CATEGORIES
@@ -107,11 +123,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   if (locked) {
     return (
       <section className="card stack">
-        <h3>Personal concierge</h3>
-        <p className="tiny muted">
-          🔒 Send a vetted assistant for a bounded, capped-spend task — grab something, sit with a friend,
-          or check on someone in person. Included on every paid plan.
-        </p>
+        <h3>{COPY_FOR[kind].heading}</h3>
+        <p className="tiny muted">{COPY_FOR[kind].locked}</p>
       </section>
     );
   }
@@ -194,11 +207,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   return (
     <section className="card stack">
-      <h3>Personal concierge</h3>
-      <p className="small muted">
-        Send someone for one bounded task, capped at exactly what you set below — never more, whatever it
-        ends up costing.
-      </p>
+      <h3>{COPY_FOR[kind].heading}</h3>
+      <p className="small muted">{COPY_FOR[kind].blurb}</p>
 
       {active.length > 0 && (
         <ul className="timeline">

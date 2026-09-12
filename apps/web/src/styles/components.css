@@ -653,3 +653,19 @@
   margin-right: 8px;
   text-decoration-thickness: 1px;
 }
+
+/* The header's controls at phone width. Account / Sign out / EN / ES ran out
+   of room on a 393pt screen and broke "Sign out" across two lines, which made
+   the whole bar taller than the title beside it. */
+.app > header .btn-sm {
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .app > header h1 {
+    font-size: 1.35rem;
+  }
+  .app > header .btn-sm {
+    padding-inline: 8px;
+  }
+}

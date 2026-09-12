@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONCIERGE_DOCTOR_DISCLOSURES, ELITE_SERVICES, JET_TRAVEL_DISCLOSURES, MAX_ELITE_BRIEF_LENGTH,
-  commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService, validateEliteRequest,
+  CONCIERGE_DOCTOR_DISCLOSURES, ELITE_DESK_MEMBERSHIP, ELITE_SERVICES, JET_TRAVEL_DISCLOSURES,
+  MAX_ELITE_BRIEF_LENGTH, commissionCentsFor, directMembershipCrossoverCents, disclosuresFor,
+  doctorAvailableFor, eliteBreakEvenMembers, eliteDeskAnnualCostCents, eliteDeskIsViable,
+  findEliteService, validateEliteRequest,
 } from "../src/elite.ts";
-import { ELITE_ONLY } from "../src/billing.ts";
+import { ELITE_ONLY, findPlan } from "../src/billing.ts";
 import type { EliteBooking } from "../src/elite.ts";
 
 describe("the Elite service catalogue", () => {
@@ -138,5 +140,70 @@ describe("validateEliteRequest", () => {
   it("rejects a service that does not exist", () => {
     // @ts-expect-error exercising the runtime guard
     expect(() => validateEliteRequest({ serviceId: "submarine", brief: "Anywhere" })).toThrow();
+  });
+});
+
+describe("whether the Elite desk pays for itself", () => {
+  const dues = findPlan("elite").monthlyCents; // 14900
+
+  it("needs five members in year one, four after, to carry the house membership", () => {
+    expect(eliteBreakEvenMembers(dues, true)).toBe(5);
+    expect(eliteBreakEvenMembers(dues, false)).toBe(4);
+  });
+
+  it("counts the initiation only in the first year", () => {
+    expect(eliteDeskAnnualCostCents(true)).toBe(850_000);
+    expect(eliteDeskAnnualCostCents(false)).toBe(600_000);
+  });
+
+  it("rounds the member count up, because four-and-a-bit members is five", () => {
+    // Dues chosen so the division lands just over a whole number.
+    expect(eliteBreakEvenMembers(20_000, false)).toBe(3); // 600_000 / 240_000 = 2.5
+  });
+
+  it("refuses to compute a break-even on dues of nothing", () => {
+    expect(() => eliteBreakEvenMembers(0)).toThrow(/positive/i);
+    expect(() => eliteBreakEvenMembers(-1)).toThrow(/positive/i);
+  });
+
+  it("says not to buy the desk before it can be carried", () => {
+    // The rule this exists for: a desk bought for two members is the most
+    // expensive possible way to learn the tier has not sold yet.
+    expect(eliteDeskIsViable(2, dues)).toBe(false);
+    expect(eliteDeskIsViable(4, dues)).toBe(false);
+    expect(eliteDeskIsViable(5, dues)).toBe(true);
+    expect(eliteDeskIsViable(50, dues)).toBe(true);
+  });
+
+  it("is priced well below joining the partner desk directly, for normal use", () => {
+    const direct = ELITE_DESK_MEMBERSHIP.monthlyCents * 12;
+    expect(dues * 12).toBeLessThan(direct);
+  });
+
+  it("knows the spend above which a member should join the desk directly", () => {
+    const jet = findEliteService("jet-travel");
+    const crossover = directMembershipCrossoverCents(dues, jet.commissionRate);
+    // Around $52.6k of charter a year. Below it Elite is the cheaper way in;
+    // above it we should be telling them to go direct rather than selling
+    // them the more expensive option.
+    expect(crossover).toBeGreaterThan(5_000_000);
+    expect(crossover).toBeLessThan(5_500_000);
+
+    // Checked against the two costs rather than asserted: at the crossover
+    // the member pays the same either way.
+    const viaElite = dues * 12 + commissionCentsFor("jet-travel", crossover);
+    expect(viaElite).toBeCloseTo(ELITE_DESK_MEMBERSHIP.monthlyCents * 12, -2);
+  });
+
+  it("needs a commission to trade the crossover off against", () => {
+    // The concierge doctor takes 0% on purpose, so there is no crossover to
+    // compute there — and pretending one exists would invent a number.
+    expect(() => directMembershipCrossoverCents(dues, 0)).toThrow(/commission/i);
+  });
+
+  it("earns more from one real charter than from a member's whole year of dues", () => {
+    // The point of the tier: dues cover the desk, bookings are the business.
+    const fourHourMidsize = 4 * 796_600;
+    expect(commissionCentsFor("jet-travel", fourHourMidsize)).toBeGreaterThan(dues * 12);
   });
 });

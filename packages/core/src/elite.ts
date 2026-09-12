@@ -237,3 +237,88 @@ export function disclosuresFor(id: EliteServiceId): string[] {
   if (id === "concierge-doctor") return CONCIERGE_DOCTOR_DISCLOSURES;
   return [];
 }
+
+/* ---------------------------------------------------------------------------
+   Whether the Elite desk pays for itself
+   ------------------------------------------------------------------------ */
+
+/**
+ * The partner membership Safehubby carries so Elite can exist at all.
+ *
+ * Elite piggybacks on an established luxury-travel desk rather than building
+ * supplier relationships from nothing — Amalfi's Reserve membership is the
+ * intended first one (see `adapters/elite-desk.ts`, which stays
+ * provider-agnostic). **Safehubby holds one house membership and brokers on
+ * it**; members do not each buy their own. That is the only structure in
+ * which $149 a month is a real price rather than a loss, and it is the
+ * assumption every number below rests on.
+ *
+ * It is also a contract term, not a technical choice. Brokering on a house
+ * membership has to be permitted by the partner agreement, and the air-charter
+ * side carries its own law on top (`JET_TRAVEL_DISCLOSURES`, 14 CFR Part 295).
+ * If a partner forbids it, this whole tier is repriced, not tweaked.
+ */
+export const ELITE_DESK_MEMBERSHIP = {
+  name: "Partner luxury-travel desk membership",
+  /** One-off, on joining. */
+  initiationCents: 250_000,
+  monthlyCents: 50_000,
+} as const;
+
+/** What the house membership costs over a year, initiation included in the
+ *  first one. */
+export function eliteDeskAnnualCostCents(firstYear = true): number {
+  return ELITE_DESK_MEMBERSHIP.monthlyCents * 12
+    + (firstYear ? ELITE_DESK_MEMBERSHIP.initiationCents : 0);
+}
+
+/**
+ * How many Elite members it takes for their dues alone to cover the house
+ * membership — before a single booking earns commission.
+ *
+ * Rounded up, because four-and-a-bit members is five members. The point of
+ * having it as a number is `eliteDeskIsViable` below: the tier should not buy
+ * a membership it cannot yet carry.
+ */
+export function eliteBreakEvenMembers(monthlyDuesCents: number, firstYear = true): number {
+  if (monthlyDuesCents <= 0) throw new Error("Elite dues must be a positive amount.");
+  return Math.ceil(eliteDeskAnnualCostCents(firstYear) / (monthlyDuesCents * 12));
+}
+
+/**
+ * Whether to carry the membership yet.
+ *
+ * The operational rule this exists to state: **do not buy the house
+ * membership until enough members are signed to pay for it.** Elite is held
+ * behind the `elite-tier` flag precisely so it can be sold before it is
+ * staffed, and a desk bought for two members is the most expensive way to
+ * discover that.
+ */
+export function eliteDeskIsViable(memberCount: number, monthlyDuesCents: number): boolean {
+  return memberCount >= eliteBreakEvenMembers(monthlyDuesCents);
+}
+
+/**
+ * The annual charter spend at which joining the partner desk directly becomes
+ * cheaper than going through Elite.
+ *
+ * Worth computing rather than avoiding. Elite costs dues plus commission on
+ * what you book; a direct membership costs the partner's own dues and no
+ * commission. Below the crossover Elite is genuinely the cheaper way in;
+ * above it, a heavy flyer is better off joining directly, and the honest
+ * thing is to say so rather than sell them a membership that costs them more.
+ *
+ * `directAnnualCents` defaults to the steady-state cost of the partner
+ * membership — no initiation, since a heavy flyer comparing year two is the
+ * one this matters to.
+ */
+export function directMembershipCrossoverCents(
+  monthlyDuesCents: number,
+  commissionRate: number,
+  directAnnualCents = ELITE_DESK_MEMBERSHIP.monthlyCents * 12,
+): number {
+  if (commissionRate <= 0) throw new Error("A crossover needs a commission to trade off against.");
+  const eliteDues = monthlyDuesCents * 12;
+  // dues + rate * spend = direct  =>  spend = (direct - dues) / rate
+  return Math.max(0, Math.round((directAnnualCents - eliteDues) / commissionRate));
+}

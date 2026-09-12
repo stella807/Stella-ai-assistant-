@@ -54,3 +54,105 @@ workflows:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  # ---------------------------------------------------------------------------
+  # The signed workflow: TestFlight, and from there the App Store.
+  #
+  # Everything above proves the app compiles. This one produces a signed .ipa
+  # and uploads it, which needs three things the simulator build does not:
+  #
+  #   1. An Apple Developer Program membership ($99/yr). Nothing below works
+  #      without it, and it is the long pole — enrolment can take days, and
+  #      for a company it needs a D-U-N-S number. Start it before you need it.
+  #   2. An App Store Connect API key (Users and Access → Integrations), added
+  #      to Codemagic under Teams → Integrations → Developer Portal. That is
+  #      what `app_store_connect` fetches signing files with, so no
+  #      certificates are pasted anywhere.
+  #   3. The bundle id registered and an app record created in App Store
+  #      Connect. It must match `appId` in capacitor.config.ts exactly.
+  #
+  # Triggered by hand, not on push: macOS minutes are metered, and an upload
+  # to TestFlight is an outward-facing act that should be deliberate.
+  # ---------------------------------------------------------------------------
+  ios-testflight:
+    name: iOS signed build → TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: safehubby-asc-key
+    environment:
+      node: 22
+      xcode: latest
+      groups:
+        # Holds VITE_API_URL. Same variable the simulator build needs, and the
+        # same failure if it is missing: the bundle compiles and then throws on
+        # launch, which a store reviewer will see as a crash on first open.
+        - safehubby
+      vars:
+        BUNDLE_ID: "app.safehubby"
+        XCODE_PROJECT: "App.xcodeproj"
+        XCODE_SCHEME: "App"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.safehubby
+    scripts:
+      - name: Install pnpm
+        script: npm install -g pnpm@9
+
+      - name: Install workspace dependencies
+        script: pnpm install --frozen-lockfile
+
+      - name: Fail early if the API URL is missing
+        script: |
+          # Better to stop here than to ship a bundle that throws on launch.
+          if [ -z "$VITE_API_URL" ]; then
+            echo "VITE_API_URL is not set. Add it to the 'safehubby' variable group."
+            exit 1
+          fi
+          echo "Building against $VITE_API_URL"
+
+      - name: Build the web bundle
+        script: |
+          cd apps/web
+          pnpm build
+
+      - name: Sync the Capacitor iOS project with the fresh build
+        script: |
+          cd apps/web
+          npx cap sync ios
+
+      - name: Set the build number from Codemagic's counter
+        script: |
+          # App Store Connect rejects a build number it has seen before, and
+          # hand-bumping it is the step everyone forgets. Codemagic's build
+          # counter is monotonic, so it is the safe source.
+          cd apps/web/ios/App
+          agvtool new-version -all $(($PROJECT_BUILD_NUMBER + 1))
+
+      - name: Fetch signing files from App Store Connect
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Build the signed archive
+        script: |
+          cd apps/web/ios/App
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --archive-flags "-destination 'generic/platform=iOS'"
+    artifacts:
+      - apps/web/ios/App/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # TestFlight only. Promoting to the App Store stays a human decision
+        # made in App Store Connect — an automatic release of a safety app is
+        # not something a green build should be allowed to do on its own.
+        submit_to_testflight: true
+        submit_to_app_store: false
