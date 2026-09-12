@@ -365,6 +365,18 @@ export const api = {
   }) =>
     request<{ request: SpendRequest; remainingSpendCents: number }>(
       "POST", `/api/assistant/tasks/${taskId}/spend-request`, input),
+  /** The receipt for a documented purchase — what stops it being clawed back. */
+  assistantSendReceipt: (taskId: string, requestId: string, photo: { base64: string; mimeType: string }) =>
+    request<{ receipt: IdentityPhoto; unaccountedSpendCents: number }>(
+      "POST", `/api/assistant/tasks/${taskId}/spend-requests/${requestId}/receipt`, photo),
+  /** "It changed" — out of stock, a substitution, a different price. Counts as
+   *  answering for the money, so no receipt isn't a penalty. */
+  assistantReportChange: (taskId: string, requestId: string, input: {
+    note: string; amountCents?: number;
+    voice?: { audioBase64: string; mimeType: string; durationSeconds: number };
+  }) =>
+    request<{ request: SpendRequest; unaccountedSpendCents: number }>(
+      "POST", `/api/assistant/tasks/${taskId}/spend-requests/${requestId}/change`, input),
   /** The customer's say on a documented purchase. Declining re-locks the card. */
   decideSpendRequest: (taskId: string, requestId: string, approve: boolean) =>
     request<{ request: SpendRequest; cardUnlocked: boolean }>(

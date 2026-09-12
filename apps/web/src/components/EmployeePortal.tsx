@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
   annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel, hourlyRateCentsFor,
-  isQuickTaskEligible, remainingSpendCents,
+  isQuickTaskEligible, remainingSpendCents, unaccountedSpendCents,
 } from "@safehubby/core";
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -765,7 +765,44 @@ function TaskDetail({ task, onBack, onChanged }: {
   };
 
   const [showCard, setShowCard] = useState(false);
+  // Which purchase a receipt or change note is being filed against. The file
+  // input is shared across rows, so the target id has to be held separately.
+  const [receiptFor, setReceiptFor] = useState<string | null>(null);
+  const [changeFor, setChangeFor] = useState<string | null>(null);
+  const [changeNote, setChangeNote] = useState("");
+  const receiptInput = useRef<HTMLInputElement>(null);
   const ended = task.status !== "in-progress";
+  const unaccounted = unaccountedSpendCents(task);
+
+  const captureReceipt = async (file?: File) => {
+    if (!file || !receiptFor) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.assistantSendReceipt(task.id, receiptFor, await readFileAsBase64(file));
+      setReceiptFor(null);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that receipt");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reportChange = async (requestId: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.assistantReportChange(task.id, requestId, { note: changeNote });
+      setChangeFor(null);
+      setChangeNote("");
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="stack">
@@ -857,6 +894,62 @@ function TaskDetail({ task, onBack, onChanged }: {
         )}
       </section>
 
+      {(task.spendRequests ?? []).filter((r) => r.status !== "declined").length > 0 && (
+        <section className="card stack">
+          <h3>Receipts</h3>
+          <p className="tiny muted">
+            Every purchase needs a receipt, or a note saying what changed. Anything left unanswered when
+            this task closes is deducted from your pay — so if the shop was out of something, say so here
+            and you're covered.
+          </p>
+          {(task.spendRequests ?? []).filter((r) => r.status !== "declined").map((r) => (
+            <div key={r.id} className="card card-quiet stack" style={{ gap: 6 }}>
+              <div className="row-between">
+                <span className="small">{r.note}</span>
+                <strong className="charge-amount">{money(r.amountCents)}</strong>
+              </div>
+
+              {r.receipt && <span className="tiny muted">Receipt sent.</span>}
+              {r.change && <span className="tiny muted">You reported: {r.change.note}</span>}
+
+              {!ended && !r.receipt && (
+                <>
+                  <button className="btn btn-sm btn-block" disabled={busy}
+                    onClick={() => { setReceiptFor(r.id); receiptInput.current?.click(); }}>
+                    Add the receipt
+                  </button>
+                  {!r.change && (
+                    changeFor === r.id ? (
+                      <div className="stack" style={{ gap: 6 }}>
+                        <input value={changeNote} placeholder="They were out of the 2lb bag, got the 1lb"
+                          maxLength={280} onChange={(e) => setChangeNote(e.target.value)} />
+                        <div className="row">
+                          <button className="btn btn-sm grow" disabled={busy}
+                            onClick={() => { setChangeFor(null); setChangeNote(""); }}>
+                            Cancel
+                          </button>
+                          <button className="btn btn-sm btn-primary grow"
+                            disabled={busy || !changeNote.trim()} onClick={() => reportChange(r.id)}>
+                            Tell them
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button className="btn btn-sm btn-ghost btn-block" disabled={busy}
+                        onClick={() => setChangeFor(r.id)}>
+                        Something changed — couldn't buy it, or the price differed
+                      </button>
+                    )
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+          <input ref={receiptInput} type="file" accept="image/*" capture="environment" hidden
+            onChange={(e) => captureReceipt(e.target.files?.[0])} />
+        </section>
+      )}
+
       {!ended && (
         <section className="card stack">
           <h3>Wrap up</h3>
@@ -885,6 +978,12 @@ function TaskDetail({ task, onBack, onChanged }: {
             {task.requesterName} as proof. Optional, but the honest way to close out a task with no room
             for a dispute over whether it happened.
           </p>
+          {unaccounted > 0 && (
+            <div className="banner banner-danger">
+              <strong>{money(unaccounted)} has no receipt yet.</strong> Add one below, or say what changed if
+              you couldn't buy it — otherwise it comes out of your pay when this closes.
+            </div>
+          )}
           <button className="btn btn-primary btn-block" disabled={busy} onClick={complete}>Mark done</button>
           <button className="btn btn-ghost btn-block" disabled={busy} onClick={decline}>
             Decline — unsafe, illegal, or not what I agreed to

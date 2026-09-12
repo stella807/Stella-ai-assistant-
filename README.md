@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 787 tests (7 Postgres tests skip without a database)
+pnpm test         # 801 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm lint
 pnpm build

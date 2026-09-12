@@ -1983,6 +1983,92 @@ describe("assistant portal", () => {
       expect(res.json.cardUnlocked).toBe(true);
     });
 
+    const requestSpend = async (amountCents = 4000) => {
+      const made = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents, note: "Two chickens and rice",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
+      return made.json.request.id as string;
+    };
+    const adjustmentsFor = () => store.data.assistantAdjustments.filter((a) => a.taskId === cardedTaskId);
+
+    it("docks the assistant for spend with no receipt and no explanation", async () => {
+      await requestSpend(4000);
+      await call("POST", `/api/assistant/tasks/${cardedTaskId}/complete`, { billedCents: 4000 }, null, cookie);
+
+      const [adjustment] = adjustmentsFor();
+      expect(adjustment.totalCents).toBe(4000);
+      expect(adjustment.remainingCents).toBe(4000);
+      expect(adjustment.reason).toMatch(/no receipt or explanation/i);
+    });
+
+    it("docks nothing once the receipt is sent", async () => {
+      const requestId = await requestSpend(4000);
+      const receipt = await call(
+        "POST", `/api/assistant/tasks/${cardedTaskId}/spend-requests/${requestId}/receipt`,
+        { base64: Buffer.from("the receipt").toString("base64"), mimeType: "image/jpeg" }, null, cookie,
+      );
+      expect(receipt.status).toBe(200);
+      expect(receipt.json.unaccountedSpendCents).toBe(0);
+
+      await call("POST", `/api/assistant/tasks/${cardedTaskId}/complete`, { billedCents: 4000 }, null, cookie);
+      expect(adjustmentsFor()).toEqual([]);
+    });
+
+    it("docks nothing when the assistant reported a change instead — the caveat that protects them", async () => {
+      const requestId = await requestSpend(4000);
+      const change = await call(
+        "POST", `/api/assistant/tasks/${cardedTaskId}/spend-requests/${requestId}/change`,
+        { note: "They were out of the 2lb bag, so I didn't buy it" }, null, cookie,
+      );
+      expect(change.status).toBe(200);
+      expect(change.json.unaccountedSpendCents).toBe(0);
+
+      await call("POST", `/api/assistant/tasks/${cardedTaskId}/complete`, { billedCents: 0 }, null, cookie);
+      expect(adjustmentsFor()).toEqual([]);
+    });
+
+    it("lets a change note correct the price without tripping the cap it was already counted against", async () => {
+      const requestId = await requestSpend(8000); // the whole cap
+      const res = await call(
+        "POST", `/api/assistant/tasks/${cardedTaskId}/spend-requests/${requestId}/change`,
+        { note: "Cheaper than expected", amountCents: 5000 }, null, cookie,
+      );
+      expect(res.status).toBe(200);
+      expect(res.json.request.amountCents).toBe(5000);
+    });
+
+    it("requires a real explanation on a change note", async () => {
+      const requestId = await requestSpend();
+      const res = await call(
+        "POST", `/api/assistant/tasks/${cardedTaskId}/spend-requests/${requestId}/change`,
+        { note: "   " }, null, cookie,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it("will not let another assistant send a receipt against someone else's purchase", async () => {
+      const requestId = await requestSpend();
+      const res = await call(
+        "POST", `/api/assistant/tasks/${cardedTaskId}/spend-requests/${requestId}/receipt`,
+        { base64: Buffer.from("nope").toString("base64"), mimeType: "image/jpeg" }, null, otherCookie,
+      );
+      expect(res.status).toBe(404);
+    });
+
+    it("docks only the unanswered purchase when several are open", async () => {
+      const receipted = await requestSpend(3000);
+      await requestSpend(2000);
+      await call(
+        "POST", `/api/assistant/tasks/${cardedTaskId}/spend-requests/${receipted}/receipt`,
+        { base64: Buffer.from("the receipt").toString("base64"), mimeType: "image/jpeg" }, null, cookie,
+      );
+      await call("POST", `/api/assistant/tasks/${cardedTaskId}/complete`, { billedCents: 5000 }, null, cookie);
+
+      const [adjustment] = adjustmentsFor();
+      expect(adjustment.totalCents).toBe(2000);
+    });
+
     it("will not let a stranger decide someone else's purchase", async () => {
       const made = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
         amountCents: 4000, note: "Two chickens and rice",

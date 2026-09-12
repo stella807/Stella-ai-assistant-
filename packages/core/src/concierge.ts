@@ -474,9 +474,25 @@ export interface SpendRequest {
   status: SpendRequestStatus;
   createdAt: string;
   decidedAt?: string;
+  /** The receipt, photographed after buying. Its absence is what makes a
+   *  purchase unaccounted for — see `unaccountedSpendCents`. */
+  receipt?: IdentityPhoto;
+  /**
+   * Why what happened differs from what was requested: the shop was out of
+   * it, a size or brand was substituted, the price came out different. Filed
+   * by the assistant through the app so the customer hears it from them
+   * rather than discovering it on a statement.
+   *
+   * This is the other way to account for a purchase. An assistant who can't
+   * produce a receipt because there was nothing to buy has still done their
+   * job, and a missing receipt should not cost them money when they said so
+   * at the time — see `isSpendAccountedFor`.
+   */
+  change?: { note: string; voiceMessageId?: string; createdAt: string };
 }
 
 export const MAX_SPEND_REQUEST_NOTE = 160;
+export const MAX_SPEND_CHANGE_NOTE = 280;
 
 /** Requests that still count against the cap — a declined one does not. */
 export function liveSpendRequests(task: Pick<ConciergeTask, "spendRequests">): SpendRequest[] {
@@ -499,6 +515,35 @@ export function remainingSpendCents(task: Pick<ConciergeTask, "spendCapCents" | 
  */
 export function canRevealCard(task: Pick<ConciergeTask, "spendRequests">): boolean {
   return liveSpendRequests(task).length > 0;
+}
+
+/**
+ * Whether the money on this purchase is answered for. A receipt answers for
+ * it; so does a change note, because "they were out of it" is an answer and
+ * an assistant who says so at the time has done nothing wrong. Only silence
+ * is unaccounted.
+ */
+export function isSpendAccountedFor(request: SpendRequest): boolean {
+  return Boolean(request.receipt) || Boolean(request.change);
+}
+
+/**
+ * Spend nobody has answered for — the amount that comes out of the
+ * assistant's pay when a task closes, via an `AssistantAdjustment` (see
+ * payroll.ts, the same mechanism a customer dispute uses). Declined requests
+ * are excluded: the card was locked for those, so there was nothing to spend.
+ */
+export function unaccountedSpendCents(task: Pick<ConciergeTask, "spendRequests">): number {
+  return liveSpendRequests(task)
+    .filter((r) => !isSpendAccountedFor(r))
+    .reduce((sum, r) => sum + r.amountCents, 0);
+}
+
+export function validateSpendChange(note: string): void {
+  if (!note.trim()) throw new Error("Say what changed so the customer knows.");
+  if (note.length > MAX_SPEND_CHANGE_NOTE) {
+    throw new Error(`Keep it under ${MAX_SPEND_CHANGE_NOTE} characters.`);
+  }
 }
 
 export function validateSpendRequest(

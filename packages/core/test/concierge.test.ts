@@ -9,7 +9,8 @@ import {
   MAX_SPEND_REQUEST_NOTE,
   annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel,
   conciergeMarginCents, liveSpendRequests, remainingSpendCents, spendRequestedCents,
-  validateSpendRequest,
+  validateSpendRequest, isSpendAccountedFor, unaccountedSpendCents, validateSpendChange,
+  MAX_SPEND_CHANGE_NOTE,
   householdMultiplier,
   describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
@@ -335,6 +336,62 @@ describe("spend requests — evidence before the card unlocks", () => {
     expect(() => validateSpendRequest({ amountCents: 100, note: "   " }, task)).toThrow(/what you are buying/i);
     expect(() => validateSpendRequest({ amountCents: 100, note: "x".repeat(MAX_SPEND_REQUEST_NOTE + 1) }, task))
       .toThrow(new RegExp(`under ${MAX_SPEND_REQUEST_NOTE}`, "i"));
+  });
+});
+
+describe("receipts — unanswered spend comes out of the assistant's pay", () => {
+  const photo = { base64: "aGVsbG8=", mimeType: "image/jpeg", capturedAt: "2026-01-01T00:00:00.000Z" };
+  const req = (over: Record<string, unknown> = {}) => ({
+    id: "sr1", amountCents: 4000, note: "Two chickens", photo,
+    status: "open", createdAt: "2026-01-01T00:00:00.000Z", ...over,
+  }) as any;
+
+  it("counts a purchase with a receipt as answered for", () => {
+    expect(isSpendAccountedFor(req({ receipt: photo }))).toBe(true);
+    expect(unaccountedSpendCents({ spendRequests: [req({ receipt: photo })] })).toBe(0);
+  });
+
+  it("counts a reported change as answered for, so no receipt is not a penalty", () => {
+    // The whole point: the shop was out of it, they said so, they keep their pay.
+    const change = { note: "They were out of it", createdAt: "2026-01-01T01:00:00.000Z" };
+    expect(isSpendAccountedFor(req({ change }))).toBe(true);
+    expect(unaccountedSpendCents({ spendRequests: [req({ change })] })).toBe(0);
+  });
+
+  it("charges silence to the assistant — no receipt and no explanation", () => {
+    expect(isSpendAccountedFor(req())).toBe(false);
+    expect(unaccountedSpendCents({ spendRequests: [req()] })).toBe(4000);
+  });
+
+  it("adds up only the unanswered purchases", () => {
+    const change = { note: "Out of stock", createdAt: "2026-01-01T01:00:00.000Z" };
+    expect(unaccountedSpendCents({
+      spendRequests: [
+        req({ id: "a", amountCents: 4000, receipt: photo }),
+        req({ id: "b", amountCents: 2500 }),
+        req({ id: "c", amountCents: 1000, change }),
+        req({ id: "d", amountCents: 9000 }),
+      ],
+    })).toBe(11500);
+  });
+
+  it("never charges for a declined purchase — the card was locked for it", () => {
+    expect(unaccountedSpendCents({
+      spendRequests: [req({ amountCents: 4000, status: "declined" })],
+    })).toBe(0);
+  });
+
+  it("is zero for a task where nothing was ever requested", () => {
+    expect(unaccountedSpendCents({ spendRequests: undefined })).toBe(0);
+    expect(unaccountedSpendCents({ spendRequests: [] })).toBe(0);
+  });
+
+  it("requires a real explanation on a change note", () => {
+    expect(() => validateSpendChange("")).toThrow(/say what changed/i);
+    expect(() => validateSpendChange("   ")).toThrow(/say what changed/i);
+    expect(() => validateSpendChange("x".repeat(MAX_SPEND_CHANGE_NOTE + 1)))
+      .toThrow(new RegExp(`under ${MAX_SPEND_CHANGE_NOTE}`, "i"));
+    expect(() => validateSpendChange("They were out of the 2lb bag")).not.toThrow();
   });
 });
 

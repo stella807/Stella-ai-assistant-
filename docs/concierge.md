@@ -480,6 +480,50 @@ customer's say. Declining drops the request out of `liveSpendRequests` and
 Approving records an explicit blessing, useful later if the task is disputed.
 A declined amount also frees back up against the cap.
 
+### The receipt rule, and the caveat that protects the assistant
+
+**No receipt, no pay for that purchase.** When a task closes,
+`unaccountedSpendCents` sums every live purchase nobody has answered for, and
+`settleConciergeTask` opens an `AssistantAdjustment` for it — the same
+clawback ledger a customer dispute uses, deducted from future biweekly
+payouts oldest-debt-first. Spend the card and go quiet, and it comes out of
+your pay.
+
+**But an assistant who told the customer what changed is never docked.** This
+is the caveat, and it is load-bearing rather than a nicety: shops run out of
+things, brands get substituted, prices come out different, and none of that is
+the assistant's fault. `POST /api/assistant/tasks/:taskId/spend-requests/:requestId/change`
+takes a note and an optional voice message — delivered to the customer through
+the app, in the assistant's own words — and **counts as answering for the
+money**. So `isSpendAccountedFor` is true for either a receipt *or* a reported
+change:
+
+| What happened | Receipt | Change note | Docked? |
+|---|---|---|---|
+| Bought it, sent the receipt | ✓ | | No |
+| Shop was out, said so | | ✓ | No |
+| Price differed, said so and corrected it | | ✓ | No |
+| Spent it and said nothing | | | **Yes** |
+| Customer declined it before purchase | n/a | n/a | No — the card was locked |
+
+A change note can revise the amount at the same time, since a different price
+is the commonest reason to file one. The revision is validated against the cap
+with that request's own current figure set aside, so correcting $80 down to
+$50 can never be refused for overrunning a cap the old number was already
+counted against.
+
+**Nothing here is a surprise deduction.** The portal shows a running receipts
+list per purchase, and the "Wrap up" panel warns in plain words — *"$42.50 has
+no receipt yet… otherwise it comes out of your pay when this closes"* — before
+the assistant can mark the task done.
+
+**One open question worth deciding.** An unreceipted purchase is currently
+clawed back from the assistant *and* still charged to the customer, which
+means Safehubby nets the money on a failure. That is defensible when the goods
+did arrive and only the paperwork is missing, and indefensible if the
+assistant simply pocketed it. Refunding the customer for unaccounted spend —
+rather than keeping it — is the fairer default, and is not implemented yet.
+
 ### Why this is not an approval the customer has to tap
 
 This is the one design decision worth arguing with, so here is the reasoning

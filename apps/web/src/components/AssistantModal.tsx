@@ -264,6 +264,20 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
                         <span className="tiny muted">{money(r.amountCents)}</span>
                       </div>
                     </div>
+                    {r.change && (
+                      <p className="tiny muted" style={{ margin: 0 }}>
+                        They let you know: {r.change.note}
+                      </p>
+                    )}
+                    {r.receipt ? (
+                      <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                        <img className="selfie-thumb" alt="Receipt"
+                          src={`data:${r.receipt.mimeType};base64,${r.receipt.base64}`} />
+                        <span className="tiny muted">Receipt</span>
+                      </div>
+                    ) : (
+                      <span className="tiny muted">No receipt yet.</span>
+                    )}
                     {r.status === "open" ? (
                       <div className="row">
                         <button className="btn btn-sm grow" disabled={busy}

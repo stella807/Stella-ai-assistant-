@@ -21,7 +21,7 @@ import {
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
-  canRevealCard, remainingSpendCents, validateSpendRequest,
+  canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
   applyAdjustments, outstandingClawbackCents,
   isInLaunchMarket, launchMarketNames,
@@ -441,6 +441,24 @@ function settleConciergeTask(ctx: Ctx, task: ConciergeTask, billedCents: unknown
   const totalCents = purchaseCents + task.serviceFeeCents;
 
   if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
+
+  // Spend nobody answered for comes out of the assistant's pay, through the
+  // same clawback ledger a customer dispute uses. A receipt answers for a
+  // purchase; so does a change note — see `isSpendAccountedFor`. The
+  // assistant is warned about this in the portal before they mark a task
+  // done, so it is never a surprise deduction.
+  const unaccounted = unaccountedSpendCents(task);
+  if (unaccounted > 0 && task.assistantId) {
+    const assistantId = task.assistantId;
+    ctx.store.update((db) => {
+      db.assistantAdjustments.push({
+        id: newId("adj"), assistantId, taskId: task.id,
+        reason: `No receipt or explanation for $${(unaccounted / 100).toFixed(2)} of spend on this task.`,
+        totalCents: unaccounted, remainingCents: unaccounted, createdAt: ctx.now().toISOString(),
+      });
+    });
+  }
+
   ctx.store.update((db) => {
     const target = db.holds.find((h) => h.id === task.holdId);
     if (target) Object.assign(target, captureHold(target, totalCents, ctx.now()));
@@ -2171,6 +2189,81 @@ export const routes: Record<string, Handler> = {
     });
     const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
     return { request, remainingSpendCents: remainingSpendCents(updated) };
+  },
+
+  /**
+   * The receipt, after buying. This is what stops the purchase being clawed
+   * back out of the assistant's pay when the task closes.
+   */
+  "POST /api/assistant/tasks/:taskId/spend-requests/:requestId/receipt": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    const requestId = req(p, "requestId");
+    if (!(task.spendRequests ?? []).some((r) => r.id === requestId)) throw notFound("Purchase");
+    const receipt = identityPhotoFrom(body, ctx.now());
+
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      t.spendRequests!.find((r) => r.id === requestId)!.receipt = receipt;
+    });
+    const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
+    return { receipt, unaccountedSpendCents: unaccountedSpendCents(updated) };
+  },
+
+  /**
+   * "It changed" — the shop was out of it, a brand was substituted, the price
+   * came out different. Goes to the customer as a note plus an optional voice
+   * message, and counts as answering for the money, so an assistant who could
+   * not buy what was asked for is not docked for having no receipt.
+   *
+   * The amount can be revised at the same time, because a price that came out
+   * different is the most common reason to file one of these.
+   */
+  "POST /api/assistant/tasks/:taskId/spend-requests/:requestId/change": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    const requestId = req(p, "requestId");
+    const existing = (task.spendRequests ?? []).find((r) => r.id === requestId);
+    if (!existing) throw notFound("Purchase");
+
+    const note = String(body?.note ?? "");
+    validateSpendChange(note);
+
+    // A revised amount is checked against the cap with this request's own
+    // current amount set aside, so correcting $12 to $8 can never be refused
+    // for overrunning a cap the old figure was already counted against.
+    let amountCents: number | undefined;
+    if (body?.amountCents !== undefined) {
+      amountCents = Math.round(Number(body.amountCents));
+      const others = (task.spendRequests ?? []).filter((r) => r.id !== requestId);
+      validateSpendRequest({ amountCents, note: existing.note }, { ...task, spendRequests: others });
+    }
+
+    let voiceMessageId: string | undefined;
+    if (body?.voice) {
+      const message = recordVoiceMessage({
+        id: newId("vm"), taskId: task.id, travelerId: task.travelerId, sender: "assistant",
+        audioBase64: String(body.voice.audioBase64 ?? ""), mimeType: String(body.voice.mimeType ?? ""),
+        durationSeconds: Number(body.voice.durationSeconds), now: ctx.now(),
+      });
+      ctx.store.update((db) => void db.voiceMessages.push(message));
+      voiceMessageId = message.id;
+    }
+
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      const r = t.spendRequests!.find((x) => x.id === requestId)!;
+      r.change = {
+        note: note.trim(), ...(voiceMessageId ? { voiceMessageId } : {}),
+        createdAt: ctx.now().toISOString(),
+      };
+      if (amountCents !== undefined) r.amountCents = amountCents;
+    });
+    const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
+    return {
+      request: updated.spendRequests!.find((r) => r.id === requestId),
+      unaccountedSpendCents: unaccountedSpendCents(updated),
+    };
   },
 
   /**
