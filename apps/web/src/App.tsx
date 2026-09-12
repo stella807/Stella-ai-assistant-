@@ -12,8 +12,9 @@ import { PendingOrderPrompt } from "./components/PendingOrderPrompt.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
+import { HiringScreen } from "./components/HiringScreen.tsx";
 
-type Role = "out" | "watching" | "games" | "party" | "plans" | "account" | "drive";
+type Role = "out" | "watching" | "games" | "party" | "plans" | "hiring" | "account" | "drive";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -74,6 +75,7 @@ export function App() {
               <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>Party</button>
             )}
             <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>Payments</button>
+            <button role="tab" aria-selected={role === "hiring"} onClick={() => setRole("hiring")}>Hiring</button>
           </div>
 
           {/* The sober ask outranks whatever tab you are on: it is a question
@@ -93,6 +95,7 @@ export function App() {
               onPlanChanged={(planId) => setAccount((a) => (a && a.planId !== planId ? { ...a, planId } : a))}
             />
           )}
+          {role === "hiring" && <HiringScreen account={account} />}
         </>
       )}
 
