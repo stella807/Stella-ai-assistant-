@@ -1907,10 +1907,92 @@ describe("assistant portal", () => {
       expect(res.json.error).toMatch(/already been cancelled/i);
     });
 
-    it("says what is missing rather than inventing a link when card issuing isn't configured", async () => {
+    it("keeps the card locked until a purchase is documented with a photo", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
+      expect(res.status).toBe(403);
+      expect(res.json.error).toMatch(/photograph what you're buying/i);
+    });
+
+    it("says what is missing rather than inventing a link once a purchase is on the record", async () => {
+      await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 4000, note: "Two chickens and rice",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
       const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
       expect(res.status).toBe(503);
       expect(res.json.error).toMatch(/revolut/i);
+    });
+
+    it("records the purchase with its photo and reports what's left of the cap", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 4000, note: "Two chickens and rice",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
+      expect(res.status).toBe(200);
+      expect(res.json.request.status).toBe("open");
+      expect(res.json.request.photo.mimeType).toBe("image/jpeg");
+      // 8000 cap - 4000 requested
+      expect(res.json.remainingSpendCents).toBe(4000);
+    });
+
+    it("refuses a purchase that would overrun the cap", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 9000, note: "Too much",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/left of the spend cap/i);
+    });
+
+    it("refuses a purchase with no photo — the photo is the point", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 1000, note: "Trust me",
+      }, null, cookie);
+      expect(res.status).toBe(400);
+    });
+
+    it("lets the customer decline, which re-locks the card", async () => {
+      const made = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 4000, note: "Two chickens and rice",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
+      const requestId = made.json.request.id;
+
+      const declined = await call(
+        "POST", `/api/concierge/tasks/${cardedTaskId}/spend-requests/${requestId}/decision`,
+        { approve: false }, sam,
+      );
+      expect(declined.status).toBe(200);
+      expect(declined.json.request.status).toBe("declined");
+      expect(declined.json.cardUnlocked).toBe(false);
+
+      const card = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
+      expect(card.status).toBe(403);
+    });
+
+    it("lets the customer approve, which leaves the card unlocked", async () => {
+      const made = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 4000, note: "Two chickens and rice",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
+      const res = await call(
+        "POST", `/api/concierge/tasks/${cardedTaskId}/spend-requests/${made.json.request.id}/decision`,
+        { approve: true }, sam,
+      );
+      expect(res.json.request.status).toBe("approved");
+      expect(res.json.cardUnlocked).toBe(true);
+    });
+
+    it("will not let a stranger decide someone else's purchase", async () => {
+      const made = await call("POST", `/api/assistant/tasks/${cardedTaskId}/spend-request`, {
+        amountCents: 4000, note: "Two chickens and rice",
+        photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" },
+      }, null, cookie);
+      const res = await call(
+        "POST", `/api/concierge/tasks/${cardedTaskId}/spend-requests/${made.json.request.id}/decision`,
+        { approve: true }, jordan,
+      );
+      expect(res.status).toBe(404);
     });
   });
 

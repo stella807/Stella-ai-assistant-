@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS, annualEstimateCentsFor,
-  assistantPayoutFor, conciergeCategoryLabel, hourlyRateCentsFor, isQuickTaskEligible,
+  CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
+  annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel, hourlyRateCentsFor,
+  isQuickTaskEligible, remainingSpendCents,
 } from "@safehubby/core";
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -466,7 +467,9 @@ function TaskRow({ task, onOpen }: { task: PortalTask; onOpen: () => void }) {
  * number off a screen in a checkout queue. See docs/mobile.md for what the
  * one-tap path would actually take.
  */
-function TaskCardPopup({ task, onClose }: { task: PortalTask; onClose: () => void }) {
+function TaskCardPopup({ task, onClose, onChanged }: {
+  task: PortalTask; onClose: () => void; onChanged: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -477,6 +480,42 @@ function TaskCardPopup({ task, onClose }: { task: PortalTask; onClose: () => voi
   const onApple = isNative()
     ? platform() === "ios"
     : /iphone|ipad|ipod|macintosh/i.test(navigator.userAgent);
+  // The card only unlocks once a purchase is on the record with a photo.
+  const unlocked = canRevealCard(task);
+  const remaining = remainingSpendCents(task);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [photo, setPhoto] = useState<{ base64: string; mimeType: string } | null>(null);
+  const purchaseInput = useRef<HTMLInputElement>(null);
+
+  const capturePurchase = async (file?: File) => {
+    if (!file) return;
+    setError(null);
+    try {
+      setPhoto(await readFileAsBase64(file));
+    } catch {
+      setError("Could not read that photo");
+    }
+  };
+
+  const submitRequest = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (!photo) throw new Error("Take a photo of what you're buying first.");
+      await api.assistantSubmitSpendRequest(task.id, {
+        amountCents: Math.round(Number(amount) * 100), note, photo,
+      });
+      setAmount("");
+      setNote("");
+      setPhoto(null);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const reveal = async () => {
     setBusy(true);
@@ -519,12 +558,57 @@ function TaskCardPopup({ task, onClose }: { task: PortalTask; onClose: () => voi
           there is nothing to keep track of. Don't spend your own money and expect it back.
         </p>
 
-        <button className="btn btn-primary btn-block" disabled={busy} onClick={reveal}>
-          {busy ? "Getting the number…" : "Show the full card number"}
-        </button>
-        <p className="tiny muted">
-          Opens on the card issuer's own secure page, in a new tab. Safehubby never sees the number.
-        </p>
+        {unlocked ? (
+          <>
+            <button className="btn btn-primary btn-block" disabled={busy} onClick={reveal}>
+              {busy ? "Getting the number…" : "Show the full card number"}
+            </button>
+            <p className="tiny muted">
+              Opens on the card issuer's own secure page, in a new tab. Safehubby never sees the number.
+            </p>
+          </>
+        ) : (
+          <div className="stack" style={{ gap: 8 }}>
+            <p className="small">
+              Photograph what you're buying to unlock the card. It goes to {task.requesterName} with the
+              price, so there's never a charge they can't place.
+            </p>
+
+            {photo ? (
+              <img className="selfie-thumb" alt="What you're buying"
+                src={`data:${photo.mimeType};base64,${photo.base64}`} />
+            ) : (
+              <button className="btn btn-block" disabled={busy} onClick={() => purchaseInput.current?.click()}>
+                Take a photo of it
+              </button>
+            )}
+            <input ref={purchaseInput} type="file" accept="image/*" capture="environment" hidden
+              onChange={(e) => capturePurchase(e.target.files?.[0])} />
+
+            <div className="field">
+              <label htmlFor="spend-amount">What it costs</label>
+              <input id="spend-amount" inputMode="decimal" placeholder="0.00" value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} />
+              <span className="tiny muted">Up to {money(remaining)} left on this task.</span>
+            </div>
+
+            <div className="field">
+              <label htmlFor="spend-note">What it is</label>
+              <input id="spend-note" maxLength={MAX_SPEND_REQUEST_NOTE} value={note}
+                placeholder="Two rotisserie chickens and a bag of rice"
+                onChange={(e) => setNote(e.target.value)} />
+            </div>
+
+            <button className="btn btn-primary btn-block"
+              disabled={busy || !photo || !note.trim() || !amount}
+              onClick={submitRequest}>
+              Send it and unlock the card
+            </button>
+            <p className="tiny muted">
+              Record a voice message on the task too if it needs explaining — they'll see both together.
+            </p>
+          </div>
+        )}
 
         <div className="stack" style={{ gap: 6 }}>
           <button className="btn btn-block btn-ghost" aria-expanded={showWallet}
@@ -687,7 +771,9 @@ function TaskDetail({ task, onBack, onChanged }: {
     <div className="stack">
       <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>← All tasks</button>
 
-      {showCard && task.card && <TaskCardPopup task={task} onClose={() => setShowCard(false)} />}
+      {showCard && task.card && (
+        <TaskCardPopup task={task} onClose={() => setShowCard(false)} onChanged={onChanged} />
+      )}
 
       <section className="card stack">
         <div className="row-between">

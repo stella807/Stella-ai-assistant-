@@ -459,6 +459,50 @@ service, not of a person. Optional, same as the selfies — a task can be
 marked complete without one, but a customer weighing whether to dispute a
 task has more to go on when one was attached.
 
+## Authorizing spend: a photo before the money moves
+
+The spend cap bounds *how much*; it says nothing about *what*. Spend requests
+are the missing half, and they are the card's unlock condition:
+`canRevealCard` is false until the assistant has documented a purchase, so
+**nothing gets bought on the task card without a picture of it and a
+timestamp on the record first**.
+
+`POST /api/assistant/tasks/:taskId/spend-request` takes the amount, what it
+is in the assistant's own words, a required photo, and an optional voice note
+(which rides the task's existing voice thread rather than being stored a
+second way, so the customer reads it where they read everything else). The
+amount is validated against `remainingSpendCents`, so requests can never sum
+past the cap.
+
+`POST /api/concierge/tasks/:taskId/spend-requests/:requestId/decision` is the
+customer's say. Declining drops the request out of `liveSpendRequests` and
+**re-locks the card** — that is the control that actually stops money moving.
+Approving records an explicit blessing, useful later if the task is disputed.
+A declined amount also frees back up against the cap.
+
+### Why this is not an approval the customer has to tap
+
+This is the one design decision worth arguing with, so here is the reasoning
+plainly. It would be easy to make a request block until the customer taps
+approve. That would be wrong here, for a reason this codebase already holds
+elsewhere: the care-package authorization in `routes.ts` refuses a late opt-in
+from someone already drinking, on the grounds that **an impaired person cannot
+authorize spending**. The whole premise of a concierge task is that the
+subscriber may be in no state to answer their phone — so blocking on their tap
+would strand an assistant in a shop waiting on someone who cannot reply, which
+is the opposite of what the feature is for.
+
+So the split is: the **cap** is the authorization, and it was set while sober.
+The **photo** is the evidence, and it is mandatory. The **decline** is the
+veto, and it is available but not required. Silence leaves the evidence
+standing where the dispute-and-clawback flow can reach it.
+
+**The gap worth closing next: the veto sits with the person least able to use
+it.** A guardian is the sober party on a night out, and guardians currently
+have no access to concierge tasks at all (the watch view doesn't include
+them). Extending the decline to a guardian with an active share grant is the
+natural follow-up, and would put the veto in the hands of someone awake.
+
 ## Using the card: the assistant's card popup
 
 Issuing a spend-capped card is only half of it — the assistant has to be able

@@ -374,6 +374,10 @@ export interface ConciergeTask {
    *  amounts above — kept on the task so a past payout stays explainable
    *  after the rate card or the household increment changes. */
   peopleCount: number;
+  /** Purchases the assistant has documented, each with a photo — see
+   *  `SpendRequest`. Absent means none yet, which is why the card cannot be
+   *  revealed on a task nobody has documented a purchase for. */
+  spendRequests?: SpendRequest[];
   /** Whether this booked at the discounted quick-task fee — kept on the task
    *  itself (not re-derived from category) so history stays accurate even if
    *  the eligible-category list changes later. */
@@ -429,6 +433,91 @@ export interface ConciergeTask {
    *  still owed to the assistant; this is what stops the same task from
    *  being paid out twice across two payroll runs. */
   payoutId?: string;
+}
+
+/**
+ * Evidence attached to a purchase *before* the money moves.
+ *
+ * The card's spend cap bounds how much can be spent; it says nothing about
+ * what. A spend request is the missing half: the assistant photographs what
+ * they are about to buy (and can record a voice note explaining it), and
+ * that is what unlocks the card — `canRevealCard` below. Nothing gets bought
+ * on this card without a picture of it and a timestamp attached first.
+ *
+ * Note what this deliberately is *not*: a request the customer has to tap
+ * approve before the assistant can act. This app already holds the line that
+ * "an impaired person cannot authorize spending" (see the care-package
+ * authorization in routes.ts, which refuses a late opt-in from someone
+ * already drinking) — and the whole reason a concierge task exists is that
+ * the subscriber may be in no state to answer. Blocking on their approval
+ * would strand the assistant in a shop waiting on someone who cannot reply.
+ *
+ * So an open request unlocks the card immediately and is challengeable
+ * rather than pre-approved: the sober party can `decline` it, which re-locks
+ * the card, and `approve` records an explicit blessing when someone is
+ * actually in a state to give one. Silence leaves the evidence standing on
+ * the record, where the dispute and clawback flow can reach it.
+ */
+export type SpendRequestStatus = "open" | "approved" | "declined";
+
+export interface SpendRequest {
+  id: string;
+  /** What the assistant intends to spend, within the cap's remainder. */
+  amountCents: number;
+  /** What it is, in the assistant's own words. */
+  note: string;
+  /** The thing being bought. Required — a request without a picture is just
+   *  a number, which is what this exists to stop. */
+  photo: IdentityPhoto;
+  /** The voice note recorded alongside it, in the task's existing thread. */
+  voiceMessageId?: string;
+  status: SpendRequestStatus;
+  createdAt: string;
+  decidedAt?: string;
+}
+
+export const MAX_SPEND_REQUEST_NOTE = 160;
+
+/** Requests that still count against the cap — a declined one does not. */
+export function liveSpendRequests(task: Pick<ConciergeTask, "spendRequests">): SpendRequest[] {
+  return (task.spendRequests ?? []).filter((r) => r.status !== "declined");
+}
+
+/** Already committed to, across every request the customer hasn't declined. */
+export function spendRequestedCents(task: Pick<ConciergeTask, "spendRequests">): number {
+  return liveSpendRequests(task).reduce((sum, r) => sum + r.amountCents, 0);
+}
+
+/** What is left of the cap to request against. */
+export function remainingSpendCents(task: Pick<ConciergeTask, "spendCapCents" | "spendRequests">): number {
+  return Math.max(0, task.spendCapCents - spendRequestedCents(task));
+}
+
+/**
+ * Whether the card may be revealed at all. This is the enforcement point:
+ * no live request means no evidence on file, which means no card.
+ */
+export function canRevealCard(task: Pick<ConciergeTask, "spendRequests">): boolean {
+  return liveSpendRequests(task).length > 0;
+}
+
+export function validateSpendRequest(
+  input: { amountCents: number; note: string },
+  task: Pick<ConciergeTask, "spendCapCents" | "spendRequests">,
+): void {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new Error("Say what this will cost, in whole cents.");
+  }
+  const remaining = remainingSpendCents(task);
+  if (input.amountCents > remaining) {
+    throw new Error(
+      `That is more than what is left of the spend cap ($${(remaining / 100).toFixed(2)}).`,
+    );
+  }
+  if (!input.note.trim()) throw new Error("Say what you are buying so the customer can see it.");
+  if (input.note.length > MAX_SPEND_REQUEST_NOTE) {
+    throw new Error(`Keep it under ${MAX_SPEND_REQUEST_NOTE} characters.`);
+  }
 }
 
 /** A single selfie, captured on the fly for this meetup — not a persistent

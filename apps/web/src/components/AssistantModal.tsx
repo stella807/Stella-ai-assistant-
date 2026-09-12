@@ -147,6 +147,23 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     }
   };
 
+  const decide = async (requestId: string, approve: boolean) => {
+    if (!task) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.decideSpendRequest(task.id, requestId, approve);
+      setTask({
+        ...task,
+        spendRequests: (task.spendRequests ?? []).map((r) => (r.id === requestId ? res.request : r)),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitDispute = async () => {
     if (!task) return;
     setBusy(true);
@@ -233,6 +250,44 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
               Sent — {money(task.spendCapCents + task.serviceFeeCents)} held ({money(task.spendCapCents)} spend cap +
               {" "}{money(task.serviceFeeCents)} service fee). Leave a voice message if there's more to say.
             </p>
+
+            {(task.spendRequests ?? []).length > 0 && (
+              <div className="stack" style={{ gap: 8 }}>
+                <strong className="small">What they're buying</strong>
+                {(task.spendRequests ?? []).map((r) => (
+                  <div key={r.id} className="card card-quiet stack" style={{ gap: 6 }}>
+                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                      <img className="selfie-thumb" alt={r.note}
+                        src={`data:${r.photo.mimeType};base64,${r.photo.base64}`} />
+                      <div className="stack" style={{ gap: 2 }}>
+                        <span className="small">{r.note}</span>
+                        <span className="tiny muted">{money(r.amountCents)}</span>
+                      </div>
+                    </div>
+                    {r.status === "open" ? (
+                      <div className="row">
+                        <button className="btn btn-sm grow" disabled={busy}
+                          onClick={() => decide(r.id, false)}>
+                          Not that
+                        </button>
+                        <button className="btn btn-sm btn-primary grow" disabled={busy}
+                          onClick={() => decide(r.id, true)}>
+                          Looks right
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="tiny muted">
+                        {r.status === "approved" ? "You said this looks right." : "You declined this — the card is locked."}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                <p className="tiny muted">
+                  You don't have to answer these — your spend cap already limits what can be spent. Saying
+                  "not that" locks the card so nothing more goes through on it.
+                </p>
+              </div>
+            )}
 
             <div className="row-between">
               <div className="row" style={{ gap: 8, alignItems: "center" }}>

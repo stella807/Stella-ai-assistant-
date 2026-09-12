@@ -2,6 +2,7 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask,
   IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
+  SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
@@ -355,6 +356,19 @@ export const api = {
     request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/selfie`, photo),
   assistantSendCompletionPhoto: (taskId: string, photo: { base64: string; mimeType: string }) =>
     request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/completion-photo`, photo),
+  /** Documents a purchase before it happens — photo required, voice
+   *  optional. This is what unlocks the task card. */
+  assistantSubmitSpendRequest: (taskId: string, input: {
+    amountCents: number; note: string;
+    photo: { base64: string; mimeType: string };
+    voice?: { audioBase64: string; mimeType: string; durationSeconds: number };
+  }) =>
+    request<{ request: SpendRequest; remainingSpendCents: number }>(
+      "POST", `/api/assistant/tasks/${taskId}/spend-request`, input),
+  /** The customer's say on a documented purchase. Declining re-locks the card. */
+  decideSpendRequest: (taskId: string, requestId: string, approve: boolean) =>
+    request<{ request: SpendRequest; cardUnlocked: boolean }>(
+      "POST", `/api/concierge/tasks/${taskId}/spend-requests/${requestId}/decision`, { approve }),
   /** A one-time link to the task card's full number, for paying with it. The
    *  number itself never comes through this API — see revealCard in core. */
   assistantRevealCard: (taskId: string) =>

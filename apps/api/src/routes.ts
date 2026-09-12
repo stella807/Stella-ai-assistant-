@@ -21,6 +21,7 @@ import {
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
+  canRevealCard, remainingSpendCents, validateSpendRequest,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
   applyAdjustments, outstandingClawbackCents,
   isInLaunchMarket, launchMarketNames,
@@ -33,6 +34,7 @@ import {
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
   ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut,
+  SpendRequest,
   OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
   PaymentProcessor, WalletType,
 } from "@safehubby/core";
@@ -2113,11 +2115,91 @@ export const routes: Record<string, Handler> = {
     if (!task.card) {
       throw new HttpError(404, "No card was issued for this task. The customer pays you back directly instead.");
     }
+    // The evidence gate: no documented purchase, no card. A declined request
+    // does not count, so declining re-locks it.
+    if (!canRevealCard(task)) {
+      throw new HttpError(
+        403,
+        "Photograph what you're buying first — the card unlocks once there's a purchase on the record.",
+      );
+    }
     if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
 
     const revealUrl = await revolutCards.revealCard(task.card.id);
     if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask dispatch to reissue it.");
     return { revealUrl, card: task.card, spendCapCents: task.spendCapCents };
+  },
+
+  /**
+   * Documents a purchase before it happens: a photo of what is being bought,
+   * what it costs, and optionally a voice note explaining it. This is what
+   * unlocks the task card — see `SpendRequest` in core for why it is an
+   * evidence gate rather than an approval the customer has to tap, given the
+   * customer may be in no state to tap anything.
+   */
+  "POST /api/assistant/tasks/:taskId/spend-request": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+
+    const input = { amountCents: Math.round(Number(body?.amountCents)), note: String(body?.note ?? "") };
+    validateSpendRequest(input, task);
+    const photo = identityPhotoFrom(body?.photo, ctx.now());
+
+    // The voice note rides the task's existing thread rather than being
+    // stored a second way, so the customer reads it where they already read
+    // everything else from this assistant.
+    let voiceMessageId: string | undefined;
+    if (body?.voice) {
+      const message = recordVoiceMessage({
+        id: newId("vm"), taskId: task.id, travelerId: task.travelerId, sender: "assistant",
+        audioBase64: String(body.voice.audioBase64 ?? ""), mimeType: String(body.voice.mimeType ?? ""),
+        durationSeconds: Number(body.voice.durationSeconds), now: ctx.now(),
+      });
+      ctx.store.update((db) => void db.voiceMessages.push(message));
+      voiceMessageId = message.id;
+    }
+
+    const request: SpendRequest = {
+      id: newId("sr"), amountCents: input.amountCents, note: input.note.trim(), photo,
+      ...(voiceMessageId ? { voiceMessageId } : {}),
+      status: "open", createdAt: ctx.now().toISOString(),
+    };
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      (t.spendRequests ??= []).push(request);
+    });
+    const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
+    return { request, remainingSpendCents: remainingSpendCents(updated) };
+  },
+
+  /**
+   * The customer's say on a documented purchase. Approving records an
+   * explicit blessing; declining re-locks the card, so it is the one that
+   * actually stops money moving. Neither is required for the assistant to
+   * proceed — see `SpendRequest` for why waiting on an impaired subscriber
+   * would strand someone mid-task.
+   */
+  "POST /api/concierge/tasks/:taskId/spend-requests/:requestId/decision": (ctx, p, body) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    const requestId = req(p, "requestId");
+    const existing = (task.spendRequests ?? []).find((r) => r.id === requestId);
+    if (!existing) throw notFound("Purchase");
+    if (existing.status !== "open") throw new HttpError(400, `That purchase is already ${existing.status}.`);
+
+    const approve = body?.approve === true;
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      const r = t.spendRequests!.find((x) => x.id === requestId)!;
+      r.status = approve ? "approved" : "declined";
+      r.decidedAt = ctx.now().toISOString();
+    });
+    const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
+    return {
+      request: updated.spendRequests!.find((r) => r.id === requestId),
+      cardUnlocked: canRevealCard(updated),
+    };
   },
 
   "POST /api/assistant/tasks/:taskId/complete": (ctx, p, body) => {

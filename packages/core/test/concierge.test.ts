@@ -6,7 +6,10 @@ import {
   MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
   QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   HOUSEHOLD_INCREMENT, MAX_PEOPLE_PER_TASK,
-  annualEstimateCentsFor, assistantPayoutFor, conciergeCategoryLabel, conciergeMarginCents,
+  MAX_SPEND_REQUEST_NOTE,
+  annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel,
+  conciergeMarginCents, liveSpendRequests, remainingSpendCents, spendRequestedCents,
+  validateSpendRequest,
   householdMultiplier,
   describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
@@ -270,6 +273,68 @@ describe("household scaling — a bigger family is more work, but not linearly",
     expect(() => validateConciergeRequest(request({ peopleCount: 2.5 }))).toThrow(/between 1 and/i);
     expect(() => validateConciergeRequest(request({ peopleCount: 6 }))).not.toThrow();
     expect(() => validateConciergeRequest(request())).not.toThrow();
+  });
+});
+
+describe("spend requests — evidence before the card unlocks", () => {
+  const photo = { base64: "aGVsbG8=", mimeType: "image/jpeg", capturedAt: "2026-01-01T00:00:00.000Z" };
+  const spendRequest = (over: Partial<{ id: string; amountCents: number; status: string }> = {}) => ({
+    id: "sr1", amountCents: 4000, note: "Two chickens", photo,
+    status: "open" as const, createdAt: "2026-01-01T00:00:00.000Z",
+    ...over,
+  }) as any;
+
+  it("keeps the card locked until a purchase is documented", () => {
+    expect(canRevealCard({ spendRequests: undefined })).toBe(false);
+    expect(canRevealCard({ spendRequests: [] })).toBe(false);
+    expect(canRevealCard({ spendRequests: [spendRequest()] })).toBe(true);
+  });
+
+  it("re-locks the card when the only request is declined", () => {
+    expect(canRevealCard({ spendRequests: [spendRequest({ status: "declined" })] })).toBe(false);
+  });
+
+  it("treats an approved request as live, the same as an open one", () => {
+    expect(canRevealCard({ spendRequests: [spendRequest({ status: "approved" })] })).toBe(true);
+  });
+
+  it("leaves the card unlocked while any request survives a decline", () => {
+    const task = {
+      spendRequests: [spendRequest({ id: "a", status: "declined" }), spendRequest({ id: "b" })],
+    };
+    expect(liveSpendRequests(task).map((r) => r.id)).toEqual(["b"]);
+    expect(canRevealCard(task)).toBe(true);
+  });
+
+  it("counts only live requests against the cap, so declining frees it back up", () => {
+    const cap = { spendCapCents: 10000 };
+    expect(spendRequestedCents({ spendRequests: [spendRequest({ amountCents: 4000 })] })).toBe(4000);
+    expect(remainingSpendCents({ ...cap, spendRequests: [spendRequest({ amountCents: 4000 })] })).toBe(6000);
+    expect(remainingSpendCents({
+      ...cap, spendRequests: [spendRequest({ amountCents: 4000, status: "declined" })],
+    })).toBe(10000);
+  });
+
+  it("never reports a negative remainder", () => {
+    expect(remainingSpendCents({
+      spendCapCents: 1000, spendRequests: [spendRequest({ amountCents: 4000 })],
+    })).toBe(0);
+  });
+
+  it("refuses a request that would overrun what is left of the cap", () => {
+    const task = { spendCapCents: 5000, spendRequests: [spendRequest({ amountCents: 4000 })] };
+    expect(() => validateSpendRequest({ amountCents: 1500, note: "More" }, task)).toThrow(/left of the spend cap/i);
+    expect(() => validateSpendRequest({ amountCents: 1000, note: "More" }, task)).not.toThrow();
+  });
+
+  it("requires a real amount and a real description", () => {
+    const task = { spendCapCents: 5000, spendRequests: [] };
+    expect(() => validateSpendRequest({ amountCents: 0, note: "x" }, task)).toThrow(/whole cents/i);
+    expect(() => validateSpendRequest({ amountCents: -100, note: "x" }, task)).toThrow(/whole cents/i);
+    expect(() => validateSpendRequest({ amountCents: 12.5, note: "x" }, task)).toThrow(/whole cents/i);
+    expect(() => validateSpendRequest({ amountCents: 100, note: "   " }, task)).toThrow(/what you are buying/i);
+    expect(() => validateSpendRequest({ amountCents: 100, note: "x".repeat(MAX_SPEND_REQUEST_NOTE + 1) }, task))
+      .toThrow(new RegExp(`under ${MAX_SPEND_REQUEST_NOTE}`, "i"));
   });
 });
 
