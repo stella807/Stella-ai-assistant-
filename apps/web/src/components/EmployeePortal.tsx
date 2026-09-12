@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS, annualEstimateCentsFor,
-  conciergeCategoryLabel, hourlyRateCentsFor, isQuickTaskEligible, serviceFeeFor,
+  assistantPayoutFor, conciergeCategoryLabel, hourlyRateCentsFor, isQuickTaskEligible,
 } from "@safehubby/core";
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -162,9 +162,11 @@ function PayRates({ onBack }: { onBack: () => void }) {
       <section className="card stack">
         <h3>Pay rates</h3>
         <p className="tiny muted">
-          The published rate card every task is booked at — see docs/concierge.md. You're paid per task,
-          not by the hour; the hourly figure is only a reference, using the typical time a task like this
-          takes.
+          What you take home per task, before nothing — this is the full amount that reaches you, not a
+          figure Safehubby's cut still comes out of. The customer pays more than this; the difference is
+          Safehubby's margin and is added on top of your rate, never taken out of it (see
+          docs/concierge.md). You're paid per task, not by the hour; the hourly figure is only a
+          reference, using the typical time a task like this takes.
         </p>
         <table className="pay-table">
           <thead>
@@ -175,9 +177,9 @@ function PayRates({ onBack }: { onBack: () => void }) {
               <tr key={c.id}>
                 <td>{c.label}</td>
                 <td>
-                  {money(serviceFeeFor(c.id))}
+                  {money(assistantPayoutFor(c.id))}
                   {isQuickTaskEligible(c.id) && (
-                    <span className="tiny muted"> (as low as {money(serviceFeeFor(c.id, true))} for a quick task)</span>
+                    <span className="tiny muted"> (as low as {money(assistantPayoutFor(c.id, true))} for a quick task)</span>
                   )}
                 </td>
                 <td>≈ {money(hourlyRateCentsFor(c.id))}/hr</td>
@@ -207,8 +209,8 @@ function PayRates({ onBack }: { onBack: () => void }) {
         </ul>
         <p className="tiny muted">
           A calculator, not a commitment. Safehubby is a booking layer, not your employer — no customer is
-          required to send any set number of tasks, and this figure is real math on the published fee, not
-          a promise of hours or income.
+          required to send any set number of tasks, and this figure is real math on your own published
+          rate, not a promise of hours or income.
         </p>
       </section>
     </div>
@@ -567,7 +569,7 @@ function TaskDetail({ task, onBack, onChanged }: {
 
         <div className="row-between tiny muted">
           <span>You'll be paid</span>
-          <span className="charge-amount">{money(task.serviceFeeCents)}</span>
+          <span className="charge-amount">{money(task.assistantPayoutCents)}</span>
         </div>
         <div className="row-between tiny muted">
           <span>Spend cap for the purchase — reimbursed on the card issued for this task</span>

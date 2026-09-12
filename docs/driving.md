@@ -13,7 +13,7 @@ on under pressure.
 `packages/core/src/driver-pay.ts` defines `DRIVER_RATE_CARD` — a base fare
 plus a per-mile and per-minute rate, set independently for each `DriverTier`.
 This is not the same rate card personal-concierge assistants are paid from
-(`CONCIERGE_SERVICE_FEE_CENTS` in `concierge.ts`), and deliberately shaped
+(`CONCIERGE_ASSISTANT_PAYOUT_CENTS` in `concierge.ts`), and deliberately shaped
 differently: a concierge task is a bounded, discrete job priced flat per
 category and explicitly never metered by the minute, while driving is
 inherently variable-length work, so it is priced the way real per-trip

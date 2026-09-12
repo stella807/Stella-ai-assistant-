@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 490 tests (7 Postgres tests skip without a database)
+pnpm test         # 757 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm lint
 pnpm build
@@ -152,14 +152,18 @@ customers they're comfortable handling at once (1-3, their own stated
 comfort level, not a number Safehubby sets). Once booked, an in-app voice
 message thread with that assistant opens in a popup — async clips, not a
 live call, so an assistant mid-task is never expected to have a hand free
-for a ringing phone. A separate, published service fee (published rate card,
-$9-$18 by task type, discounted to $5 for a quick, single-purpose task —
-grabbing one named thing or running one errand, capped at a lower $50 spend
-to keep it honest) is what actually pays the assistant for their time — the
-spend cap only ever reimburses what they buy, the same way a ride fare passes
-through to a driver rather than being their wage. The customer sees that fee
-itemized before they book — spend cap, service fee, and the total that will
-actually be held — the same real number the assistant's own portal shows.
+for a ringing phone. A separate, published rate pays the assistant for
+their time — $9-$18 by task type, or $5 for a quick, single-purpose task
+(grabbing one named thing or running one errand, capped at a lower $50 spend
+to keep it honest). The spend cap only ever reimburses what they buy, the
+same way a ride fare passes through to a driver rather than being their wage.
+Safehubby's 20% margin is added on top of that rate rather than taken out of
+it, so the customer's service fee is $11.25-$22.50 ($6.25 quick) and the
+assistant is paid their published rate in full — raising the margin can only
+ever raise what a customer pays, never cut what the assistant earns. The
+customer sees their fee itemized before they book — spend cap, service fee,
+and the total that will actually be held — and the assistant's portal shows
+their own payout, so neither side reads a number that isn't true for them.
 Each of you takes a selfie, shared with the
 other, so you can each confirm who you're meeting. Optionally name a specific
 real place — a Google Places search, with an embedded map when a browser Maps

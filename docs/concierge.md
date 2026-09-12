@@ -76,23 +76,43 @@ to a driver rather than being the driver's wage. Before `serviceFeeFor`
 existed, nothing in this feature compensated the assistant for their time at
 all.
 
-`CONCIERGE_SERVICE_FEE_CENTS` in `concierge.ts` is a published rate per
-category, held and charged on top of the spend cap:
+`CONCIERGE_ASSISTANT_PAYOUT_CENTS` in `concierge.ts` is a published rate per
+category. It is what the **assistant** earns, and `payroll.ts` pays it out in
+full. The **customer** pays that grossed up by Safehubby's margin
+(`CONCIERGE_FEE_MARGIN`, 20%) — `serviceFeeFor` — held and charged on top of
+the spend cap:
 
-| Category | Fee | Why |
-|---|---|---|
-| Grab something | $9.00 | A quick round trip, minutes of work |
-| Run an errand | $9.00 | Same shape as grabbing something |
-| Check on someone | $12.00 | Getting there and actually assessing someone takes longer |
-| Wait with someone | $18.00 | Open-ended by nature — priced for a first ~30-45 min block |
+| Category | Assistant earns | Customer pays | Safehubby keeps | Why |
+|---|---|---|---|---|
+| Grab something | $9.00 | $11.25 | $2.25 | A quick round trip, minutes of work |
+| Run an errand | $9.00 | $11.25 | $2.25 | Same shape as grabbing something |
+| Check on someone | $12.00 | $15.00 | $3.00 | Getting there and actually assessing someone takes longer |
+| Wait with someone | $18.00 | $22.50 | $4.50 | Open-ended by nature — priced for a first ~30-45 min block |
+| Quick task | $5.00 | $6.25 | $1.25 | See the quick-task discount below |
+
+**The margin sits on top of the payout, not inside it.** The customer pays
+`payout / (1 - margin)`; the assistant receives the payout untouched. This is
+the one direction that matters: had the margin been a deduction, every future
+margin change would quietly reprice somebody's labour. It also fixes a real
+bug — `CONCIERGE_FEE_MARGIN` used to be documentation only ("not applied per
+line anywhere in code"), which was harmless until `runPayroll` started moving
+real money and paid out the full customer fee, leaving Safehubby zero margin
+on every task. `earningsFor` now reads `assistantPayoutCents`, and a test
+pins that it is never the customer's fee.
+
+The two numbers are stored separately on each task (`serviceFeeCents` and
+`assistantPayoutCents`) rather than derived from one another, so a past
+task's figures stay true even if the rate card or the margin changes later.
 
 This is a fixed rate card, not a provider quote, and that's a deliberate
 choice: there's no real-time "labor pricing" API the way a ride fare defers
 to Uber's own pricing engine, so a fixed, disclosed schedule beats pretending
-to compute one from nothing. Of each fee, most is the payout the partner
-network passes to the assistant who did the work; the rest is Safehubby's
-margin (`CONCIERGE_FEE_MARGIN`, 20%), stated so the number is traceable
-rather than arbitrary.
+to compute one from nothing.
+
+The assistant portal's pay table shows the **payout** — `hourlyRateCentsFor`
+and `annualEstimateCentsFor` are both built on it, not on the customer fee,
+since quoting the grossed-up number to the person being paid would overstate
+their take-home by the margin.
 
 ### The quick-task discount
 
@@ -100,12 +120,13 @@ Not every task is a $9-18 job. Grabbing one named thing or running one
 specific errand can be a two-minute favor, and the standard rate card
 overcharges for that. `QUICK_TASK_CATEGORIES` opts `grab-something` and
 `run-errand` — the genuinely short, single-purpose categories — into a lower
-published fee:
+published rate. Both sides scale together, since the customer's fee is always
+the payout grossed up by the margin:
 
-| Category | Standard fee | Quick-task fee |
+| Category | Standard payout / fee | Quick-task payout / fee |
 |---|---|---|
-| Grab something | $9.00 | $5.00 |
-| Run an errand | $9.00 | $5.00 |
+| Grab something | $9.00 / $11.25 | $5.00 / $6.25 |
+| Run an errand | $9.00 / $11.25 | $5.00 / $6.25 |
 
 `wait-with-someone` and `check-in-person` are deliberately excluded: both
 involve open-ended real time with a person, and discounting them would mean
@@ -120,8 +141,10 @@ for an ineligible category or a cap above that lower ceiling.
 
 `POST /api/concierge/quote` returns `serviceFeeCents` alongside `totalCents`,
 and every task the customer's own routes return (`GET`/`POST /api/concierge/tasks`,
-`.../complete`, `.../cancel`) carries the real `serviceFeeCents` — the same
-number the assistant's own portal sees. `AssistantModal.tsx` shows the full
+`.../complete`, `.../cancel`) carries the real `serviceFeeCents`. The
+assistant's portal shows `assistantPayoutCents` instead — a smaller number by
+the margin, and the one they are actually paid; neither side is shown a figure
+that isn't true for them. `AssistantModal.tsx` shows the full
 breakdown before sending a request: spend cap, service fee, and the total
 that will actually be held. Nothing here is fabricated or padded to make the
 number look better than it is — it is exactly `serviceFeeFor(category, quickTask)`,

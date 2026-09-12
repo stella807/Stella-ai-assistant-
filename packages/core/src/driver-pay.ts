@@ -2,7 +2,7 @@ import type { DriverTier } from "./driver-applications.ts";
 
 /**
  * A driver's own pay scale — deliberately separate from
- * `CONCIERGE_SERVICE_FEE_CENTS` in concierge.ts, not a shared number reused
+ * `CONCIERGE_ASSISTANT_PAYOUT_CENTS` in concierge.ts, not a shared number reused
  * across two different jobs.
  *
  * A concierge task is a bounded, discrete job — grab this, wait here for a

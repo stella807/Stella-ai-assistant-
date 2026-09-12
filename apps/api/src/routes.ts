@@ -19,7 +19,7 @@ import {
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
-  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, totalChargeCents,
+  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
   applyAdjustments, outstandingClawbackCents,
@@ -1733,6 +1733,7 @@ export const routes: Record<string, Handler> = {
     requirePaymentMethod(ctx, me);
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
     const serviceFeeCents = serviceFeeFor(input.category, input.quickTask);
+    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask);
     const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
@@ -1792,6 +1793,7 @@ export const routes: Record<string, Handler> = {
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
         location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
+        assistantPayoutCents,
         quickTask: input.quickTask, status: "in-progress",
         provider: booked.provider, providerTaskId: booked.taskId, assistantId,
         assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,

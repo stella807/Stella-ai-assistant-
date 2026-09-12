@@ -8,7 +8,11 @@ import type { ConciergeTask } from "../src/concierge.ts";
 
 const task = (over: Partial<ConciergeTask> = {}): ConciergeTask => ({
   id: "ct1", travelerId: "usr1", category: "grab-something", note: "Grab a burger",
-  location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, serviceFeeCents: 900,
+  // The customer's fee and the assistant's payout differ by Safehubby's
+  // margin; payroll must read the payout, so the two are set apart here on
+  // purpose rather than to the same number.
+  location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500,
+  serviceFeeCents: 1125, assistantPayoutCents: 900,
   status: "completed", provider: "Nearby Aide", assistantId: "asst1",
   chargeId: "ch1", holdId: "hold1", createdAt: "2024-01-01T00:00:00.000Z",
   completedAt: "2024-01-01T12:00:00.000Z",
@@ -48,22 +52,31 @@ describe("earningsFor", () => {
   it("only counts completed tasks for the named assistant, in the window, not yet paid out", () => {
     const period = payoutPeriodFor(new Date("2024-01-01T12:00:00.000Z"));
     const tasks: ConciergeTask[] = [
-      task({ id: "ct1", serviceFeeCents: 900 }),
-      task({ id: "ct2", assistantId: "someone-else", serviceFeeCents: 1200 }),
-      task({ id: "ct3", status: "in-progress", completedAt: undefined, serviceFeeCents: 1800 }),
-      task({ id: "ct4", payoutId: "payout_already", serviceFeeCents: 900 }),
-      task({ id: "ct5", completedAt: "2023-01-01T00:00:00.000Z", serviceFeeCents: 500 }),
+      task({ id: "ct1", assistantPayoutCents: 900 }),
+      task({ id: "ct2", assistantId: "someone-else", assistantPayoutCents: 1200 }),
+      task({ id: "ct3", status: "in-progress", completedAt: undefined, assistantPayoutCents: 1800 }),
+      task({ id: "ct4", payoutId: "payout_already", assistantPayoutCents: 900 }),
+      task({ id: "ct5", completedAt: "2023-01-01T00:00:00.000Z", assistantPayoutCents: 500 }),
     ];
     const earnings = earningsFor(tasks, "asst1", period);
     expect(earnings.map((e) => e.taskId)).toEqual(["ct1"]);
     expect(totalEarningsCents(earnings)).toBe(900);
   });
 
+  it("pays the assistant's payout, never the customer's fee", () => {
+    // The bug this guards: paying `serviceFeeCents` hands the assistant
+    // Safehubby's margin too, leaving zero margin on every task booked.
+    const period = payoutPeriodFor(new Date("2024-01-01T12:00:00.000Z"));
+    const earnings = earningsFor([task({ serviceFeeCents: 1125, assistantPayoutCents: 900 })], "asst1", period);
+    expect(totalEarningsCents(earnings)).toBe(900);
+    expect(totalEarningsCents(earnings)).not.toBe(1125);
+  });
+
   it("sums every eligible task in the window", () => {
     const period = payoutPeriodFor(new Date("2024-01-01T12:00:00.000Z"));
     const tasks: ConciergeTask[] = [
-      task({ id: "ct1", serviceFeeCents: 900 }),
-      task({ id: "ct2", serviceFeeCents: 1200, completedAt: "2024-01-05T00:00:00.000Z" }),
+      task({ id: "ct1", assistantPayoutCents: 900 }),
+      task({ id: "ct2", assistantPayoutCents: 1200, completedAt: "2024-01-05T00:00:00.000Z" }),
     ];
     expect(totalEarningsCents(earningsFor(tasks, "asst1", period))).toBe(2100);
   });
@@ -78,11 +91,11 @@ describe("earningsFor", () => {
 describe("unpaidEarningsCents", () => {
   it("sums every completed, not-yet-paid task for that assistant, regardless of period", () => {
     const tasks: ConciergeTask[] = [
-      task({ id: "ct1", serviceFeeCents: 900, completedAt: "2023-01-01T00:00:00.000Z" }),
-      task({ id: "ct2", serviceFeeCents: 1200, completedAt: "2024-06-01T00:00:00.000Z" }),
-      task({ id: "ct3", serviceFeeCents: 500, payoutId: "payout_already" }),
-      task({ id: "ct4", assistantId: "someone-else", serviceFeeCents: 2000 }),
-      task({ id: "ct5", status: "in-progress", completedAt: undefined, serviceFeeCents: 1800 }),
+      task({ id: "ct1", assistantPayoutCents: 900, completedAt: "2023-01-01T00:00:00.000Z" }),
+      task({ id: "ct2", assistantPayoutCents: 1200, completedAt: "2024-06-01T00:00:00.000Z" }),
+      task({ id: "ct3", assistantPayoutCents: 500, payoutId: "payout_already" }),
+      task({ id: "ct4", assistantId: "someone-else", assistantPayoutCents: 2000 }),
+      task({ id: "ct5", status: "in-progress", completedAt: undefined, assistantPayoutCents: 1800 }),
     ];
     expect(unpaidEarningsCents(tasks, "asst1")).toBe(2100);
   });

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES,
-  CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, CONCIERGE_SERVICE_FEE_CENTS, CONCIERGE_TASK_MINUTES,
-  MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
-  QUICK_TASK_SERVICE_FEE_CENTS, annualEstimateCentsFor, conciergeCategoryLabel, describeAssistantCapacity,
+  CONCIERGE_ASSISTANT_PAYOUT_CENTS, CONCIERGE_FEE_MARGIN, CONCIERGE_MAX_CAP_CENTS,
+  CONCIERGE_MIN_CAP_CENTS, CONCIERGE_TASK_MINUTES,
+  MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
+  QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  annualEstimateCentsFor, assistantPayoutFor, conciergeCategoryLabel, conciergeMarginCents,
+  describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateDisputeReason, validateIdentityPhoto,
 } from "../src/concierge.ts";
@@ -108,11 +111,28 @@ describe("assistant roster", () => {
   });
 });
 
-describe("the service fee — what actually pays the assistant", () => {
-  it("has a published rate for every category", () => {
+describe("the service fee — the customer's price, with the margin on top of the payout", () => {
+  it("has a published payout for every category", () => {
     for (const c of CONCIERGE_CATEGORIES) {
-      expect(CONCIERGE_SERVICE_FEE_CENTS[c.id]).toBeGreaterThan(0);
-      expect(serviceFeeFor(c.id)).toBe(CONCIERGE_SERVICE_FEE_CENTS[c.id]);
+      expect(CONCIERGE_ASSISTANT_PAYOUT_CENTS[c.id]).toBeGreaterThan(0);
+      expect(assistantPayoutFor(c.id)).toBe(CONCIERGE_ASSISTANT_PAYOUT_CENTS[c.id]);
+    }
+  });
+
+  it("charges the customer the payout grossed up by the margin, never a cut of it", () => {
+    for (const c of CONCIERGE_CATEGORIES) {
+      const payout = assistantPayoutFor(c.id);
+      expect(serviceFeeFor(c.id)).toBe(Math.round(payout / (1 - CONCIERGE_FEE_MARGIN)));
+      // The assistant is never the one funding the margin.
+      expect(serviceFeeFor(c.id)).toBeGreaterThan(payout);
+      expect(conciergeMarginCents(c.id)).toBe(serviceFeeFor(c.id) - payout);
+    }
+  });
+
+  it("keeps the margin at the stated share of what the customer pays", () => {
+    for (const c of CONCIERGE_CATEGORIES) {
+      const share = conciergeMarginCents(c.id) / serviceFeeFor(c.id);
+      expect(share).toBeCloseTo(CONCIERGE_FEE_MARGIN, 4);
     }
   });
 
@@ -143,19 +163,20 @@ describe("quick-task discount", () => {
 
   it("charges less than the standard fee for an eligible category", () => {
     for (const category of QUICK_TASK_CATEGORIES) {
-      expect(serviceFeeFor(category, true)).toBe(QUICK_TASK_SERVICE_FEE_CENTS[category]);
+      expect(assistantPayoutFor(category, true)).toBe(QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]);
       expect(serviceFeeFor(category, true)).toBeLessThan(serviceFeeFor(category));
+      expect(assistantPayoutFor(category, true)).toBeLessThan(assistantPayoutFor(category));
     }
   });
 
   it("ignores the quickTask flag for a category that isn't eligible", () => {
     expect(serviceFeeFor("wait-with-someone", true)).toBe(serviceFeeFor("wait-with-someone"));
-    expect(serviceFeeFor("check-in-person", true)).toBe(CONCIERGE_SERVICE_FEE_CENTS["check-in-person"]);
+    expect(assistantPayoutFor("check-in-person", true)).toBe(CONCIERGE_ASSISTANT_PAYOUT_CENTS["check-in-person"]);
   });
 
   it("folds the discount into the total charge", () => {
     const total = totalChargeCents("grab-something", 2000, true);
-    expect(total).toBe(2000 + QUICK_TASK_SERVICE_FEE_CENTS["grab-something"]!);
+    expect(total).toBe(2000 + serviceFeeFor("grab-something", true));
   });
 
   it("rejects quickTask on a category that doesn't qualify", () => {
@@ -177,10 +198,13 @@ describe("quick-task discount", () => {
 });
 
 describe("pay-rate calculator — reference info, not a contract", () => {
-  it("computes an hourly-equivalent rate from the published fee and typical duration", () => {
+  it("computes an hourly-equivalent rate from the assistant's payout, not the customer's fee", () => {
     for (const c of CONCIERGE_CATEGORIES) {
-      const expected = Math.round(serviceFeeFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60));
+      const expected = Math.round(assistantPayoutFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60));
       expect(hourlyRateCentsFor(c.id)).toBe(expected);
+      // Quoting the grossed-up fee here would overstate take-home pay.
+      expect(hourlyRateCentsFor(c.id))
+        .toBeLessThan(Math.round(serviceFeeFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60)));
     }
   });
 
@@ -189,13 +213,13 @@ describe("pay-rate calculator — reference info, not a contract", () => {
   });
 
   it("multiplies the per-task fee by a weekly cadence and 52 weeks", () => {
-    expect(annualEstimateCentsFor("grab-something", 3)).toBe(serviceFeeFor("grab-something") * 3 * 52);
+    expect(annualEstimateCentsFor("grab-something", 3)).toBe(assistantPayoutFor("grab-something") * 3 * 52);
   });
 
   it("never goes negative and caps an absurd weekly cadence rather than exploding", () => {
     expect(annualEstimateCentsFor("grab-something", -5)).toBe(0);
     expect(annualEstimateCentsFor("grab-something", 999))
-      .toBe(serviceFeeFor("grab-something") * MAX_TASKS_PER_WEEK_ESTIMATE * 52);
+      .toBe(assistantPayoutFor("grab-something") * MAX_TASKS_PER_WEEK_ESTIMATE * 52);
   });
 });
 

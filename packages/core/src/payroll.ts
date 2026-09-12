@@ -3,8 +3,10 @@ import type { ConciergeTask } from "./concierge.ts";
 /**
  * Paying assistants biweekly.
  *
- * The service fee (`concierge.ts`'s `serviceFeeFor`) is what an assistant
- * earns per task, but earning it and being paid it are two different
+ * The assistant payout (`concierge.ts`'s `assistantPayoutFor`) is what an
+ * assistant earns per task — not `serviceFeeFor`, which is the larger,
+ * customer-facing fee that has Safehubby's margin in it. Earning it and
+ * being paid it are two different
  * moments: a task completes the instant it's marked done, while an actual
  * bank transfer goes out on a fixed schedule, batched with everything else
  * an assistant earned in that window. This module is the domain logic for
@@ -56,7 +58,9 @@ export function previousPayoutPeriod(at: Date): PayoutPeriod {
 export interface AssistantEarning {
   taskId: string;
   completedAt: string;
-  serviceFeeCents: number;
+  /** The assistant's cut, not what the customer was charged — see
+   *  `ConciergeTask.assistantPayoutCents`. */
+  payoutCents: number;
 }
 
 /**
@@ -77,11 +81,11 @@ export function earningsFor(tasks: ConciergeTask[], assistantId: string, period:
       const completedMs = new Date(t.completedAt).getTime();
       return completedMs >= startMs && completedMs < endMs;
     })
-    .map((t) => ({ taskId: t.id, completedAt: t.completedAt, serviceFeeCents: t.serviceFeeCents }));
+    .map((t) => ({ taskId: t.id, completedAt: t.completedAt, payoutCents: t.assistantPayoutCents }));
 }
 
 export function totalEarningsCents(earnings: AssistantEarning[]): number {
-  return earnings.reduce((sum, e) => sum + e.serviceFeeCents, 0);
+  return earnings.reduce((sum, e) => sum + e.payoutCents, 0);
 }
 
 /**
@@ -94,7 +98,7 @@ export function totalEarningsCents(earnings: AssistantEarning[]): number {
 export function unpaidEarningsCents(tasks: ConciergeTask[], assistantId: string): number {
   return tasks
     .filter((t) => t.assistantId === assistantId && t.status === "completed" && !t.payoutId)
-    .reduce((sum, t) => sum + t.serviceFeeCents, 0);
+    .reduce((sum, t) => sum + t.assistantPayoutCents, 0);
 }
 
 export type PayoutStatus = "pending" | "paid" | "failed";

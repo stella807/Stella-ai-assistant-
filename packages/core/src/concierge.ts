@@ -32,10 +32,14 @@
  * for buying on the subscriber's behalf — the burger, the supplies — and it
  * passes through to them at cost, the same as a ride fare passes through to a
  * driver. What actually compensates an assistant for their time is
- * `serviceFeeFor` below: a second, separate amount, charged on top of the
- * spend cap, that flows to the partner network (who pays their own people —
- * still not Safehubby's payroll) with a margin kept on the way, the same
- * shape as the markup already built into ride and delivery pricing.
+ * `assistantPayoutFor` below: a second, separate amount from the spend cap,
+ * paid to them in full by `payroll.ts`.
+ *
+ * Safehubby's own cut is a third number, and it sits on top of that payout
+ * rather than inside it — the customer-facing `serviceFeeFor` is the payout
+ * grossed up by `CONCIERGE_FEE_MARGIN`. Keeping the margin outside the
+ * payout is what makes "raise the margin" a decision about what customers
+ * pay instead of a silent pay cut for the person doing the work.
  */
 
 import { approximateDecodedBytes } from "./voice-messages.ts";
@@ -89,28 +93,37 @@ export const CONCIERGE_MAX_CAP_CENTS = 30000;
  * to defer to the way a ride fare defers to Uber, so a fixed, disclosed
  * schedule is the honest choice over pretending to compute one from nothing.
  *
- * Of each fee, a majority is the payout the partner network passes to the
- * assistant who did the work; the remainder is Safehubby's margin on it,
- * `CONCIERGE_FEE_MARGIN` — stated so nobody has to reverse-engineer where a
- * number came from. Real-world reference for the payout side: BLS's 2024
- * median for personal/executive assistants is roughly $45-50k/year in
- * traditional employment, and gig-platform task rates (TaskRabbit, Wonolo,
- * and similar) commonly land in the $20-35/hour range for comparable
- * short, bounded, in-person work — these fees were set to land assistant
- * payouts in that same range for a task of the stated typical length, not to
- * approximate a full-time salary, since a task is minutes, not a shift.
+ * Real-world reference: BLS's 2024 median for personal/executive assistants
+ * is roughly $45-50k/year in traditional employment, and gig-platform task
+ * rates (TaskRabbit, Wonolo, and similar) commonly land in the $20-35/hour
+ * range for comparable short, bounded, in-person work. These land in that
+ * same range for a task of the stated typical length
+ * (`CONCIERGE_TASK_MINUTES`), not a full-time salary — a task is minutes,
+ * not a shift.
+ *
+ * This is the assistant's number, and it is exactly what `payroll.ts` pays
+ * out — `earningsFor` reads `assistantPayoutCents` off the task, which is
+ * set from this schedule. Safehubby's margin is added *on top* to produce
+ * the customer-facing fee (`serviceFeeFor`), never deducted from here.
  */
-export const CONCIERGE_SERVICE_FEE_CENTS: Record<ConciergeCategory, number> = {
+export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<ConciergeCategory, number> = {
   "grab-something": 900, // ~15-20 min round trip
   "run-errand": 900,
   "check-in-person": 1200, // getting there and actually assessing someone takes longer
   "wait-with-someone": 1800, // open-ended by nature; priced for a first ~30-45 min block
 };
 
-/** The share of each service fee that is Safehubby's margin rather than the
- *  assistant's payout, via the partner network. Not applied per line anywhere
- *  in code — captured here as the number the fee schedule above was set
- *  against, so pricing stays traceable rather than arbitrary. */
+/**
+ * Safehubby's margin, as a share of the customer-facing service fee.
+ *
+ * Applied for real by `serviceFeeFor`, which grosses the assistant's payout
+ * up by it: the customer pays `payout / (1 - margin)`, the assistant
+ * receives the payout, and the difference is Safehubby's. It is deliberately
+ * not a deduction from the payout — that schedule is pinned to real-world
+ * gig rates, and taking the margin out of it would mean every future margin
+ * change quietly repriced somebody's labour. So a margin rise raises what
+ * the customer pays; it never lowers what the assistant earns.
+ */
 export const CONCIERGE_FEE_MARGIN = 0.2;
 
 /**
@@ -124,7 +137,7 @@ export const CONCIERGE_FEE_MARGIN = 0.2;
  */
 export const QUICK_TASK_CATEGORIES: ConciergeCategory[] = ["grab-something", "run-errand"];
 
-export const QUICK_TASK_SERVICE_FEE_CENTS: Partial<Record<ConciergeCategory, number>> = {
+export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory, number>> = {
   "grab-something": 500,
   "run-errand": 500,
 };
@@ -135,9 +148,24 @@ export function isQuickTaskEligible(category: ConciergeCategory): boolean {
   return QUICK_TASK_CATEGORIES.includes(category);
 }
 
+/** What the assistant earns for one task of this kind. Paid out in full —
+ *  see `CONCIERGE_ASSISTANT_PAYOUT_CENTS`. */
+export function assistantPayoutFor(category: ConciergeCategory, quickTask?: boolean): number {
+  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]!;
+  return CONCIERGE_ASSISTANT_PAYOUT_CENTS[category];
+}
+
+/** What the customer pays for the assistant's time: their payout grossed up
+ *  so `CONCIERGE_FEE_MARGIN` is a share of this fee rather than a cut taken
+ *  out of their pay. */
 export function serviceFeeFor(category: ConciergeCategory, quickTask?: boolean): number {
-  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_SERVICE_FEE_CENTS[category]!;
-  return CONCIERGE_SERVICE_FEE_CENTS[category];
+  return Math.round(assistantPayoutFor(category, quickTask) / (1 - CONCIERGE_FEE_MARGIN));
+}
+
+/** Safehubby's cut of one task — the gap between what the customer pays for
+ *  the assistant's time and what the assistant receives. */
+export function conciergeMarginCents(category: ConciergeCategory, quickTask?: boolean): number {
+  return serviceFeeFor(category, quickTask) - assistantPayoutFor(category, quickTask);
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
@@ -149,7 +177,7 @@ export function totalChargeCents(category: ConciergeCategory, spendCapCents: num
 
 /**
  * Typical minutes a task of this category actually takes — the same
- * estimate `CONCIERGE_SERVICE_FEE_CENTS`'s comment already states in prose,
+ * estimate `CONCIERGE_ASSISTANT_PAYOUT_CENTS`'s comment already states in prose,
  * pulled out here so it can be computed with rather than just read. This is
  * an assumption stated plainly, not a measurement: there is no real
  * time-tracking in this prototype, so an hourly-equivalent rate is only ever
@@ -162,12 +190,16 @@ export const CONCIERGE_TASK_MINUTES: Record<ConciergeCategory, number> = {
   "wait-with-someone": 40,
 };
 
-/** The per-task fee expressed as an hourly-equivalent rate, using
- *  `CONCIERGE_TASK_MINUTES`'s stated typical duration — reference
+/** The assistant's per-task *payout* expressed as an hourly-equivalent rate,
+ *  using `CONCIERGE_TASK_MINUTES`'s stated typical duration — reference
  *  information for the assistant portal's pay table, not a real hourly wage:
- *  a task is paid per task, never metered by the minute. */
+ *  a task is paid per task, never metered by the minute.
+ *
+ *  Built on the payout rather than the customer-facing fee on purpose. The
+ *  portal presents this as what an assistant earns, so quoting the grossed-up
+ *  fee here would overstate their take by the margin. */
 export function hourlyRateCentsFor(category: ConciergeCategory, quickTask?: boolean): number {
-  return Math.round(serviceFeeFor(category, quickTask) / (CONCIERGE_TASK_MINUTES[category] / 60));
+  return Math.round(assistantPayoutFor(category, quickTask) / (CONCIERGE_TASK_MINUTES[category] / 60));
 }
 
 /** A reasonable ceiling for the "how many of these a week" calculator below —
@@ -188,7 +220,8 @@ export const MAX_TASKS_PER_WEEK_ESTIMATE = 20;
  */
 export function annualEstimateCentsFor(category: ConciergeCategory, tasksPerWeek: number, quickTask?: boolean): number {
   const perWeek = Math.max(0, Math.min(tasksPerWeek, MAX_TASKS_PER_WEEK_ESTIMATE));
-  return serviceFeeFor(category, quickTask) * perWeek * 52;
+  // The payout, not the customer's fee — same reasoning as `hourlyRateCentsFor`.
+  return assistantPayoutFor(category, quickTask) * perWeek * 52;
 }
 
 export interface ConciergeTaskInput {
@@ -270,9 +303,16 @@ export interface ConciergeTask {
   note: string;
   location: { lat: number; lng: number; label?: string };
   spendCapCents: number;
-  /** What pays the assistant for their time — see `serviceFeeFor`. Held and
-   *  charged alongside the spend cap, never as a separate transaction. */
+  /** What the customer pays for the assistant's time — see `serviceFeeFor`.
+   *  Held and charged alongside the spend cap, never as a separate
+   *  transaction. Includes Safehubby's margin, so it is larger than
+   *  `assistantPayoutCents`; the two are stored separately rather than
+   *  derived from each other so a past task's numbers stay true even if the
+   *  rate card or the margin changes later. */
   serviceFeeCents: number;
+  /** What the assistant earns from this task — see `assistantPayoutFor`.
+   *  This, not `serviceFeeCents`, is what `payroll.ts` pays out. */
+  assistantPayoutCents: number;
   /** Whether this booked at the discounted quick-task fee — kept on the task
    *  itself (not re-derived from category) so history stays accurate even if
    *  the eligible-category list changes later. */
