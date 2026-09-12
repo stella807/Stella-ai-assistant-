@@ -1501,17 +1501,17 @@ describe("concierge fee math and settlement", () => {
   });
 });
 
-describe("the service fee is hidden from the customer, not the assistant", () => {
+describe("the service fee is shown to the customer in full", () => {
   let taskId = "";
   const spendCapCents = 2500;
   const serviceFeeCents = 900;
   const totalCents = spendCapCents + serviceFeeCents;
 
   beforeEach(() => {
-    taskId = "ct_hide1";
-    const hold = authorizeExactHold({ id: "hold_hide1", travelerId: samId, capCents: totalCents, now: clock });
+    taskId = "ct_fee_visible1";
+    const hold = authorizeExactHold({ id: "hold_fee_visible1", travelerId: samId, capCents: totalCents, now: clock });
     const charge = recordCharge({
-      id: "ch_hide1", travelerId: samId, kind: "concierge", platform: "web",
+      id: "ch_fee_visible1", travelerId: samId, kind: "concierge", platform: "web",
       description: "Grab a burger", amountCents: totalCents, now: clock,
     });
     store.update((db) => {
@@ -1520,36 +1520,32 @@ describe("the service fee is hidden from the customer, not the assistant", () =>
       db.conciergeTasks.push({
         id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
         location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, quickTask: true,
-        status: "in-progress", provider: "Nearby Aide", providerTaskId: "provider-hide1",
+        status: "in-progress", provider: "Nearby Aide", providerTaskId: "provider-fee-visible1",
         chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
       });
     });
   });
 
-  it("never itemizes the fee in the customer's task list, only the total held", async () => {
+  it("itemizes the fee in the customer's own task list, not just a total", async () => {
     const tasks = (await call("GET", "/api/concierge/tasks", undefined, sam)).json.tasks;
     const mine = tasks.find((t: any) => t.id === taskId);
-    expect(mine.serviceFeeCents).toBeUndefined();
-    expect(mine.totalHeldCents).toBe(totalCents);
-    // Everything else about the task is still there — this strips one field, not the record.
+    expect(mine.serviceFeeCents).toBe(serviceFeeCents);
+    expect(mine.spendCapCents).toBe(spendCapCents);
     expect(mine.quickTask).toBe(true);
-    expect(mine.note).toBe("Grab a burger");
   });
 
-  it("keeps the fee out of the complete and cancel responses too", async () => {
+  it("itemizes the fee in the complete and cancel responses too", async () => {
     const completed = await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam);
-    expect(completed.json.task.serviceFeeCents).toBeUndefined();
-    expect(completed.json.task.totalHeldCents).toBe(totalCents);
+    expect(completed.json.task.serviceFeeCents).toBe(serviceFeeCents);
   });
 
-  it("keeps the fee out of a cancel response", async () => {
+  it("itemizes the fee in a cancel response", async () => {
     const canceled = await call("POST", `/api/concierge/tasks/${taskId}/cancel`, {}, sam);
-    expect(canceled.json.task.serviceFeeCents).toBeUndefined();
-    expect(canceled.json.task.totalHeldCents).toBe(totalCents);
+    expect(canceled.json.task.serviceFeeCents).toBe(serviceFeeCents);
   });
 
-  it("still shows the assistant their own pay in full through their portal", async () => {
-    const assistantId = "asst_hide1";
+  it("shows the assistant the same real pay through their own portal", async () => {
+    const assistantId = "asst_fee_visible1";
     store.update((db) => {
       const t = db.conciergeTasks.find((x) => x.id === taskId)!;
       t.assistantId = assistantId;

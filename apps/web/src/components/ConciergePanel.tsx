@@ -4,7 +4,7 @@ import {
   hasFeature, isAssistantAvailable, isQuickTaskEligible,
 } from "@safehubby/core";
 import type {
-  AssistantProfile, ConciergeCategory, NearbyStore, ProviderStatus, TravelerConciergeTask, PlanId,
+  AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { currentFix, type Fix } from "../native/location.ts";
@@ -53,11 +53,11 @@ export function ConciergePanel({ account }: { account: Account }) {
   const [note, setNote] = useState("");
   const [capDollars, setCapDollars] = useState(25);
   const [quickTask, setQuickTask] = useState(false);
-  const [tasks, setTasks] = useState<TravelerConciergeTask[]>([]);
+  const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
   const [fix, setFix] = useState<Fix | null>(null);
   const [selected, setSelected] = useState<AssistantProfile | null>(null);
-  const [openTask, setOpenTask] = useState<TravelerConciergeTask | null>(null);
+  const [openTask, setOpenTask] = useState<ConciergeTask | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,7 +113,7 @@ export function ConciergePanel({ account }: { account: Account }) {
   // The modal stays open after booking — it transitions itself into the
   // voice-message thread for the new task, so it closes only when the
   // subscriber taps close, not the instant a request goes out.
-  const onBooked = (task: TravelerConciergeTask) => setTasks((t) => [task, ...t]);
+  const onBooked = (task: ConciergeTask) => setTasks((t) => [task, ...t]);
 
   const closeSelected = () => {
     setSelected(null);
@@ -180,7 +180,8 @@ export function ConciergePanel({ account }: { account: Account }) {
                 <div>
                   <strong className="small">{t.note}</strong>
                   <div className="tiny muted">
-                    {t.provider} · {money(t.totalHeldCents)} held
+                    {t.provider} · {money(t.spendCapCents + t.serviceFeeCents)} held
+                    ({money(t.spendCapCents)} cap + {money(t.serviceFeeCents)} fee)
                     {t.card && ` · paying on a card ending ${t.card.last4} — not yours`}
                   </div>
                 </div>

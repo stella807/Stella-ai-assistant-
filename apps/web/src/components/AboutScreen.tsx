@@ -1,10 +1,5 @@
-/**
- * Mission and leadership. Public-facing, plain, and deliberately not tied to
- * any one person's tragedy: this app addresses drunk driving, night-out
- * safety, and being reachable in a crisis, and states its mission in those
- * terms rather than borrowing a specific real family's story that belongs to
- * a different kind of loss.
- */
+/** Mission and leadership. Public-facing, plain, and grounded in the
+ *  founder's own reason for building this rather than anyone else's story. */
 export function AboutScreen() {
   return (
     <div className="stack">
@@ -30,12 +25,12 @@ export function AboutScreen() {
 
       <section className="card stack">
         <h2>Leadership</h2>
-        <p className="small muted">
-          — [Add your name here], Founder &amp; CEO
-        </p>
-        <p className="tiny muted">
-          A personal note from the founder about why this exists belongs here — replace this placeholder
-          with your own words.
+        <p className="small"><strong>Luis Garcia</strong> — Founder &amp; CEO</p>
+        <p className="small">
+          I come from the healthcare sector, where I've seen firsthand how not having someone there in a
+          critical moment causes accidents, tragedies, and worse. That's the problem Safehubby exists to
+          solve — making sure help, a safe way home, or someone who shows up in person is never out of
+          reach when it matters most.
         </p>
       </section>
     </div>

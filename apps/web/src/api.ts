@@ -2,7 +2,7 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask,
   IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
-  Statement, Subscription, TravelerConciergeTask, Venue, VoiceMessage,
+  Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
 export interface CrewMemberView {
@@ -254,7 +254,7 @@ export const api = {
     request<{ places: NearbyStore[] }>(
       "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
   conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean }) =>
-    request<{ quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[]; totalCents: number; quickTaskEligible: boolean }>(
+    request<{ quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[]; serviceFeeCents: number; totalCents: number; quickTaskEligible: boolean }>(
       "POST", "/api/concierge/quote", input),
   conciergeAssistants: (category: ConciergeCategory, location: { lat: number; lng: number }) =>
     request<{ assistants: AssistantProfile[]; available: number }>(
@@ -263,13 +263,13 @@ export const api = {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
     spendCapCents: number; assistantId?: string; quickTask?: boolean;
   }) =>
-    request<{ task: TravelerConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
+    request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
       "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),
-  conciergeTasks: () => request<{ tasks: TravelerConciergeTask[] }>("GET", "/api/concierge/tasks"),
+  conciergeTasks: () => request<{ tasks: ConciergeTask[] }>("GET", "/api/concierge/tasks"),
   completeConcierge: (taskId: string, billedCents?: number) =>
-    request<{ task: TravelerConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
+    request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
   cancelConcierge: (taskId: string) =>
-    request<{ task: TravelerConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/cancel`, {}),
+    request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/cancel`, {}),
   sendVoiceMessage: (taskId: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
     request<{ id: string; createdAt: string }>("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip),
   voiceMessages: (taskId: string) =>

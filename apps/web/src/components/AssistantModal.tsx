@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity } from "@safehubby/core";
-import type { AssistantProfile, ConciergeCategory, TravelerConciergeTask, VoiceMessage } from "@safehubby/core";
+import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
@@ -26,18 +26,21 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   quickTask?: boolean;
   location: { lat: number; lng: number; label?: string };
   /** Reopening an already-booked task's thread, rather than requesting a new one. */
-  existingTask?: TravelerConciergeTask;
-  onBooked: (task: TravelerConciergeTask) => void;
+  existingTask?: ConciergeTask;
+  onBooked: (task: ConciergeTask) => void;
   onClose: () => void;
 }) {
-  const [task, setTask] = useState<TravelerConciergeTask | null>(existingTask ?? null);
+  const [task, setTask] = useState<ConciergeTask | null>(existingTask ?? null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The customer never sees the fee broken out — only the total the server
-  // says will actually be held, fetched fresh so this is never a client-side
-  // guess. `null` while loading or if the quote call hasn't resolved yet.
-  const [totalCents, setTotalCents] = useState<number | null>(existingTask?.totalHeldCents ?? null);
+  // Fetched fresh from the server rather than computed client-side, so the
+  // number shown is never out of sync with what booking will actually
+  // charge. `null` while loading or if the quote call hasn't resolved yet.
+  const [serviceFeeCents, setServiceFeeCents] = useState<number | null>(existingTask?.serviceFeeCents ?? null);
+  const [totalCents, setTotalCents] = useState<number | null>(
+    existingTask ? existingTask.spendCapCents + existingTask.serviceFeeCents : null,
+  );
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -59,7 +62,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   useEffect(() => {
     if (task) return;
     api.conciergeQuote({ category, note, location, spendCapCents, quickTask })
-      .then((r) => setTotalCents(r.totalCents))
+      .then((r) => { setServiceFeeCents(r.serviceFeeCents); setTotalCents(r.totalCents); })
       .catch(() => {});
   }, [task, category, note, location, spendCapCents, quickTask]);
 
@@ -154,14 +157,14 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
               <span>Spend cap (reimbursed purchase)</span>
               <span className="charge-amount">{money(spendCapCents)}</span>
             </div>
+            <div className="row-between tiny muted">
+              <span>Service fee (pays your assistant)</span>
+              <span className="charge-amount">{serviceFeeCents === null ? "…" : money(serviceFeeCents)}</span>
+            </div>
             <div className="row-between small">
               <strong>Held on your card now</strong>
               <strong className="charge-amount">{totalCents === null ? "…" : money(totalCents)}</strong>
             </div>
-            <p className="tiny muted">
-              Part of this total reimburses the purchase; the rest funds your assistant's time for this
-              task, on top of the spend cap above.
-            </p>
             <ul className="timeline">
               {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
             </ul>
@@ -176,7 +179,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         ) : (
           <>
             <p className="tiny muted">
-              Sent — {money(task.totalHeldCents)} held. Leave a voice message if there's more to say.
+              Sent — {money(task.spendCapCents + task.serviceFeeCents)} held ({money(task.spendCapCents)} spend cap +
+              {" "}{money(task.serviceFeeCents)} service fee). Leave a voice message if there's more to say.
             </p>
 
             <div className="row-between">

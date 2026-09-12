@@ -238,7 +238,7 @@ export function conciergeCategoryLabel(id: ConciergeCategory): string {
 export const CONCIERGE_DISCLOSURES = [
   "Your assistant is an independent professional from a vetted partner network, not a Safehubby employee.",
   "Spending is capped at exactly what you set here — never more, whatever the task ends up costing.",
-  "A separate service fee pays your assistant for their time, on top of the spend cap — the total held is shown before you send the request. Quick, single-purpose tasks qualify for a lower fee.",
+  "A separate service fee pays your assistant for their time — shown before you send the request, on top of the spend cap. Quick, single-purpose tasks qualify for a lower fee.",
   "Your assistant pays with a card issued for this task alone, capped at your spend limit — never your own card.",
   "Your assistant can decline a request that is unsafe, illegal, or outside what they agreed to do.",
   "Your assistant will not enter your home. Meet outside or at a shared, public space.",
@@ -294,16 +294,6 @@ export interface ConciergeTask {
    *  See `CardIssuingPort` in fulfillment.ts. */
   card?: { id: string; last4: string; network: string; expMonth: number; expYear: number };
 }
-
-/**
- * What the customer-facing API and UI actually work with: a `ConciergeTask`
- * with the assistant's pay stripped out and replaced by the one number a
- * customer needs — the total already held on their card. See
- * `travelerFacingTask` in apps/api/src/routes.ts, which builds this from the
- * real task. The assistant portal still gets the full `ConciergeTask`,
- * `serviceFeeCents` included — this type exists only for the traveler side.
- */
-export type TravelerConciergeTask = Omit<ConciergeTask, "serviceFeeCents"> & { totalHeldCents: number };
 
 /** A single selfie, captured on the fly for this meetup — not a persistent
  *  profile photo. See `validateIdentityPhoto`. */

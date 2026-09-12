@@ -116,22 +116,19 @@ simple" stays true rather than becoming a way to book a large purchase at a
 discounted fee. `validateConciergeRequest` rejects `quickTask: true` outright
 for an ineligible category or a cap above that lower ceiling.
 
-### The customer never sees the fee itemized
+### The customer sees the fee, itemized, before they book
 
-The service fee is real money and the assistant portal shows it in full — see
-"The assistant portal" below — but the traveler-facing API and UI never break
-it out. `GET`/`POST /api/concierge/tasks` and its `complete`/`cancel` routes
-run every task through `travelerFacingTask` (`routes.ts`) before it reaches a
-customer: it strips `serviceFeeCents` and replaces it with `totalHeldCents`,
-the one number a customer actually needs (spend cap + fee, already summed).
-The `/api/assistant/...` routes never pass through that helper, so an
-assistant's own portal always sees their real `serviceFeeCents`. This is a
-customer-facing display choice, not a security boundary — the fee schedule
-itself is a public constant in `packages/core` — so it hides an itemized
-number from the UI without pretending the underlying rate card is secret.
-`AssistantModal.tsx` says, in one line and with no dollar figure, that part
-of the held total funds the assistant's time — customers see *that* their
-money funds a category of cost, just never the specific number.
+`POST /api/concierge/quote` returns `serviceFeeCents` alongside `totalCents`,
+and every task the customer's own routes return (`GET`/`POST /api/concierge/tasks`,
+`.../complete`, `.../cancel`) carries the real `serviceFeeCents` — the same
+number the assistant's own portal sees. `AssistantModal.tsx` shows the full
+breakdown before sending a request: spend cap, service fee, and the total
+that will actually be held. Nothing here is fabricated or padded to make the
+number look better than it is — it is exactly `serviceFeeFor(category, quickTask)`,
+the same published rate the assistant is paid from, margin included (see
+`CONCIERGE_FEE_MARGIN` above): customers see where the money goes, and the
+margin the business keeps on the way is baked into that one published number
+rather than added as a separate, hidden line.
 
 The two amounts are held together, not as separate transactions —
 `totalChargeCents` is `spendCapCents + serviceFeeFor(category)`, and that sum
