@@ -21,6 +21,8 @@ import {
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, totalChargeCents,
   isQuickTaskEligible, validateIdentityPhoto,
+  earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
+  isInLaunchMarket, launchMarketNames,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -39,6 +41,7 @@ import {
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { revolutCards } from "./adapters/cards.ts";
+import { revolutPayouts } from "./adapters/payouts.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -49,6 +52,7 @@ import {
   ASSISTANT_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword, normalizeEmail,
   SESSION_TTL_MS, sweepExpiredSessions, validatePassword, verifyPassword,
 } from "./auth.ts";
+import { cipherFromEnv, openPayoutDestination, sealPayoutDestination } from "./crypto.ts";
 import { deleteAccount, exportAccount } from "./account.ts";
 
 export class HttpError extends Error {
@@ -300,6 +304,71 @@ function assistantActor(ctx: Ctx): string {
   return ctx.assistantActorId;
 }
 
+/**
+ * Pays every assistant what they earned in the most recently closed
+ * biweekly period. Safe to call more than once for the same period: a task
+ * already tagged with a `payoutId` never shows up in `earningsFor` again,
+ * so a repeat run (the hourly sweep in main.ts, or a manual admin trigger)
+ * only ever pays what is still actually owed — including retrying a payout
+ * that failed last time, since a failed attempt never tags its tasks.
+ */
+export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: number; totalCents: number }> {
+  const period = previousPayoutPeriod(ctx.now());
+  const cipher = cipherFromEnv();
+  const assistantIds = new Set(
+    ctx.store.data.conciergeTasks.map((t) => t.assistantId).filter((id): id is string => Boolean(id)),
+  );
+
+  let paid = 0;
+  let failed = 0;
+  let totalCents = 0;
+
+  for (const assistantId of assistantIds) {
+    const earnings = earningsFor(ctx.store.data.conciergeTasks, assistantId, period);
+    if (earnings.length === 0) continue;
+
+    const amountCents = totalEarningsCents(earnings);
+    const taskIds = earnings.map((e) => e.taskId);
+    const payoutId = newId("payout");
+    const base = {
+      id: payoutId, assistantId, periodStart: period.start.toISOString(), periodEnd: period.end.toISOString(),
+      taskIds, totalCents: amountCents, createdAt: ctx.now().toISOString(),
+    };
+
+    const destination = ctx.store.data.assistantPayoutDestinations[assistantId];
+    const reason = !destination
+      ? "No payout destination on file for this assistant."
+      : !cipher
+        ? "Payout encryption key not configured on this server."
+        : !isAutomatic(revolutPayouts.status) ? revolutPayouts.status.requires : null;
+
+    if (reason) {
+      ctx.store.update((db) => void db.payouts.push({ ...base, status: "failed", failureReason: reason }));
+      failed += 1;
+      continue;
+    }
+
+    try {
+      const recipient = openPayoutDestination(destination!, cipher!);
+      const result = await revolutPayouts.payOut({
+        amountCents, currency: "USD", recipient, reference: payoutId,
+      });
+      ctx.store.update((db) => {
+        db.payouts.push({ ...base, status: "paid", paidAt: ctx.now().toISOString(), providerReference: result.payoutId });
+        for (const t of db.conciergeTasks) if (taskIds.includes(t.id)) t.payoutId = payoutId;
+      });
+      paid += 1;
+      totalCents += amountCents;
+    } catch (err) {
+      const failureReason = err instanceof Error ? err.message : "Payout failed.";
+      ctx.store.update((db) => void db.payouts.push({ ...base, status: "failed", failureReason }));
+      failed += 1;
+    }
+  }
+
+  return { paid, failed, totalCents };
+}
+
 /** An assistant's own task, or 404 — never another assistant's, and never a
  *  task nobody picked a specific assistant for. */
 function assistantTaskOf(ctx: Ctx, assistantId: string, taskId: string): ConciergeTask {
@@ -480,6 +549,19 @@ function coordsFrom(p: Record<string, string | undefined>): { lat: number; lng: 
     && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
   if (!valid) throw new HttpError(400, "lat and lng must be real coordinates.");
   return { lat, lng };
+}
+
+/**
+ * Personal concierge is a deliberate, phased-rollout gate on top of whatever
+ * the partner network itself covers — see `service-area.ts`. Checked before
+ * the partner network's own coverage, since this is Safehubby's own launch
+ * decision, not something a configured partner could override by claiming
+ * coverage somewhere this app isn't ready to operate yet.
+ */
+function requireLaunchMarket(location: { lat: number; lng: number }): void {
+  if (!isInLaunchMarket(location)) {
+    throw new HttpError(503, `Personal concierge is only available in ${launchMarketNames()} for now.`);
+  }
 }
 
 /** Six characters from an unambiguous alphabet — no O/0, I/1 — read aloud in a bar. */
@@ -1397,9 +1479,10 @@ export const routes: Record<string, Handler> = {
     const { rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing } = fulfillmentStatus();
     return {
       rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing, push: push.status,
-      placeSearch: placeSearch.status,
+      placeSearch: placeSearch.status, payouts: revolutPayouts.status,
       disclosures: SECURE_TRANSPORT_DISCLOSURES,
       conciergeDisclosures: CONCIERGE_DISCLOSURES,
+      launchMarkets: launchMarketNames(),
     };
   },
 
@@ -1477,6 +1560,7 @@ export const routes: Record<string, Handler> = {
     const category = p.category ?? "";
     if (!CONCIERGE_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Unknown task type.");
     const location = coordsFrom(p);
+    requireLaunchMarket(location);
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
 
     const listing = await concierge.listAssistants({ category, location });
@@ -1500,6 +1584,7 @@ export const routes: Record<string, Handler> = {
     requireFeature(ctx, me, "personal-concierge");
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input);
+    requireLaunchMarket(input.location);
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
 
     const quote = await concierge.quote({
@@ -1525,6 +1610,7 @@ export const routes: Record<string, Handler> = {
     requireFeature(ctx, me, "personal-concierge");
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input);
+    requireLaunchMarket(input.location);
     if (body?.acknowledgedDisclosures !== true) {
       throw new HttpError(400, "The disclosures have to be acknowledged before booking.");
     }
@@ -1745,7 +1831,54 @@ export const routes: Record<string, Handler> = {
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((t) => ({ ...t, requesterName: nameOf(ctx, t.travelerId) }));
-    return { assistantId, mustChangePassword, tasks };
+    return {
+      assistantId, mustChangePassword, tasks,
+      unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId),
+    };
+  },
+
+  /**
+   * Where a biweekly payout is actually sent — entered by the assistant
+   * themselves, never by Safehubby staff. Requires encryption to be
+   * configured at all: a bank account number is not something this app will
+   * accept and store in the clear, so an unconfigured server refuses the
+   * write outright rather than silently downgrading to plaintext.
+   */
+  "POST /api/assistant/payout-destination": async (ctx, _p, body) => {
+    const assistantId = assistantActor(ctx);
+    const input = {
+      accountHolderName: String(body?.accountHolderName ?? "").trim(),
+      routingNumber: String(body?.routingNumber ?? "").trim(),
+      accountNumber: String(body?.accountNumber ?? "").trim(),
+    };
+    validatePayoutDestination(input);
+    const cipher = cipherFromEnv();
+    if (!cipher) throw new HttpError(503, "Payout details require SAFEHUBBY_ENCRYPTION_KEY to be set on this server.");
+
+    const sealed = sealPayoutDestination(input, cipher);
+    ctx.store.update((db) => {
+      db.assistantPayoutDestinations[assistantId] = { ...sealed, updatedAt: ctx.now().toISOString() };
+    });
+    return { accountHolderName: sealed.accountHolderName, accountNumberLast4: sealed.accountNumberLast4 };
+  },
+
+  /** Never returns the encrypted fields, let alone the plaintext account
+   *  number — only what the portal needs to show "on file, ending in 1234". */
+  "GET /api/assistant/payout-destination": (ctx) => {
+    const assistantId = assistantActor(ctx);
+    const on = ctx.store.data.assistantPayoutDestinations[assistantId];
+    return { destination: on ? { accountHolderName: on.accountHolderName, accountNumberLast4: on.accountNumberLast4 } : null };
+  },
+
+  /** An assistant's own record of what they were actually paid, biweekly —
+   *  see payroll.ts. */
+  "GET /api/assistant/payouts": (ctx) => {
+    const assistantId = assistantActor(ctx);
+    const payouts = ctx.store.data.payouts
+      .filter((p) => p.assistantId === assistantId)
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return { payouts, unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId) };
   },
 
   "GET /api/assistant/tasks/:taskId/voice-messages": (ctx, p) => {
@@ -2319,6 +2452,17 @@ export const routes: Record<string, Handler> = {
       db.driverApplications[i] = withdrawn;
     });
     return { id: withdrawn.id, status: withdrawn.status };
+  },
+
+  /**
+   * Admin: run the biweekly payout immediately rather than waiting for the
+   * hourly sweep in main.ts to get to it — mainly for verifying the pipeline
+   * end to end. Safe to call any time; see `runPayroll`'s doc comment for
+   * why repeat calls never double-pay.
+   */
+  "POST /api/admin/payroll/run": async (ctx) => {
+    requireAdmin(ctx);
+    return runPayroll(ctx);
   },
 
   /** Admin: the review queue. Applicant contact and licence details are real

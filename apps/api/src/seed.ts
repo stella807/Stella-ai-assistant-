@@ -28,6 +28,8 @@ export const SEED: Db = {
   voiceMessages: [],
   assistantCredentials: {},
   assistantSessions: [],
+  assistantPayoutDestinations: {},
+  payouts: [],
   holds: [],
   driverApplications: [], pushDevices: [],
 };

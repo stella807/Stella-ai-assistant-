@@ -100,3 +100,35 @@ export function openLocations<T extends { nights: { pings: unknown }[] }>(db: T,
   }
   return db;
 }
+
+/**
+ * Field-level encryption for an assistant's bank details, entered once in
+ * the employee portal and read back only at the moment a payout is actually
+ * sent — see `routes.ts`. Unlike location history above, there is no
+ * degraded fallback for a missing key: a bank account number stored in the
+ * clear is not an acceptable failure mode, so the caller (routes.ts) refuses
+ * to accept a payout destination at all when `cipherFromEnv()` returns
+ * `null`, rather than calling these with one.
+ */
+export function sealPayoutDestination(
+  input: { accountHolderName: string; routingNumber: string; accountNumber: string },
+  cipher: Cipher,
+): { accountHolderName: string; routingNumberEnc: string; accountNumberEnc: string; accountNumberLast4: string } {
+  return {
+    accountHolderName: input.accountHolderName,
+    routingNumberEnc: cipher.encrypt(input.routingNumber),
+    accountNumberEnc: cipher.encrypt(input.accountNumber),
+    accountNumberLast4: input.accountNumber.slice(-4),
+  };
+}
+
+export function openPayoutDestination(
+  stored: { accountHolderName: string; routingNumberEnc: string; accountNumberEnc: string },
+  cipher: Cipher,
+): { accountHolderName: string; routingNumber: string; accountNumber: string } {
+  return {
+    accountHolderName: stored.accountHolderName,
+    routingNumber: cipher.decrypt(stored.routingNumberEnc),
+    accountNumber: cipher.decrypt(stored.accountNumberEnc),
+  };
+}

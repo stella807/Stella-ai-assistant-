@@ -122,12 +122,13 @@ in, for people who want to drive directly for Safehubby rather than through
 Uber or Instacart. Standard and secure-transport tiers, admin-reviewed. See
 `docs/driving.md`.
 
-**Personal concierge.** Send a vetted, insured partner-network professional
-for one bounded, in-person task — grab something, sit with a friend, check on
-someone — at a spend cap you set that is never exceeded. Deliberately a
-booking layer on an already-vetted partner, the same shape as secure
-transport, rather than an in-house hiring marketplace: Safehubby vets and
-employs nobody here, and there's no payroll baked into the price. The
+**Personal concierge.** Launched in three markets for now — Puerto Rico,
+Texas, and Los Angeles — a deliberate phased-rollout choice, not a technical
+limit. Send a vetted, insured partner-network professional for one bounded,
+in-person task — grab something, sit with a friend, check on someone — at a
+spend cap you set that is never exceeded. Deliberately a booking layer on an
+already-vetted partner, the same shape as secure transport, rather than an
+in-house hiring marketplace: Safehubby vets and employs nobody here. The
 assistant pays with a single-use, spend-capped virtual card issued through
 Revolut Business — never the subscriber's own card, and never a same-night
 bank debit, which is too slow to fund one. On every paid tier, not just
@@ -157,7 +158,12 @@ it. The assistant's own side is a distinct employee portal at `/employee`
 separate from a Safehubby customer account — where they see everything
 assigned to them, a transparent pay-rate table (per task, per hour, and what
 steady work could add up to per year, at a cadence they choose), reply by
-voice, take their own selfie, and mark a task done or decline it. See
+voice, take their own selfie, and mark a task done or decline it. Assistants
+are paid biweekly — an hourly sweep totals up what each one earned in the
+most recently closed 14-day period and sends it to the bank account they
+entered for themselves, through the same Revolut Business account that
+issues task cards; paying a contractor on a schedule like this is the same
+thing Uber and DoorDash do, and doesn't make Safehubby anyone's employer. See
 `docs/concierge.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head

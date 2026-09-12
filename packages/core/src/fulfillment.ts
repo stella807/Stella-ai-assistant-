@@ -221,6 +221,33 @@ export interface CardIssuingPort {
   cancelCard(cardId: string): Promise<void>;
 }
 
+/**
+ * Where a biweekly payout actually lands — a US bank account, reached over
+ * ACH, since the launch markets (`service-area.ts`) are all US. The
+ * assistant types this into their own employee portal; Safehubby never
+ * collects it on their behalf. The account number here is exactly what the
+ * adapter needs to send money — apps/api encrypts it before it is ever
+ * stored, and only decrypts it for the one call that sends a transfer. See
+ * `docs/concierge.md`.
+ */
+export interface PayoutRecipient {
+  accountHolderName: string;
+  routingNumber: string;
+  accountNumber: string;
+}
+
+export interface PayoutPort {
+  readonly status: ProviderStatus;
+  /**
+   * Sends one biweekly payout. `reference` is an idempotency key — the same
+   * reference sent twice must never result in two transfers, the same
+   * discipline `authorizeExactHold` already applies to holds.
+   */
+  payOut(input: {
+    amountCents: number; currency: string; recipient: PayoutRecipient; reference: string;
+  }): Promise<{ payoutId: string }>;
+}
+
 export function statusFor(id: string, name: string, configured: boolean, requires: string): ProviderStatus {
   return { id, name, mode: configured ? "automatic" : "handoff", requires };
 }

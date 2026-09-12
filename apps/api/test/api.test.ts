@@ -7,14 +7,15 @@ import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
-import type { Ctx } from "../src/routes.ts";
-import { authorizeExactHold, recordCharge, resetFlags, setFlag } from "@safehubby/core";
+import { runPayroll, type Ctx } from "../src/routes.ts";
+import { authorizeExactHold, previousPayoutPeriod, recordCharge, resetFlags, setFlag } from "@safehubby/core";
 
 let server: ReturnType<typeof createApp>;
 let base: string;
 let dir: string;
 let clock: Date;
 let store: Store;
+let ctx: Ctx;
 
 /** Each "session" is just a bearer token, so tests can act as different users. */
 const call = async (
@@ -71,7 +72,7 @@ beforeEach(async () => {
   clock = new Date("2026-01-01T20:00:00Z");
   store = new Store(join(dir, "db.json"));
   store.reset(structuredClone(SEED));
-  const ctx: Ctx = { ...makeCtx(store), now: () => clock };
+  ctx = { ...makeCtx(store), now: () => clock };
   server = createApp(ctx);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -1251,10 +1252,13 @@ describe("secure transport", () => {
 });
 
 describe("personal concierge", () => {
+  // Austin, TX — inside a launch market (see service-area.ts), so these
+  // tests exercise the partner-network/disclosure logic rather than
+  // tripping the launch-market gate itself (covered separately below).
   const task = (over: Record<string, unknown> = {}) => ({
     category: "grab-something",
     note: "Grab a burger and fries from The Anchor Tavern",
-    location: { lat: 40.714, lng: -74.003, label: "The Anchor Tavern" },
+    location: { lat: 30.2672, lng: -97.7431, label: "The Anchor Tavern" },
     spendCapCents: 2500,
     ...over,
   });
@@ -1304,6 +1308,21 @@ describe("personal concierge", () => {
     expect((await call("POST", "/api/concierge/quote", task())).status).toBe(401);
     expect((await call("POST", "/api/concierge/tasks", task())).status).toBe(401);
     expect((await call("GET", "/api/concierge/tasks")).status).toBe(401);
+  });
+
+  it("is only offered in the launch markets, checked before the partner network itself", async () => {
+    // New York City — a real place, just not one of the three launch markets.
+    const outside = task({ location: { lat: 40.7128, lng: -74.006, label: "Somewhere in NYC" } });
+    const quote = await call("POST", "/api/concierge/quote", outside, sam);
+    expect(quote.status).toBe(503);
+    expect(quote.json.error).toMatch(/Puerto Rico.*Texas.*Los Angeles/i);
+
+    const booking = await call("POST", "/api/concierge/tasks", { ...outside, acknowledgedDisclosures: true }, sam);
+    expect(booking.status).toBe(503);
+    expect(booking.json.error).toMatch(/Puerto Rico.*Texas.*Los Angeles/i);
+
+    const roster = await call("GET", "/api/concierge/assistants?category=grab-something&lat=40.7128&lng=-74.006", undefined, sam);
+    expect(roster.status).toBe(503);
   });
 
   it("reports concierge status and its disclosures alongside the rest of fulfilment", async () => {
@@ -1737,6 +1756,145 @@ describe("assistant portal", () => {
     expect(res.json.task.declinedByAssistant).toBe(true);
   });
 
+});
+
+/** Shared by both describe blocks below. */
+const withEncryptionKey = async (fn: () => Promise<void>) => {
+  const prior = process.env.SAFEHUBBY_ENCRYPTION_KEY;
+  process.env.SAFEHUBBY_ENCRYPTION_KEY = "a".repeat(64);
+  try { await fn(); } finally {
+    if (prior === undefined) delete process.env.SAFEHUBBY_ENCRYPTION_KEY;
+    else process.env.SAFEHUBBY_ENCRYPTION_KEY = prior;
+  }
+};
+
+const payoutDestination = () => ({ accountHolderName: "Jordan Rivera", routingNumber: "021000021", accountNumber: "123456789" });
+
+describe("assistant payout destination", () => {
+  const assistantId = "asst_pay1";
+
+  it("requires an assistant session for every route", async () => {
+    expect((await call("GET", "/api/assistant/payout-destination")).status).toBe(401);
+    expect((await call("POST", "/api/assistant/payout-destination", payoutDestination())).status).toBe(401);
+  });
+
+  it("validates the bank details before anything else", async () => {
+    const { cookie } = await assistantLogin(assistantId);
+    const res = await call("POST", "/api/assistant/payout-destination", { ...payoutDestination(), routingNumber: "123" }, null, cookie);
+    expect(res.status).toBe(400);
+  });
+
+  it("refuses to store one at all with no encryption key configured server-side", async () => {
+    const { cookie } = await assistantLogin(assistantId);
+    const prior = process.env.SAFEHUBBY_ENCRYPTION_KEY;
+    delete process.env.SAFEHUBBY_ENCRYPTION_KEY;
+    try {
+      const res = await call("POST", "/api/assistant/payout-destination", payoutDestination(), null, cookie);
+      expect(res.status).toBe(503);
+    } finally {
+      if (prior !== undefined) process.env.SAFEHUBBY_ENCRYPTION_KEY = prior;
+    }
+  });
+
+  it("reports null before anything is on file", async () => {
+    const { cookie } = await assistantLogin(assistantId);
+    const res = await call("GET", "/api/assistant/payout-destination", undefined, null, cookie);
+    expect(res.json.destination).toBeNull();
+  });
+
+  it("stores an encrypted destination and only ever returns the masked form back", async () => {
+    await withEncryptionKey(async () => {
+      const { cookie } = await assistantLogin(assistantId);
+      const set = await call("POST", "/api/assistant/payout-destination", payoutDestination(), null, cookie);
+      expect(set.status).toBe(200);
+      expect(set.json).toEqual({ accountHolderName: "Jordan Rivera", accountNumberLast4: "6789" });
+      expect(JSON.stringify(set.json)).not.toContain("123456789");
+
+      const got = await call("GET", "/api/assistant/payout-destination", undefined, null, cookie);
+      expect(got.json.destination).toEqual({ accountHolderName: "Jordan Rivera", accountNumberLast4: "6789" });
+    });
+  });
+});
+
+describe("biweekly payroll", () => {
+  const assistantId = "asst_payroll1";
+  let taskId = "";
+
+  beforeEach(() => {
+    taskId = "ct_payroll1";
+    const period = previousPayoutPeriod(clock);
+    const completedAt = new Date(period.start.getTime() + 3_600_000).toISOString();
+    store.update((db) => {
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 30.2672, lng: -97.7431 }, spendCapCents: 2500, serviceFeeCents: 900,
+        status: "completed", provider: "Nearby Aide", assistantId,
+        chargeId: "ch_payroll1", holdId: "hold_payroll1", createdAt: completedAt, completedAt,
+      });
+    });
+  });
+
+  it("shows the earned-but-unpaid total in the assistant's own portal and payout history", async () => {
+    const { cookie } = await assistantLogin(assistantId);
+    const portal = await call("GET", "/api/assistant/portal", undefined, null, cookie);
+    expect(portal.json.unpaidEarningsCents).toBe(900);
+    const payouts = await call("GET", "/api/assistant/payouts", undefined, null, cookie);
+    expect(payouts.json.payouts).toEqual([]);
+    expect(payouts.json.unpaidEarningsCents).toBe(900);
+  });
+
+  it("fails a payout with a clear reason when there is no destination on file, and never tags the task", async () => {
+    const result = await runPayroll(ctx);
+    expect(result).toEqual({ paid: 0, failed: 1, totalCents: 0 });
+    const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+    expect(payout.status).toBe("failed");
+    expect(payout.failureReason).toMatch(/no payout destination/i);
+    expect(payout.totalCents).toBe(900);
+    expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeUndefined();
+  });
+
+  it("fails with Revolut's own reason once a destination is on file but Revolut itself is not configured", async () => {
+    await withEncryptionKey(async () => {
+      const { cookie } = await assistantLogin(assistantId);
+      await call("POST", "/api/assistant/payout-destination", payoutDestination(), null, cookie);
+      const result = await runPayroll(ctx);
+      expect(result.failed).toBe(1);
+      const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+      expect(payout.failureReason).toMatch(/Revolut Business/i);
+    });
+  });
+
+  it("never pays out a task still inside the current, open period", async () => {
+    store.update((db) => {
+      db.conciergeTasks.find((t) => t.id === taskId)!.completedAt = clock.toISOString();
+    });
+    const result = await runPayroll(ctx);
+    expect(result).toEqual({ paid: 0, failed: 0, totalCents: 0 });
+  });
+
+  it("is reflected in the payout history once a run has attempted it", async () => {
+    await runPayroll(ctx);
+    const { cookie } = await assistantLogin(assistantId);
+    const res = await call("GET", "/api/assistant/payouts", undefined, null, cookie);
+    expect(res.json.payouts).toHaveLength(1);
+    expect(res.json.payouts[0].status).toBe("failed");
+    // Still unpaid — a failed attempt never resolves what's actually owed.
+    expect(res.json.unpaidEarningsCents).toBe(900);
+  });
+
+  it("requires the admin key to trigger a run manually", async () => {
+    const prior = process.env.SAFEHUBBY_ADMIN_KEY;
+    process.env.SAFEHUBBY_ADMIN_KEY = "test-admin-key";
+    try {
+      expect((await callAdmin("POST", "/api/admin/payroll/run", undefined, "wrong-key")).status).toBe(401);
+      const res = await callAdmin("POST", "/api/admin/payroll/run");
+      expect(res.status).toBe(200);
+      expect(res.json.failed).toBe(1); // no payout destination on file for asst_payroll1
+    } finally {
+      if (prior === undefined) delete process.env.SAFEHUBBY_ADMIN_KEY;
+      else process.env.SAFEHUBBY_ADMIN_KEY = prior;
+    }
+  });
 });
 
 describe("grocery fulfilment", () => {

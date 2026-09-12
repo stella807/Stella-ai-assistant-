@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
-  Alert, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew, DriverApplication, GameRound,
-  NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant, Subscription,
+  Alert, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew, DriverApplication,
+  GameRound, NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant, Subscription,
   VoiceMessage,
 } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
@@ -46,6 +46,22 @@ export interface AssistantSession {
   expiresAt: string;
 }
 
+/**
+ * Where a biweekly payout is sent — entered by the assistant themselves in
+ * their own portal, never by Safehubby staff. The routing number and account
+ * number are encrypted at rest (`sealPayoutDestination`/`openPayoutDestination`
+ * in crypto.ts) the moment they're written, the same discipline location
+ * pings get; `accountNumberLast4` is kept in the clear only so the portal can
+ * show "ending in 1234" without decrypting anything just to render a screen.
+ */
+export interface AssistantPayoutDestination {
+  accountHolderName: string;
+  routingNumberEnc: string;
+  accountNumberEnc: string;
+  accountNumberLast4: string;
+  updatedAt: string;
+}
+
 /** Care-package state hangs off the night rather than off core's NightOut,
  *  which keeps the domain types free of a circular import. */
 export interface CarePackageState {
@@ -79,6 +95,12 @@ export interface Db {
    *  provisionAssistantCredentials. */
   assistantCredentials: Record<string, AssistantCredential>;
   assistantSessions: AssistantSession[];
+  /** Bank details an assistant entered for themselves — see
+   *  AssistantPayoutDestination above. */
+  assistantPayoutDestinations: Record<string, AssistantPayoutDestination>;
+  /** The record of every biweekly payout actually sent — see payroll.ts and
+   *  routes.ts's runPayroll. */
+  payouts: AssistantPayout[];
   driverApplications: DriverApplication[];
   pushDevices: PushDevice[];
 }
@@ -87,6 +109,7 @@ const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
   paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], voiceMessages: [],
   assistantCredentials: {}, assistantSessions: [],
+  assistantPayoutDestinations: {}, payouts: [],
   driverApplications: [], pushDevices: [],
 };
 

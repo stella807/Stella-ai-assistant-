@@ -295,7 +295,7 @@ the customer-facing `App` for everything else — by path, before either
 component's own hooks exist, the same reasoning as the old token-based
 version: neither area's rendering can end up depending on the other's state.
 
-What the portal does, on purpose kept to exactly three things:
+What the portal does, on purpose kept to a short, fixed list:
 
 - **See what's assigned.** `GET /api/assistant/portal` returns every task for
   the signed-in assistant — the requester's name, the note, the location, the
@@ -308,6 +308,10 @@ What the portal does, on purpose kept to exactly three things:
   real published fee, not a wage, a contract, or a promise of hours — see
   "What actually pays the assistant" above for why Safehubby publishes a
   fixed rate card rather than negotiating one per task.
+- **Get paid.** `POST /api/assistant/payout-destination` for the bank account
+  a biweekly payout lands in, `GET /api/assistant/payouts` for the record of
+  every payout actually sent plus what's earned and not yet paid — see
+  "Paying assistants biweekly" below.
 - **Talk to the customer.** The same async voice-message thread the customer
   sees, from the other side — `POST`/`GET /api/assistant/tasks/:id/voice-messages`.
 - **Close the loop.** Mark a task done (optionally reporting what was
@@ -396,15 +400,75 @@ category of reasoning as secure transport's insurance contract:
 
 **This is not a salary line.** The assistants are independent partner-network
 professionals dispatched through that retainer, not Safehubby employees — see
-"What this is not" above. There is no payroll here to price in, which is
-exactly why these increases are smaller than putting concierge staff on
-payroll would have cost.
+"What this is not" above, and "Paying assistants biweekly" below for how a
+per-task fee actually reaches them without that changing. There is no fixed
+wage or benefits obligation here, which is exactly why these increases are
+smaller than putting concierge staff on payroll would have cost.
 
 **Every paid tier gets the same thing — no cheaper version for Premium.**
 Same categories, same `CONCIERGE_MIN_CAP_CENTS`/`CONCIERGE_MAX_CAP_CENTS`
 bounds, same disclosures. The spend cap exists to protect the subscriber and
 the card issuer, not to mark out a pricing tier, so there's no safety reason
 to make the cheapest paid plan's version of "send a stranger to help" worse.
+
+## Where personal concierge operates
+
+Launched in three markets, on purpose, not as a technical limitation:
+Puerto Rico, Texas, and Los Angeles (`LAUNCH_MARKETS` in
+`packages/core/src/service-area.ts`). Every quote, booking, and roster-browse
+route checks `isInLaunchMarket` before it ever checks whether a partner
+network is configured — this is Safehubby's own phased-rollout decision, so
+it's enforced regardless of what a partner network might otherwise claim to
+cover. Outside those three, every one of those routes returns a `503` naming
+where the service actually is, rather than a generic "not configured" error.
+
+The bounds are rectangular bounding boxes, not the real, irregular legal
+boundaries of a state, territory, or city — stated plainly in the module's
+own doc comment, since a box around Texas catches a sliver of its neighbors
+and a box around Los Angeles is looser than the city's real limits. Accepted
+for a v1 launch gate; replace with real geofencing before the edges start to
+matter at scale.
+
+## Paying assistants biweekly
+
+The service fee is what an assistant earns per task; being paid is a
+separate, scheduled event, not the instant a task completes. Every
+assistant is paid on the same fixed 14-day cycle (`packages/core/src/payroll.ts`),
+anchored to a stable epoch so periods never drift. An hourly sweep in
+`main.ts` (the same cadence retention already runs on) calls `runPayroll`,
+which, for the most recently *closed* period:
+
+1. Finds every completed task, for every assistant, that hasn't already been
+   paid (`earningsFor` — a task tagged with a `payoutId` never counts twice).
+2. Sums what's owed per assistant (`totalEarningsCents`).
+3. Sends one transfer per assistant through `PayoutPort`
+   (`apps/api/src/adapters/payouts.ts`, reusing the same Revolut Business
+   account and credentials already used for card issuing in `cards.ts`), to
+   the bank account the assistant entered for themselves in the employee
+   portal (`POST /api/assistant/payout-destination` — never collected by
+   Safehubby staff on their behalf).
+4. Records an `AssistantPayout` either way — `paid` with the provider's own
+   reference, or `failed` with a stated reason (no destination on file, no
+   encryption key configured, or the payout provider itself not configured)
+   — and only tags the underlying tasks with a `payoutId` on success, so a
+   failed attempt is retried automatically on the very next hourly sweep
+   rather than silently dropping what someone is owed.
+
+**This does not make Safehubby anyone's employer.** Paying a contractor on a
+schedule is a different thing from employing them — Uber, DoorDash, and
+Instacart all pay independent contractors this way. Nothing here creates
+withholding, benefits, or an employment relationship; it only moves *when*
+money already owed for a completed task actually arrives.
+
+**Bank details are encrypted before they're ever stored**
+(`sealPayoutDestination`/`openPayoutDestination` in `crypto.ts`, the same
+AES-256-GCM cipher location history uses) — and if `SAFEHUBBY_ENCRYPTION_KEY`
+isn't configured, `POST /api/assistant/payout-destination` refuses the
+write outright rather than falling back to storing it in the clear. An
+assistant can see their own payout history and what they've earned but not
+yet been paid at `GET /api/assistant/payouts`; `POST /api/admin/payroll/run`
+(gated by `requireAdmin`) triggers a run immediately rather than waiting for
+the next hourly sweep, mainly for verifying the pipeline end to end.
 
 ## Configuring a real provider
 
@@ -414,12 +478,16 @@ railway variables \
   --set "CONCIERGE_API_BASE=https://..." \
   --set "CONCIERGE_API_KEY=..." \
   --set "REVOLUT_API_BASE=https://..." \
-  --set "REVOLUT_API_KEY=..."
+  --set "REVOLUT_API_KEY=..." \
+  --set "SAFEHUBBY_ENCRYPTION_KEY=..."
 ```
 
-The first three turn on dispatch; the last two turn on card issuing. They are
-independent — see "Paying the assistant" above. Set `GOOGLE_PLACES_API_KEY`
-(shared with `venues.ts`/`grocery.ts`) to turn on the place picker, and
+The first three turn on dispatch; `REVOLUT_API_BASE`/`REVOLUT_API_KEY` turn on
+both card issuing (`cards.ts`) and biweekly payouts (`payouts.ts`) — the same
+Revolut Business account does both. `SAFEHUBBY_ENCRYPTION_KEY` is required
+before any assistant can be paid at all, since it's what lets a payout
+destination be stored. Set `GOOGLE_PLACES_API_KEY` (shared with
+`venues.ts`/`grocery.ts`) to turn on the place picker, and
 `VITE_GOOGLE_MAPS_BROWSER_KEY` at web-build time to also render the embedded
 map for a picked place — see "Naming a real place" above.
 

@@ -1,6 +1,7 @@
 import { LOCATION_RETENTION_DAYS, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
 import { renewDueSubscriptions } from "./billing.ts";
 import { createApp, makeCtx } from "./server.ts";
+import { runPayroll } from "./routes.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
 import { PostgresStore } from "./store-postgres.ts";
@@ -90,6 +91,23 @@ async function main(): Promise<void> {
   // Do not hold the process open on this alone.
   retentionTimer.unref?.();
 
+  /**
+   * Assistants are paid biweekly, but this runs hourly like every other
+   * sweep here — `runPayroll` only ever pays a task once (it tags the task
+   * the moment it's paid), so an hourly check just means a payout goes out
+   * within the hour after its period actually closes, and a failed attempt
+   * gets retried on the very next run instead of waiting two more weeks.
+   */
+  const sweepPayroll = () => {
+    runPayroll(makeCtx(store)).then(({ paid, failed, totalCents }) => {
+      if (paid > 0) console.log(`[safehubby] Payroll: paid ${paid} assistant(s), $${(totalCents / 100).toFixed(2)}`);
+      if (failed > 0) console.log(`[safehubby] Payroll: ${failed} payout(s) could not be sent — see the payouts ledger`);
+    }).catch((err) => console.error("[safehubby] Payroll sweep failed:", err));
+  };
+  sweepPayroll();
+  const payrollTimer = setInterval(sweepPayroll, 60 * 60_000);
+  payrollTimer.unref?.();
+
   const server = createApp(makeCtx(store));
   server.listen(port, () => console.log(`[safehubby] Listening on ${port}`));
 
@@ -97,6 +115,7 @@ async function main(): Promise<void> {
   // or the last few seconds of a night are lost.
   const shutdown = async () => {
     clearInterval(retentionTimer);
+    clearInterval(payrollTimer);
     server.close();
     if (store instanceof PostgresStore) await store.close();
     process.exit(0);

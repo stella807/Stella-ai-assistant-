@@ -51,7 +51,23 @@ Business account — Revolut's card-issuing API has no concept of handing a card
 to a third party who isn't a team member. That means real names and payment
 details for partner-network assistants would live inside Safehubby's own
 Revolut account before this can go live, which is its own data-handling
-surface to review, on top of the API integration itself. See `docs/concierge.md`.
+surface to review, on top of the API integration itself. The same account and
+credentials now also send biweekly payouts (`apps/api/src/adapters/payouts.ts`)
+— its counterparty-payment endpoint shape is a best-effort mapping of
+Revolut's documented Business API, not verified against a live sandbox, the
+same caveat as the card-issuing adapter. See `docs/concierge.md`.
+
+**A bank account number is real financial PII, and this app now stores
+one.** An assistant's payout destination is encrypted at rest
+(`sealPayoutDestination`/`openPayoutDestination` in `crypto.ts`, the same
+cipher location history uses) and `POST /api/assistant/payout-destination`
+refuses to accept one at all without `SAFEHUBBY_ENCRYPTION_KEY` configured —
+stricter than location history, which degrades gracefully to an empty trace
+without a key rather than refusing outright. What is not yet built: key
+rotation (there is exactly one key, forever, the same as for location
+history), and any server-side validation that a routing number is a real,
+assigned ABA number rather than merely nine digits — `validatePayoutDestination`
+in `payroll.ts` checks shape, not registry membership. See `docs/concierge.md`.
 
 **Voice messages and identity photos stored inline in the document store,
 uncapped in aggregate.** `voice-messages.ts` and `concierge.ts` cap a single

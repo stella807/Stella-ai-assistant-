@@ -293,6 +293,11 @@ export interface ConciergeTask {
    *  so a cancel can kill the card; it is not a card number.
    *  See `CardIssuingPort` in fulfillment.ts. */
   card?: { id: string; last4: string; network: string; expMonth: number; expYear: number };
+  /** Set once this task's service fee has been included in a biweekly
+   *  payout — see `payroll.ts`. A completed task with no `payoutId` is money
+   *  still owed to the assistant; this is what stops the same task from
+   *  being paid out twice across two payroll runs. */
+  payoutId?: string;
 }
 
 /** A single selfie, captured on the fly for this meetup — not a persistent

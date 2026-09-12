@@ -14,6 +14,7 @@ import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
 import { HiringScreen } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
+import { LandingIntro } from "./components/LandingIntro.tsx";
 
 type Role = "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account" | "drive";
 
@@ -65,7 +66,10 @@ export function App() {
       {role === "drive" ? (
         <DriveSignupScreen onBack={() => setRole("out")} />
       ) : !ready ? null : !account ? (
-        <AuthScreen onSignedIn={setAccount} />
+        <>
+          <LandingIntro />
+          <AuthScreen onSignedIn={setAccount} />
+        </>
       ) : (
         <>
           <div className="tabs" role="tablist">

@@ -90,7 +90,7 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/routes` | `safe-routes` |
 | `POST` | `/api/rides/secure` | `secure-transport` |
 | `GET` | `/api/fulfillment/status` | — (session) |
-| `POST` | `/api/concierge/quote` | `personal-concierge`. `{ category, note, location, spendCapCents, quickTask? }` → `{ quote, disclosures, serviceFeeCents, totalCents, quickTaskEligible }` — the fee is itemized, see `docs/concierge.md`. |
+| `POST` | `/api/concierge/quote` | `personal-concierge`. `{ category, note, location, spendCapCents, quickTask? }` → `{ quote, disclosures, serviceFeeCents, totalCents, quickTaskEligible }` — the fee is itemized, see `docs/concierge.md`. `503` outside the launch markets (Puerto Rico, Texas, Los Angeles), checked before the partner network itself. |
 | `GET` | `/api/concierge/places?query=&lat=&lng=` | `personal-concierge`. Free-text place search backing the task form's place picker — see `docs/concierge.md`. |
 | `GET` | `/api/concierge/assistants?category=&lat=&lng=` | `personal-concierge`. The partner network's roster for that category near that location — see `docs/concierge.md`. |
 | `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures, assistantId?, quickTask? }`. Holds `spendCapCents` plus the category's service fee (discounted when `quickTask` is true and the category is eligible) — see `docs/concierge.md`. The returned task includes `serviceFeeCents` in full. |
@@ -115,7 +115,10 @@ fallback here, unlike traveler sessions — see `docs/concierge.md` for why.
 | `POST` | `/api/assistant/auth/login` | `{ username, password }` → `{ assistantId, mustChangePassword }`. Sets `sh_assistant_session`. |
 | `POST` | `/api/assistant/auth/logout` | Clears the session |
 | `POST` | `/api/assistant/auth/change-password` | `{ currentPassword, newPassword }`. Required before anything else works while `mustChangePassword` is true |
-| `GET` | `/api/assistant/portal` | Every task assigned to the signed-in assistant, with the requester's name, and `mustChangePassword` |
+| `GET` | `/api/assistant/portal` | Every task assigned to the signed-in assistant, with the requester's name, `mustChangePassword`, and `unpaidEarningsCents` |
+| `POST` | `/api/assistant/payout-destination` | `{ accountHolderName, routingNumber, accountNumber }`. Requires `SAFEHUBBY_ENCRYPTION_KEY` to be set; returns only `{ accountHolderName, accountNumberLast4 }` |
+| `GET` | `/api/assistant/payout-destination` | `{ destination: { accountHolderName, accountNumberLast4 } \| null }` — never the account number itself |
+| `GET` | `/api/assistant/payouts` | This assistant's own payout history plus `unpaidEarningsCents` — see `docs/concierge.md` |
 | `GET` | `/api/assistant/tasks/:taskId/voice-messages` | That task's thread |
 | `POST` | `/api/assistant/tasks/:taskId/voice-messages` | The assistant's own reply |
 | `POST` | `/api/assistant/tasks/:taskId/selfie` | The assistant's own selfie, shown to the subscriber |

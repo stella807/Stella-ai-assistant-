@@ -37,7 +37,7 @@ railway variables --set "NODE_ENV=production"
 | Variable | Required | Notes |
 |---|---|---|
 | `DATABASE_URL` | yes | Set by the Postgres plugin. |
-| `SAFEHUBBY_ENCRYPTION_KEY` | yes | 64 hex chars. Encrypts location history. |
+| `SAFEHUBBY_ENCRYPTION_KEY` | yes | 64 hex chars. Encrypts location history, and required before any assistant payout destination (bank account) can be stored at all — see `docs/concierge.md`. |
 | `NODE_ENV` | yes | `production` — turns on `Secure` cookies and the boot checks. |
 | `PORT` | no | Railway injects it. |
 | `WEB_ROOT` | no | Set by the Dockerfile. |
