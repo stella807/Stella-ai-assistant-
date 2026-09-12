@@ -1283,6 +1283,22 @@ describe("personal concierge", () => {
     expect(res.conciergeDisclosures.join(" ")).toMatch(/not a Safehubby employee/i);
   });
 
+  it("reports card issuing separately from dispatch — no credentials in tests, so it hands off", async () => {
+    const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+    expect(res.cardIssuing.mode).toBe("handoff");
+    expect(res.cardIssuing.name).toBe("Revolut Business");
+    expect(res.cardIssuing.requires).toMatch(/Revolut Business account/i);
+  });
+
+  it("still lets a task book with no card issuer configured — issuing one is an add-on, not a precondition", async () => {
+    // Dispatch itself is also unconfigured in tests, so this still 503s, but
+    // on the dispatch provider's message, never on the card issuer's.
+    await call("POST", "/api/subscription", { planId: "family" }, sam);
+    const res = await call("POST", "/api/concierge/tasks", { ...task(), acknowledgedDisclosures: true }, sam);
+    expect(res.status).toBe(503);
+    expect(res.json.error).toMatch(/Nearby Aide|partner agreement/i);
+  });
+
   it("keeps one traveler's tasks out of another's list", async () => {
     expect((await call("GET", "/api/concierge/tasks", undefined, jordan)).json.tasks).toEqual([]);
   });

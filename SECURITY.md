@@ -44,6 +44,15 @@ is no data-processing agreement template or retention commitment from a real
 partner yet; get one in place, and reviewed, before a real `CONCIERGE_API_KEY`
 is ever set. See `docs/concierge.md`.
 
+**Revolut Business as a real vendor relationship, not just an API key.**
+Card-issuing in `apps/api/src/adapters/cards.ts` assumes the partner network's
+assistants are onboarded as authorized cardholders on Safehubby's own Revolut
+Business account — Revolut's card-issuing API has no concept of handing a card
+to a third party who isn't a team member. That means real names and payment
+details for partner-network assistants would live inside Safehubby's own
+Revolut account before this can go live, which is its own data-handling
+surface to review, on top of the API integration itself. See `docs/concierge.md`.
+
 ## Retention — built
 
 Location pings expire after **7 days** (`LOCATION_RETENTION_DAYS`). The sweep

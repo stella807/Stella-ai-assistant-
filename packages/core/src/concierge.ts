@@ -98,6 +98,7 @@ export function conciergeCategoryLabel(id: ConciergeCategory): string {
 export const CONCIERGE_DISCLOSURES = [
   "Your assistant is an independent professional from a vetted partner network, not a Safehubby employee.",
   "Spending is capped at exactly what you set here — never more, whatever the task ends up costing.",
+  "Your assistant pays with a card issued for this task alone, capped at your spend limit — never your own card.",
   "Your assistant can decline a request that is unsafe, illegal, or outside what they agreed to do.",
   "Your assistant will not enter your home. Meet outside or at a shared, public space.",
   "Your location is shared with your assistant only for the duration of this task.",
@@ -123,4 +124,9 @@ export interface ConciergeTask {
   completedAt?: string;
   /** What was actually spent, once known. Never above `spendCapCents`. */
   billedCents?: number;
+  /** The card handed to the assistant, when one was issued — masked, and
+   *  never carrying `revealUrl`. `id` is the provider's own card id, kept only
+   *  so a cancel can kill the card; it is not a card number.
+   *  See `CardIssuingPort` in fulfillment.ts. */
+  card?: { id: string; last4: string; network: string; expMonth: number; expYear: number };
 }

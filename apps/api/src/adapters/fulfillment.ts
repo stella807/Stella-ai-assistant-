@@ -6,6 +6,7 @@ import type {
 import { SECURE_TRANSPORT_DISCLOSURES, statusFor } from "@safehubby/core";
 import { ridesFor, pharmacySearch } from "@safehubby/core";
 import { instacart, walmartLink, walmartStatus } from "./grocery.ts";
+import { revolutCards } from "./cards.ts";
 
 /**
  * Automatic fulfilment adapters.
@@ -22,7 +23,8 @@ import { instacart, walmartLink, walmartStatus } from "./grocery.ts";
 
 const TIMEOUT_MS = 8000;
 
-async function postJson(url: string, headers: Record<string, string>, body: unknown): Promise<any> {
+/** Shared by every adapter in this file, and by cards.ts. */
+export async function postJson(url: string, headers: Record<string, string>, body: unknown): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -416,6 +418,7 @@ export const fulfillmentStatus = () => ({
   walmart: walmartStatus(),
   secureTransport: secureTransport.status,
   concierge: concierge.status,
+  cardIssuing: revolutCards.status,
   /** Links used whenever a provider is in handoff mode. */
   fallbacks: { rides: ridesFor, pharmacy: pharmacySearch, walmart: walmartLink },
 });

@@ -127,9 +127,13 @@ for one bounded, in-person task — grab something, sit with a friend, check on
 someone — at a spend cap you set that is never exceeded. Deliberately a
 booking layer on an already-vetted partner, the same shape as secure
 transport, rather than an in-house hiring marketplace: Safehubby vets and
-employs nobody here. Family-only, and its price didn't move for it, since a
-task's cost is capped per-task rather than fixed like secure transport's
-insurance contract. See `docs/concierge.md`.
+employs nobody here, and there's no payroll baked into the price. The
+assistant pays with a single-use, spend-capped virtual card issued through
+Revolut Business — never the subscriber's own card, and never a same-night
+bank debit, which is too slow to fund one. Family-only, and its price went up
+again for it: not for a salary, but for the same category of standing cost
+that funds secure transport — the partner-network retainer and keeping the
+card-issuing balance funded. See `docs/concierge.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what
@@ -185,7 +189,7 @@ without spinning up a server.
 | Free | — | — | Location sharing, check-ins, drink count, SOS |
 | Premium | $14.99 | $152.88 (15% off) | Venue menus, detailed logging, estimates, recovery plan |
 | Premium Plus | $29.99 | $305.88 (15% off) | **Automatic** rides and delivery, safe routes, history, games |
-| Family | $59.99 | $611.88 (15% off) | Six seats, extended contacts, secure transport, and the full pharmacy-run menu |
+| Family | $69.99 | $713.88 (15% off) | Six seats, extended contacts, secure transport, personal concierge, and the full pharmacy-run menu |
 
 Automatic fulfilment means Safehubby books the provider on the rider's behalf,
 backed by a pre-authorization hold on the rider's own card so nothing is ever

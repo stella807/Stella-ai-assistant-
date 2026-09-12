@@ -36,6 +36,7 @@ import {
   concierge, deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates,
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
+import { revolutCards } from "./adapters/cards.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
 import { guardianMessages } from "./notify.ts";
@@ -1261,9 +1262,9 @@ export const routes: Record<string, Handler> = {
   /** What is switched on, and what each missing piece needs. */
   "GET /api/fulfillment/status": (ctx) => {
     actor(ctx);
-    const { rides, delivery, walmart, secureTransport: secure, concierge: aide } = fulfillmentStatus();
+    const { rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing } = fulfillmentStatus();
     return {
-      rides, delivery, walmart, secureTransport: secure, concierge: aide, push: push.status,
+      rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing, push: push.status,
       disclosures: SECURE_TRANSPORT_DISCLOSURES,
       conciergeDisclosures: CONCIERGE_DISCLOSURES,
     };
@@ -1365,16 +1366,44 @@ export const routes: Record<string, Handler> = {
       holdId: hold.id,
     });
 
+    // Issuing a card is an add-on, not a precondition for the task itself: the
+    // partner may bill Safehubby directly with no card in the loop at all, so
+    // a Revolut outage or a missing key should not block dispatch. Whether one
+    // was actually issued is independently visible via `cardIssuing.mode` on
+    // `/api/fulfillment/status`, the same "each capability reports for
+    // itself" rule as every other adapter here.
+    let issuedCard: Awaited<ReturnType<typeof revolutCards.issueCard>> | null = null;
+    if (isAutomatic(revolutCards.status)) {
+      try {
+        issuedCard = await revolutCards.issueCard({
+          capCents: input.spendCapCents,
+          currency: "USD",
+          label: `Concierge: ${conciergeCategoryLabel(input.category)}`,
+          // A task that never finishes should not leave a live card behind
+          // indefinitely — 4 hours comfortably covers a bounded, in-person task.
+          expiresAt: new Date(ctx.now().getTime() + 4 * 3_600_000).toISOString(),
+        });
+      } catch {
+        issuedCard = null;
+      }
+    }
+
     try {
       const booked = await concierge.book({
         category: input.category, note: input.note, location: input.location,
         spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
+        // The reveal link goes to the partner's own dispatch system so it can
+        // reach the assistant — never back to the traveler's browser.
+        ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
       });
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
         location: input.location, spendCapCents: input.spendCapCents, status: "in-progress",
         provider: booked.provider, providerTaskId: booked.taskId, chargeId: charge.id, holdId: hold.id,
         createdAt: ctx.now().toISOString(),
+        ...(issuedCard
+          ? { card: { id: issuedCard.id, last4: issuedCard.last4, network: issuedCard.network, expMonth: issuedCard.expMonth, expYear: issuedCard.expYear } }
+          : {}),
       };
       ctx.store.update((db) => void db.conciergeTasks.push(task));
       ctx.store.update((db) => {
@@ -1382,6 +1411,9 @@ export const routes: Record<string, Handler> = {
       });
       return { task, booked };
     } catch (err) {
+      // A card issued for a task that never actually got booked is a live,
+      // spend-capped card sitting around for nothing — kill it, best-effort.
+      if (issuedCard) revolutCards.cancelCard(issuedCard.id).catch(() => {});
       ctx.store.update((db) => {
         const target = db.holds.find((h) => h.id === hold.id);
         if (target) Object.assign(target, releaseHold(target));
@@ -1419,6 +1451,10 @@ export const routes: Record<string, Handler> = {
       ? Math.min(Math.round(reported), task.spendCapCents)
       : task.spendCapCents;
 
+    // The card is single-use already, but a done task should not leave a
+    // provider-side card record lingering active if it somehow went unused.
+    if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
+
     ctx.store.update((db) => {
       const target = db.holds.find((h) => h.id === task.holdId);
       if (target) Object.assign(target, captureHold(target, billed, ctx.now()));
@@ -1438,6 +1474,9 @@ export const routes: Record<string, Handler> = {
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
     if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
 
+    // A canceled task should not leave a live, spend-capped card behind —
+    // best-effort, the same as the failure path in the booking route.
+    if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
     ctx.store.update((db) => {
       const target = db.holds.find((h) => h.id === task.holdId);
       if (target) Object.assign(target, releaseHold(target));

@@ -99,10 +99,28 @@ const PLUS_FEATURES: Feature[] = [
  * someone can get home safely, or pricing for the heaviest user and
  * overcharging everyone else. Neither is a good look on a safety product.
  *
- * Personal concierge (see concierge.ts) is the same shape as rides and
- * delivery — access is gated to Family, but a task's own cost is charged at
- * exactly the spend cap the subscriber set for it, never rolled into the
- * subscription price. Family's price did not move for it.
+ * Personal concierge (see concierge.ts) is mostly the same shape as rides and
+ * delivery — a task's own cost is charged at exactly the spend cap the
+ * subscriber set, never rolled into the subscription price. But Family went
+ * up a third time for it anyway, for the same category of reason secure
+ * transport did: standing costs that exist whether or not a given subscriber
+ * ever books a task that month. Two of them:
+ *
+ *   - The partner-network retainer itself (see docs/concierge.md) — the same
+ *     shape as secure transport's insurance contract, and priced in the same
+ *     way, as a fixed cost spread across subscribers rather than billed at
+ *     cost per task.
+ *   - Funding the Revolut Business balance that issues each task's spend-
+ *     capped virtual card (see docs/concierge.md and adapters/cards.ts).
+ *     Safehubby fronts that money for the (short) window between the card
+ *     being issued and the subscriber's own hold being captured — a real
+ *     float, even though each card's cap bounds it tightly and it clears fast.
+ *
+ * Not a salary line: the assistants are independent partner-network
+ * professionals dispatched through that retainer, not Safehubby employees —
+ * see concierge.ts. There is no payroll here to price in, which is exactly
+ * why this bump is smaller than what putting concierge staff on payroll
+ * would have cost.
  */
 export const PLANS: Plan[] = [
   {
@@ -135,14 +153,14 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 5999,
-    annualCents: 61188,
+    monthlyCents: 6999,
+    annualCents: 71388,
     seats: 6,
     features: [
       ...PLUS_FEATURES, "multi-profile", "extended-sos-contacts", "secure-transport", "extended-menu",
       "personal-concierge",
     ],
-    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, the full pharmacy-run menu, and a personal concierge for a bounded, capped-spend task in person.",
+    blurb: "Up to six people, extended emergency contacts, secure transport where it operates, the full pharmacy-run menu, and a personal concierge — a vetted partner-network professional for a bounded, capped-spend task in person.",
   },
 ];
 

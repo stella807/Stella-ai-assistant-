@@ -133,6 +133,9 @@ export interface ConciergeTaskRequest {
   spendCapCents: number;
   requesterName: string;
   requesterPhone?: string;
+  /** Purchasing power handed to the assistant, when a card was issued for
+   *  this task — see CardIssuingPort. Never the traveler's own card. */
+  card?: { last4: string; revealUrl: string };
 }
 
 export interface ConciergeQuote {
@@ -155,6 +158,38 @@ export interface ConciergePort {
   coversLocation(at: { lat: number; lng: number }): Promise<boolean>;
   quote(input: ConciergeTaskRequest): Promise<ConciergeQuote | null>;
   book(input: ConciergeTaskRequest): Promise<BookedConciergeTask>;
+}
+
+/**
+ * A single-use, spend-capped virtual card, issued for one concierge task so
+ * the assistant can actually pay for what the task needs — see
+ * `docs/concierge.md` and `apps/api/src/adapters/cards.ts`.
+ *
+ * Only ever masked. Nothing in `packages/core` or the traveler-facing API
+ * carries a full card number — the same rule `PaymentMethodOnFile` already
+ * follows for the card on file — because there is nothing here worth leaking
+ * past the last four digits. `revealUrl`, when a provider supports it, is the
+ * one-time link the *assistant's* dispatch system uses to see the full number;
+ * it is never returned to the traveler.
+ */
+export interface IssuedCard {
+  id: string;
+  last4: string;
+  network: string;
+  expMonth: number;
+  expYear: number;
+  revealUrl: string | null;
+}
+
+export interface CardIssuingPort {
+  readonly status: ProviderStatus;
+  /** Issues one card, capped at exactly `capCents` — no buffer, same
+   *  reasoning as `authorizeExactHold` in payment.ts. */
+  issueCard(input: { capCents: number; currency: string; label: string; expiresAt: string }): Promise<IssuedCard>;
+  /** Kills a card early — a task that ends before it is used should not
+   *  leave a live, spend-capped card sitting active. Best-effort: a card
+   *  that already expired on its own is not an error to cancel again. */
+  cancelCard(cardId: string): Promise<void>;
 }
 
 export function statusFor(id: string, name: string, configured: boolean, requires: string): ProviderStatus {

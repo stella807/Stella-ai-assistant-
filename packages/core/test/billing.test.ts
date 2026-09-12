@@ -53,6 +53,19 @@ describe("plans", () => {
     expect(hasFeature("family", "secure-transport")).toBe(true);
   });
 
+  it("keeps personal concierge to the top tier, priced for its own standing costs", () => {
+    expect(hasFeature("premium-plus", "personal-concierge")).toBe(false);
+    expect(hasFeature("family", "personal-concierge")).toBe(true);
+    // Family costs more than Plus for reasons beyond concierge alone (secure
+    // transport, the extended menu), but the gap has to exist at all — a
+    // Family-only feature priced the same as the tier below it isn't paying
+    // for anything.
+    const plus = findPlan("premium-plus");
+    const family = findPlan("family");
+    expect(family.monthlyCents).toBeGreaterThan(plus.monthlyCents);
+    expect(family.annualCents).toBeGreaterThan(plus.annualCents);
+  });
+
   it("rejects an unknown plan", () => {
     // @ts-expect-error exercising the runtime guard
     expect(() => findPlan("enterprise")).toThrow();

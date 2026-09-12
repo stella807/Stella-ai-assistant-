@@ -107,7 +107,10 @@ export function ConciergePanel({ account }: { account: Account }) {
               <div className="row-between">
                 <div>
                   <strong className="small">{t.note}</strong>
-                  <div className="tiny muted">{t.provider} · capped at {money(t.spendCapCents)}</div>
+                  <div className="tiny muted">
+                    {t.provider} · capped at {money(t.spendCapCents)}
+                    {t.card && ` · paying on a card ending ${t.card.last4} — not yours`}
+                  </div>
                 </div>
                 <div className="row" style={{ gap: 6 }}>
                   <button className="btn btn-sm" disabled={busy} onClick={() => complete(t.id)}>Done</button>

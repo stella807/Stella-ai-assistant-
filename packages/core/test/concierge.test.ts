@@ -66,4 +66,8 @@ describe("disclosures", () => {
   it("is not a substitute for calling emergency services", () => {
     expect(CONCIERGE_DISCLOSURES.join(" ")).toMatch(/not an emergency service/i);
   });
+
+  it("says the assistant pays with an issued card, never the subscriber's own", () => {
+    expect(CONCIERGE_DISCLOSURES.join(" ")).toMatch(/card issued for this task alone/i);
+  });
 });

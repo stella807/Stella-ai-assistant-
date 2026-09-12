@@ -62,8 +62,47 @@ before every booking, not just the first, the same reasoning as
 - The assistant can decline anything unsafe, illegal, or out of scope.
 - **The assistant will not enter your home.** Meet outside or in a shared,
   public space.
+- **The assistant pays with a card issued for this task alone** — see below —
+  never the subscriber's own card.
 - Location is shared with the assistant only for the task's duration.
 - Not an emergency service — call your local emergency number for those.
+
+## Paying the assistant: a single-use card, not a shared account
+
+The original version of this idea gave personal assistants "single-use debit
+cards funded by the subscriber's own bank account." Two changes were made to
+that before it shipped, and both were load-bearing:
+
+- **The card draws on Safehubby's own balance, not the subscriber's bank
+  account directly.** A direct debit means ACH, which typically settles in
+  1-2 business days — too slow to fund a card for a same-night task without
+  either fronting the money or making someone wait. Instead, the subscriber's
+  card on file is held for exactly the spend cap (`authorizeExactHold` in
+  `payment.ts`) at the same moment a card is issued to the assistant, and
+  Safehubby recoups that hold once the task settles. Safehubby fronts the
+  money for a short window; the cap bounds how much and the exact-hold rule
+  means the recoup is never short.
+- **The card is issued through Revolut Business** (`apps/api/src/adapters/cards.ts`),
+  capped at exactly the task's spend cap, single-use, and killed the moment
+  the task completes or cancels — never a card that outlives the task it was
+  issued for.
+
+One real constraint worth stating plainly rather than glossing over: Revolut
+Business's card-issuing surface is scoped to members of *your own* Revolut
+Business team, not to arbitrary third parties. There is no endpoint for
+handing a card to someone who isn't a team member. Using this for real means
+either onboarding the partner network's assistants as authorized cardholders
+on Safehubby's own Revolut account (a vendor relationship to set up, not just
+an API key), or having the partner hold its own Revolut account that
+Safehubby funds by transfer instead. The adapter's doc comment has the full
+reasoning; nothing here pretends this is a five-minute integration.
+
+**Card issuing is an add-on, not a precondition.** If `REVOLUT_API_KEY` isn't
+set, or Revolut is briefly unreachable, a concierge task still books — the
+partner network can bill Safehubby directly with no card in the loop, the same
+way it would if this integration didn't exist at all. `cardIssuing.mode` on
+`GET /api/fulfillment/status` reports this independently of `concierge.mode`,
+the same "each capability reports for itself" rule as every other adapter.
 
 ## Lifecycle
 
@@ -81,13 +120,26 @@ cap when none is given, rather than inventing a lower number. See
 `docs/billing.md`'s "not wired yet" section for the same honesty pattern
 applied to store receipts.
 
-## Where it's gated
+## Where it's gated, and what it costs
 
-`personal-concierge` is a Family-only feature (`billing.ts`). Family's price
-did not move for it — unlike secure transport, which needed a standing
-insurance contract that costs money every month regardless of use, a
-concierge task's cost is capped by the subscriber per task, with nothing
-fixed for the subscription to absorb.
+`personal-concierge` is a Family-only feature (`billing.ts`), and Family's
+price did move for it, on top of what secure transport and the extended menu
+already added. A task's own cost is still capped by the subscriber per task,
+same as before — that part didn't change. What justifies the bump is two
+standing costs that exist whether or not a given subscriber ever books a task
+that month, the same category of reasoning as secure transport's insurance
+contract:
+
+- The partner-network retainer itself.
+- Keeping the Revolut Business balance funded that issues each task's card —
+  Safehubby is fronting real money for the window between issuing a card and
+  capturing the matching hold, even though each card's cap bounds it tightly.
+
+**This is not a salary line.** The assistants are independent partner-network
+professionals dispatched through that retainer, not Safehubby employees — see
+"What this is not" above. There is no payroll here to price in, which is
+exactly why this increase is smaller than putting concierge staff on payroll
+would have cost.
 
 ## Configuring a real provider
 
@@ -95,8 +147,13 @@ fixed for the subscription to absorb.
 railway variables \
   --set "CONCIERGE_PROVIDER=Nearby Aide" \
   --set "CONCIERGE_API_BASE=https://..." \
-  --set "CONCIERGE_API_KEY=..."
+  --set "CONCIERGE_API_KEY=..." \
+  --set "REVOLUT_API_BASE=https://..." \
+  --set "REVOLUT_API_KEY=..."
 ```
+
+The first three turn on dispatch; the last two turn on card issuing. They are
+independent — see "Paying the assistant" above.
 
 Until these are set, `GET /api/fulfillment/status` reports `concierge.mode:
 "handoff"` and every quote/booking route returns a `503` naming what's
