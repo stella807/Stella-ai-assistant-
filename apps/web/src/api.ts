@@ -2,7 +2,7 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask,
   IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
-  Statement, Subscription, Venue, VoiceMessage,
+  Statement, Subscription, TravelerConciergeTask, Venue, VoiceMessage,
 } from "@safehubby/core";
 
 export interface CrewMemberView {
@@ -242,24 +242,34 @@ export const api = {
   bookSecureRide: (pickup: any, dropoff: any) =>
     request<any>("POST", "/api/rides/secure", { pickup, dropoff, acknowledgedDisclosures: true }),
   fulfillmentStatus: () =>
-    request<{ concierge: ProviderStatus; conciergeDisclosures: string[] }>("GET", "/api/fulfillment/status"),
-  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number }) =>
-    request<{ quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[] }>(
+    request<{ concierge: ProviderStatus; conciergeDisclosures: string[]; placeSearch: ProviderStatus }>(
+      "GET", "/api/fulfillment/status"),
+  /**
+   * Free-text place search backing the concierge task flow's place picker —
+   * see `PlaceSearchPort` in packages/core. Deliberately returns no mock
+   * results when unconfigured; callers should check `fulfillmentStatus()`'s
+   * `placeSearch` field and explain plainly rather than showing an empty box.
+   */
+  placeSearch: (query: string, near: { lat: number; lng: number }) =>
+    request<{ places: NearbyStore[] }>(
+      "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
+  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean }) =>
+    request<{ quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[]; totalCents: number; quickTaskEligible: boolean }>(
       "POST", "/api/concierge/quote", input),
   conciergeAssistants: (category: ConciergeCategory, location: { lat: number; lng: number }) =>
     request<{ assistants: AssistantProfile[]; available: number }>(
       "GET", `/api/concierge/assistants?category=${encodeURIComponent(category)}&lat=${location.lat}&lng=${location.lng}`),
   bookConcierge: (input: {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
-    spendCapCents: number; assistantId?: string;
+    spendCapCents: number; assistantId?: string; quickTask?: boolean;
   }) =>
-    request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
+    request<{ task: TravelerConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
       "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),
-  conciergeTasks: () => request<{ tasks: ConciergeTask[] }>("GET", "/api/concierge/tasks"),
+  conciergeTasks: () => request<{ tasks: TravelerConciergeTask[] }>("GET", "/api/concierge/tasks"),
   completeConcierge: (taskId: string, billedCents?: number) =>
-    request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
+    request<{ task: TravelerConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
   cancelConcierge: (taskId: string) =>
-    request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/cancel`, {}),
+    request<{ task: TravelerConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/cancel`, {}),
   sendVoiceMessage: (taskId: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
     request<{ id: string; createdAt: string }>("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip),
   voiceMessages: (taskId: string) =>

@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity, serviceFeeFor,
-  totalChargeCents,
-} from "@safehubby/core";
-import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
+import { CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity } from "@safehubby/core";
+import type { AssistantProfile, ConciergeCategory, TravelerConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
@@ -20,21 +17,27 @@ const money = (cents: number) => `$${(cents / 100).toFixed(0)}`;
  * talking to the person they just hired would be a strange place to make
  * them re-orient.
  */
-export function AssistantModal({ assistant, category, note, spendCapCents, location, existingTask, onBooked, onClose }: {
+export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, location, existingTask, onBooked, onClose }: {
   assistant: AssistantProfile;
   category: ConciergeCategory;
   note: string;
   spendCapCents: number;
+  /** Whether the subscriber opted into the discounted quick-task fee. */
+  quickTask?: boolean;
   location: { lat: number; lng: number; label?: string };
   /** Reopening an already-booked task's thread, rather than requesting a new one. */
-  existingTask?: ConciergeTask;
-  onBooked: (task: ConciergeTask) => void;
+  existingTask?: TravelerConciergeTask;
+  onBooked: (task: TravelerConciergeTask) => void;
   onClose: () => void;
 }) {
-  const [task, setTask] = useState<ConciergeTask | null>(existingTask ?? null);
+  const [task, setTask] = useState<TravelerConciergeTask | null>(existingTask ?? null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The customer never sees the fee broken out — only the total the server
+  // says will actually be held, fetched fresh so this is never a client-side
+  // guess. `null` while loading or if the quote call hasn't resolved yet.
+  const [totalCents, setTotalCents] = useState<number | null>(existingTask?.totalHeldCents ?? null);
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -53,6 +56,13 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
     api.voiceMessages(task.id).then((r) => setMessages(r.messages)).catch(() => {});
   }, [task?.id]);
 
+  useEffect(() => {
+    if (task) return;
+    api.conciergeQuote({ category, note, location, spendCapCents, quickTask })
+      .then((r) => setTotalCents(r.totalCents))
+      .catch(() => {});
+  }, [task, category, note, location, spendCapCents, quickTask]);
+
   useEffect(() => () => {
     activeRecording.current?.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
@@ -62,7 +72,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
     setBusy(true);
     setError(null);
     try {
-      const res = await api.bookConcierge({ category, note, location, spendCapCents, assistantId: assistant.id });
+      const res = await api.bookConcierge({ category, note, location, spendCapCents, assistantId: assistant.id, quickTask });
       setTask(res.task);
       onBooked(res.task);
     } catch (e) {
@@ -119,9 +129,6 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
     }
   };
 
-  const serviceFeeCents = serviceFeeFor(category);
-  const totalCents = totalChargeCents(category, spendCapCents);
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={assistant.name}>
@@ -147,13 +154,9 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
               <span>Spend cap (reimbursed purchase)</span>
               <span className="charge-amount">{money(spendCapCents)}</span>
             </div>
-            <div className="row-between tiny muted">
-              <span>Service fee (pays your assistant)</span>
-              <span className="charge-amount">{money(serviceFeeCents)}</span>
-            </div>
             <div className="row-between small">
               <strong>Held on your card now</strong>
-              <strong className="charge-amount">{money(totalCents)}</strong>
+              <strong className="charge-amount">{totalCents === null ? "…" : money(totalCents)}</strong>
             </div>
             <ul className="timeline">
               {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
@@ -162,15 +165,14 @@ export function AssistantModal({ assistant, category, note, spendCapCents, locat
               <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
               <span className="small">I understand what this means and want to send this request.</span>
             </label>
-            <button className="btn btn-primary btn-block" disabled={busy || !acknowledged} onClick={send}>
+            <button className="btn btn-primary btn-block" disabled={busy || !acknowledged || totalCents === null} onClick={send}>
               Send request
             </button>
           </>
         ) : (
           <>
             <p className="tiny muted">
-              Sent — {money(totalCents)} held ({money(spendCapCents)} spend cap + {money(serviceFeeCents)} service
-              fee). Leave a voice message if there's more to say.
+              Sent — {money(task.totalHeldCents)} held. Leave a voice message if there's more to say.
             </p>
 
             <div className="row-between">

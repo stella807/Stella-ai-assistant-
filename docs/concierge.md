@@ -94,6 +94,42 @@ network passes to the assistant who did the work; the rest is Safehubby's
 margin (`CONCIERGE_FEE_MARGIN`, 20%), stated so the number is traceable
 rather than arbitrary.
 
+### The quick-task discount
+
+Not every task is a $9-18 job. Grabbing one named thing or running one
+specific errand can be a two-minute favor, and the standard rate card
+overcharges for that. `QUICK_TASK_CATEGORIES` opts `grab-something` and
+`run-errand` — the genuinely short, single-purpose categories — into a lower
+published fee:
+
+| Category | Standard fee | Quick-task fee |
+|---|---|---|
+| Grab something | $9.00 | $5.00 |
+| Run an errand | $9.00 | $5.00 |
+
+`wait-with-someone` and `check-in-person` are deliberately excluded: both
+involve open-ended real time with a person, and discounting them would mean
+underpaying an assistant for the same time commitment, not rewarding a
+genuinely shorter job. A quick task is also capped at a lower spend —
+`QUICK_TASK_MAX_CAP_CENTS` ($50), well under the standard $300 — so "quick and
+simple" stays true rather than becoming a way to book a large purchase at a
+discounted fee. `validateConciergeRequest` rejects `quickTask: true` outright
+for an ineligible category or a cap above that lower ceiling.
+
+### The customer never sees the fee itemized
+
+The service fee is real money and the assistant portal shows it in full — see
+"The assistant portal" below — but the traveler-facing API and UI never break
+it out. `GET`/`POST /api/concierge/tasks` and its `complete`/`cancel` routes
+run every task through `travelerFacingTask` (`routes.ts`) before it reaches a
+customer: it strips `serviceFeeCents` and replaces it with `totalHeldCents`,
+the one number a customer actually needs (spend cap + fee, already summed).
+The `/api/assistant/...` routes never pass through that helper, so an
+assistant's own portal always sees their real `serviceFeeCents`. This is a
+customer-facing display choice, not a security boundary — the fee schedule
+itself is a public constant in `packages/core` — so it hides an itemized
+number from the UI without pretending the underlying rate card is secret.
+
 The two amounts are held together, not as separate transactions —
 `totalChargeCents` is `spendCapCents + serviceFeeFor(category)`, and that sum
 is what `authorizeExactHold` reserves. At settlement, the service fee is
@@ -266,6 +302,33 @@ otherwise, and because it matches how the partner network already reaches an
 assistant — a link, not a username and password Safehubby would have to
 issue and manage. See `SECURITY.md`.
 
+## Naming a real place
+
+The note field is free text — "grab a burger from The Anchor Tavern" — which
+means a task's actual location is only as good as however the subscriber
+happened to spell a place from memory. `GET /api/concierge/places?query=&lat=&lng=`
+(`PlaceSearchPort`, `apps/api/src/adapters/places-search.ts`) backs an
+optional place picker in the concierge task form so a request can name a
+confirmed real place instead: a specific pharmacy, a wine store, a restaurant
+by name. It's a Google Places (New) Text Search call, reusing the same
+`GOOGLE_PLACES_API_KEY` as the venue and grocery pickers (`docs/fulfillment.md`),
+gated the same way and rate-limited the same as those.
+
+Deliberately no mock fallback here, unlike the venue and store pickers: an
+arbitrary free-text query has no honest fake answer to return, so an
+unconfigured or failed search returns an empty list rather than inventing a
+plausible-looking match. The web UI checks `placeSearch.mode` on
+`GET /api/fulfillment/status` first and says plainly that search isn't set up
+yet rather than showing a box that quietly returns nothing forever.
+
+Picking a result sets the task's actual `location` to that place's real
+coordinates. When `VITE_GOOGLE_MAPS_BROWSER_KEY` is configured in the web
+build, the picked place also renders in an embedded Google Map (the Maps
+Embed API, which takes a browser-scoped, HTTP-referrer-restricted key — safe
+to ship in the client bundle, unlike the server-side Places key). With no key
+configured, the map is simply not rendered — no placeholder, no fake map, the
+same discipline as every other unconfigured provider in this app.
+
 ## Identity photos: a selfie from each side
 
 `IdentityPhoto` in `concierge.ts` — one selfie from the subscriber, one from
@@ -327,7 +390,10 @@ railway variables \
 ```
 
 The first three turn on dispatch; the last two turn on card issuing. They are
-independent — see "Paying the assistant" above.
+independent — see "Paying the assistant" above. Set `GOOGLE_PLACES_API_KEY`
+(shared with `venues.ts`/`grocery.ts`) to turn on the place picker, and
+`VITE_GOOGLE_MAPS_BROWSER_KEY` at web-build time to also render the embedded
+map for a picked place — see "Naming a real place" above.
 
 Until these are set, `GET /api/fulfillment/status` reports `concierge.mode:
 "handoff"` and every quote/booking route returns a `503` naming what's

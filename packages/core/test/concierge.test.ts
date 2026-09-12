@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES,
   CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, CONCIERGE_SERVICE_FEE_CENTS, MAX_PHOTO_BYTES,
-  conciergeCategoryLabel, describeAssistantCapacity, isAssistantAvailable, serviceFeeFor,
+  QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS, QUICK_TASK_SERVICE_FEE_CENTS,
+  conciergeCategoryLabel, describeAssistantCapacity, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateIdentityPhoto,
 } from "../src/concierge.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
@@ -127,6 +128,50 @@ describe("the service fee — what actually pays the assistant", () => {
   it("mentions the service fee and the selfie check in what a subscriber agrees to", () => {
     expect(CONCIERGE_DISCLOSURES.join(" ")).toMatch(/service fee/i);
     expect(CONCIERGE_DISCLOSURES.join(" ")).toMatch(/selfie/i);
+  });
+});
+
+describe("quick-task discount", () => {
+  it("only discounts the short, single-purpose categories", () => {
+    expect(QUICK_TASK_CATEGORIES).toEqual(["grab-something", "run-errand"]);
+    expect(isQuickTaskEligible("grab-something")).toBe(true);
+    expect(isQuickTaskEligible("run-errand")).toBe(true);
+    expect(isQuickTaskEligible("wait-with-someone")).toBe(false);
+    expect(isQuickTaskEligible("check-in-person")).toBe(false);
+  });
+
+  it("charges less than the standard fee for an eligible category", () => {
+    for (const category of QUICK_TASK_CATEGORIES) {
+      expect(serviceFeeFor(category, true)).toBe(QUICK_TASK_SERVICE_FEE_CENTS[category]);
+      expect(serviceFeeFor(category, true)).toBeLessThan(serviceFeeFor(category));
+    }
+  });
+
+  it("ignores the quickTask flag for a category that isn't eligible", () => {
+    expect(serviceFeeFor("wait-with-someone", true)).toBe(serviceFeeFor("wait-with-someone"));
+    expect(serviceFeeFor("check-in-person", true)).toBe(CONCIERGE_SERVICE_FEE_CENTS["check-in-person"]);
+  });
+
+  it("folds the discount into the total charge", () => {
+    const total = totalChargeCents("grab-something", 2000, true);
+    expect(total).toBe(2000 + QUICK_TASK_SERVICE_FEE_CENTS["grab-something"]!);
+  });
+
+  it("rejects quickTask on a category that doesn't qualify", () => {
+    expect(() => validateConciergeRequest(request({ category: "wait-with-someone", quickTask: true })))
+      .toThrow(/isn't eligible for the quick-task discount/i);
+  });
+
+  it("enforces a lower spend cap for a quick task than the standard max", () => {
+    expect(QUICK_TASK_MAX_CAP_CENTS).toBeLessThan(CONCIERGE_MAX_CAP_CENTS);
+    expect(() => validateConciergeRequest(request({ quickTask: true, spendCapCents: QUICK_TASK_MAX_CAP_CENTS })))
+      .not.toThrow();
+    expect(() => validateConciergeRequest(request({ quickTask: true, spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 })))
+      .toThrow(/spend cap/i);
+  });
+
+  it("still allows the standard, higher cap when not booked as a quick task", () => {
+    expect(() => validateConciergeRequest(request({ spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 }))).not.toThrow();
   });
 });
 

@@ -105,3 +105,18 @@ export interface RouteSuggestion {
 export interface RoutePort {
   safeRoutes(from: LocationPing, to: { lat: number; lng: number }): Promise<RouteSuggestion[]>;
 }
+
+/**
+ * Free-text place search — "whatever the customer needs": a specific
+ * pharmacy, a wine store, a particular restaurant by name — not fixed to one
+ * type the way `VenuePort` (bars) and `StorePort` (grocery/pharmacy) are.
+ * Backs the concierge task flow's place picker, so a request names a
+ * confirmed real place rather than however someone happened to spell it from
+ * memory. `status` is exposed the same way every other adapter's is, so the
+ * UI can say plainly when search isn't configured rather than offering a box
+ * that quietly returns nothing forever.
+ */
+export interface PlaceSearchPort {
+  readonly status: ProviderStatus;
+  search(query: string, near: { lat: number; lng: number }): Promise<NearbyStore[]>;
+}

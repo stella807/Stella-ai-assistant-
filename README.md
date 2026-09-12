@@ -141,11 +141,17 @@ comfort level, not a number Safehubby sets). Once booked, an in-app voice
 message thread with that assistant opens in a popup — async clips, not a
 live call, so an assistant mid-task is never expected to have a hand free
 for a ringing phone. A separate, published service fee (published rate card,
-$9-$18 by task type) is what actually pays the assistant for their time — the
+$9-$18 by task type, discounted to $5 for a quick, single-purpose task —
+grabbing one named thing or running one errand, capped at a lower $50 spend
+to keep it honest) is what actually pays the assistant for their time — the
 spend cap only ever reimburses what they buy, the same way a ride fare passes
-through to a driver rather than being their wage. Each of you takes a selfie,
-shared with the other, so you can each confirm who you're meeting. The
-assistant's own side is a plain link at `?assistant_token=...` — no
+through to a driver rather than being their wage. The customer never sees
+that fee itemized, only the total held on their card; the assistant's own
+portal always shows it in full. Each of you takes a selfie, shared with the
+other, so you can each confirm who you're meeting. Optionally name a specific
+real place — a Google Places search, with an embedded map when a browser Maps
+key is configured — rather than leave it to however the note happens to spell
+it. The assistant's own side is a plain link at `?assistant_token=...` — no
 Safehubby account, no sign-in — where they see everything assigned to them,
 reply by voice, take their own selfie, and mark a task done or decline it.
 See `docs/concierge.md`.

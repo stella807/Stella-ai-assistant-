@@ -113,15 +113,38 @@ export const CONCIERGE_SERVICE_FEE_CENTS: Record<ConciergeCategory, number> = {
  *  against, so pricing stays traceable rather than arbitrary. */
 export const CONCIERGE_FEE_MARGIN = 0.2;
 
-export function serviceFeeFor(category: ConciergeCategory): number {
+/**
+ * "Quick task" is a discounted tier for the categories that are genuinely
+ * short and single-purpose — grabbing one named thing or running one
+ * specific errand — not the categories that involve open-ended time with a
+ * person (`wait-with-someone`, `check-in-person`), where a discount would
+ * just mean underpaying an assistant for the same real time commitment.
+ * Paired with a lower spend cap so "quick and simple" stays true rather than
+ * becoming a way to book a large purchase at a discounted fee.
+ */
+export const QUICK_TASK_CATEGORIES: ConciergeCategory[] = ["grab-something", "run-errand"];
+
+export const QUICK_TASK_SERVICE_FEE_CENTS: Partial<Record<ConciergeCategory, number>> = {
+  "grab-something": 500,
+  "run-errand": 500,
+};
+
+export const QUICK_TASK_MAX_CAP_CENTS = 5000;
+
+export function isQuickTaskEligible(category: ConciergeCategory): boolean {
+  return QUICK_TASK_CATEGORIES.includes(category);
+}
+
+export function serviceFeeFor(category: ConciergeCategory, quickTask?: boolean): number {
+  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_SERVICE_FEE_CENTS[category]!;
   return CONCIERGE_SERVICE_FEE_CENTS[category];
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
  *  service fee. Both are exact — see `authorizeExactHold` in payment.ts —
  *  so this is a sum, never a padded estimate. */
-export function totalChargeCents(category: ConciergeCategory, spendCapCents: number): number {
-  return spendCapCents + serviceFeeFor(category);
+export function totalChargeCents(category: ConciergeCategory, spendCapCents: number, quickTask?: boolean): number {
+  return spendCapCents + serviceFeeFor(category, quickTask);
 }
 
 export interface ConciergeTaskInput {
@@ -130,6 +153,11 @@ export interface ConciergeTaskInput {
   note: string;
   location: { lat: number; lng: number; label?: string };
   spendCapCents: number;
+  /** Opt into the discounted fee for a short, single-purpose task — see
+   *  `QUICK_TASK_CATEGORIES`. Ignored (never silently upgraded) for a
+   *  category it does not apply to; `validateConciergeRequest` rejects that
+   *  combination outright instead. */
+  quickTask?: boolean;
 }
 
 const MAX_NOTE_LENGTH = 280;
@@ -138,13 +166,17 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
   if (!CONCIERGE_CATEGORIES.some((c) => c.id === input.category)) throw new Error("Unknown task type.");
   if (!input.note.trim()) throw new Error("Describe the task so the assistant knows what to do.");
   if (input.note.length > MAX_NOTE_LENGTH) throw new Error(`Keep the task description under ${MAX_NOTE_LENGTH} characters.`);
+  if (input.quickTask && !isQuickTaskEligible(input.category)) {
+    throw new Error(`${conciergeCategoryLabel(input.category)} isn't eligible for the quick-task discount.`);
+  }
+  const maxCap = input.quickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS;
   if (
     !Number.isInteger(input.spendCapCents) ||
     input.spendCapCents < CONCIERGE_MIN_CAP_CENTS ||
-    input.spendCapCents > CONCIERGE_MAX_CAP_CENTS
+    input.spendCapCents > maxCap
   ) {
     throw new Error(
-      `Spend cap must be between $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} and $${(CONCIERGE_MAX_CAP_CENTS / 100).toFixed(0)}.`,
+      `Spend cap must be between $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}${input.quickTask ? " for a quick task" : ""}.`,
     );
   }
 }
@@ -162,7 +194,7 @@ export function conciergeCategoryLabel(id: ConciergeCategory): string {
 export const CONCIERGE_DISCLOSURES = [
   "Your assistant is an independent professional from a vetted partner network, not a Safehubby employee.",
   "Spending is capped at exactly what you set here — never more, whatever the task ends up costing.",
-  "A separate service fee pays your assistant for their time — shown before you send the request, on top of the spend cap.",
+  "A separate service fee pays your assistant for their time, on top of the spend cap — the total held is shown before you send the request. Quick, single-purpose tasks qualify for a lower fee.",
   "Your assistant pays with a card issued for this task alone, capped at your spend limit — never your own card.",
   "Your assistant can decline a request that is unsafe, illegal, or outside what they agreed to do.",
   "Your assistant will not enter your home. Meet outside or at a shared, public space.",
@@ -183,6 +215,10 @@ export interface ConciergeTask {
   /** What pays the assistant for their time — see `serviceFeeFor`. Held and
    *  charged alongside the spend cap, never as a separate transaction. */
   serviceFeeCents: number;
+  /** Whether this booked at the discounted quick-task fee — kept on the task
+   *  itself (not re-derived from category) so history stays accurate even if
+   *  the eligible-category list changes later. */
+  quickTask?: boolean;
   status: ConciergeTaskStatus;
   provider: string;
   /** The partner network's own id for this task, for a later cancel/status call. */
@@ -214,6 +250,16 @@ export interface ConciergeTask {
    *  See `CardIssuingPort` in fulfillment.ts. */
   card?: { id: string; last4: string; network: string; expMonth: number; expYear: number };
 }
+
+/**
+ * What the customer-facing API and UI actually work with: a `ConciergeTask`
+ * with the assistant's pay stripped out and replaced by the one number a
+ * customer needs — the total already held on their card. See
+ * `travelerFacingTask` in apps/api/src/routes.ts, which builds this from the
+ * real task. The assistant portal still gets the full `ConciergeTask`,
+ * `serviceFeeCents` included — this type exists only for the traveler side.
+ */
+export type TravelerConciergeTask = Omit<ConciergeTask, "serviceFeeCents"> & { totalHeldCents: number };
 
 /** A single selfie, captured on the fly for this meetup — not a persistent
  *  profile photo. See `validateIdentityPhoto`. */

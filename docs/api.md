@@ -90,10 +90,11 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/routes` | `safe-routes` |
 | `POST` | `/api/rides/secure` | `secure-transport` |
 | `GET` | `/api/fulfillment/status` | — (session) |
-| `POST` | `/api/concierge/quote` | `personal-concierge` |
+| `POST` | `/api/concierge/quote` | `personal-concierge`. `{ category, note, location, spendCapCents, quickTask? }` → `{ quote, disclosures, totalCents, quickTaskEligible }` — never an itemized fee, see `docs/concierge.md`. |
+| `GET` | `/api/concierge/places?query=&lat=&lng=` | `personal-concierge`. Free-text place search backing the task form's place picker — see `docs/concierge.md`. |
 | `GET` | `/api/concierge/assistants?category=&lat=&lng=` | `personal-concierge`. The partner network's roster for that category near that location — see `docs/concierge.md`. |
-| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures, assistantId? }`. Holds `spendCapCents` plus the category's service fee — see `docs/concierge.md`. |
-| `GET` | `/api/concierge/tasks` | — (session; your own tasks only) |
+| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures, assistantId?, quickTask? }`. Holds `spendCapCents` plus the category's service fee (discounted when `quickTask` is true and the category is eligible) — see `docs/concierge.md`. Response never includes `serviceFeeCents`, only `totalHeldCents`. |
+| `GET` | `/api/concierge/tasks` | — (session; your own tasks only). Every task has `serviceFeeCents` stripped in favor of `totalHeldCents` — see `docs/concierge.md`. |
 | `POST` | `/api/concierge/tasks/:taskId/complete` | `{ billedCents? }`. Settles the purchase at `billedCents` (capped, defaults to the full spend cap) plus the service fee in full |
 | `POST` | `/api/concierge/tasks/:taskId/cancel` | Releases the hold; no charge |
 | `POST` | `/api/concierge/tasks/:taskId/voice-messages` | `{ audioBase64, mimeType, durationSeconds }`. A voice clip to the assistant, capped at `MAX_VOICE_MESSAGE_SECONDS`. |

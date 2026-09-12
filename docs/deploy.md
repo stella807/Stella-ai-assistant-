@@ -43,7 +43,8 @@ railway variables --set "NODE_ENV=production"
 | `WEB_ROOT` | no | Set by the Dockerfile. |
 | `ALLOWED_ORIGINS` | no | Only needed if you serve the web app from a second origin. |
 | `YELP_API_KEY` | no | Real venue lookup. Falls back to Google Places, then mock. |
-| `GOOGLE_PLACES_API_KEY` | no | Venue lookup, and the nearby-store picker for the pharmacy run. See `docs/api.md` and `docs/fulfillment.md` for what these can and cannot return. |
+| `GOOGLE_PLACES_API_KEY` | no | Venue lookup, the nearby-store picker for the pharmacy run, and the concierge task flow's free-text place search. See `docs/api.md` and `docs/fulfillment.md` for what these can and cannot return. |
+| `VITE_GOOGLE_MAPS_BROWSER_KEY` | no | Web-build-time only, not a server variable — set before `pnpm build` in `apps/web`. Renders an embedded map for a place picked in the concierge flow. A browser-scoped, HTTP-referrer-restricted key, safe to ship in the client bundle — see `docs/concierge.md`. |
 
 **Losing `SAFEHUBBY_ENCRYPTION_KEY` means losing every stored location trace.**
 That is the intended failure — the alternative is a key the platform can read.

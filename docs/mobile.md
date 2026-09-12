@@ -40,6 +40,17 @@ where someone was when the tab was last open, which is useless for an app whose
 job is knowing where someone is while the phone is in their pocket. That single
 limitation is what makes the App Store path mandatory rather than optional.
 
+**Why not Expo/React Native.** This came up directly: Expo builds and ships a
+React Native app, and React Native has no HTML/CSS/DOM — every screen in
+`apps/web/src` is built with regular React-DOM components and this app's own
+CSS. Moving to Expo isn't a build-tool swap; it's a from-scratch rewrite of
+every screen against a different component model, on top of an already-working
+committed iOS project and Codemagic CI pipeline (`codemagic.yaml`, and the
+rest of this doc). Capacitor was chosen specifically because it wraps the
+existing web app instead of requiring that rewrite. Decided to stay on
+Capacitor for that reason — worth re-reading this note before reopening the
+question later.
+
 ## Building it
 
 Both native projects are committed at `apps/web/ios/` and `apps/web/android/` —

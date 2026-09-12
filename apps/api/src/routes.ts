@@ -20,7 +20,7 @@ import {
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, totalChargeCents,
-  validateIdentityPhoto,
+  isQuickTaskEligible, validateIdentityPhoto,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -29,8 +29,8 @@ import {
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
-  ConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut, OrderProvider,
-  Platform, PlanId, RedFlagId, Subscription, TriggerBand,
+  ConciergeTask, TravelerConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, IdentityPhoto, NightOut,
+  OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -39,6 +39,7 @@ import {
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { revolutCards } from "./adapters/cards.ts";
+import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
 import { guardianMessages } from "./notify.ts";
@@ -240,12 +241,13 @@ function billingState(ctx: Ctx, userId: string) {
 
 /** Reads a concierge task request out of an untrusted body. Validated by the
  *  caller via `validateConciergeRequest` right after — this only shapes it. */
-function conciergeInputFrom(body: any): { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number } {
+function conciergeInputFrom(body: any): { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean } {
   return {
     category: body?.category,
     note: String(body?.note ?? ""),
     location: { lat: body?.location?.lat, lng: body?.location?.lng, label: body?.location?.label },
     spendCapCents: Number(body?.spendCapCents),
+    quickTask: body?.quickTask === true,
   };
 }
 
@@ -254,6 +256,17 @@ function conciergeTaskOf(ctx: Ctx, travelerId: string, taskId: string): Concierg
   const task = ctx.store.data.conciergeTasks.find((t) => t.id === taskId && t.travelerId === travelerId);
   if (!task) throw notFound("Task");
   return task;
+}
+
+/**
+ * What a customer sees for their own task never itemizes the assistant's
+ * pay — only the partner network and the assistant's own portal need that
+ * number. `totalHeldCents` still lets the customer see and reconcile the
+ * full amount on hold, just without breaking out how much of it is the fee.
+ */
+function travelerFacingTask(task: ConciergeTask): TravelerConciergeTask {
+  const { serviceFeeCents, ...rest } = task;
+  return { ...rest, totalHeldCents: task.spendCapCents + serviceFeeCents };
 }
 
 /**
@@ -1374,6 +1387,7 @@ export const routes: Record<string, Handler> = {
     const { rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing } = fulfillmentStatus();
     return {
       rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing, push: push.status,
+      placeSearch: placeSearch.status,
       disclosures: SECURE_TRANSPORT_DISCLOSURES,
       conciergeDisclosures: CONCIERGE_DISCLOSURES,
     };
@@ -1423,6 +1437,24 @@ export const routes: Record<string, Handler> = {
   /* ---------------- personal concierge ---------------- */
 
   /**
+   * Free-text place search — "whatever the customer needs": a specific
+   * pharmacy, a wine store, a named restaurant. Rate limited the same as the
+   * venue and store pickers, since a configured key is billed per call.
+   */
+  "GET /api/concierge/places": async (ctx, p) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "personal-concierge");
+    if (ctx.limiters.places.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many location lookups. Try again shortly.");
+    }
+    const query = String(p.query ?? "").trim();
+    if (!query) throw new HttpError(400, "Enter what you're looking for.");
+    if (!isAutomatic(placeSearch.status)) throw new HttpError(503, placeSearch.status.requires);
+    const places = await placeSearch.search(query, coordsFrom(p));
+    return { places };
+  },
+
+  /**
    * The roster for a category near a location, so a subscriber can pick a
    * specific assistant instead of leaving assignment entirely to the
    * network's own dispatch. An empty list is a normal answer — no fake
@@ -1467,7 +1499,10 @@ export const routes: Record<string, Handler> = {
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
-      serviceFeeCents: serviceFeeFor(input.category), totalCents: totalChargeCents(input.category, input.spendCapCents),
+      // The customer never sees the fee itemized — only the total that will
+      // actually be held, see `travelerFacingTask`.
+      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask),
+      quickTaskEligible: isQuickTaskEligible(input.category),
     };
   },
 
@@ -1487,8 +1522,8 @@ export const routes: Record<string, Handler> = {
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
     requirePaymentMethod(ctx, me);
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
-    const serviceFeeCents = serviceFeeFor(input.category);
-    const totalCents = totalChargeCents(input.category, input.spendCapCents);
+    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask);
+    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask);
     const portalToken = assistantId ? assistantTokenFor(ctx, assistantId) : undefined;
 
     const quote = await concierge.quote({
@@ -1505,7 +1540,9 @@ export const routes: Record<string, Handler> = {
     const charge = addCharge(ctx, {
       travelerId: me,
       kind: "concierge",
-      description: `${conciergeCategoryLabel(input.category)} — ${input.note} ($${(serviceFeeCents / 100).toFixed(2)} service fee included)`.slice(0, 160),
+      // No dollar breakdown here — this description reaches the customer's
+      // own billing statement, and the service fee is never itemized there.
+      description: `${conciergeCategoryLabel(input.category)} — ${input.note} (assistant service fee included)`.slice(0, 160),
       amountCents: totalCents,
       holdId: hold.id,
     });
@@ -1543,7 +1580,8 @@ export const routes: Record<string, Handler> = {
       });
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
-        location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents, status: "in-progress",
+        location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
+        quickTask: input.quickTask, status: "in-progress",
         provider: booked.provider, providerTaskId: booked.taskId, assistantId,
         assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,
         createdAt: ctx.now().toISOString(),
@@ -1555,7 +1593,7 @@ export const routes: Record<string, Handler> = {
       ctx.store.update((db) => {
         (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Sent a concierge instead of going alone"));
       });
-      return { task, booked };
+      return { task: travelerFacingTask(task), booked };
     } catch (err) {
       // A card issued for a task that never actually got booked is a live,
       // spend-capped card sitting around for nothing — kill it, best-effort.
@@ -1576,7 +1614,8 @@ export const routes: Record<string, Handler> = {
       tasks: ctx.store.data.conciergeTasks
         .filter((t) => t.travelerId === me)
         .slice()
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map(travelerFacingTask),
     };
   },
 
@@ -1592,7 +1631,7 @@ export const routes: Record<string, Handler> = {
   "POST /api/concierge/tasks/:taskId/complete": (ctx, p, body) => {
     const me = actor(ctx);
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
-    return { task: settleConciergeTask(ctx, task, body?.billedCents) };
+    return { task: travelerFacingTask(settleConciergeTask(ctx, task, body?.billedCents)) };
   },
 
   /** Releases the hold on a task that never happened — a change of plan
@@ -1600,7 +1639,7 @@ export const routes: Record<string, Handler> = {
   "POST /api/concierge/tasks/:taskId/cancel": (ctx, p) => {
     const me = actor(ctx);
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
-    return { task: releaseConciergeTask(ctx, task, false) };
+    return { task: travelerFacingTask(releaseConciergeTask(ctx, task, false)) };
   },
 
   /**

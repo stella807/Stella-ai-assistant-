@@ -1328,6 +1328,22 @@ describe("personal concierge", () => {
     const res = await call("GET", "/api/concierge/assistants?category=grab-something&lat=40.7&lng=-74", undefined, sam);
     expect(res.status).toBe(503);
   });
+
+  it("gates the free-text place search the same as the rest of concierge", async () => {
+    expect((await call("GET", "/api/concierge/places?query=corner+bar&lat=40.7&lng=-74")).status).toBe(401);
+
+    // Jordan stays free — no paid plan at all.
+    const free = await call("GET", "/api/concierge/places?query=corner+bar&lat=40.7&lng=-74", undefined, jordan);
+    expect(free.status).toBe(402);
+
+    const noQuery = await call("GET", "/api/concierge/places?lat=40.7&lng=-74", undefined, sam);
+    expect(noQuery.status).toBe(400);
+
+    // No GOOGLE_PLACES_API_KEY configured in tests, so this hands off rather
+    // than returning invented results — same discipline as venues/stores.
+    const res = await call("GET", "/api/concierge/places?query=corner+bar&lat=40.7&lng=-74", undefined, sam);
+    expect(res.status).toBe(503);
+  });
 });
 
 describe("concierge voice messages", () => {
@@ -1461,6 +1477,66 @@ describe("concierge fee math and settlement", () => {
     await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam);
     expect((await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam)).status).toBe(400);
     expect((await call("POST", `/api/concierge/tasks/${taskId}/cancel`, {}, sam)).status).toBe(400);
+  });
+});
+
+describe("the service fee is hidden from the customer, not the assistant", () => {
+  let taskId = "";
+  const spendCapCents = 2500;
+  const serviceFeeCents = 900;
+  const totalCents = spendCapCents + serviceFeeCents;
+
+  beforeEach(() => {
+    taskId = "ct_hide1";
+    const hold = authorizeExactHold({ id: "hold_hide1", travelerId: samId, capCents: totalCents, now: clock });
+    const charge = recordCharge({
+      id: "ch_hide1", travelerId: samId, kind: "concierge", platform: "web",
+      description: "Grab a burger", amountCents: totalCents, now: clock,
+    });
+    store.update((db) => {
+      db.holds.push(hold);
+      db.charges.push(charge);
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents, serviceFeeCents, quickTask: true,
+        status: "in-progress", provider: "Nearby Aide", providerTaskId: "provider-hide1",
+        chargeId: charge.id, holdId: hold.id, createdAt: clock.toISOString(),
+      });
+    });
+  });
+
+  it("never itemizes the fee in the customer's task list, only the total held", async () => {
+    const tasks = (await call("GET", "/api/concierge/tasks", undefined, sam)).json.tasks;
+    const mine = tasks.find((t: any) => t.id === taskId);
+    expect(mine.serviceFeeCents).toBeUndefined();
+    expect(mine.totalHeldCents).toBe(totalCents);
+    // Everything else about the task is still there — this strips one field, not the record.
+    expect(mine.quickTask).toBe(true);
+    expect(mine.note).toBe("Grab a burger");
+  });
+
+  it("keeps the fee out of the complete and cancel responses too", async () => {
+    const completed = await call("POST", `/api/concierge/tasks/${taskId}/complete`, {}, sam);
+    expect(completed.json.task.serviceFeeCents).toBeUndefined();
+    expect(completed.json.task.totalHeldCents).toBe(totalCents);
+  });
+
+  it("keeps the fee out of a cancel response", async () => {
+    const canceled = await call("POST", `/api/concierge/tasks/${taskId}/cancel`, {}, sam);
+    expect(canceled.json.task.serviceFeeCents).toBeUndefined();
+    expect(canceled.json.task.totalHeldCents).toBe(totalCents);
+  });
+
+  it("still shows the assistant their own pay in full through their portal", async () => {
+    const assistantId = "asst_hide1";
+    store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === taskId)!;
+      t.assistantId = assistantId;
+      db.assistantAccess[assistantId] = { token: "tok_hide1", createdAt: clock.toISOString() };
+    });
+    const portal = await call("GET", `/api/assistant/portal?token=tok_hide1`);
+    const mine = portal.json.tasks.find((t: any) => t.id === taskId);
+    expect(mine.serviceFeeCents).toBe(serviceFeeCents);
   });
 });
 
