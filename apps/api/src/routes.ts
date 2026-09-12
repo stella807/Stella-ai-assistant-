@@ -2090,6 +2090,36 @@ export const routes: Record<string, Handler> = {
     return { photo };
   },
 
+  /**
+   * The full card number for the task's spend-capped card, so the assistant
+   * can actually pay for what was asked for.
+   *
+   * Returns a one-time provider-hosted link rather than the number, so the
+   * pan never passes through Safehubby — see `revealCard` in
+   * `packages/core/src/fulfillment.ts`. Three gates, all of them live rather
+   * than checked once at issue: it has to be this assistant's own task
+   * (`assistantTaskOf`), the task has to still be in progress, and the card
+   * has to still exist. A finished task's card is cancelled by
+   * `settleConciergeTask`, and this refuses to reveal it afterwards — the
+   * window in which a stranger holds spending power stays exactly as long as
+   * the job does.
+   */
+  "POST /api/assistant/tasks/:taskId/card": async (ctx, p) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    if (task.status !== "in-progress") {
+      throw new HttpError(400, `This task is ${task.status} — its card has already been cancelled.`);
+    }
+    if (!task.card) {
+      throw new HttpError(404, "No card was issued for this task. The customer pays you back directly instead.");
+    }
+    if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
+
+    const revealUrl = await revolutCards.revealCard(task.card.id);
+    if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask dispatch to reissue it.");
+    return { revealUrl, card: task.card, spendCapCents: task.spendCapCents };
+  },
+
   "POST /api/assistant/tasks/:taskId/complete": (ctx, p, body) => {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));

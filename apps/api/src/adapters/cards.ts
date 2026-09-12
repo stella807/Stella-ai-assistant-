@@ -73,6 +73,27 @@ export const revolutCards: CardIssuingPort = {
     };
   },
 
+  /**
+   * Revolut's sensitive-card-details endpoint, as a one-time link rather than
+   * the pan itself — see `revealCard`'s doc in core for why that distinction
+   * matters. Endpoint shape is the same best-effort mapping of Revolut's
+   * documented Business API as the rest of this file, not verified against a
+   * live sandbox.
+   */
+  async revealCard(cardId: string): Promise<string | null> {
+    if (!REVOLUT_BASE || !REVOLUT_KEY) return null;
+    const res = await fetch(
+      `${REVOLUT_BASE.replace(/\/$/, "")}/1.0/cards/${encodeURIComponent(cardId)}/sensitive-details`,
+      { method: "POST", headers: { authorization: `Bearer ${REVOLUT_KEY}` } },
+    );
+    // A cancelled or expired card has no details to show. That is a normal
+    // answer, not a failure — the caller says so instead of showing a dead link.
+    if (res.status === 404 || res.status === 410) return null;
+    if (!res.ok) throw new Error(`Revolut card reveal failed: ${res.status}`);
+    const data = (await res.json()) as { reveal_url?: string; url?: string };
+    return data.reveal_url ?? data.url ?? null;
+  },
+
   async cancelCard(cardId: string): Promise<void> {
     if (!REVOLUT_BASE || !REVOLUT_KEY) return;
     const res = await fetch(`${REVOLUT_BASE.replace(/\/$/, "")}/1.0/cards/${encodeURIComponent(cardId)}`, {

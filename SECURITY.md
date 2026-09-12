@@ -83,12 +83,29 @@ single-handedly put an assistant into debt with an unverifiable claim. See
 downstream charges through one yet.** `apps/api/src/adapters/stripe.ts` and
 `paypal.ts` correctly refuse to trust a client-claimed brand/last4/expiry
 once real credentials are configured — they resolve the browser SDK's own
-token against Stripe/PayPal's API instead. But no client-side Stripe.js or
-PayPal SDK integration exists yet to produce that token in the first place
-(`attachViaSdk` in `PaymentMethodCard.tsx` is a labeled gap, not a working
-call), and the existing hold/capture flow (`payment.ts`) still settles
-without a real processor call regardless of which one verified the method —
-see "Payment settlement" above and `docs/billing.md`.
+token against Stripe/PayPal's API instead. Stripe's client half is now wired
+end to end (Card Element and the Payment Request sheet, via
+`apps/web/src/native/stripe.ts`), though it has not been exercised against a
+live Stripe account; PayPal's checkout SDK is still a labeled gap
+(`attachPaypal` in `PaymentMethodCard.tsx`). Either way the existing
+hold/capture flow (`payment.ts`) still settles without a real processor call
+regardless of which one verified the method — see "Payment settlement" above
+and `docs/billing.md`.
+
+**The task card's number is reachable by the assigned assistant, by design.**
+`POST /api/assistant/tasks/:taskId/card` hands them a one-time,
+provider-hosted link to the full card number so they can pay for what a task
+needs. Three properties keep the blast radius small, and all three are load
+bearing: the link is fetched fresh per request rather than persisted (so no
+card number, and no path to one, rests in the document store), the pan renders
+on the issuer's page and never transits this API, and the card itself is
+single-use and capped at exactly the task's spend cap, so the worst case is
+bounded by a number the subscriber chose. The route refuses once the task is
+no longer in progress, since `settleConciergeTask` cancels the card then.
+What is *not* built: any rate limit on reveal attempts, and any audit trail of
+who revealed what and when — both worth adding before a real partner network
+is onboarded, since an assistant account is the one credential in this system
+that can reach spending power. See `docs/concierge.md`.
 
 **Voice messages and identity photos stored inline in the document store,
 uncapped in aggregate.** `voice-messages.ts` and `concierge.ts` cap a single

@@ -108,7 +108,10 @@ export const CONCIERGE_MAX_CAP_CENTS = 30000;
  */
 export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<ConciergeCategory, number> = {
   "grab-something": 900, // ~15-20 min round trip
-  "run-errand": 900,
+  // A dollar above grabbing one named thing, on purpose: an errand is
+  // open-scoped within the trip — a grocery run means a list, aisles, and
+  // choices to make, not one counter to collect from.
+  "run-errand": 1000,
   "check-in-person": 1200, // getting there and actually assessing someone takes longer
   "wait-with-someone": 1800, // open-ended by nature; priced for a first ~30-45 min block
 };

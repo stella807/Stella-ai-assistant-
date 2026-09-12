@@ -443,6 +443,74 @@ function TaskRow({ task, onOpen }: { task: PortalTask; onOpen: () => void }) {
   );
 }
 
+/**
+ * The task's spend-capped card, so the assistant can actually pay for what
+ * was asked for.
+ *
+ * Shown masked here; the full number lives behind a one-time, provider-hosted
+ * link fetched on demand (`assistantRevealCard`), so the card number never
+ * passes through Safehubby's own servers or this bundle. The link is only
+ * issued while the task is in progress — once it's marked done the card is
+ * cancelled, which is the whole point of a single-use card.
+ */
+function TaskCardPopup({ task, onClose }: { task: PortalTask; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reveal = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { revealUrl } = await api.assistantRevealCard(task.id);
+      // Opened rather than embedded: the number should render on the
+      // provider's own page, not inside a page Safehubby controls.
+      window.open(revealUrl, "_blank", "noopener,noreferrer");
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reveal the card");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Task card">
+      <div className="modal-sheet card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Task card</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        <div className="row-between small">
+          <span>{task.card?.network} ···· {task.card?.last4}</span>
+          <span className="tiny muted">
+            Exp {String(task.card?.expMonth ?? 0).padStart(2, "0")}/{task.card?.expYear}
+          </span>
+        </div>
+
+        <div className="row-between small">
+          <strong>You can spend up to</strong>
+          <strong className="charge-amount">{money(task.spendCapCents)}</strong>
+        </div>
+
+        <p className="tiny muted">
+          This card only works for this task and only up to that amount — it declines anything above it, so
+          there is nothing to keep track of. Don't spend your own money and expect it back.
+        </p>
+
+        <button className="btn btn-primary btn-block" disabled={busy} onClick={reveal}>
+          {busy ? "Getting the number…" : "Show the full card number"}
+        </button>
+        <p className="tiny muted">
+          Opens on the card issuer's own secure page, in a new tab. Safehubby never sees the number.
+        </p>
+
+        {error && <div className="banner banner-danger">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
 function TaskDetail({ task, onBack, onChanged }: {
   task: PortalTask; onBack: () => void; onChanged: () => void;
 }) {
@@ -553,11 +621,14 @@ function TaskDetail({ task, onBack, onChanged }: {
     }
   };
 
+  const [showCard, setShowCard] = useState(false);
   const ended = task.status !== "in-progress";
 
   return (
     <div className="stack">
       <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>← All tasks</button>
+
+      {showCard && task.card && <TaskCardPopup task={task} onClose={() => setShowCard(false)} />}
 
       <section className="card stack">
         <div className="row-between">
@@ -578,6 +649,18 @@ function TaskDetail({ task, onBack, onChanged }: {
           <span>Spend cap for the purchase — reimbursed on the card issued for this task</span>
           <span className="charge-amount">{money(task.spendCapCents)}</span>
         </div>
+
+        {!ended && task.card && (
+          <button className="btn btn-block" onClick={() => setShowCard(true)}>
+            Pay with the task card — {task.card.network} ···· {task.card.last4}
+          </button>
+        )}
+        {!ended && !task.card && (
+          <p className="tiny muted">
+            No card was issued for this task, so pay however the customer arranged it and report what you
+            spent when you mark it done.
+          </p>
+        )}
 
         <div className="row-between">
           <div className="row" style={{ gap: 8, alignItems: "center" }}>

@@ -355,6 +355,14 @@ export const api = {
     request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/selfie`, photo),
   assistantSendCompletionPhoto: (taskId: string, photo: { base64: string; mimeType: string }) =>
     request<{ photo: IdentityPhoto }>("POST", `/api/assistant/tasks/${taskId}/completion-photo`, photo),
+  /** A one-time link to the task card's full number, for paying with it. The
+   *  number itself never comes through this API — see revealCard in core. */
+  assistantRevealCard: (taskId: string) =>
+    request<{
+      revealUrl: string;
+      card: { id: string; last4: string; network: string; expMonth: number; expYear: number };
+      spendCapCents: number;
+    }>("POST", `/api/assistant/tasks/${taskId}/card`, {}),
   assistantComplete: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
   assistantDecline: (taskId: string) =>

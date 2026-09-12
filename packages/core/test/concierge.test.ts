@@ -220,7 +220,7 @@ describe("household scaling — a bigger family is more work, but not linearly",
 
   it("scales a family of six to the expected published numbers", () => {
     expect(assistantPayoutFor("grab-something", false, 6)).toBe(2025);
-    expect(assistantPayoutFor("run-errand", false, 6)).toBe(2025);
+    expect(assistantPayoutFor("run-errand", false, 6)).toBe(2250);
     expect(assistantPayoutFor("check-in-person", false, 6)).toBe(2700);
     expect(assistantPayoutFor("wait-with-someone", false, 6)).toBe(4050);
   });

@@ -1869,6 +1869,51 @@ describe("assistant portal", () => {
     expect(tasks.find((t: any) => t.id === taskId).identityPhotos.assistant.mimeType).toBe("image/jpeg");
   });
 
+  describe("the task card, for actually paying", () => {
+    const cardedTaskId = "ct_carded";
+
+    beforeEach(() => {
+      store.update((db) => {
+        db.conciergeTasks.push({
+          id: cardedTaskId, travelerId: samId, category: "grab-something", note: "Grab groceries",
+          location: { lat: 30.2672, lng: -97.7431 }, spendCapCents: 8000,
+          serviceFeeCents: 1125, assistantPayoutCents: 900, peopleCount: 1,
+          status: "in-progress", provider: "Nearby Aide", assistantId,
+          chargeId: "ch_card", holdId: "hold_card", createdAt: clock.toISOString(),
+          card: { id: "card_1", last4: "4242", network: "Visa", expMonth: 12, expYear: 2030 },
+        });
+      });
+    });
+
+    it("requires an employee session", async () => {
+      expect((await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {})).status).toBe(401);
+    });
+
+    it("will not reveal another assistant's task card", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, otherCookie);
+      expect(res.status).toBe(404);
+    });
+
+    it("refuses when no card was issued for the task", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${taskId}/card`, {}, null, cookie);
+      expect(res.status).toBe(404);
+      expect(res.json.error).toMatch(/no card was issued/i);
+    });
+
+    it("refuses once the task is finished, because the card is cancelled by then", async () => {
+      await call("POST", `/api/assistant/tasks/${cardedTaskId}/complete`, { billedCents: 1000 }, null, cookie);
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/already been cancelled/i);
+    });
+
+    it("says what is missing rather than inventing a link when card issuing isn't configured", async () => {
+      const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
+      expect(res.status).toBe(503);
+      expect(res.json.error).toMatch(/revolut/i);
+    });
+  });
+
   it("lets the assistant mark the task done, settling the same way the traveler's own route would", async () => {
     const res = await call("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents: 1000 }, null, cookie);
     expect(res.status).toBe(200);

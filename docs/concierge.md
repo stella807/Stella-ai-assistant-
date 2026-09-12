@@ -85,7 +85,7 @@ the spend cap:
 | Category | Assistant earns | Customer pays | Safehubby keeps | Why |
 |---|---|---|---|---|
 | Grab something | $9.00 | $11.25 | $2.25 | A quick round trip, minutes of work |
-| Run an errand | $9.00 | $11.25 | $2.25 | Same shape as grabbing something |
+| Run an errand | $10.00 | $12.50 | $2.50 | A dollar above grabbing one thing — an errand is open-scoped within the trip (a grocery list, aisles, choices) |
 | Check on someone | $12.00 | $15.00 | $3.00 | Getting there and actually assessing someone takes longer |
 | Wait with someone | $18.00 | $22.50 | $4.50 | Open-ended by nature — priced for a first ~30-45 min block |
 | Quick task | $5.00 | $6.25 | $1.25 | See the quick-task discount below |
@@ -169,7 +169,7 @@ the payout grossed up by the margin:
 | Category | Standard payout / fee | Quick-task payout / fee |
 |---|---|---|
 | Grab something | $9.00 / $11.25 | $5.00 / $6.25 |
-| Run an errand | $9.00 / $11.25 | $5.00 / $6.25 |
+| Run an errand | $10.00 / $12.50 | $5.00 / $6.25 |
 
 `wait-with-someone` and `check-in-person` are deliberately excluded: both
 involve open-ended real time with a person, and discounting them would mean
@@ -458,6 +458,40 @@ selfies above, but with `capture="environment"` (the rear camera) instead of
 service, not of a person. Optional, same as the selfies — a task can be
 marked complete without one, but a customer weighing whether to dispute a
 task has more to go on when one was attached.
+
+## Using the card: the assistant's card popup
+
+Issuing a spend-capped card is only half of it — the assistant has to be able
+to read the number to pay with it. `POST /api/assistant/tasks/:taskId/card`
+returns a **one-time, provider-hosted link** (`revealCard` on
+`CardIssuingPort`), and `TaskCardPopup` in `EmployeePortal.tsx` opens it in a
+new tab.
+
+**The card number never passes through Safehubby.** That is the whole design:
+`IssuedCard.revealUrl` is handed to the partner's dispatch once at issue time
+and deliberately never persisted, and this endpoint fetches a *fresh* link on
+demand instead. So there is no long-lived path to a card number sitting in the
+document store waiting to leak, the pan never transits this API, and none of
+this lands in PCI scope. The popup shows only what is safe to show — network,
+last 4, expiry, and the spend cap — and the number renders on the issuer's own
+page.
+
+Three gates, all checked live rather than once at issue:
+
+1. **It has to be this assistant's own task** — `assistantTaskOf` scopes by
+   the session's assistant id, so another assistant gets a 404, not a refusal
+   that confirms the task exists.
+2. **The task has to still be in progress.** `settleConciergeTask` cancels the
+   card the moment a task is marked done, and this refuses afterwards with a
+   `400`. The window in which a stranger holds spending power is exactly as
+   long as the job.
+3. **Card issuing has to actually be configured.** Without Revolut credentials
+   the route returns a `503` naming what's missing, and a cancelled or expired
+   card returns a `410` rather than a dead link.
+
+When no card was issued at all — the normal case while `revolutCards` is in
+handoff — the portal says so plainly and tells the assistant to report what
+they spent instead, rather than showing a button that cannot work.
 
 ## Where it's gated, and what it costs
 

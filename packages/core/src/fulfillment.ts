@@ -219,6 +219,22 @@ export interface CardIssuingPort {
    *  leave a live, spend-capped card sitting active. Best-effort: a card
    *  that already expired on its own is not an error to cancel again. */
   cancelCard(cardId: string): Promise<void>;
+  /**
+   * A fresh, one-time link at which the assigned assistant can read the full
+   * card number in order to actually pay for what a task needs.
+   *
+   * Deliberately a *link*, not the number itself: the pan never transits or
+   * rests in Safehubby's own infrastructure, which is what keeps this out of
+   * PCI scope. It is also fetched on demand rather than stored at issue time
+   * (`IssuedCard.revealUrl` is handed to the partner's dispatch once and not
+   * persisted), so there is no long-lived path to a card number sitting in
+   * the document store waiting to leak.
+   *
+   * Returns null when the provider cannot produce one — a card that has
+   * already been cancelled or expired, most often — so a caller can say so
+   * plainly rather than presenting a dead link.
+   */
+  revealCard(cardId: string): Promise<string | null>;
 }
 
 /**
