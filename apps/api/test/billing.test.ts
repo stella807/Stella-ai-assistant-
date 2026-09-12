@@ -5,7 +5,10 @@ import { renewDueSubscriptions } from "../src/billing.ts";
 import { SEED } from "../src/seed.ts";
 import type { Db, Traveler } from "../src/store.ts";
 
-const now = new Date("2026-03-01T00:00:00Z");
+// After go-live: before it, a new subscription's trial is deferred so nobody
+// is billed for the pre-launch window (see billingStartsAt in promotions.ts),
+// which is its own describe below rather than the premise of every test here.
+const now = new Date("2027-01-01T00:00:00Z");
 const days = (n: number) => new Date(now.getTime() + n * 86_400_000);
 
 const traveler = (id: string): Traveler => ({
@@ -108,10 +111,14 @@ describe("renewDueSubscriptions", () => {
 describe("the launch-party discount at renewal", () => {
   /** Renewal is the only place a subscription actually charges — signup is a
    *  free trial — so it is the only place the discount can be applied. */
-  const launchSub = (startedAt: string): Subscription => ({
+  const launchSub = (joinedAt: string): Subscription => ({
     ...subFor("premium-basic"),
-    startedAt,
-    currentPeriodEnd: startedAt,
+    startedAt: joinedAt,
+    joinedAt,
+    currentPeriodEnd: joinedAt,
+    // Out of the trial: this describes someone already being billed.
+    status: "active",
+    trialEndsAt: undefined,
   });
 
   it("takes the stated rate off an early sign-up's renewal", () => {
@@ -145,12 +152,40 @@ describe("the launch-party discount at renewal", () => {
     expect(db.charges.at(-1)!.description).not.toMatch(/discount/i);
   });
 
-  it("stops discounting after the first year, so the cohort is not cheap forever", () => {
+  it("keeps discounting across renewal after renewal, not just the first one", () => {
+    // The regression this exists for: `renew` resets `startedAt` to the
+    // renewal date, so a discount anchored on that field lapsed on the second
+    // invoice while still being advertised as a year. It has to survive
+    // twelve of these.
     const db = dbWith(launchSub("2026-10-15T00:00:00.000Z"));
-    // Thirteen months on: still an early sign-up, no longer discounted.
-    const result = renewDueSubscriptions(db, new Date("2027-11-15T00:00:00.000Z"));
+    const full = findPlan("premium-basic").monthlyCents;
+    const expected = Math.floor(full * LAUNCH_DISCOUNT_RATE);
+
+    let at = new Date("2026-12-02T00:00:00.000Z");
+    for (let month = 0; month < 11; month++) {
+      const result = renewDueSubscriptions(db, at);
+      expect(result.renewed).toBe(1);
+      expect(result.discountedCents).toBe(expected);
+      expect(result.chargedCents).toBe(full - expected);
+      at = new Date(at.getTime() + 31 * 86_400_000);
+    }
+  });
+
+  it("stops discounting once the year is up, so the cohort is not cheap forever", () => {
+    const db = dbWith(launchSub("2026-10-15T00:00:00.000Z"));
+    // Past go-live plus a year: still an early sign-up, no longer discounted.
+    const result = renewDueSubscriptions(db, new Date("2027-12-15T00:00:00.000Z"));
     expect(result.renewed).toBe(1);
     expect(result.discountedCents).toBe(0);
     expect(result.chargedCents).toBe(findPlan("premium-basic").monthlyCents);
+  });
+
+  it("does not treat a renewal as a fresh signup", () => {
+    const db = dbWith(launchSub("2026-10-15T00:00:00.000Z"));
+    renewDueSubscriptions(db, new Date("2026-12-02T00:00:00.000Z"));
+    const after = db.subscriptions.t1!;
+    // The period moved; the joining date did not.
+    expect(after.startedAt).toBe("2026-12-02T00:00:00.000Z");
+    expect(after.joinedAt).toBe("2026-10-15T00:00:00.000Z");
   });
 });

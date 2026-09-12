@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
+import { NewsletterSignup } from "./NewsletterSignup.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
@@ -28,11 +29,13 @@ const AUTO_ADVANCE_MS = 7000;
  * good. It also never starts at all under `prefers-reduced-motion`, which is
  * exactly what that setting is asking for.
  */
-export function LandingIntro({ onSignedIn, onDrive, launch }: {
+export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
   onSignedIn: (account: Account) => void;
   /** Switches the app to the public driver application — App state, not a
    *  route, so it comes in as a callback rather than a link. */
   onDrive: () => void;
+  /** Same, for the non-driving roles. */
+  onWorkWithUs: () => void;
   /** Null until the catalog request lands, and while the API is unreachable.
    *  The banner simply does not render then, rather than claiming a promotion
    *  we have not confirmed is open. */
@@ -44,7 +47,11 @@ export function LandingIntro({ onSignedIn, onDrive, launch }: {
   const [engaged, setEngaged] = useState(false);
   const [startInSignup, setStartInSignup] = useState(false);
 
-  const labels: TranslationKey[] = ["slide.about", "slide.signup", "slide.work"];
+  // Leadership gets its own slide rather than sharing slide one. Three cards
+  // deep (mission, leadership, what we do) the last of them ran past the fold
+  // and the founder's bio was the part being cut.
+  const labels: TranslationKey[] = ["slide.about", "slide.leadership", "slide.signup", "slide.work"];
+  const SIGNUP_SLIDE = 2;
   const invitedBy = incomingReferralCode();
 
   const goTo = (next: number) => {
@@ -137,17 +144,26 @@ export function LandingIntro({ onSignedIn, onDrive, launch }: {
       )}
 
       <div className="slides" ref={track} aria-live="off">
-        {/* 1 — who we are: the mission, the founder, and what the app does. */}
+        {/* 1 — why the app exists, and what it actually does. */}
         <section className="slide" aria-label={t("slide.about")}>
           <MissionSection />
-          <LeadershipSection />
           <WhatWeDoSection />
-          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); goTo(1); }}>
+          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); goTo(SIGNUP_SLIDE); }}>
             {t("landing.getStarted")}
           </button>
         </section>
 
-        {/* 2 — sign up, with how it works right beside the form so nobody has
+        {/* 2 — who is behind it. Its own slide so the bio is read rather than
+            clipped, and because "who runs this" is a fair question to ask of
+            an app you are about to trust with where you are at 1am. */}
+        <section className="slide" aria-label={t("slide.leadership")}>
+          <LeadershipSection />
+          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); goTo(SIGNUP_SLIDE); }}>
+            {t("landing.getStarted")}
+          </button>
+        </section>
+
+        {/* 3 — sign up, with how it works right beside the form so nobody has
             to guess what they are signing up to. */}
         <section className="slide" aria-label={t("slide.signup")}>
           <AuthScreen onSignedIn={onSignedIn} startInSignup={startInSignup} />
@@ -159,9 +175,14 @@ export function LandingIntro({ onSignedIn, onDrive, launch }: {
               ))}
             </ol>
           </section>
+
+          {/* Only before go-live. Once the service is running, "tell me when
+              it starts" is a worse offer than the signup form above it, and
+              a mailing list nobody needs is just another box to ignore. */}
+          {launch && launch.phase !== "closed" && <NewsletterSignup source="landing" />}
         </section>
 
-        {/* 3 — the other side of the app: the people who work it. */}
+        {/* 4 — the other side of the app: the people who work it. */}
         <section className="slide" aria-label={t("slide.work")}>
           <section className="card stack">
             <h2>{t("work.heading")}</h2>
@@ -178,6 +199,15 @@ export function LandingIntro({ onSignedIn, onDrive, launch }: {
               <strong className="small">{t("work.apply")}</strong>
               <p className="tiny muted" style={{ margin: 0 }}>{t("work.applyNote")}</p>
               <button className="btn btn-block btn-ghost" onClick={onDrive}>{t("app.drive")}</button>
+            </div>
+
+            {/* The roles being hired that have nothing to do with a car. Its
+                own path because the driver form asks for a vehicle, a plate
+                and a licence expiry, none of which a secretary has. */}
+            <div className="stack" style={{ gap: 6 }}>
+              <strong className="small">{t("work.staff")}</strong>
+              <p className="tiny muted" style={{ margin: 0 }}>{t("work.staffNote")}</p>
+              <button className="btn btn-block btn-ghost" onClick={onWorkWithUs}>{t("work.staffCta")}</button>
             </div>
           </section>
         </section>

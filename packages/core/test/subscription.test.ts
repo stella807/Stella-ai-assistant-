@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TRIAL_DAYS, findPlan } from "../src/billing.ts";
+import { SERVICE_LIVE_AT } from "../src/promotions.ts";
 import {
   cancelSubscription, changePlan, describeSubscription, effectivePlan, isRenewalDue,
   markPastDue, periodEnd, priceOf, prorationCreditCents, renew, startSubscription,
@@ -18,7 +19,25 @@ describe("starting a subscription", () => {
     const { subscription, due } = start("premium-plus");
     expect(subscription.status).toBe("trialing");
     expect(due).toBeNull();
-    expect(subscription.trialEndsAt).toBe(days(TRIAL_DAYS).toISOString());
+  });
+
+  it("runs the trial from go-live for anyone who joins before the service starts", () => {
+    // `now` here is months ahead of the launch, so this is the pre-launch
+    // cohort: fourteen days of a product that is not running yet would not be
+    // a trial, and letting it lapse would put their first charge inside the
+    // window where we cannot serve them.
+    const { subscription } = start("premium-plus");
+    const live = new Date(SERVICE_LIVE_AT).getTime();
+    expect(subscription.trialEndsAt).toBe(new Date(live + TRIAL_DAYS * 86_400_000).toISOString());
+    expect(new Date(subscription.trialEndsAt!).getTime()).toBeGreaterThan(live);
+  });
+
+  it("runs the trial from signup once the service is live", () => {
+    const after = new Date(Date.parse(SERVICE_LIVE_AT) + 90 * 86_400_000);
+    const { subscription } = startSubscription({
+      travelerId: "t1", planId: "premium-plus", cadence: "monthly", platform: "web", now: after,
+    });
+    expect(subscription.trialEndsAt).toBe(new Date(after.getTime() + TRIAL_DAYS * 86_400_000).toISOString());
   });
 
   it("takes the rail from the platform the purchase happened on", () => {

@@ -36,6 +36,7 @@ const EN = {
   "landing.tab.leadership": "Leadership",
   "landing.getStarted": "Get started →",
   "slide.about": "Who we are",
+  "slide.leadership": "Leadership",
   "slide.signup": "Get started",
   "slide.work": "Work with us",
   "slide.prev": "Previous",
@@ -106,6 +107,17 @@ const EN = {
   "launch.noteUpcoming": "Opens {date}: {pct} off your first year for everyone who joins in the window.",
   "launch.noteClosed": "The launch-party discount has closed.",
   "launch.invitedBy": "You were invited with code {code} — it's already filled in on the sign-up form.",
+
+  "news.heading": "Get told when we go live",
+  "news.body": "We're hiring and insuring the people who do the work. Leave your email and we'll tell you the day the service actually starts — no charge until then, and nothing before.",
+  "news.cta": "Tell me when it's running",
+  "news.thanks": "You're on the list",
+  "news.already": "You're already on the list",
+  "news.failed": "Couldn't add you to the list. Try again in a moment.",
+  "news.privacy": "One email when we launch. We don't sell your address, and you can leave the list at any time.",
+  "work.staff": "I want to work with people, not drive",
+  "work.staffNote": "Personal assistant, errand runner, or secretary — insured from day one, with the rate published before you apply.",
+  "work.staffCta": "See open roles →",
 } as const;
 
 export type TranslationKey = keyof typeof EN;
@@ -132,6 +144,7 @@ const ES: Record<TranslationKey, string> = {
   "landing.tab.leadership": "Liderazgo",
   "landing.getStarted": "Comenzar →",
   "slide.about": "Quiénes somos",
+  "slide.leadership": "Liderazgo",
   "slide.signup": "Comenzar",
   "slide.work": "Trabaja con nosotros",
   "slide.prev": "Anterior",
@@ -202,6 +215,17 @@ const ES: Record<TranslationKey, string> = {
   "launch.noteUpcoming": "Comienza el {date}: {pct} de descuento en el primer año para todos los que se unan dentro del plazo.",
   "launch.noteClosed": "El descuento de lanzamiento ya cerró.",
   "launch.invitedBy": "Te invitaron con el código {code} — ya está completado en el formulario de registro.",
+
+  "news.heading": "Avísame cuando abran",
+  "news.body": "Estamos contratando y asegurando a las personas que hacen el trabajo. Déjanos tu correo y te avisaremos el día que el servicio realmente comience — sin cobros hasta entonces, y nada antes.",
+  "news.cta": "Avísame cuando abran",
+  "news.thanks": "Estás en la lista",
+  "news.already": "Ya estás en la lista",
+  "news.failed": "No pudimos agregarte a la lista. Inténtalo de nuevo en un momento.",
+  "news.privacy": "Un solo correo cuando lancemos. No vendemos tu dirección y puedes salir de la lista cuando quieras.",
+  "work.staff": "Quiero trabajar con personas, no manejar",
+  "work.staffNote": "Asistente personal, mensajero de encargos o secretario/a — con seguro desde el primer día y la tarifa publicada antes de que apliques.",
+  "work.staffCta": "Ver puestos disponibles →",
 };
 
 const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES };

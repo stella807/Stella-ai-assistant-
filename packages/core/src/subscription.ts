@@ -1,5 +1,6 @@
 import type { Iso8601 } from "./types.ts";
 import { TRIAL_DAYS, findPlan, type Plan, type PlanId } from "./billing.ts";
+import { billingStartsAt } from "./promotions.ts";
 import { railFor, type BillingRail, type Platform } from "./wallet.ts";
 
 /**
@@ -24,7 +25,26 @@ export interface Subscription {
   cadence: Cadence;
   rail: BillingRail;
   status: SubscriptionStatus;
+  /**
+   * When the **current period** started. `renew` and `changePlan` both move
+   * it, so it answers "how far into this month are we", not "how long have
+   * they been a customer".
+   */
   startedAt: Iso8601;
+  /**
+   * When this person first subscribed, set once and never moved again.
+   *
+   * Distinct from `startedAt` because that one is reset on every renewal, and
+   * anything asking "when did they join" gets a silently wrong answer from it
+   * after the first month. The launch-party discount is exactly such a
+   * question, and reading `startedAt` made it expire after one renewal rather
+   * than after a year.
+   *
+   * Optional only so subscriptions stored before this field existed still
+   * load; readers fall back to `startedAt`, which for those records has not
+   * been renewed past yet or is the best available answer.
+   */
+  joinedAt?: Iso8601;
   /** When the current paid (or trial) period runs out. */
   currentPeriodEnd: Iso8601;
   trialEndsAt?: Iso8601;
@@ -80,6 +100,7 @@ export function startSubscription(input: {
         rail,
         status: "active",
         startedAt: input.now.toISOString(),
+        joinedAt: input.now.toISOString(),
         // A free plan does not lapse, so its period end is a formality.
         currentPeriodEnd: periodEnd(input.cadence, input.now).toISOString(),
       },
@@ -87,7 +108,13 @@ export function startSubscription(input: {
     };
   }
 
-  const trialEnd = new Date(input.now.getTime() + TRIAL_DAYS * 86_400_000);
+  // The trial runs from go-live, not from signup, whenever someone joins
+  // before the service is running. Fourteen days of a product that does not
+  // exist yet is not a trial, and letting it elapse would put the first
+  // charge inside the pre-launch window — billing someone for two months we
+  // cannot serve. See SERVICE_LIVE_AT in promotions.ts.
+  const trialStart = billingStartsAt(input.now);
+  const trialEnd = new Date(trialStart.getTime() + TRIAL_DAYS * 86_400_000);
   return {
     subscription: {
       travelerId: input.travelerId,
@@ -96,6 +123,7 @@ export function startSubscription(input: {
       rail,
       status: "trialing",
       startedAt: input.now.toISOString(),
+      joinedAt: input.now.toISOString(),
       currentPeriodEnd: trialEnd.toISOString(),
       trialEndsAt: trialEnd.toISOString(),
     },
@@ -206,6 +234,9 @@ export function renew(sub: Subscription, now: Date): SubscriptionChange {
   const plan = findPlan(sub.planId);
   const price = priceOf(plan, sub.cadence);
   const next = {
+    // `...sub` is what carries `joinedAt` through untouched — renewing is not
+    // joining again, and overwriting it here is the bug this field exists to
+    // prevent.
     ...sub,
     status: "active" as SubscriptionStatus,
     startedAt: now.toISOString(),
@@ -264,4 +295,10 @@ export function describeSubscription(sub: Subscription | null, now: Date): strin
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+/** When this person first subscribed. Falls back to `startedAt` for records
+ *  stored before `joinedAt` existed — see the field's own comment. */
+export function joinedAtOf(sub: Pick<Subscription, "startedAt" | "joinedAt">): string {
+  return sub.joinedAt ?? sub.startedAt;
 }

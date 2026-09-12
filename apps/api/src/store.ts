@@ -2,7 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   Alert, AssistantAdjustment, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew,
-  DriverApplication, GameRound, NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice,
+  DriverApplication, GameRound, NewsletterSubscriber, NightOut, PaymentMethodOnFile, PendingOrder,
+  PreAuthorization, PushDevice, StaffApplication,
   ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
 import type { EliteBooking, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
@@ -111,6 +112,11 @@ export interface Db {
    *  in payroll.ts and disputeConciergeTask in routes.ts. */
   assistantAdjustments: AssistantAdjustment[];
   driverApplications: DriverApplication[];
+  /** Applications for the roles that do not drive — see staff-applications.ts. */
+  staffApplications: StaffApplication[];
+  /** The launch mailing list. Kept whole, opt-outs included, so a re-import
+   *  cannot quietly resubscribe somebody who left. */
+  newsletterSubscribers: NewsletterSubscriber[];
   pushDevices: PushDevice[];
 }
 
@@ -119,7 +125,7 @@ const EMPTY: Db = {
   paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], eliteBookings: [], referrals: [], voiceMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
-  driverApplications: [], pushDevices: [],
+  driverApplications: [], staffApplications: [], newsletterSubscribers: [], pushDevices: [],
 };
 
 /** What routes need from a store, so the file and Postgres backings are

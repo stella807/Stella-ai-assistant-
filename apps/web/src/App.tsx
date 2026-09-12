@@ -11,12 +11,15 @@ import { PendingOrderPrompt } from "./components/PendingOrderPrompt.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
+import { StaffSignupScreen } from "./components/StaffSignupScreen.tsx";
 import { HiringScreen } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
 
-type Role = "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account" | "drive";
+type Role =
+  | "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account"
+  | "drive" | "work";
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
@@ -66,7 +69,7 @@ export function App() {
           landing carousel's third slide is where that lives, so this would
           just be the same button twice — it appears for signed-in riders,
           who have no carousel. */}
-      {role !== "drive" && account && (
+      {role !== "drive" && role !== "work" && account && (
         <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setRole("drive")}>
           {t("app.drive")}
         </button>
@@ -74,8 +77,15 @@ export function App() {
 
       {role === "drive" ? (
         <DriveSignupScreen onBack={() => setRole("out")} />
+      ) : role === "work" ? (
+        <StaffSignupScreen onBack={() => setRole("out")} />
       ) : !ready ? null : !account ? (
-        <LandingIntro onSignedIn={setAccount} onDrive={() => setRole("drive")} launch={launch} />
+        <LandingIntro
+          onSignedIn={setAccount}
+          onDrive={() => setRole("drive")}
+          onWorkWithUs={() => setRole("work")}
+          launch={launch}
+        />
       ) : (
         <>
           <div className="tabs" role="tablist">

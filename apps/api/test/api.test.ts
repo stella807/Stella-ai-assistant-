@@ -9,7 +9,9 @@ import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runPayroll, type Ctx } from "../src/routes.ts";
 import { authorizeExactHold, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
-import { LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES } from "@safehubby/core";
+import {
+  LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
+} from "@safehubby/core";
 
 let server: ReturnType<typeof createApp>;
 let base: string;
@@ -68,9 +70,39 @@ const assistantLogin = async (assistantId: string, password = "a-fine-assistant-
 
 const advance = (minutes: number) => { clock = new Date(clock.getTime() + minutes * 60_000); };
 
+/**
+ * Moves the clock past the free trial, wherever it actually ends.
+ *
+ * Not simply "advance fifteen days" any more: a subscription started before
+ * the service goes live has its trial deferred to go-live, so nobody is
+ * charged for the pre-launch window (see `billingStartsAt` in promotions.ts).
+ * These tests run on a clock that starts well before launch, so the deferral
+ * applies to every one of them.
+ */
+const advancePastTrial = () => {
+  const live = Date.parse(SERVICE_LIVE_AT);
+  clock = new Date(Math.max(clock.getTime(), live) + 15 * 86_400_000);
+};
+
+/** Sets the admin secret for the tests in the enclosing describe, and puts
+ *  back whatever was there before — requireAdmin reads it live from the
+ *  environment, so leaking it would silently unlock other suites. */
+const useAdminKey = (key = "test-admin-key") => {
+  let prior: string | undefined;
+  beforeEach(() => { prior = process.env.SAFEHUBBY_ADMIN_KEY; process.env.SAFEHUBBY_ADMIN_KEY = key; });
+  afterEach(() => {
+    if (prior === undefined) delete process.env.SAFEHUBBY_ADMIN_KEY;
+    else process.env.SAFEHUBBY_ADMIN_KEY = prior;
+  });
+};
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "safehubby-"));
-  clock = new Date("2026-01-01T20:00:00Z");
+  // After go-live (SERVICE_LIVE_AT), because these tests are about a running
+  // service: before it, billing defers and nothing is charged, which is the
+  // pre-launch behaviour covered by its own tests rather than the premise of
+  // every other one here.
+  clock = new Date("2027-01-01T20:00:00Z");
   store = new Store(join(dir, "db.json"));
   store.reset(structuredClone(SEED));
   ctx = { ...makeCtx(store), now: () => clock };
@@ -729,7 +761,7 @@ describe("one billing surface", () => {
     await addCard(jordan);
     // Out of the trial first, so a plan change actually produces a charge.
     await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
-    advance(60 * 24 * 15);                                  // past the 14-day trial
+    advancePastTrial();
 
     const web = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "web" }, jordan);
     expect(web.json.charged.rail).toBe("card");
@@ -746,7 +778,7 @@ describe("one billing surface", () => {
   it("credits the unused part of a period instead of charging twice for it", async () => {
     await addCard(jordan);
     await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
-    advance(60 * 24 * 15);                                  // the trial ends and the first month begins
+    advancePastTrial();                                     // the trial ends and the first month begins
     advance(60 * 24 * 14);                                  // roughly halfway through that month
 
     const up = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "web" }, jordan);
@@ -758,7 +790,7 @@ describe("one billing surface", () => {
   it("settles a store purchase only against its receipt, and never a card line", async () => {
     await addCard(jordan);
     await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
-    advance(60 * 24 * 15);                                  // past the trial, so changes are billable
+    advancePastTrial();                                     // past the trial, so changes are billable
 
     const web = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "web" }, jordan);
     const ios = await call("POST", "/api/subscription", { planId: "family", platform: "ios" }, jordan);
@@ -778,7 +810,7 @@ describe("one billing surface", () => {
   it("will not let one person confirm or read another person's charges", async () => {
     await addCard(jordan);
     await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
-    advance(60 * 24 * 15);
+    advancePastTrial();
     const ios = await call("POST", "/api/subscription", { planId: "family", platform: "ios" }, jordan);
 
     expect((await call("POST", `/api/billing/charges/${ios.json.charged.id}/confirm`, { receipt: "r" }, sam)).status).toBe(404);
@@ -3014,5 +3046,176 @@ describe("the launch party and the share loop", () => {
       email: "kit@example.com", password: "a-long-enough-passphrase", displayName: "Kit",
     });
     expect(store.data.referrals).toHaveLength(0);
+  });
+});
+
+describe("hiring for the roles that do not drive", () => {
+  useAdminKey();
+
+  const application = (over: Record<string, unknown> = {}) => ({
+    role: "personal-assistant",
+    fullName: "Rosa Delgado",
+    email: "rosa@example.com",
+    phone: "2125550147",
+    city: "Hoboken",
+    state: "NJ",
+    experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
+    hoursPerWeek: 20,
+    backgroundCheckConsent: true,
+    ...over,
+  });
+
+  it("publishes the open roles and what everyone hired gets, without a login", async () => {
+    const res = await call("GET", "/api/staff/roles");
+    expect(res.status).toBe(200);
+    expect(res.json.roles.map((r: { id: string }) => r.id).sort())
+      .toEqual(["errand-runner", "personal-assistant", "secretary"]);
+    // Drivers apply through their own form, which asks about a vehicle.
+    expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
+
+    const ids = res.json.benefits.map((b: { id: string }) => b.id);
+    expect(ids).toContain("liability-insurance");
+    expect(ids).toContain("gas-stipend");
+  });
+
+  it("takes an application and gives back an id to follow it up with", async () => {
+    const res = await call("POST", "/api/staff/apply", application());
+    expect(res.status).toBe(200);
+    expect(res.json.status).toBe("submitted");
+    expect(res.json.role).toBe("personal-assistant");
+    expect(store.data.staffApplications).toHaveLength(1);
+  });
+
+  it("accepts each role being hired, and sends drivers to their own form", async () => {
+    for (const role of ["personal-assistant", "errand-runner", "secretary"]) {
+      const res = await call("POST", "/api/staff/apply", application({ role, email: `${role}@example.com` }));
+      expect(res.status).toBe(200);
+    }
+    const driver = await call("POST", "/api/staff/apply", application({ role: "driver" }));
+    expect(driver.status).toBe(400);
+    expect(driver.json.error).toMatch(/driver application/i);
+  });
+
+  it("names the field that is wrong rather than failing generically", async () => {
+    const res = await call("POST", "/api/staff/apply", application({ experience: "n/a" }));
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/experience/i);
+  });
+
+  it("keeps the review queue behind the admin secret — it is real personal data", async () => {
+    await call("POST", "/api/staff/apply", application());
+    expect((await call("GET", "/api/staff/applications")).status).toBe(401);
+    expect((await callAdmin("GET", "/api/staff/applications", undefined, "wrong-key")).status).toBe(401);
+    const ok = await callAdmin("GET", "/api/staff/applications");
+    expect(ok.status).toBe(200);
+    expect(ok.json).toHaveLength(1);
+  });
+
+  it("will not approve anything sight-unseen, through the API as well as in core", async () => {
+    const { json } = await call("POST", "/api/staff/apply", application());
+    const straight = await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    expect(straight.status).toBe(400);
+
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    const approved = await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    expect(approved.status).toBe(200);
+    expect(approved.json.status).toBe("approved");
+  });
+
+  it("lets an applicant withdraw with the id and the email they applied with", async () => {
+    const { json } = await call("POST", "/api/staff/apply", application());
+    const wrong = await call("POST", `/api/staff/applications/${json.id}/withdraw`, { email: "someone@else.com" });
+    expect(wrong.status).toBe(404);
+
+    const ok = await call("POST", `/api/staff/applications/${json.id}/withdraw`, { email: "rosa@example.com" });
+    expect(ok.json.status).toBe("withdrawn");
+  });
+});
+
+describe("the hiring budget", () => {
+  useAdminKey();
+
+  it("reports the plan and what has actually been hired, behind the admin secret", async () => {
+    expect((await call("GET", "/api/admin/budget")).status).toBe(401);
+    const res = await callAdmin("GET", "/api/admin/budget");
+    expect(res.status).toBe(200);
+    expect(res.json.plan.budget.totalCents).toBeGreaterThan(0);
+    // Nobody hired yet, so the actual roster costs nothing — the number moves
+    // as applications are approved rather than being a fixed forecast.
+    expect(res.json.actual.budget.totalCents).toBe(0);
+    expect(res.json.plan.budget.months).toBe(2);
+  });
+
+  it("counts an approved hire into the actual budget", async () => {
+    const { json } = await call("POST", "/api/staff/apply", {
+      role: "secretary", fullName: "Dana Reyes", email: "dana@example.com", phone: "2125550188",
+      city: "Hoboken", state: "NJ", hoursPerWeek: 20, backgroundCheckConsent: true,
+      experience: "Ran scheduling and intake for a two-clinic practice for four years.",
+    });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+
+    const res = await callAdmin("GET", "/api/admin/budget");
+    expect(res.json.actual.headcount.secretary).toBe(1);
+    expect(res.json.actual.budget.wagesCents).toBeGreaterThan(0);
+  });
+});
+
+describe("the launch mailing list", () => {
+  useAdminKey();
+
+  it("takes an address with no account, since the point is you cannot use the app yet", async () => {
+    const res = await call("POST", "/api/newsletter", { email: "Kit@Example.COM" });
+    expect(res.status).toBe(200);
+    expect(res.json.subscribed).toBe(true);
+    expect(store.data.newsletterSubscribers[0]!.email).toBe("kit@example.com");
+  });
+
+  it("never claims a confirmation email was sent when nothing can send one", async () => {
+    const res = await call("POST", "/api/newsletter", { email: "kit@example.com" });
+    expect(res.json.delivered).toBe(false);
+    expect(res.json.note).toMatch(/no confirmation email is sent/i);
+    expect(res.json.note).not.toMatch(/check your inbox/i);
+  });
+
+  it("rejects something that is not an address", async () => {
+    expect((await call("POST", "/api/newsletter", { email: "nope" })).status).toBe(400);
+  });
+
+  it("does not list the same person twice", async () => {
+    await call("POST", "/api/newsletter", { email: "kit@example.com" });
+    const again = await call("POST", "/api/newsletter", { email: "KIT@example.com" });
+    expect(again.json.alreadyOnList).toBe(true);
+    expect(store.data.newsletterSubscribers).toHaveLength(1);
+  });
+
+  it("unsubscribes on the token, and answers the same either way", async () => {
+    await call("POST", "/api/newsletter", { email: "kit@example.com" });
+    const token = store.data.newsletterSubscribers[0]!.token;
+
+    const guessed = await call("POST", "/api/newsletter/unsubscribe", { email: "kit@example.com", token: "guess" });
+    expect(guessed.json).toEqual({ unsubscribed: true });
+    expect(store.data.newsletterSubscribers[0]!.unsubscribedAt).toBeUndefined();
+
+    const real = await call("POST", "/api/newsletter/unsubscribe", { email: "kit@example.com", token });
+    expect(real.json).toEqual({ unsubscribed: true });
+    expect(store.data.newsletterSubscribers[0]!.unsubscribedAt).toBeTruthy();
+  });
+
+  it("gives an unguessable token, not a predictable one", async () => {
+    await call("POST", "/api/newsletter", { email: "a@example.com" });
+    await call("POST", "/api/newsletter", { email: "b@example.com" });
+    const [one, two] = store.data.newsletterSubscribers;
+    expect(one!.token).not.toBe(two!.token);
+    expect(one!.token.length).toBeGreaterThanOrEqual(32);
+  });
+
+  it("exports the list for admins, with delivery status attached", async () => {
+    await call("POST", "/api/newsletter", { email: "kit@example.com" });
+    expect((await call("GET", "/api/admin/newsletter")).status).toBe(401);
+    const res = await callAdmin("GET", "/api/admin/newsletter");
+    expect(res.json.total).toBe(1);
+    expect(res.json.active).toBe(1);
+    expect(res.json.delivery.mode).toBe("handoff");
   });
 });

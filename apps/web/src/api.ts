@@ -222,6 +222,32 @@ export interface LaunchStatus {
   note: string;
 }
 
+export interface StaffRoleInfo {
+  id: string;
+  label: string;
+  description: string;
+  drives: boolean;
+}
+
+export interface HiringBenefit {
+  id: string;
+  label: string;
+  detail: string;
+  roles?: string[];
+}
+
+export interface StaffApplicationInput {
+  role: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  experience: string;
+  hoursPerWeek: number;
+  backgroundCheckConsent: boolean;
+}
+
 export interface ShareInvite {
   code: string;
   url: string;
@@ -243,6 +269,17 @@ export const api = {
   }) =>
     request<{ traveler: Account }>("POST", "/api/auth/signup", input),
   share: () => request<ShareInvite>("GET", "/api/share"),
+
+  /** Public: no account, because the person this is for cannot use the app
+   *  yet. `delivered` is false while no mail provider is configured. */
+  joinNewsletter: (input: { email: string; source?: string }) =>
+    request<{
+      subscribed: true; alreadyOnList: boolean; delivered: boolean; note: string; launch: LaunchStatus;
+    }>("POST", "/api/newsletter", input),
+
+  staffRoles: () => request<{ roles: StaffRoleInfo[]; benefits: HiringBenefit[] }>("GET", "/api/staff/roles"),
+  applyForStaffRole: (input: StaffApplicationInput) =>
+    request<{ id: string; role: string; status: string }>("POST", "/api/staff/apply", input),
   login: (input: { email: string; password: string }) =>
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),

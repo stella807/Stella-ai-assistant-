@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_MAX_CAP_CENTS,
+  CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
+  QUICK_TASK_MAX_CAP_CENTS,
   hasFeature, isAssistantAvailable, isQuickTaskEligible,
 } from "@safehubby/core";
 import type {
@@ -46,10 +47,30 @@ function PlaceMap({ place }: { place: NearbyStore }) {
  * talking to them, both live here rather than as a separate step: the roster
  * only means anything in the context of the task it's being picked for.
  */
-export function ConciergePanel({ account }: { account: Account }) {
-  const locked = !hasFeature(account.planId as PlanId, "personal-concierge");
+/**
+ * Which half of the service this panel is booking.
+ *
+ * The split is not a UI invention: `QUICK_TASK_CATEGORIES` in core already
+ * separates the short, single-purpose jobs (grab one named thing, run one
+ * errand) from the ones that are open-ended time with a person. They have
+ * different payouts, different spend caps, and different reasons to book, and
+ * putting all four in one list meant the cheap five-minute errand and the
+ * hour of sitting with a friend looked like the same product.
+ */
+export type HiringKind = "errand" | "concierge";
 
-  const [category, setCategory] = useState<ConciergeCategory>("grab-something");
+const CATEGORIES_FOR: Record<HiringKind, ConciergeCategory[]> = {
+  errand: QUICK_TASK_CATEGORIES,
+  concierge: CONCIERGE_CATEGORIES
+    .map((c) => c.id)
+    .filter((id) => !QUICK_TASK_CATEGORIES.includes(id)),
+};
+
+export function ConciergePanel({ account, kind = "concierge" }: { account: Account; kind?: HiringKind }) {
+  const locked = !hasFeature(account.planId as PlanId, "personal-concierge");
+  const allowed = CATEGORIES_FOR[kind];
+
+  const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
   const [capDollars, setCapDollars] = useState(25);
   const [quickTask, setQuickTask] = useState(false);
@@ -75,6 +96,13 @@ export function ConciergePanel({ account }: { account: Account }) {
     api.conciergeTasks().then((r) => setTasks(r.tasks)).catch(() => {});
     api.fulfillmentStatus().then((r) => setPlaceSearchStatus(r.placeSearch)).catch(() => {});
   }, [locked]);
+
+  // Switching tabs must not leave the previous tab's category selected, which
+  // would book a concierge job from the errands screen.
+  useEffect(() => {
+    setCategory((current) => (allowed.includes(current) ? current : allowed[0] ?? "grab-something"));
+    setRoster(null);
+  }, [kind]);
 
   if (locked) {
     return (
@@ -197,7 +225,7 @@ export function ConciergePanel({ account }: { account: Account }) {
       )}
 
       <div className="chip-grid">
-        {CONCIERGE_CATEGORIES.map((c) => (
+        {CONCIERGE_CATEGORIES.filter((c) => allowed.includes(c.id)).map((c) => (
           <button key={c.id} className={`chip${c.id === category ? " chip-on" : ""}`}
             onClick={() => { setCategory(c.id); setRoster(null); if (!isQuickTaskEligible(c.id)) setQuickTask(false); }}
             aria-pressed={c.id === category}>

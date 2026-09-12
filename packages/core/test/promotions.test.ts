@@ -4,6 +4,7 @@ import {
   REFERRAL_CODE_LENGTH, discountBreakEvenLift, discountedPriceCents, isReferralCodeShaped,
   joinedDuringLaunch, launchDiscountApplies, launchDiscountCentsFor, launchDiscountEndsAt,
   newReferralCode, normalizeReferralCode, shareMessage,
+  SERVICE_LIVE_AT, billingStartsAt, serviceIsLive,
 } from "../src/promotions.ts";
 import { findPlan } from "../src/billing.ts";
 
@@ -137,5 +138,46 @@ describe("referral codes", () => {
     // Same rule the points table holds: growth is fine, selling a big night
     // out is not what this app is for.
     expect(shareMessage("ABC-DE4", "https://x").toLowerCase()).not.toMatch(/party harder|drink more|get drunk/);
+  });
+});
+
+describe("the pre-launch window, when nobody can be served yet", () => {
+  it("knows the service is not live until the launch window closes", () => {
+    expect(SERVICE_LIVE_AT).toBe(LAUNCH_WINDOW_END);
+    expect(serviceIsLive(new Date(inWindow))).toBe(false);
+    expect(serviceIsLive(new Date(LAUNCH_WINDOW_START))).toBe(false);
+    expect(serviceIsLive(new Date(SERVICE_LIVE_AT))).toBe(true);
+    expect(serviceIsLive(new Date("2027-01-01T00:00:00.000Z"))).toBe(true);
+  });
+
+  it("never starts billing inside the window — the whole point of the rule", () => {
+    // Every day of the pre-launch window maps to go-live, not to itself.
+    for (const day of [LAUNCH_WINDOW_START, inWindow, "2026-11-30T23:59:59.000Z"]) {
+      expect(billingStartsAt(new Date(day)).toISOString()).toBe(SERVICE_LIVE_AT);
+    }
+  });
+
+  it("bills from signup once there is a service to bill for", () => {
+    const later = new Date("2027-03-04T09:00:00.000Z");
+    expect(billingStartsAt(later)).toEqual(later);
+  });
+
+  it("gives the cohort a full discounted year of service, not a year from signing up", () => {
+    // Somebody who joined on day one of the window still gets twelve
+    // discounted months of a working product, because the year is measured
+    // from go-live rather than from the signup that preceded it.
+    const ends = launchDiscountEndsAt(LAUNCH_WINDOW_START);
+    expect(ends.toISOString()).toBe("2027-12-01T00:00:00.000Z");
+    expect(launchDiscountApplies(sub(LAUNCH_WINDOW_START), new Date("2027-11-30T00:00:00.000Z"))).toBe(true);
+    expect(launchDiscountApplies(sub(LAUNCH_WINDOW_START), ends)).toBe(false);
+  });
+
+  it("ends the discount on the same date for everyone in the cohort", () => {
+    // Uniform by construction: they all joined before go-live, so they all
+    // anchor to it. One date to explain, and no early joiner is worse off for
+    // having signed up sooner.
+    const first = launchDiscountEndsAt(LAUNCH_WINDOW_START).toISOString();
+    const last = launchDiscountEndsAt("2026-11-30T12:00:00.000Z").toISOString();
+    expect(last).toBe(first);
   });
 });

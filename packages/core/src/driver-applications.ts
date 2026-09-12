@@ -1,4 +1,7 @@
 import type { Iso8601 } from "./types.ts";
+import {
+  assertWithdrawable, nextReviewStatus, type ApplicationStatus,
+} from "./application-review.ts";
 
 /**
  * Driver applications — a place for real people to sign up to drive.
@@ -22,7 +25,7 @@ import type { Iso8601 } from "./types.ts";
 
 export type DriverTier = "standard" | "secure-transport";
 
-export type ApplicationStatus = "submitted" | "under-review" | "approved" | "rejected" | "withdrawn";
+export type { ApplicationStatus } from "./application-review.ts";
 
 export interface VehicleInfo {
   make: string;
@@ -163,33 +166,24 @@ function validateVehicle(vehicle: VehicleInfo, now: Date): VehicleInfo {
   };
 }
 
-/**
- * Review transitions. `submitted` and `under-review` are open; `approved`,
- * `rejected` and `withdrawn` are terminal from the applicant's side, but an
- * admin can deliberately reopen a decided application to `under-review` —
- * people appeal, and paperwork gets fixed. What no one can do is jump straight
- * from `submitted` to `approved` with nothing looked at in between.
- */
-const REVIEWABLE_FROM: ApplicationStatus[] = ["submitted", "under-review", "approved", "rejected"];
-
+/** Review transitions. The rules live in `application-review.ts` so drivers
+ *  and every other role move through one pipeline. */
 export function reviewApplication(
   app: DriverApplication,
   status: Exclude<ApplicationStatus, "withdrawn">,
   now: Date,
   reviewerNote?: string,
 ): DriverApplication {
-  if (app.status === "withdrawn") throw new Error("This application was withdrawn by the applicant.");
-  if (!REVIEWABLE_FROM.includes(app.status)) throw new Error(`Cannot review from status ${app.status}.`);
-  if (status === "approved" && app.status === "submitted") {
-    throw new Error("Move to under-review before approving — nothing should be approved sight-unseen.");
-  }
-  return { ...app, status, reviewedAt: now.toISOString(), reviewerNote: reviewerNote?.trim() || app.reviewerNote };
+  return {
+    ...app,
+    status: nextReviewStatus(app.status, status),
+    reviewedAt: now.toISOString(),
+    reviewerNote: reviewerNote?.trim() || app.reviewerNote,
+  };
 }
 
 /** Withdrawal is the applicant's own call, and works from any non-terminal state. */
 export function withdrawApplication(app: DriverApplication, now: Date): DriverApplication {
-  if (app.status === "approved" || app.status === "rejected" || app.status === "withdrawn") {
-    throw new Error(`Cannot withdraw an application that is already ${app.status}.`);
-  }
+  assertWithdrawable(app.status);
   return { ...app, status: "withdrawn", reviewedAt: now.toISOString() };
 }

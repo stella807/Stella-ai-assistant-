@@ -154,3 +154,13 @@ export function sweepExpiredSessions<T extends { expiresAt: string }>(sessions: 
   const cutoff = now.getTime();
   return sessions.filter((s) => new Date(s.expiresAt).getTime() > cutoff);
 }
+
+/**
+ * A cryptographically secure fraction in [0, 1), for core helpers that take an
+ * injectable random source. `Math.random` is fine for a referral code nobody
+ * gains anything by guessing, and is not fine for anything that authorizes an
+ * action — an unsubscribe token guessed is somebody else taken off the list.
+ */
+export function secureFraction(): number {
+  return randomBytes(6).readUIntBE(0, 6) / 2 ** 48;
+}

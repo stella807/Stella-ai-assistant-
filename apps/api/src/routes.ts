@@ -3,6 +3,10 @@ import {
   isPlanReleased, releasedPlans,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage,
+  HIRING_BENEFITS, PRELAUNCH_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
+  reviewStaffApplication, submitStaffApplication, withdrawStaffApplication,
+  addSubscriber, activeSubscribers, newUnsubscribeToken, unsubscribe,
+  type NewsletterSource, type StaffRole,
   ELITE_SERVICES, commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService,
   validateEliteRequest,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
@@ -58,12 +62,13 @@ import { paypalProcessor } from "./adapters/paypal.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
+import { email } from "./adapters/email.ts";
 import { guardianMessages } from "./notify.ts";
 import { renewDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   ASSISTANT_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword, normalizeEmail,
-  SESSION_TTL_MS, sweepExpiredSessions, validatePassword, verifyPassword,
+  SESSION_TTL_MS, secureFraction, sweepExpiredSessions, validatePassword, verifyPassword,
 } from "./auth.ts";
 import { cipherFromEnv, openPayoutDestination, sealPayoutDestination } from "./crypto.ts";
 import { deleteAccount, exportAccount } from "./account.ts";
@@ -3108,5 +3113,157 @@ export const routes: Record<string, Handler> = {
       db.driverApplications[i] = reviewed;
     });
     return reviewed;
+  },
+
+  /* -------------------------------------------------------------------------
+     Hiring for the roles that do not drive
+     ---------------------------------------------------------------------- */
+
+  /** What roles are open, and the two things everyone hired gets. Public: this
+   *  is a job post, and a job post behind a login is not a job post. */
+  "GET /api/staff/roles": () => ({
+    roles: STAFF_ROLES.filter((r) => r.id !== "driver"),
+    benefits: HIRING_BENEFITS,
+  }),
+
+  "POST /api/staff/apply": (ctx, _p, body) => {
+    if (ctx.limiters.applications.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many applications from this connection. Try again later.");
+    }
+    const app = submitStaffApplication({
+      id: newId("staff"),
+      role: String(body?.role ?? "") as StaffRole,
+      fullName: String(body?.fullName ?? ""),
+      email: String(body?.email ?? ""),
+      phone: String(body?.phone ?? ""),
+      city: String(body?.city ?? ""),
+      state: String(body?.state ?? ""),
+      experience: String(body?.experience ?? ""),
+      hoursPerWeek: Number(body?.hoursPerWeek),
+      backgroundCheckConsent: body?.backgroundCheckConsent === true,
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.staffApplications.push(app));
+    return { id: app.id, role: app.role, status: app.status, submittedAt: app.submittedAt };
+  },
+
+  "POST /api/staff/applications/:id/withdraw": (ctx, p, body) => {
+    const id = req(p, "id");
+    const app = ctx.store.data.staffApplications.find((a) => a.id === id);
+    if (!app || app.email !== String(body?.email ?? "").trim().toLowerCase()) throw notFound("Application");
+    const withdrawn = withdrawStaffApplication(app, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.staffApplications.findIndex((a) => a.id === id);
+      db.staffApplications[i] = withdrawn;
+    });
+    return { id: withdrawn.id, status: withdrawn.status };
+  },
+
+  /** Admin: the review queue for non-driving roles, gated the same way the
+   *  driver queue is and for the same reason — it is real personal data. */
+  "GET /api/staff/applications": (ctx) => {
+    requireAdmin(ctx);
+    return ctx.store.data.staffApplications;
+  },
+
+  "POST /api/staff/applications/:id/review": (ctx, p, body) => {
+    requireAdmin(ctx);
+    const id = req(p, "id");
+    const app = ctx.store.data.staffApplications.find((a) => a.id === id);
+    if (!app) throw notFound("Application");
+    const status = String(body?.status ?? "") as Exclude<ApplicationStatus, "withdrawn">;
+    const reviewed = reviewStaffApplication(app, status, ctx.now(), body?.note ? String(body.note) : undefined);
+    ctx.store.update((db) => {
+      const i = db.staffApplications.findIndex((a) => a.id === id);
+      db.staffApplications[i] = reviewed;
+    });
+    return reviewed;
+  },
+
+  /**
+   * Admin: what the hiring plan costs. Reads the model in `staffing.ts`
+   * against the roster actually hired so far, so the budget is checked against
+   * reality rather than against the plan it was written from.
+   */
+  "GET /api/admin/budget": (ctx) => {
+    requireAdmin(ctx);
+    const approved = ctx.store.data.staffApplications.filter((a) => a.status === "approved");
+    const approvedDrivers = ctx.store.data.driverApplications.filter((a) => a.status === "approved");
+    const hired: Record<StaffRole, number> = {
+      driver: approvedDrivers.length,
+      "personal-assistant": approved.filter((a) => a.role === "personal-assistant").length,
+      "errand-runner": approved.filter((a) => a.role === "errand-runner").length,
+      secretary: approved.filter((a) => a.role === "secretary").length,
+    };
+    return {
+      plan: { headcount: PRELAUNCH_HEADCOUNT, budget: prelaunchBudget(), monthlyAfterLaunch: monthlyRosterCents() },
+      actual: { headcount: hired, budget: prelaunchBudget(hired), monthlyAfterLaunch: monthlyRosterCents(hired) },
+      benefits: HIRING_BENEFITS,
+    };
+  },
+
+  /* -------------------------------------------------------------------------
+     The launch mailing list
+     ---------------------------------------------------------------------- */
+
+  /**
+   * Join the list. Public and account-free on purpose: the person this is for
+   * is someone who found Safehubby during the pre-launch window and cannot use
+   * it yet, so requiring them to make an account first would be asking them to
+   * sign up for the thing they are being told does not exist yet.
+   *
+   * Answers `delivered: false` whenever no mail provider is configured, rather
+   * than implying a confirmation email is on its way. See `newsletter.ts`.
+   */
+  "POST /api/newsletter": (ctx, _p, body) => {
+    if (ctx.limiters.applications.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many sign-ups from this connection. Try again later.");
+    }
+    const { list, subscriber, alreadyOnList } = addSubscriber(ctx.store.data.newsletterSubscribers, {
+      id: newId("news"),
+      email: String(body?.email ?? ""),
+      source: (body?.source ? String(body.source) : "landing") as NewsletterSource,
+      token: newUnsubscribeToken(secureFraction),
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => { db.newsletterSubscribers = list; });
+    return {
+      subscribed: true,
+      alreadyOnList,
+      // Never "check your inbox" — nothing sends mail yet, and the whole
+      // promise of this list is a message that arrives later.
+      delivered: isAutomatic(email.status),
+      note: isAutomatic(email.status)
+        ? "You're on the list. We'll email you the day we go live."
+        : "You're on the list. We'll email you the day we go live — no confirmation email is sent yet.",
+      launch: launchStatus(ctx.now()),
+      subscriberId: subscriber.id,
+    };
+  },
+
+  "POST /api/newsletter/unsubscribe": (ctx, _p, body) => {
+    const { list, removed } = unsubscribe(
+      ctx.store.data.newsletterSubscribers,
+      String(body?.email ?? ""),
+      String(body?.token ?? ""),
+      ctx.now(),
+    );
+    ctx.store.update((db) => { db.newsletterSubscribers = list; });
+    // Always the same answer, whether or not the address was on the list: a
+    // different one would confirm membership to whoever asked.
+    void removed;
+    return { unsubscribed: true };
+  },
+
+  /** Admin: the list itself, for the day there is something to send. */
+  "GET /api/admin/newsletter": (ctx) => {
+    requireAdmin(ctx);
+    const all = ctx.store.data.newsletterSubscribers;
+    return {
+      total: all.length,
+      active: activeSubscribers(all).length,
+      delivery: email.status,
+      subscribers: all,
+    };
   },
 };

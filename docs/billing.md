@@ -340,6 +340,20 @@ Two things renew, and they agree:
   billing question, so a trial that ended an hour ago is over the moment the
   user opens the screen rather than whenever a timer next fires.
 
+## Before the service is live
+
+The launch window is a **pre-launch** period: customers can sign up, and they
+receive no service because there is nobody hired yet to provide it.
+
+**Nobody is charged for a period we cannot serve.** `startSubscription` runs
+the free trial from `SERVICE_LIVE_AT` rather than from signup whenever
+someone joins before go-live (`billingStartsAt` in `promotions.ts`), so the
+first invoice lands after there is a working product to invoice for. It is
+date arithmetic rather than an operator's memory, because taking two months of
+subscription money for nothing is the sort of thing that happens by omission.
+
+`docs/budget.md` covers what that window costs on the hiring side.
+
 ## The launch party
 
 An early-sign-up discount, run from `packages/core/src/promotions.ts`.
@@ -354,9 +368,20 @@ An early-sign-up discount, run from `packages/core/src/promotions.ts`.
   every renewal of a cohort that will never be re-priced, bought with a
   one-time conversion bump.
 - **Eligibility is derived, not stored.** `launchDiscountApplies` reads
-  `subscription.startedAt`, which already exists, so there is no schema to
-  migrate and no stored flag that can disagree with when someone actually
-  joined.
+  `subscription.joinedAt`, so there is no stored flag that can disagree with
+  when someone actually joined.
+
+  It reads `joinedAt` and **not** `startedAt`, which is the subtle part:
+  `renew` resets `startedAt` to the renewal date, so a discount anchored on it
+  lapsed on the *second invoice* while still being advertised as a year. That
+  is why `joinedAt` exists as a separate, immutable field, and why
+  `billing.test.ts` renews eleven times in a loop rather than once.
+- **The discounted year runs from go-live**, not from signup. The whole cohort
+  joins before the service starts, so anchoring to signup would spend two
+  months of the discounted year on months nobody was billed for — "3% off your
+  first year" would really mean ten. Anchoring to `billingStartsAt` also makes
+  the end date uniform across the cohort, so no early joiner is worse off for
+  having signed up sooner.
 - **It is applied at renewal only**, in `renewDueSubscriptions`. Signup is a
   free trial and charges nothing, so renewal is the only place a subscription
   price exists to discount. `RenewalResult.discountedCents` reports the cost of

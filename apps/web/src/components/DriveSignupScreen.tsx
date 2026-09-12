@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DRIVER_RATE_CARD, driverEarningsCents } from "@safehubby/core";
+import { DRIVER_RATE_CARD, benefitsFor, driverEarningsCents } from "@safehubby/core";
 import { api, type DriverApplicationInput } from "../api.ts";
 
 /**
@@ -110,6 +110,19 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
             ? "For licensed protective-services, military, or law-enforcement professionals. Requires a verifiable protective-services licence in addition to everything below."
             : "A driving licence, a roadworthy vehicle, and a background check."}
         </p>
+      </section>
+
+      {/* What a driver is promised, from the same list the staff form reads,
+          so the gas stipend is visible to the people it is actually for
+          rather than only to roles that do not get it. */}
+      <section className="card stack">
+        <h3>What you get</h3>
+        {benefitsFor("driver").map((b) => (
+          <div key={b.id} className="stack" style={{ gap: 2 }}>
+            <strong className="small">{b.label}</strong>
+            <p className="tiny muted" style={{ margin: 0 }}>{b.detail}</p>
+          </div>
+        ))}
       </section>
 
       <section className="card">

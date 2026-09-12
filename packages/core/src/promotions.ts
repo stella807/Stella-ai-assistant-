@@ -1,4 +1,9 @@
-import type { Subscription } from "./subscription.ts";
+import { joinedAtOf, type Subscription } from "./subscription.ts";
+
+/** What the promotion functions need off a subscription: when the person
+ *  joined. Taken as a slice rather than the whole record so a caller can ask
+ *  the question without constructing one. */
+type Joinable = Pick<Subscription, "startedAt" | "joinedAt">;
 
 /**
  * The launch party, and the referral loop it exists to start.
@@ -32,6 +37,37 @@ import type { Subscription } from "./subscription.ts";
 export const LAUNCH_WINDOW_START = "2026-10-01T00:00:00.000Z";
 export const LAUNCH_WINDOW_END = "2026-12-01T00:00:00.000Z";
 
+/**
+ * When the service actually starts, which is the same moment the launch
+ * window closes — the window *is* the two-month run-up, spent hiring and
+ * insuring the people who do the work (see `staffing.ts`).
+ *
+ * Everyone who signs up during it is a customer of a service that is not
+ * running yet. That has one hard consequence, enforced in
+ * `startSubscription`: **nobody is charged for a period in which we cannot
+ * serve them.** Taking a subscription payment for two months of nothing is
+ * the single most damaging thing this launch could do, and it is the kind of
+ * thing that happens by omission rather than by decision — so the rule lives
+ * in the date arithmetic, not in an operator's memory.
+ */
+export const SERVICE_LIVE_AT = LAUNCH_WINDOW_END;
+
+/** Whether the service is running yet. */
+export function serviceIsLive(now: Date): boolean {
+  return now.getTime() >= Date.parse(SERVICE_LIVE_AT);
+}
+
+/**
+ * The instant a subscriber's paid relationship can begin: now, or go-live if
+ * that is still ahead. Used as the start of the free trial so the trial is
+ * fourteen days of the working product rather than fourteen days of a waiting
+ * room.
+ */
+export function billingStartsAt(joinedAt: Date): Date {
+  const live = new Date(SERVICE_LIVE_AT);
+  return joinedAt.getTime() >= live.getTime() ? joinedAt : live;
+}
+
 /** 3%, as asked. One constant, because this is the number most likely to
  *  change once there is conversion data to change it against. */
 export const LAUNCH_DISCOUNT_RATE = 0.03;
@@ -58,17 +94,35 @@ export function joinedDuringLaunch(startedAt: string): boolean {
   return at >= Date.parse(LAUNCH_WINDOW_START) && at < Date.parse(LAUNCH_WINDOW_END);
 }
 
-/** When an early sign-up's discount runs out — a year after they joined. */
+/**
+ * When an early sign-up's discount runs out — a year after their billing
+ * starts, not a year after they joined.
+ *
+ * Those differ for the whole launch cohort, because they all join before
+ * go-live and none of them is charged until then. Anchoring to `startedAt`
+ * would quietly spend two months of the discounted year on months nobody was
+ * billed for, so "3% off your first year" would really mean ten months. The
+ * anchor is `billingStartsAt`, which makes the promise the plain reading of
+ * the words: the first year you actually pay for.
+ */
 export function launchDiscountEndsAt(startedAt: string): Date {
-  const end = new Date(startedAt);
+  const end = billingStartsAt(new Date(startedAt));
   end.setUTCFullYear(end.getUTCFullYear() + LAUNCH_DISCOUNT_YEARS);
   return end;
 }
 
-/** Whether this subscription is still inside its launch discount. */
-export function launchDiscountApplies(sub: Pick<Subscription, "startedAt">, now: Date): boolean {
-  if (!joinedDuringLaunch(sub.startedAt)) return false;
-  return now.getTime() < launchDiscountEndsAt(sub.startedAt).getTime();
+/**
+ * Whether this subscription is still inside its launch discount.
+ *
+ * Reads `joinedAt`, never `startedAt`. `startedAt` is reset by every renewal,
+ * so anchoring on it made the discount lapse after the first month instead of
+ * after a year — the customer-visible version of that bug is a promised
+ * discount that silently stops on the second invoice.
+ */
+export function launchDiscountApplies(sub: Joinable, now: Date): boolean {
+  const joined = joinedAtOf(sub);
+  if (!joinedDuringLaunch(joined)) return false;
+  return now.getTime() < launchDiscountEndsAt(joined).getTime();
 }
 
 /**
@@ -78,7 +132,7 @@ export function launchDiscountApplies(sub: Pick<Subscription, "startedAt">, now:
  * rounding cent should never quietly favour the house.
  */
 export function launchDiscountCentsFor(
-  priceCents: number, sub: Pick<Subscription, "startedAt">, now: Date,
+  priceCents: number, sub: Joinable, now: Date,
 ): number {
   if (!launchDiscountApplies(sub, now)) return 0;
   if (!Number.isInteger(priceCents) || priceCents <= 0) return 0;
@@ -87,7 +141,7 @@ export function launchDiscountCentsFor(
 
 /** What an early sign-up actually pays. */
 export function discountedPriceCents(
-  priceCents: number, sub: Pick<Subscription, "startedAt">, now: Date,
+  priceCents: number, sub: Joinable, now: Date,
 ): number {
   return priceCents - launchDiscountCentsFor(priceCents, sub, now);
 }
