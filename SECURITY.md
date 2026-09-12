@@ -53,6 +53,23 @@ details for partner-network assistants would live inside Safehubby's own
 Revolut account before this can go live, which is its own data-handling
 surface to review, on top of the API integration itself. See `docs/concierge.md`.
 
+**Voice messages stored inline in the document store, uncapped in aggregate.**
+`voice-messages.ts` caps a single clip (60s, ~1.5MB decoded) but nothing caps
+how many clips accumulate across a task or an account over time, and they are
+stored base64-encoded inline in the same JSON document as everything else —
+the scaling problem already flagged for the store in general, made concrete
+by media instead of text. A real deployment should push clips to object
+storage and store a URL here, and should add a retention sweep the way
+`retention.ts` already does for location history. See `docs/concierge.md`.
+
+**The inbound concierge webhook reuses the outbound API key as its secret.**
+`POST /api/concierge/webhooks/voice-message` is the only route in this API a
+partner calls into rather than the reverse, and it authenticates the caller
+against `CONCIERGE_API_KEY` — the same key the outbound adapter sends to
+them. Reusing one secret in both directions means a leak of either exposes
+both; a real deployment should mint the partner a separate, independently
+rotatable webhook secret. See `docs/concierge.md`.
+
 ## Retention — built
 
 Location pings expire after **7 days** (`LOCATION_RETENTION_DAYS`). The sweep

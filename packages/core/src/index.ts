@@ -27,4 +27,5 @@ export * from "./subscription.ts";
 export * from "./payment.ts";
 export * from "./driver-applications.ts";
 export * from "./concierge.ts";
+export * from "./voice-messages.ts";
 export * from "./ports.ts";

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import type {
   Alert, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew, DriverApplication, GameRound,
   NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice, ShareGrant, Subscription,
+  VoiceMessage,
 } from "@safehubby/core";
 import type { PointEntry, Redemption } from "@safehubby/core";
 
@@ -50,13 +51,14 @@ export interface Db {
   charges: Charge[];
   subscriptions: Record<string, Subscription>;
   conciergeTasks: ConciergeTask[];
+  voiceMessages: VoiceMessage[];
   driverApplications: DriverApplication[];
   pushDevices: PushDevice[];
 }
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], voiceMessages: [],
   driverApplications: [], pushDevices: [],
 };
 

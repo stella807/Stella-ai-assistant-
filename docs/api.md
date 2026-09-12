@@ -91,10 +91,14 @@ access on its own, and a claimed grant is bound to exactly one account.
 | `POST` | `/api/rides/secure` | `secure-transport` |
 | `GET` | `/api/fulfillment/status` | — (session) |
 | `POST` | `/api/concierge/quote` | `personal-concierge` |
-| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures }`. Holds exactly `spendCapCents` — see `docs/concierge.md`. |
+| `GET` | `/api/concierge/assistants?category=&lat=&lng=` | `personal-concierge`. The partner network's roster for that category near that location — see `docs/concierge.md`. |
+| `POST` | `/api/concierge/tasks` | `personal-concierge`. `{ category, note, location, spendCapCents, acknowledgedDisclosures, assistantId? }`. Holds exactly `spendCapCents` — see `docs/concierge.md`. |
 | `GET` | `/api/concierge/tasks` | — (session; your own tasks only) |
 | `POST` | `/api/concierge/tasks/:taskId/complete` | Settles the ledger line at `billedCents` (capped, defaults to the full cap if omitted) |
 | `POST` | `/api/concierge/tasks/:taskId/cancel` | Releases the hold; no charge |
+| `POST` | `/api/concierge/tasks/:taskId/voice-messages` | `{ audioBase64, mimeType, durationSeconds }`. A voice clip to the assistant, capped at `MAX_VOICE_MESSAGE_SECONDS`. |
+| `GET` | `/api/concierge/tasks/:taskId/voice-messages` | The thread for that task, oldest first |
+| `POST` | `/api/concierge/webhooks/voice-message` | The one inbound route in this API — the partner network posts an assistant's reply. Auth: `x-concierge-key` header matching `CONCIERGE_API_KEY`, not a session. |
 | `POST` | `/api/points/redeem` | — |
 | `POST` | `/api/push/devices` | — (session) |
 | `POST` | `/api/push/devices/remove` | — (session) |

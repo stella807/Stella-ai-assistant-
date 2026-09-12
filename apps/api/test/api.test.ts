@@ -13,6 +13,7 @@ let server: ReturnType<typeof createApp>;
 let base: string;
 let dir: string;
 let clock: Date;
+let store: Store;
 
 /** Each "session" is just a bearer token, so tests can act as different users. */
 const call = async (
@@ -47,7 +48,7 @@ const advance = (minutes: number) => { clock = new Date(clock.getTime() + minute
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "safehubby-"));
   clock = new Date("2026-01-01T20:00:00Z");
-  const store = new Store(join(dir, "db.json"));
+  store = new Store(join(dir, "db.json"));
   store.reset(structuredClone(SEED));
   const ctx: Ctx = { ...makeCtx(store), now: () => clock };
   server = createApp(ctx);
@@ -1308,6 +1309,88 @@ describe("personal concierge", () => {
 
   it("keeps one traveler's tasks out of another's list", async () => {
     expect((await call("GET", "/api/concierge/tasks", undefined, jordan)).json.tasks).toEqual([]);
+  });
+
+  it("browses the roster only with a valid category and location, and hands off with no partner configured", async () => {
+    expect((await call("GET", "/api/concierge/assistants?category=grab-something&lat=40.7&lng=-74")).status).toBe(401);
+
+    const noCategory = await call("GET", "/api/concierge/assistants?lat=40.7&lng=-74", undefined, sam);
+    expect(noCategory.status).toBe(400);
+
+    const badCategory = await call("GET", "/api/concierge/assistants?category=nonsense&lat=40.7&lng=-74", undefined, sam);
+    expect(badCategory.status).toBe(400);
+
+    const noLocation = await call("GET", "/api/concierge/assistants?category=grab-something", undefined, sam);
+    expect(noLocation.status).toBe(400);
+
+    // No CONCIERGE_API_BASE/KEY in tests, so this hands off rather than
+    // returning an invented roster.
+    const res = await call("GET", "/api/concierge/assistants?category=grab-something&lat=40.7&lng=-74", undefined, sam);
+    expect(res.status).toBe(503);
+  });
+});
+
+describe("concierge voice messages", () => {
+  let taskId = "";
+
+  beforeEach(() => {
+    // Booking always hands off in tests (no partner configured), so a task
+    // is seeded directly into the running server's own store — the same way
+    // other fixtures in this file are (see samId's plan, set the same way).
+    taskId = "ct_test1";
+    store.update((db) => {
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, category: "grab-something", note: "Grab a burger",
+        location: { lat: 40.714, lng: -74.003 }, spendCapCents: 2500, status: "in-progress",
+        provider: "Nearby Aide", providerTaskId: "provider-task-1", chargeId: "ch_x", holdId: "hold_x",
+        createdAt: clock.toISOString(),
+      });
+    });
+  });
+
+  const clip = () => ({
+    audioBase64: Buffer.from("a short test clip").toString("base64"),
+    mimeType: "audio/webm",
+    durationSeconds: 8,
+  });
+
+  it("lets the traveler send and read voice messages on their own task", async () => {
+    const sent = await call("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip(), sam);
+    expect(sent.status).toBe(200);
+    expect(sent.json.id).toBeTruthy();
+
+    const thread = await call("GET", `/api/concierge/tasks/${taskId}/voice-messages`, undefined, sam);
+    expect(thread.json.messages).toHaveLength(1);
+    expect(thread.json.messages[0].sender).toBe("traveler");
+  });
+
+  it("rejects an empty or oversized clip with the domain's own message", async () => {
+    const empty = await call("POST", `/api/concierge/tasks/${taskId}/voice-messages`, { ...clip(), audioBase64: "" }, sam);
+    expect(empty.status).toBe(400);
+    expect(empty.json.error).toMatch(/no audio/i);
+
+    const tooLong = await call("POST", `/api/concierge/tasks/${taskId}/voice-messages`, { ...clip(), durationSeconds: 999 }, sam);
+    expect(tooLong.status).toBe(400);
+    expect(tooLong.json.error).toMatch(/capped at/i);
+  });
+
+  it("will not let a stranger read or post into someone else's task thread", async () => {
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip(), jordan)).status).toBe(404);
+    expect((await call("GET", `/api/concierge/tasks/${taskId}/voice-messages`, undefined, jordan)).status).toBe(404);
+  });
+
+  it("requires a session", async () => {
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip())).status).toBe(401);
+    expect((await call("GET", `/api/concierge/tasks/${taskId}/voice-messages`)).status).toBe(401);
+  });
+
+  it("refuses the partner webhook with no shared secret configured", async () => {
+    const res = await call(
+      "POST", "/api/concierge/webhooks/voice-message",
+      { providerTaskId: "provider-task-1", ...clip() },
+      null, { "x-concierge-key": "whatever" },
+    );
+    expect(res.status).toBe(503);
   });
 });
 

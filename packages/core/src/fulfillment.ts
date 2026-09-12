@@ -136,6 +136,9 @@ export interface ConciergeTaskRequest {
   /** Purchasing power handed to the assistant, when a card was issued for
    *  this task — see CardIssuingPort. Never the traveler's own card. */
   card?: { last4: string; revealUrl: string };
+  /** A specific assistant the subscriber picked from the roster, rather than
+   *  leaving assignment to the network's own dispatch. */
+  assistantId?: string;
 }
 
 export interface ConciergeQuote {
@@ -152,10 +155,27 @@ export interface BookedConciergeTask {
   assistant?: { name?: string; phone?: string };
 }
 
+/** A profile from the partner network's own roster — see AssistantProfile in
+ *  concierge.ts, which this maps onto after the id-shaped bits are stripped. */
+export interface AssistantListing {
+  id: string;
+  name: string;
+  bio?: string;
+  photoUrl?: string;
+  categories: string[];
+  maxConcurrentCustomers: number;
+  currentCustomers: number;
+}
+
 export interface ConciergePort {
   readonly status: ProviderStatus;
   /** Whether the partner network covers this location, asked before it is offered. */
   coversLocation(at: { lat: number; lng: number }): Promise<boolean>;
+  /** The roster available for a category near a location, so a subscriber
+   *  can pick a specific assistant instead of leaving it to dispatch. Returns
+   *  an empty list rather than throwing when the network has nobody to show —
+   *  an empty roster is a normal answer, not a failure. */
+  listAssistants(input: { category: string; location: { lat: number; lng: number } }): Promise<AssistantListing[]>;
   quote(input: ConciergeTaskRequest): Promise<ConciergeQuote | null>;
   book(input: ConciergeTaskRequest): Promise<BookedConciergeTask>;
 }

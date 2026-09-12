@@ -136,6 +136,7 @@ export function createApp(base: Ctx) {
       sessionToken: token,
       clientKey: clientKey(req),
       adminKey: firstHeader(req.headers["x-admin-key"]),
+      partnerKey: firstHeader(req.headers["x-concierge-key"]),
       setSession: (next) => {
         res.setHeader("Set-Cookie", next === null ? clearedCookie(SECURE_COOKIES) : sessionCookie(next, SECURE_COOKIES));
       },
@@ -181,7 +182,10 @@ function send(res: ServerResponse, status: number, payload: unknown, headOnly = 
 }
 
 export function makeCtx(store: StoreLike = new Store()): Ctx {
-  return { store, now: () => new Date(), actorId: null, clientKey: "local", limiters: makeLimiters(), adminKey: null };
+  return {
+    store, now: () => new Date(), actorId: null, clientKey: "local", limiters: makeLimiters(),
+    adminKey: null, partnerKey: null,
+  };
 }
 
 function readToken(req: IncomingMessage): string | null {

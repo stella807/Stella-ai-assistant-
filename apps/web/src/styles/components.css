@@ -500,3 +500,92 @@
   text-decoration: line-through;
   color: var(--muted);
 }
+
+/* Modal --------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ground) 72%, transparent);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 40;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .modal-backdrop { align-items: center; padding: 24px; }
+}
+
+.modal-sheet {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top-left-radius: var(--r-card);
+  border-top-right-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (min-width: 640px) {
+  .modal-sheet { border-radius: var(--r-card); }
+}
+
+/* Assistant roster ------------------------------------------------------ */
+
+.assistant-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px;
+  width: 100%;
+}
+.assistant-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--fill-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.assistant-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Voice messages --------------------------------------------------------- */
+
+.voice-thread { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.voice-bubble {
+  border-radius: var(--r-btn);
+  padding: 8px 10px;
+  max-width: 88%;
+  background: var(--fill);
+  border: 1px solid var(--line);
+}
+.voice-bubble-mine { align-self: flex-end; background: var(--accent-soft); border-color: transparent; }
+.voice-bubble audio { width: 220px; max-width: 100%; height: 32px; }
+
+.record-button {
+  border-radius: 999px;
+  width: 64px;
+  height: 64px;
+  align-self: center;
+  border: 2px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  font-weight: 700;
+}
+.record-button.recording {
+  background: var(--danger-solid);
+  border-color: var(--danger-solid);
+  color: #fff;
+}

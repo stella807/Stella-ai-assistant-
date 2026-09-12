@@ -18,7 +18,8 @@ import {
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
-  CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
+  CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
+  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -26,9 +27,9 @@ import {
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
 import type {
-  Alert, ApplicationStatus, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory, ConciergeTask,
-  CrewMemberFacts, DriverTier, Feature, GameId, NightOut, OrderProvider, Platform, PlanId, RedFlagId,
-  Subscription, TriggerBand,
+  Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
+  ConciergeTask, CrewMemberFacts, DriverTier, Feature, GameId, NightOut, OrderProvider, Platform,
+  PlanId, RedFlagId, Subscription, TriggerBand,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -92,6 +93,11 @@ export interface Ctx {
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
    *  review has no per-account identity to hang a role off yet. */
   adminKey: string | null;
+  /** The concierge partner network's shared secret, for the one inbound
+   *  webhook a partner calls rather than us calling them — see
+   *  requirePartnerNetwork below. Not a session; the caller is a server, not
+   *  a signed-in traveler. */
+  partnerKey: string | null;
 }
 
 const unauthorized = () => new HttpError(401, "Sign in to continue.");
@@ -330,6 +336,21 @@ function requireAdmin(ctx: Ctx): void {
   const expected = process.env.SAFEHUBBY_ADMIN_KEY;
   if (!expected) throw new HttpError(503, "Admin access is not configured on this server.");
   if (!ctx.adminKey || ctx.adminKey !== expected) throw new HttpError(401, "Bad or missing admin key.");
+}
+
+/**
+ * Gate for the one route the partner network calls into rather than being
+ * called — an assistant's voice-message reply has nowhere else to arrive
+ * from. Checked against `CONCIERGE_API_KEY`, the same secret the outbound
+ * adapter authenticates with, on the theory that whoever holds it is the
+ * partner. No separate webhook secret exists to verify this against yet; a
+ * real deployment should give the partner network its own, rotatable one
+ * rather than reusing the API key in both directions.
+ */
+function requirePartnerNetwork(ctx: Ctx): void {
+  const expected = process.env.CONCIERGE_API_KEY;
+  if (!expected) throw new HttpError(503, "The concierge partner network is not configured on this server.");
+  if (!ctx.partnerKey || ctx.partnerKey !== expected) throw new HttpError(401, "Bad or missing partner key.");
 }
 
 /** Every authenticated route starts here. */
@@ -1314,6 +1335,31 @@ export const routes: Record<string, Handler> = {
   /* ---------------- personal concierge ---------------- */
 
   /**
+   * The roster for a category near a location, so a subscriber can pick a
+   * specific assistant instead of leaving assignment entirely to the
+   * network's own dispatch. An empty list is a normal answer — no fake
+   * candidates are ever invented when the network is unconfigured or has
+   * nobody to show.
+   */
+  "GET /api/concierge/assistants": async (ctx, p) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "personal-concierge");
+    const category = p.category ?? "";
+    if (!CONCIERGE_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Unknown task type.");
+    const location = coordsFrom(p);
+    if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
+
+    const listing = await concierge.listAssistants({ category, location });
+    const assistants: AssistantProfile[] = listing.map((a) => ({
+      id: a.id, name: a.name, bio: a.bio, photoUrl: a.photoUrl,
+      categories: a.categories as ConciergeCategory[],
+      maxConcurrentCustomers: a.maxConcurrentCustomers,
+      currentCustomers: a.currentCustomers,
+    }));
+    return { assistants, available: assistants.filter(isAssistantAvailable).length };
+  },
+
+  /**
    * Quotes a concierge task before booking, and is also how the app learns
    * whether the partner network covers this location — the same two-step as
    * secure transport, and for the same reason: never offer a task that cannot
@@ -1349,10 +1395,11 @@ export const routes: Record<string, Handler> = {
     }
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
     requirePaymentMethod(ctx, me);
+    const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
 
     const quote = await concierge.quote({
       category: input.category, note: input.note, location: input.location,
-      spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
+      spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), assistantId,
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
 
@@ -1392,6 +1439,7 @@ export const routes: Record<string, Handler> = {
       const booked = await concierge.book({
         category: input.category, note: input.note, location: input.location,
         spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
+        assistantId,
         // The reveal link goes to the partner's own dispatch system so it can
         // reach the assistant — never back to the traveler's browser.
         ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
@@ -1399,7 +1447,8 @@ export const routes: Record<string, Handler> = {
       const task: ConciergeTask = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
         location: input.location, spendCapCents: input.spendCapCents, status: "in-progress",
-        provider: booked.provider, providerTaskId: booked.taskId, chargeId: charge.id, holdId: hold.id,
+        provider: booked.provider, providerTaskId: booked.taskId, assistantId,
+        assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,
         createdAt: ctx.now().toISOString(),
         ...(issuedCard
           ? { card: { id: issuedCard.id, last4: issuedCard.last4, network: issuedCard.network, expMonth: issuedCard.expMonth, expYear: issuedCard.expYear } }
@@ -1487,6 +1536,62 @@ export const routes: Record<string, Handler> = {
       t.status = "canceled";
     });
     return { task: { ...task, status: "canceled" as const } };
+  },
+
+  /**
+   * A voice message to the assistant on a specific task. Async, not a live
+   * call — see voice-messages.ts for why — so the assistant is never expected
+   * to have their hands free the instant this arrives.
+   */
+  "POST /api/concierge/tasks/:taskId/voice-messages": (ctx, p, body) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    const message = recordVoiceMessage({
+      id: newId("vm"),
+      taskId: task.id,
+      travelerId: me,
+      sender: "traveler",
+      audioBase64: String(body?.audioBase64 ?? ""),
+      mimeType: String(body?.mimeType ?? ""),
+      durationSeconds: Number(body?.durationSeconds),
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.voiceMessages.push(message));
+    // The recording itself is never worth logging or echoing back at length —
+    // only what a caller needs to keep its own thread in order.
+    return { id: message.id, createdAt: message.createdAt };
+  },
+
+  "GET /api/concierge/tasks/:taskId/voice-messages": (ctx, p) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    return { messages: voiceMessagesFor(ctx.store.data.voiceMessages, task.id) };
+  },
+
+  /**
+   * Where an assistant's reply arrives — the partner network calls this, we
+   * never poll them for it. Keyed by their own task id, since that is the
+   * only id they have; matched back to our traveler and our task before the
+   * message is stored anywhere a traveler could read it.
+   */
+  "POST /api/concierge/webhooks/voice-message": (ctx, _p, body) => {
+    requirePartnerNetwork(ctx);
+    const providerTaskId = String(body?.providerTaskId ?? "");
+    const task = ctx.store.data.conciergeTasks.find((t) => t.providerTaskId === providerTaskId);
+    if (!task) throw notFound("Task");
+
+    const message = recordVoiceMessage({
+      id: newId("vm"),
+      taskId: task.id,
+      travelerId: task.travelerId,
+      sender: "assistant",
+      audioBase64: String(body?.audioBase64 ?? ""),
+      mimeType: String(body?.mimeType ?? ""),
+      durationSeconds: Number(body?.durationSeconds),
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.voiceMessages.push(message));
+    return { id: message.id, received: true };
   },
 
   /** Records that a ride was taken instead of driving; the booking happens in

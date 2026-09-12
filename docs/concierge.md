@@ -120,6 +120,66 @@ cap when none is given, rather than inventing a lower number. See
 `docs/billing.md`'s "not wired yet" section for the same honesty pattern
 applied to store receipts.
 
+## Browsing the roster, and picking someone
+
+`GET /api/concierge/assistants?category=&lat=&lng=` returns the partner
+network's roster for a category near a location (`ConciergePort.listAssistants`
+in `fulfillment.ts`) — a subscriber can pick a specific person instead of
+leaving assignment to the network's own dispatch. Each profile carries
+`maxConcurrentCustomers` (bounded 1-3 — `ASSISTANT_MIN_CAPACITY`/
+`ASSISTANT_MAX_CAPACITY` in `concierge.ts`) and `currentCustomers`, so the UI
+can show who's actually available rather than a name with no context.
+
+That capacity number answers the "how many customers is an assistant
+comfortable handling" question directly, without Safehubby running its own
+hiring intake to collect it: it's the assistant's own stated comfort level,
+reported to and enforced by the partner network when they joined it, the same
+way their identity and background check are the partner's, not ours. Every
+tier gets the same roster and the same bounds — no cheaper, more restricted
+version of "pick your person" for a lower plan.
+
+An empty roster (`assistants: []`) is a normal, expected answer, not an
+error — nothing here ever invents a candidate because the network had none to
+show or wasn't reachable.
+
+## Voice messages: async, not a live call
+
+Once a task is booked, `AssistantModal` on the web opens into a voice-message
+thread for it (`packages/core/src/voice-messages.ts`,
+`POST`/`GET /api/concierge/tasks/:id/voice-messages`). Deliberately not a live
+call:
+
+- A live call needs a telephony provider (Twilio Voice or similar) in the
+  loop, real-time, with its own infrastructure and its own outage modes.
+- An assistant mid-task may not have hands free to answer a ringing call; a
+  clip waits.
+- The same store-and-forward shape everything else in this codebase already
+  uses (a message row in the same document store) fits a voice clip better
+  than it fits a call.
+
+Clips are capped at `MAX_VOICE_MESSAGE_SECONDS` (60s) and roughly
+`MAX_VOICE_MESSAGE_BYTES` (1.5MB decoded), enforced both client-side (the
+recorder auto-stops) and server-side (`recordVoiceMessage` throws past
+either). **This prototype stores the clip itself, base64-encoded, inline in
+the same JSON document as everything else** — deliberately, to keep the
+feature this small, but it is a real scaling limit stated plainly rather than
+glossed over (see `SECURITY.md`). A real deployment should push clips to
+object storage (S3, R2, …) and store a URL here instead; nothing about the
+validation or the domain rules changes when it does.
+
+**The traveler's side of the thread is fully wired; the assistant's side is
+not, yet.** `POST /api/concierge/tasks/:taskId/voice-messages` is a normal,
+session-authenticated route a traveler calls to send a clip. An assistant's
+reply has nowhere else to originate from but the partner network's own
+system, so it arrives instead through
+`POST /api/concierge/webhooks/voice-message` — the one inbound route in this
+whole codebase, everything else here only calls out to a provider, never the
+reverse. It's gated by `requirePartnerNetwork`, which checks an
+`x-concierge-key` header against `CONCIERGE_API_KEY` — the same secret the
+outbound adapter already authenticates with, reused in both directions for
+now. A real deployment should give the partner network its own, separately
+rotatable secret rather than share the one the outbound calls use.
+
 ## Where it's gated, and what it costs
 
 `personal-concierge` is on `BASIC_FEATURES` (`billing.ts`) — every paid tier,

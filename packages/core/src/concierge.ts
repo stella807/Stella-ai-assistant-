@@ -19,6 +19,14 @@
  * money — so the cap the subscriber sets before dispatch is a promise, not an
  * estimate. It is held exactly, via `authorizeExactHold` in payment.ts, never
  * padded the way a ride fare's genuine uncertainty pads a normal hold.
+ *
+ * A subscriber can browse the partner network's roster (`AssistantProfile`)
+ * and request a specific person rather than leave assignment entirely to the
+ * network — a real staffing agency can expose that without Safehubby taking
+ * on any of the vetting or employment relationship itself. Each profile's
+ * capacity (1-3 customers at once) is the assistant's own stated comfort
+ * level, reported to and enforced by the partner network, not a number
+ * Safehubby sets or checks.
  */
 
 export type ConciergeCategory =
@@ -118,6 +126,12 @@ export interface ConciergeTask {
   provider: string;
   /** The partner network's own id for this task, for a later cancel/status call. */
   providerTaskId?: string;
+  /** Which assistant this was requested for, when the subscriber picked one
+   *  from the roster rather than leaving assignment to the network. */
+  assistantId?: string;
+  /** Their display name, from the partner network's own booking confirmation
+   *  — kept so a reopened task can show who it is without a second lookup. */
+  assistantName?: string;
   chargeId: string;
   holdId: string;
   createdAt: string;
@@ -129,4 +143,43 @@ export interface ConciergeTask {
    *  so a cancel can kill the card; it is not a card number.
    *  See `CardIssuingPort` in fulfillment.ts. */
   card?: { id: string; last4: string; network: string; expMonth: number; expYear: number };
+}
+
+/**
+ * A specific assistant from the partner network's roster, browsable before
+ * booking rather than left entirely to their dispatch. Staffing, vetting and
+ * this capacity number are still the partner's own decisions, not
+ * Safehubby's — the same "booking layer, not an employer" boundary the module
+ * doc above draws. `maxConcurrentCustomers` is what the assistant told the
+ * partner network they are comfortable handling at once when they joined it;
+ * Safehubby just displays it and never overrides it.
+ */
+export const ASSISTANT_MIN_CAPACITY = 1;
+export const ASSISTANT_MAX_CAPACITY = 3;
+
+export interface AssistantProfile {
+  id: string;
+  name: string;
+  bio?: string;
+  photoUrl?: string;
+  /** Task types this assistant takes. A profile with none for the requested
+   *  category should not be offered for it. */
+  categories: ConciergeCategory[];
+  /** How many customers they are comfortable handling at once — bounded
+   *  1-3, see ASSISTANT_MIN_CAPACITY/ASSISTANT_MAX_CAPACITY. */
+  maxConcurrentCustomers: number;
+  /** How many they are currently handling, per the partner network. */
+  currentCustomers: number;
+}
+
+export function isAssistantAvailable(profile: AssistantProfile): boolean {
+  return profile.currentCustomers < profile.maxConcurrentCustomers;
+}
+
+/** What to show under a name in the roster — never just a raw number with no
+ *  context, since "2" alone answers nothing. */
+export function describeAssistantCapacity(profile: AssistantProfile): string {
+  if (!isAssistantAvailable(profile)) return "At capacity right now";
+  const left = profile.maxConcurrentCustomers - profile.currentCustomers;
+  return `Comfortable with up to ${profile.maxConcurrentCustomers} at once — room for ${left} more`;
 }

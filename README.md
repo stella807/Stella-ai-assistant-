@@ -134,7 +134,13 @@ bank debit, which is too slow to fund one. On every paid tier, not just
 Family — Premium included — and every paid tier's price reflects that: not for
 a salary, but for the same category of standing cost that funds secure
 transport — the partner-network retainer and keeping the card-issuing balance
-funded. See `docs/concierge.md`.
+funded. Browse the partner network's roster and pick a specific assistant
+rather than leave it to their dispatch — each profile shows how many
+customers they're comfortable handling at once (1-3, their own stated
+comfort level, not a number Safehubby sets). Once booked, an in-app voice
+message thread with that assistant opens in a popup — async clips, not a
+live call, so an assistant mid-task is never expected to have a hand free
+for a ringing phone. See `docs/concierge.md`.
 
 **Medical escalation.** A red-flag checklist for alcohol poisoning and head
 injury, the correct emergency number for wherever you are, and a script for what

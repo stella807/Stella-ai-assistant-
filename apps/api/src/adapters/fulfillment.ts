@@ -1,7 +1,7 @@
 import type {
-  AutomaticDeliveryPort, AutomaticRidePort, BookedConciergeTask, BookedRide, ConciergePort,
-  ConciergeQuote, ConciergeTaskRequest, DeliveryRequestInput, DispatchedDelivery, RideRequestInput,
-  SecureTransportPort, SecureTransportQuote,
+  AssistantListing, AutomaticDeliveryPort, AutomaticRidePort, BookedConciergeTask, BookedRide,
+  ConciergePort, ConciergeQuote, ConciergeTaskRequest, DeliveryRequestInput, DispatchedDelivery,
+  RideRequestInput, SecureTransportPort, SecureTransportQuote,
 } from "@safehubby/core";
 import { SECURE_TRANSPORT_DISCLOSURES, statusFor } from "@safehubby/core";
 import { ridesFor, pharmacySearch } from "@safehubby/core";
@@ -353,6 +353,36 @@ export const concierge: ConciergePort = {
     }
   },
 
+  /**
+   * The roster, so a subscriber can pick a specific person rather than leave
+   * assignment to the network. `max_concurrent_customers` is that assistant's
+   * own stated comfort level, collected by the partner network when they
+   * joined it — not something Safehubby asks or sets; see concierge.ts.
+   */
+  async listAssistants(input): Promise<AssistantListing[]> {
+    if (!CONCIERGE_BASE || !CONCIERGE_KEY) return [];
+    try {
+      const url = `${CONCIERGE_BASE.replace(/\/$/, "")}/assistants`
+        + `?category=${encodeURIComponent(input.category)}&lat=${input.location.lat}&lng=${input.location.lng}`;
+      const res = await fetch(url, { headers: { authorization: `Bearer ${CONCIERGE_KEY}` } });
+      if (!res.ok) return [];
+      const data = (await res.json()) as { assistants?: any[] };
+      return (data.assistants ?? []).map((a) => ({
+        id: String(a.id ?? ""),
+        name: String(a.name ?? "Assistant"),
+        bio: a.bio ?? undefined,
+        photoUrl: a.photo_url ?? undefined,
+        categories: Array.isArray(a.categories) ? a.categories.map(String) : [],
+        maxConcurrentCustomers: Number(a.max_concurrent_customers ?? 1),
+        currentCustomers: Number(a.current_customers ?? 0),
+      }));
+    } catch {
+      // Same as an empty roster from the network's own point of view — never
+      // invent candidates because the request failed.
+      return [];
+    }
+  },
+
   async quote(input: ConciergeTaskRequest): Promise<ConciergeQuote | null> {
     if (!CONCIERGE_BASE || !CONCIERGE_KEY) return null;
     if (!(await this.coversLocation(input.location))) return null;
@@ -360,7 +390,11 @@ export const concierge: ConciergePort = {
     const data = await postJson(
       `${CONCIERGE_BASE.replace(/\/$/, "")}/quotes`,
       { authorization: `Bearer ${CONCIERGE_KEY}` },
-      { category: input.category, location: { latitude: input.location.lat, longitude: input.location.lng } },
+      {
+        category: input.category,
+        location: { latitude: input.location.lat, longitude: input.location.lng },
+        assistant_id: input.assistantId,
+      },
     );
 
     return {
@@ -385,6 +419,10 @@ export const concierge: ConciergePort = {
         location: { latitude: input.location.lat, longitude: input.location.lng, label: input.location.label },
         spend_cap_cents: input.spendCapCents,
         requester: { name: input.requesterName, phone: input.requesterPhone },
+        assistant_id: input.assistantId,
+        // The card is for the assistant to spend from, not for the partner
+        // network to hold — passed along so their dispatch can hand it off.
+        card: input.card ? { last4: input.card.last4, reveal_url: input.card.revealUrl } : undefined,
       },
     );
 
