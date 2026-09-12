@@ -288,6 +288,53 @@ export interface ChargeProcessorPort {
   verifyMethod(token: string): Promise<VerifiedMethod>;
 }
 
+/**
+ * The Elite luxury desk, reached through a partner that already holds the
+ * supplier relationships — operator agreements for charter, consortium rates
+ * for hotels, vetted practices for medical.
+ *
+ * Shaped like `ConciergePort` and `SecureTransportPort`, and for the same
+ * reason: Safehubby is a booking layer on somebody else's already-licensed,
+ * already-contracted network, not the principal. Building its own charter
+ * desk would mean its own operator agreements, its own
+ * `14 CFR Part 295` exposure as the broker of record, and its own vetting of
+ * physicians — three businesses Safehubby is not in.
+ *
+ * Provider-agnostic on purpose. The partner is a configuration value
+ * (`ELITE_DESK_PROVIDER`), not a hardcoded dependency, exactly as
+ * `CONCIERGE_PROVIDER` is — so the first partner can be replaced without
+ * touching this contract.
+ */
+export interface EliteQuoteRequest {
+  /** An `EliteServiceId` — kept loose here so this port does not depend on
+   *  the domain module, the same way `ConciergePort.category` is a string. */
+  serviceId: string;
+  brief: string;
+  requesterName: string;
+}
+
+export interface EliteQuote {
+  provider: string;
+  /** The supplier's own price, which the member pays the supplier directly. */
+  supplierQuoteCents: number;
+  currency: string;
+  /** The certificated air carrier operating the flight. Required before a
+   *  member agrees to a charter — see `JET_TRAVEL_DISCLOSURES`. Absent for
+   *  everything that is not a flight. */
+  operatorName?: string;
+  /** What the partner will actually do, in their words, for the member to read. */
+  description: string;
+}
+
+export interface EliteDeskPort {
+  readonly status: ProviderStatus;
+  /** Whether the partner covers this service at all. A partner strong on
+   *  aviation may hold no medical network, and offering one anyway would be
+   *  the same lie as claiming a booking we cannot make. */
+  offers(serviceId: string): Promise<boolean>;
+  quote(input: EliteQuoteRequest): Promise<EliteQuote | null>;
+}
+
 export function statusFor(id: string, name: string, configured: boolean, requires: string): ProviderStatus {
   return { id, name, mode: configured ? "automatic" : "handoff", requires };
 }

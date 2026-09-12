@@ -26,6 +26,12 @@ import type { Iso8601 } from "./types.ts";
  * That alignment is the point: Safehubby is paid the same percentage whether
  * it finds a $60,000 charter or a $40,000 one, so hunting the better deal
  * costs it nothing.
+ *
+ * One caveat on those rates. The desk is brokered through a partner that
+ * already holds the supplier relationships (`EliteDeskPort`), so when the
+ * partner earns the supplier commission, Safehubby's share is whatever the
+ * partner agreement says — not the number here. These rates describe what the
+ * service is worth against the market; the split is contractual.
  */
 
 export type EliteServiceId =

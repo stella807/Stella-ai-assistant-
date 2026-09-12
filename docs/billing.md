@@ -57,23 +57,46 @@ note. It lives in `PLANS` rather than a branch so it stays compiled, typed and
 tested meanwhile — the same "ships dark rather than being deleted and
 rewritten" reasoning party supply already follows.
 
-**$249/month, or $2,499/year.** Priced against what the market actually
-charges:
+**$149/month, or $1,499/year.** Priced against what the market actually
+charges (figures below are from market research, not assumptions):
 
-| Competitor | Annual |
+| Model | Rate |
 |---|---|
-| Quintessentially, entry ("Devoted") | ~$2,500–$3,800 |
-| Quintessentially, Elite | ~$19,000–$31,700 |
-| Established luxury concierge firms | $10,000–$50,000 |
-| Ultra-premium engagements | $50,000–$100,000+ |
-| **Safehubby Elite** | **$2,499** |
+| Pay-per-request | $50–$300+ per task |
+| Hourly | $30–$125/hr ($75–$250 at premium firms) |
+| Monthly retainer | $1,000–$5,000+/mo, for a dedicated 10–40+ hrs |
+| Annual membership | $5,000–$100,000+/yr |
+| Quintessentially specifically | **$12,000–$44,000/yr** |
+| Concierge medicine | $2,000–$5,000/yr; $5,000–$10,000+ boutique |
+| Amex-style card concierge | **Free** — you pay only the retail cost of what they buy |
+| **Amalfi Jets "Reserve"** | **$99/mo** — jets plus hotels, dining, ground transport |
+| **Safehubby Elite** | **$1,499/yr ($149/mo)** |
 
-So Elite undercuts even the cheapest tier of the best-known name in the
-category while carrying the high-end catalogue. That is only sustainable
-because **the luxury desk earns on the supplier side, not from the
-membership**: a 5–8% commission on one $50,000 jet charter is $2,500–$4,000,
-more than a year of membership. The subscription buys access and the
-lifestyle manager's time; the bookings pay for the desk.
+Two of those rows decide the price:
+
+**The card-concierge row is the model, confirmed.** Amex Platinum's desk
+charges nothing for the service and the member pays only the retail cost of
+what is bought on their behalf. That is exactly the commission-only design
+below — it is how the biggest concierge desk in the world already works, not
+an invention.
+
+**The Amalfi row is the constraint.** A member can buy Amalfi's own Reserve
+membership for $99/month and get jets, hotels, dining and ground transport
+directly. So Elite cannot be priced as though it were the only way in. It is
+priced instead against buying the two separately — Family at $69.99 plus
+Amalfi Reserve at $99 is $169/month — so **$149/month undercuts assembling it
+yourself**, and the safety product is what Amalfi does not have.
+
+At $1,499/year Elite is an order of magnitude under Quintessentially's
+$12,000–$44,000, and under a single month of a $1,000–$5,000 retainer
+multiplied out. That is only sustainable because **the desk earns on the
+supplier side, not from the membership**: an 8% commission on one $50,000 jet
+charter is $4,000, nearly three years of membership. The subscription buys
+access; the bookings pay for the desk.
+
+**What Elite is not.** A $1,000–$5,000/month retainer buys a dedicated 10–40+
+hours. Elite's `lifestyle-manager` is access to a desk, not a reserved block
+of somebody's month, and the copy should never imply otherwise.
 
 ### What's in it
 
@@ -160,12 +183,34 @@ forgotten in either direction.
    to price a jet without naming the operating carrier. **Still needs a
    lawyer's read before launch** — the disclosures are written from the
    regulation, not reviewed by counsel.
-3. **Commission needs relationships that don't exist.** Hotel commission needs
-   a host agency or consortium; jet commission needs operator agreements; a
-   concierge-doctor network needs vetted practices, per state. Until they
-   exist every one of these earns $0 and there is nobody to fulfil a booking,
-   which is the real reason the flag is off rather than a release-date
-   preference.
+3. **Commission needs relationships — so the desk borrows somebody else's.**
+   `EliteDeskPort` (`apps/api/src/adapters/elite-desk.ts`) brokers the whole
+   catalogue through a partner that already holds operator agreements,
+   consortium hotel rates, and vetted practices. **Amalfi Jets is the intended
+   first partner** — a tech-enabled charter broker whose own concierge
+   programme already covers aircraft, hotels, dining and ground transport,
+   which is most of this catalogue in one place. It is configuration
+   (`ELITE_DESK_PROVIDER`), not a dependency, exactly as `CONCIERGE_PROVIDER`
+   is.
+
+   This also *reduces* regulatory exposure rather than adding it: a partner
+   who brokers charter is the air charter broker of record and carries the
+   Part 295 duties. Safehubby refers into it. Worth confirming with counsel
+   which duties still attach to a referrer, but referring is a much smaller
+   posture than broking.
+
+   Three things about this remain unverified and are marked as such in the
+   adapter: whether Amalfi offers a partner or referral API at all (they
+   publish a consumer app, not a documented reseller integration), whether any
+   single partner covers medical as well as travel (`offers()` exists so the
+   app can decline what a partner does not hold), and what Safehubby's share
+   of the commission actually is — if the partner earns the supplier
+   commission, the split is contractual, not the researched market rate.
+
+   Until `ELITE_DESK_API_BASE`/`_KEY` are set the adapter reports `handoff`,
+   every booking stands as `requested` for the desk to take by hand, and the
+   response says so. It never invents a price, which at these amounts would be
+   the most expensive lie in the app.
 4. **Medical and aviation both want counsel, not just code.** Fee-splitting
    rules vary by state, corporate practice of medicine restricts who may
    employ clinicians, and HIPAA attaches the moment Safehubby handles health

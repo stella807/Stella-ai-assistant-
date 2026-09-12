@@ -51,6 +51,7 @@ import {
 import { revolutCards } from "./adapters/cards.ts";
 import { revolutPayouts } from "./adapters/payouts.ts";
 import { stripeProcessor } from "./adapters/stripe.ts";
+import { eliteDesk } from "./adapters/elite-desk.ts";
 import { paypalProcessor } from "./adapters/paypal.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
@@ -2810,6 +2811,9 @@ export const routes: Record<string, Handler> = {
     requireElite(ctx);
     const plan = planOf(ctx, me);
     return {
+      // The partner behind the desk, stated plainly: without one, every
+      // request below is taken by hand rather than quoted back.
+      desk: eliteDesk.status,
       services: ELITE_SERVICES
         .filter((s) => hasFeature(plan, s.feature))
         .map((s) => ({
@@ -2829,7 +2833,7 @@ export const routes: Record<string, Handler> = {
    * `EliteBooking` has nowhere to put one. A quote comes back with the
    * supplier's own price, and the member pays the supplier.
    */
-  "POST /api/elite/bookings": (ctx, _p, body) => {
+  "POST /api/elite/bookings": async (ctx, _p, body) => {
     const me = actor(ctx);
     requireElite(ctx);
     const serviceId = body?.serviceId as EliteServiceId;
@@ -2858,7 +2862,45 @@ export const routes: Record<string, Handler> = {
       status: "requested", createdAt: ctx.now().toISOString(),
     };
     ctx.store.update((db) => void db.eliteBookings.push(booking));
-    return { booking, disclosures: disclosuresFor(serviceId) };
+
+    // With a partner configured, the quote comes straight back from whoever
+    // actually holds the supplier relationships. Without one, the request
+    // stands as `requested` for the desk to take by hand — never a quote
+    // Safehubby made up, which at these amounts would be the most expensive
+    // lie in the app.
+    let quoted: EliteBooking = booking;
+    let note: string | null = null;
+    if (isAutomatic(eliteDesk.status) && await eliteDesk.offers(serviceId)) {
+      try {
+        const quote = await eliteDesk.quote({
+          serviceId, brief: booking.brief, requesterName: nameOf(ctx, me),
+        });
+        if (quote) {
+          const commissionCents = commissionCentsFor(serviceId, quote.supplierQuoteCents);
+          ctx.store.update((db) => {
+            const b = db.eliteBookings.find((x) => x.id === booking.id)!;
+            b.status = "quoted";
+            b.supplierQuoteCents = quote.supplierQuoteCents;
+            b.commissionCents = commissionCents;
+            if (quote.operatorName) b.operatorName = quote.operatorName;
+            b.quotedAt = ctx.now().toISOString();
+          });
+          quoted = ctx.store.data.eliteBookings.find((b) => b.id === booking.id)!;
+        } else {
+          note = `${eliteDesk.status.name} did not quote this one. The desk will come back to you.`;
+        }
+      } catch {
+        // A partner outage is not the member's problem: the request is
+        // already recorded, so it degrades to the by-hand path.
+        note = "The desk has your request and will come back to you.";
+      }
+    } else {
+      note = isAutomatic(eliteDesk.status)
+        ? `${eliteDesk.status.name} does not cover this one. The desk will come back to you.`
+        : "The desk has your request and will come back to you with a price.";
+    }
+
+    return { booking: quoted, disclosures: disclosuresFor(serviceId), note };
   },
 
   "GET /api/elite/bookings": (ctx) => {

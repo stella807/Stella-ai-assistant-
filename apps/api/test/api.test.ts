@@ -2475,6 +2475,24 @@ describe("the Elite luxury desk", () => {
     }
   });
 
+  it("says plainly that no partner desk is connected, rather than quoting a price it made up", async () => {
+    await elite();
+    try {
+      const services = await call("GET", "/api/elite/services", undefined, sam);
+      expect(services.json.desk.mode).toBe("handoff");
+      expect(services.json.desk.requires).toMatch(/amalfi/i);
+
+      const res = await call("POST", "/api/elite/bookings", {
+        serviceId: "jet-travel", brief: "Austin to Aspen Friday",
+      }, sam);
+      expect(res.json.booking.status).toBe("requested");
+      expect(res.json.booking.supplierQuoteCents).toBeUndefined();
+      expect(res.json.note).toMatch(/come back to you with a price/i);
+    } finally {
+      resetFlags();
+    }
+  });
+
   it("shows the Part 295 disclosures with a jet booking", async () => {
     await elite();
     try {

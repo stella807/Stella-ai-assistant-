@@ -270,8 +270,8 @@ export const PLANS: Plan[] = [
   {
     id: "elite",
     name: "Elite",
-    monthlyCents: 24900,
-    annualCents: 249900,
+    monthlyCents: 14900,
+    annualCents: 149900,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     blurb: "Everything in Family, plus a dedicated lifestyle manager and the luxury desk: jet travel, yacht charter, villa and property sourcing, full event production, premium hospitality, and access to a concierge doctor.",
@@ -284,20 +284,22 @@ export const PLANS: Plan[] = [
  * supply ships dark (see features.ts). It is listed in `PLANS` rather than
  * kept in a branch so it stays compiled, typed and tested meanwhile.
  *
- * **Why $249/month.** Researched against what the market actually charges
- * (docs/billing.md has the sources): Quintessentially's entry tier runs
- * roughly $2,500-$3,800/year and its Elite tier $19,000-$31,700; established
- * luxury concierge firms charge $10,000-$50,000/year, and ultra-premium
- * engagements start around $50,000. At $2,499/year Elite undercuts even the
- * cheapest of those while carrying the high-end catalogue.
+ * **Why $149/month.** Two researched numbers set it (docs/billing.md has the
+ * rest): Quintessentially charges $12,000-$44,000/year, so the ceiling is
+ * nowhere near binding — and the partner whose network the luxury desk
+ * borrows, Amalfi Jets, sells its *own* membership at $99/month covering
+ * jets, hotels, dining and ground transport. A member can always buy that
+ * directly, so Elite cannot be priced as if it were the only door.
  *
- * That is only sustainable because the luxury desk earns on the supplier
- * side, not from the membership: a 5-8% commission on one $50,000 jet
- * charter is $2,500-$4,000, more than a year of membership. The subscription
- * buys access and the lifestyle manager's time; the bookings are what pay
- * for the desk. Pricing the membership like a retainer instead would mean
- * competing with Quintessentially on its own terms, at a tenth of its
- * supplier network.
+ * It is priced against assembling the same thing yourself instead: Family at
+ * $69.99 plus a $99 partner membership is $169/month, so $149 undercuts doing
+ * it by hand, and the safety product is the half the partner does not have.
+ *
+ * Sustainable because the desk earns supplier-side rather than from the
+ * membership — an 8% commission on one $50,000 charter is $4,000, nearly
+ * three years of membership. What Elite is *not* is a retainer: $1,000-$5,000
+ * a month buys a dedicated 10-40+ hours somewhere, and `lifestyle-manager`
+ * is access to a desk, not a reserved block of anyone's month.
  */
 export function isPlanReleased(id: PlanId): boolean {
   return id === "elite" ? isEnabled("elite-tier") : true;

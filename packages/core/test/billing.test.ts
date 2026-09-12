@@ -99,11 +99,18 @@ describe("plans", () => {
     expect(isPlanReleased("elite")).toBe(false);
   });
 
-  it("prices Elite under the cheapest researched luxury-concierge membership", () => {
-    // Quintessentially's entry tier is roughly $2,500+/yr; established
-    // luxury firms start around $10,000/yr. See docs/billing.md.
-    expect(findPlan("elite").annualCents).toBeLessThan(250000);
-    expect(findPlan("elite").monthlyCents).toBeGreaterThan(findPlan("family").monthlyCents);
+  it("prices Elite under assembling the same thing from separate memberships", () => {
+    // The binding competitor isn't Quintessentially at $12,000-$44,000/yr —
+    // it's the partner's own $99/mo membership, which a member can just buy.
+    // Family ($69.99) + a $99 partner membership is $169/mo; Elite has to
+    // beat that or there's no reason to take it. See docs/billing.md.
+    const PARTNER_OWN_MEMBERSHIP_CENTS = 9900;
+    const elite = findPlan("elite");
+    expect(elite.monthlyCents).toBeLessThan(findPlan("family").monthlyCents + PARTNER_OWN_MEMBERSHIP_CENTS);
+    // Still a step up from Family, or the ladder makes no sense.
+    expect(elite.monthlyCents).toBeGreaterThan(findPlan("family").monthlyCents);
+    // And an order of magnitude under Quintessentially's floor.
+    expect(elite.annualCents).toBeLessThan(1_200_000);
   });
 
   it("makes Family the same features as Premium Plus, differing only in seats", () => {
