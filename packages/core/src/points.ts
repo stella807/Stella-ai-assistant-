@@ -13,6 +13,11 @@ export const POINT_RULES = {
   bookedRideInsteadOfDriving: 100,
   homeSafe: 50,
   completedNightUnderLimit: 40,
+  // Growth rather than safety, and the one entry here that isn't about the
+  // night itself. It stays inside the rule above that matters: it pays for
+  // bringing someone onto the app, never for anything they drink once
+  // they're on it, and it must never be restructured into the latter.
+  referredAFriend: 200,
 } as const;
 
 export type PointReason = keyof typeof POINT_RULES;

@@ -5,7 +5,7 @@ import type {
   DriverApplication, GameRound, NightOut, PaymentMethodOnFile, PendingOrder, PreAuthorization, PushDevice,
   ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
-import type { EliteBooking, PlanId, PointEntry, Redemption } from "@safehubby/core";
+import type { EliteBooking, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 export interface Traveler {
   id: string;
@@ -17,6 +17,8 @@ export interface Traveler {
   planId: PlanId;
   homeLabel: string;
   emergencyContacts: { name: string; phone: string }[];
+  /** Their own code to share. Minted at signup — see promotions.ts. */
+  referralCode?: string;
 }
 
 export interface Session {
@@ -92,6 +94,7 @@ export interface Db {
   subscriptions: Record<string, Subscription>;
   conciergeTasks: ConciergeTask[];
   eliteBookings: EliteBooking[];
+  referrals: Referral[];
   voiceMessages: VoiceMessage[];
   /** The employee portal's own sign-in — see AssistantCredential/AssistantSession
    *  above. Provisioned the first time an assistant is booked; see routes.ts
@@ -113,7 +116,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], eliteBookings: [], voiceMessages: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], eliteBookings: [], referrals: [], voiceMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], pushDevices: [],

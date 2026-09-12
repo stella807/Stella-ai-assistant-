@@ -86,6 +86,26 @@ const EN = {
   "auth.home": "Home (what your ride home is called)",
   "auth.homePlaceholder": "142 Rowan St",
   "auth.privacy": "Your location and drink history are yours. They are never sold, and never used for ad targeting.",
+  "auth.referral": "Referral code (optional)",
+  "auth.referralHint": "Got a code from a friend? Enter it and they get credit.",
+
+  "share.heading": "Invite a friend",
+  "share.body": "Safehubby works better when the people you go out with are on it too — a check-in needs someone at the other end.",
+  "share.yourCode": "Your referral code",
+  "share.shareCta": "Share",
+  "share.copyCta": "Copy referral",
+  "share.copied": "Copied",
+  "share.copyFailed": "Couldn't copy. Select the code above instead.",
+  "share.joinedOne": "1 person has joined with your code.",
+  "share.joinedMany": "{n} people have joined with your code.",
+  "share.nav": "Invite",
+
+  "launch.heading": "We're launching",
+  "launch.soon": "Launching soon",
+  "launch.noteOpen": "Sign up before {date} and take {pct} off your first year.",
+  "launch.noteUpcoming": "Opens {date}: {pct} off your first year for everyone who joins in the window.",
+  "launch.noteClosed": "The launch-party discount has closed.",
+  "launch.invitedBy": "You were invited with code {code} — it's already filled in on the sign-up form.",
 } as const;
 
 export type TranslationKey = keyof typeof EN;
@@ -162,6 +182,26 @@ const ES: Record<TranslationKey, string> = {
   "auth.home": "Casa (cómo se llama tu viaje a casa)",
   "auth.homePlaceholder": "Calle Rowan 142",
   "auth.privacy": "Tu ubicación e historial de bebidas son tuyos. Nunca se venden, y nunca se usan para publicidad dirigida.",
+  "auth.referral": "Código de referencia (opcional)",
+  "auth.referralHint": "¿Tienes un código de un amigo? Ingrésalo y recibirá el crédito.",
+
+  "share.heading": "Invita a un amigo",
+  "share.body": "Safehubby funciona mejor cuando las personas con quienes sales también lo tienen — un registro necesita a alguien del otro lado.",
+  "share.yourCode": "Tu código de referencia",
+  "share.shareCta": "Compartir",
+  "share.copyCta": "Copiar referencia",
+  "share.copied": "Copiado",
+  "share.copyFailed": "No se pudo copiar. Selecciona el código de arriba.",
+  "share.joinedOne": "1 persona se ha unido con tu código.",
+  "share.joinedMany": "{n} personas se han unido con tu código.",
+  "share.nav": "Invitar",
+
+  "launch.heading": "Estamos lanzando",
+  "launch.soon": "Lanzamiento pronto",
+  "launch.noteOpen": "Regístrate antes del {date} y obtén {pct} de descuento en tu primer año.",
+  "launch.noteUpcoming": "Comienza el {date}: {pct} de descuento en el primer año para todos los que se unan dentro del plazo.",
+  "launch.noteClosed": "El descuento de lanzamiento ya cerró.",
+  "launch.invitedBy": "Te invitaron con el código {code} — ya está completado en el formulario de registro.",
 };
 
 const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES };

@@ -340,6 +340,50 @@ Two things renew, and they agree:
   billing question, so a trial that ended an hour ago is over the moment the
   user opens the screen rather than whenever a timer next fires.
 
+## The launch party
+
+An early-sign-up discount, run from `packages/core/src/promotions.ts`.
+
+- **The window** is `LAUNCH_WINDOW_START`..`LAUNCH_WINDOW_END`. Sign up inside
+  it and the discount applies.
+- **The rate** is `LAUNCH_DISCOUNT_RATE` (3%), one constant, because this is
+  the number most likely to change once there is conversion data.
+- **It lasts one year**, not forever. `LAUNCH_DISCOUNT_YEARS` bounds it. "Early
+  sign-ups get a discount" reads most naturally as a founding-member rate
+  locked for life, and that is the expensive version: a permanent liability on
+  every renewal of a cohort that will never be re-priced, bought with a
+  one-time conversion bump.
+- **Eligibility is derived, not stored.** `launchDiscountApplies` reads
+  `subscription.startedAt`, which already exists, so there is no schema to
+  migrate and no stored flag that can disagree with when someone actually
+  joined.
+- **It is applied at renewal only**, in `renewDueSubscriptions`. Signup is a
+  free trial and charges nothing, so renewal is the only place a subscription
+  price exists to discount. `RenewalResult.discountedCents` reports the cost of
+  the promotion so it is a number somebody can look at.
+- The discount **rounds down** (`Math.floor`), the same direction
+  `commissionCentsFor` rounds: a rounding cent should never quietly favour the
+  house.
+
+### Does it pay for itself?
+
+A discount of rate `d` breaks even when it lifts sign-ups by `d / (1 - d)`.
+Revenue with it is `N(1 + L) × P(1 - d)`, without it `N × P`; setting those
+equal gives the formula. It is `discountBreakEvenLift` in `promotions.ts` and
+is checked against simulated revenue in `promotions.test.ts`, rather than being
+a sentence in a doc nobody can verify.
+
+At 3% that is a **3.1% lift**, which is a low bar. The risk is not the
+arithmetic — it is the size of the number. 3% of Premium is **53¢/month**, and
+the app already discounts **~15% for paying annually**, five times more. A
+price-sensitive person has already taken the bigger discount, so the launch
+rate is unlikely to be what moves them.
+
+The mechanism is therefore built to be re-priced rather than replaced: one
+constant, one bounded window, and no stored eligibility flag. The referral loop
+in the same module is the part expected to actually pay — a discount buys one
+cohort at a per-head cost, a share loop buys the next one at close to zero.
+
 ## Endpoints
 
 See `docs/api.md` for the full surface. The billing ones:
@@ -350,6 +394,8 @@ See `docs/api.md` for the full surface. The billing ones:
 | `POST /api/subscription` | Start or change a plan; records the line and picks the rail from `platform` |
 | `POST /api/subscription/cancel` | Cancel, keeping access to the end of the period |
 | `POST /api/billing/charges/:chargeId/confirm` | Settle a store-rail line against its receipt |
+| `GET /api/share` | The caller's referral code, link, invite text, and how many have joined with it |
+| `GET /api/catalog` | Public; carries the launch-party window so the signed-out landing page can show it |
 
 `platform` on `POST /api/subscription` is self-reported, and has to be: only the
 client knows whether it is the App Store build. A client that lied would be

@@ -1,5 +1,6 @@
 import {
-  effectivePlan, findPlan, isRenewalDue, recordCharge, renew, settleCharge,
+  effectivePlan, findPlan, formatPrice, isRenewalDue, launchDiscountCentsFor, recordCharge,
+  renew, settleCharge,
 } from "@safehubby/core";
 import type { Db } from "./store.ts";
 import { newId } from "./store.ts";
@@ -23,12 +24,15 @@ import { newId } from "./store.ts";
 export interface RenewalResult {
   renewed: number;
   chargedCents: number;
+  /** Given away to launch-party early sign-ups this sweep — tracked so the
+   *  cost of the promotion is a number somebody can look at, not a guess. */
+  discountedCents: number;
   /** Store-rail subscriptions past their period that only the store can renew. */
   storeRailPending: number;
 }
 
 export function renewDueSubscriptions(db: Db, now: Date): RenewalResult {
-  const result: RenewalResult = { renewed: 0, chargedCents: 0, storeRailPending: 0 };
+  const result: RenewalResult = { renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0 };
 
   for (const [travelerId, sub] of Object.entries(db.subscriptions)) {
     if (!isRenewalDue(sub, now)) continue;
@@ -43,20 +47,30 @@ export function renewDueSubscriptions(db: Db, now: Date): RenewalResult {
     result.renewed += 1;
 
     if (due) {
+      // The launch-party discount lands here, on the renewal, because that is
+      // the only place a subscription actually charges anything — signup
+      // starts a free trial. Derived from `startedAt` rather than a stored
+      // flag, so it expires on its own after LAUNCH_DISCOUNT_YEARS with
+      // nothing to sweep. See promotions.ts.
+      const discountCents = launchDiscountCentsFor(due.cents, subscription, now);
+      const chargedCents = due.cents - discountCents;
       const charge = recordCharge({
         id: newId("ch"),
         travelerId,
         kind: "subscription",
         platform: "web",
-        description: due.description,
-        amountCents: due.cents,
+        description: discountCents > 0
+          ? `${due.description} — launch-party discount ${formatPrice(discountCents)} off`
+          : due.description,
+        amountCents: chargedCents,
         now,
       });
       // No processor is wired in, so this settles immediately. When one is,
       // this is the line that becomes an await and can come back declined —
       // and `markPastDue` is what a decline should produce.
       db.charges.push(settleCharge(charge, now));
-      result.chargedCents += due.cents;
+      result.chargedCents += chargedCents;
+      result.discountedCents += discountCents;
     }
   }
 

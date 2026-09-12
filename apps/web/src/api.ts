@@ -209,12 +209,40 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return json as T;
 }
 
+/** The launch-party window, as the API reports it. Carried on the public
+ *  catalog so a signed-out visitor can be told about it. */
+export interface LaunchStatus {
+  open: boolean;
+  /** `open` is the only one that discounts anything; the other two exist so
+   *  the copy can tell "not yet" from "over" instead of calling both closed. */
+  phase: "upcoming" | "open" | "closed";
+  discountRate: number;
+  startsAt: string;
+  endsAt: string;
+  note: string;
+}
+
+export interface ShareInvite {
+  code: string;
+  url: string;
+  message: string;
+  /** How many accounts have signed up with this code so far. */
+  joined: number;
+  launch: LaunchStatus;
+}
+
 export const api = {
-  catalog: () => request<{ drinks: any[]; plans: any[]; rewards: any[] }>("GET", "/api/catalog"),
+  catalog: () => request<{ drinks: any[]; plans: any[]; rewards: any[]; launch: LaunchStatus }>("GET", "/api/catalog"),
 
   me: () => request<{ traveler: Account | null }>("GET", "/api/auth/me"),
-  signup: (input: { email: string; password: string; displayName: string; homeLabel?: string }) =>
+  signup: (input: {
+    email: string; password: string; displayName: string; homeLabel?: string;
+    /** Whoever invited them, if they arrived on a ?ref= link or typed a code.
+     *  An unknown code is ignored server-side rather than failing signup. */
+    referralCode?: string;
+  }) =>
     request<{ traveler: Account }>("POST", "/api/auth/signup", input),
+  share: () => request<ShareInvite>("GET", "/api/share"),
   login: (input: { email: string; password: string }) =>
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),

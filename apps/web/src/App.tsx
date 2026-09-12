@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
-import { api, type Account } from "./api.ts";
+import { api, type Account, type LaunchStatus } from "./api.ts";
 import { configError } from "./native/platform.ts";
 import { isEnabled } from "@safehubby/core";
 import { BillingScreen } from "./components/BillingScreen.tsx";
@@ -22,12 +22,15 @@ export function App() {
   const [role, setRole] = useState<Role>("out");
   const [drinks, setDrinks] = useState<DrinkDefinition[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
+  const [launch, setLaunch] = useState<LaunchStatus | null>(null);
   const [ready, setReady] = useState(false);
   const [offline, setOffline] = useState(false);
   const { language, setLanguage, t } = useLanguage();
 
   useEffect(() => {
-    api.catalog().then((c) => setDrinks(c.drinks)).catch(() => setOffline(true));
+    api.catalog()
+      .then((c) => { setDrinks(c.drinks); setLaunch(c.launch); })
+      .catch(() => setOffline(true));
     api.me()
       .then((r) => setAccount(r.traveler))
       .catch(() => setOffline(true))
@@ -72,7 +75,7 @@ export function App() {
       {role === "drive" ? (
         <DriveSignupScreen onBack={() => setRole("out")} />
       ) : !ready ? null : !account ? (
-        <LandingIntro onSignedIn={setAccount} onDrive={() => setRole("drive")} />
+        <LandingIntro onSignedIn={setAccount} onDrive={() => setRole("drive")} launch={launch} />
       ) : (
         <>
           <div className="tabs" role="tablist">

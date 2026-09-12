@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
-import type { Account } from "../api.ts";
+import { incomingReferralCode } from "../referral.ts";
+import { launchNote } from "../launch.ts";
+import type { Account, LaunchStatus } from "../api.ts";
 
 const HOW_IT_WORKS: TranslationKey[] = ["how.step1", "how.step2", "how.step3", "how.step4"];
 
@@ -26,19 +28,24 @@ const AUTO_ADVANCE_MS = 7000;
  * good. It also never starts at all under `prefers-reduced-motion`, which is
  * exactly what that setting is asking for.
  */
-export function LandingIntro({ onSignedIn, onDrive }: {
+export function LandingIntro({ onSignedIn, onDrive, launch }: {
   onSignedIn: (account: Account) => void;
   /** Switches the app to the public driver application — App state, not a
    *  route, so it comes in as a callback rather than a link. */
   onDrive: () => void;
+  /** Null until the catalog request lands, and while the API is unreachable.
+   *  The banner simply does not render then, rather than claiming a promotion
+   *  we have not confirmed is open. */
+  launch: LaunchStatus | null;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [engaged, setEngaged] = useState(false);
   const [startInSignup, setStartInSignup] = useState(false);
 
   const labels: TranslationKey[] = ["slide.about", "slide.signup", "slide.work"];
+  const invitedBy = incomingReferralCode();
 
   const goTo = (next: number) => {
     const el = track.current;
@@ -110,6 +117,24 @@ export function LandingIntro({ onSignedIn, onDrive }: {
         <h1 style={{ margin: 0 }}>{t("landing.heading")}</h1>
         <p className="small muted" style={{ margin: 0 }}>{t("landing.subtitle")}</p>
       </div>
+
+      {/* The launch party, and only while it is actually on: the API owns
+          whether the window is open (see launchStatus in routes.ts) so the
+          page cannot advertise a closed promotion. */}
+      {launch && launch.phase !== "closed" && (
+        <div className="banner banner-launch">
+          <strong>{launch.phase === "open" ? t("launch.heading") : t("launch.soon")}</strong>
+          <span className="tiny">{launchNote(launch, t, language)}</span>
+        </div>
+      )}
+
+      {/* Somebody arriving on a friend's link should be told the code came
+          with them, before they wonder where to type it. */}
+      {invitedBy && (
+        <p className="tiny muted" style={{ textAlign: "center", margin: 0 }}>
+          {t("launch.invitedBy").replace("{code}", invitedBy)}
+        </p>
+      )}
 
       <div className="slides" ref={track} aria-live="off">
         {/* 1 — who we are: the mission, the founder, and what the app does. */}

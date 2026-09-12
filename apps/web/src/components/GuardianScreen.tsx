@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { describeFixAge, isFixStale } from "@safehubby/core";
 import { api, type WatchView } from "../api.ts";
 import { PushArmPanel } from "./PushArmPanel.tsx";
+import { ShareCard } from "./ShareCard.tsx";
 
 /**
  * The watching side. It shows only what the current grant allows, and says so
@@ -49,6 +50,7 @@ export function GuardianScreen() {
 
   if (!view) {
     return (
+      <div className="stack">
       <section className="card stack">
         <h2>Watching someone tonight</h2>
         <p className="small muted">
@@ -65,6 +67,14 @@ export function GuardianScreen() {
         </button>
         {error && <div className="banner banner-danger">{error}</div>}
       </section>
+
+      {/* The one screen where not having a friend on the app is the actual
+          blocker, so the invite belongs here and not only in Account. The
+          referral code below is a different code from the invite code above —
+          that one is read out by the person being watched, for one night; this
+          one is yours permanently. Hence the two distinct labels. */}
+      <ShareCard />
+      </div>
     );
   }
 

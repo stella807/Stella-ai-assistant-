@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type Account } from "../api.ts";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
+import { ShareCard } from "./ShareCard.tsx";
 
 /**
  * Account settings: export and deletion.
@@ -58,6 +59,11 @@ export function AccountScreen({ account, onDeleted }: { account: Account; onDele
       </div>
 
       <PaymentMethodCard />
+
+      {/* Above the export-and-delete block on purpose: those two are the
+          leaving path, and an invite sitting under them reads as a parting
+          gift. */}
+      <ShareCard />
 
       <section className="card">
         <h3>Take your data</h3>

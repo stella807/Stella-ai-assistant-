@@ -1,6 +1,8 @@
 import {
   REWARD_CATALOG, DRINK_CATALOG,
   isPlanReleased, releasedPlans,
+  LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
+  newReferralCode, normalizeReferralCode, shareMessage,
   ELITE_SERVICES, commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService,
   validateEliteRequest,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
@@ -612,6 +614,26 @@ async function bookWithHold<T extends { fareEstimateCents: number | null }>(
 }
 
 /**
+ * The launch party, as the API reports it. One place that knows whether the
+ * window is open, so the landing page, the share sheet and the plans screen
+ * cannot disagree about it.
+ */
+function launchStatus(now: Date) {
+  const open = joinedDuringLaunch(now.toISOString());
+  // Three states, not two: before the window opens, "the discount has closed"
+  // is simply untrue, and it is the state the app is actually in for every
+  // day between shipping this and the launch date.
+  const phase = open ? "open" : now.getTime() < Date.parse(LAUNCH_WINDOW_START) ? "upcoming" : "closed";
+  const pct = `${(LAUNCH_DISCOUNT_RATE * 100).toFixed(0)}%`;
+  const note = phase === "open"
+    ? `Launch party: sign up before ${new Date(LAUNCH_WINDOW_END).toDateString()} and take ${pct} off your first year.`
+    : phase === "upcoming"
+      ? `Launch party opens ${new Date(LAUNCH_WINDOW_START).toDateString()}: ${pct} off your first year for everyone who joins in the window.`
+      : "The launch-party discount has closed.";
+  return { open, phase, discountRate: LAUNCH_DISCOUNT_RATE, startsAt: LAUNCH_WINDOW_START, endsAt: LAUNCH_WINDOW_END, note };
+}
+
+/**
  * The Elite desk is gated twice on purpose: the release flag and the plan
  * feature. The flag check comes first, so a deployment that has not shipped
  * Elite answers "no such thing" rather than "upgrade your plan".
@@ -914,11 +936,30 @@ export const routes: Record<string, Handler> = {
       planId: "free" as const,
       homeLabel: String(body?.homeLabel ?? "Home"),
       emergencyContacts: [],
+      referralCode: newReferralCode(),
     };
     const token = newSessionToken();
     const now = ctx.now();
+
+    // Who sent them, if anyone. An unknown or self-referring code is simply
+    // ignored rather than failing the signup — losing an account over a
+    // mistyped invite would be the most expensive possible validation.
+    const offered = normalizeReferralCode(String(body?.referralCode ?? ""));
+    const referrer = offered
+      ? ctx.store.data.travelers.find((t) => t.referralCode === offered)
+      : undefined;
+
     ctx.store.update((db) => {
       db.travelers.push(traveler);
+      if (referrer) {
+        db.referrals.push({
+          id: newId("ref"), referrerId: referrer.id, referredId: traveler.id,
+          code: offered, createdAt: now.toISOString(),
+        });
+        (db.points[referrer.id] ??= []).push(
+          award(newId("pt"), "referredAFriend", now, `${traveler.displayName} joined with your code`),
+        );
+      }
       db.sessions = sweepExpiredSessions(db.sessions, ctx.now());
       db.sessions.push({
         token, userId: traveler.id, createdAt: now.toISOString(),
@@ -1066,19 +1107,57 @@ export const routes: Record<string, Handler> = {
     return { removed: true };
   },
 
+  /**
+   * What to share, and the code that makes it count. The message text comes
+   * from core (`shareMessage`) so the wording is identical wherever it is
+   * sent from, and the code is minted at signup rather than on demand so the
+   * same person always shares the same one.
+   */
+  "GET /api/share": (ctx) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Account");
+
+    // Minted lazily for accounts that predate referral codes, so an older
+    // account gets one the first time it opens the share sheet rather than
+    // having nothing to share.
+    let code = traveler.referralCode;
+    if (!code) {
+      code = newReferralCode();
+      ctx.store.update((db) => {
+        const t = db.travelers.find((x) => x.id === me);
+        if (t) t.referralCode = code;
+      });
+    }
+
+    const url = `${process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.app"}/?ref=${encodeURIComponent(code)}`;
+    const joined = ctx.store.data.referrals.filter((r) => r.referrerId === me);
+    return {
+      code,
+      url,
+      message: shareMessage(code, url),
+      joined: joined.length,
+      launch: launchStatus(ctx.now()),
+    };
+  },
+
   "GET /api/auth/me": (ctx) => {
     if (!ctx.actorId) return { traveler: null };
     const t = ctx.store.data.travelers.find((x) => x.id === ctx.actorId);
     return { traveler: t ? publicTraveler(t) : null };
   },
 
-  "GET /api/catalog": () => ({
+  "GET /api/catalog": (ctx) => ({
     drinks: DRINK_CATALOG,
     // Only what has actually shipped: the Elite tier is built and held
     // behind `elite-tier` (see features.ts), so it is absent here rather
     // than listed as something a subscriber can't have.
     plans: releasedPlans(),
     rewards: REWARD_CATALOG,
+    // The one launch-party fact a signed-out visitor needs, on a request the
+    // landing page already makes. A separate public endpoint for it would be
+    // a second round trip to say one boolean.
+    launch: launchStatus(ctx.now()),
   }),
 
   "GET /api/travelers/:travelerId": (ctx, p) => {

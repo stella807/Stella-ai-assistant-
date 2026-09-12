@@ -9,6 +9,7 @@ import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runPayroll, type Ctx } from "../src/routes.ts";
 import { authorizeExactHold, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
+import { LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES } from "@safehubby/core";
 
 let server: ReturnType<typeof createApp>;
 let base: string;
@@ -2913,5 +2914,105 @@ describe("night creation refuses input that would break the estimate", () => {
 
   it("rejects a drink limit that would alert on every single drink", async () => {
     expect((await call("POST", "/api/nights", { weightKg: 82, drinkLimit: 0 }, sam)).status).toBe(400);
+  });
+});
+
+describe("the launch party and the share loop", () => {
+  it("reports the launch window on the public catalog, so a signed-out visitor can be told", async () => {
+    const catalog = (await call("GET", "/api/catalog")).json;
+    expect(catalog.launch).toMatchObject({
+      discountRate: LAUNCH_DISCOUNT_RATE, startsAt: LAUNCH_WINDOW_START, endsAt: LAUNCH_WINDOW_END,
+    });
+    expect(typeof catalog.launch.open).toBe("boolean");
+    expect(catalog.launch.note).toBeTruthy();
+  });
+
+  it("tells 'not yet' apart from 'over' — before the window, nothing has closed", async () => {
+    clock = new Date("2026-09-12T00:00:00.000Z");
+    const before = (await call("GET", "/api/catalog")).json.launch;
+    expect(before).toMatchObject({ open: false, phase: "upcoming" });
+    expect(before.note).not.toMatch(/closed/i);
+    expect(before.note).toMatch(/opens/i);
+
+    clock = new Date("2026-10-15T00:00:00.000Z");
+    const during = (await call("GET", "/api/catalog")).json.launch;
+    expect(during).toMatchObject({ open: true, phase: "open" });
+    expect(during.note).toMatch(/3% off/);
+
+    clock = new Date("2027-01-15T00:00:00.000Z");
+    const after = (await call("GET", "/api/catalog")).json.launch;
+    expect(after).toMatchObject({ open: false, phase: "closed" });
+    expect(after.note).toMatch(/closed/i);
+  });
+
+  it("gives every new account a referral code, a link and a message", async () => {
+    const share = (await call("GET", "/api/share", undefined, sam)).json;
+    expect(share.code).toMatch(/^[A-HJ-NP-Z2-9]{3}-[A-HJ-NP-Z2-9]{3}$/);
+    expect(share.url).toContain(`ref=${share.code}`);
+    expect(share.message).toContain(share.code);
+    expect(share.message).toContain(share.url);
+    expect(share.joined).toBe(0);
+  });
+
+  it("hands the same person the same code every time, so a shared link keeps working", async () => {
+    const first = (await call("GET", "/api/share", undefined, sam)).json.code;
+    const second = (await call("GET", "/api/share", undefined, sam)).json.code;
+    expect(second).toBe(first);
+  });
+
+  it("mints a code for an account that predates referrals rather than returning nothing", async () => {
+    store.update((db) => { delete db.travelers.find((t) => t.id === samId)!.referralCode; });
+    const share = (await call("GET", "/api/share", undefined, sam)).json;
+    expect(share.code).toMatch(/^[A-HJ-NP-Z2-9]{3}-[A-HJ-NP-Z2-9]{3}$/);
+    // And persisted, not regenerated per request.
+    expect(store.data.travelers.find((t) => t.id === samId)!.referralCode).toBe(share.code);
+  });
+
+  it("needs a session — a referral code is not public information", async () => {
+    expect((await call("GET", "/api/share")).status).toBe(401);
+  });
+
+  it("credits the referrer, in points and in the count", async () => {
+    const code = (await call("GET", "/api/share", undefined, sam)).json.code;
+    const before = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
+
+    const joined = await call("POST", "/api/auth/signup", {
+      email: "riley@example.com", password: "a-long-enough-passphrase", displayName: "Riley",
+      referralCode: code,
+    });
+    expect(joined.status).toBe(200);
+
+    const share = (await call("GET", "/api/share", undefined, sam)).json;
+    expect(share.joined).toBe(1);
+    const after = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
+    expect(after - before).toBe(POINT_RULES.referredAFriend);
+  });
+
+  it("forgives a lowercase, unhyphenated code — it gets read aloud across a table", async () => {
+    const code = (await call("GET", "/api/share", undefined, sam)).json.code;
+    const sloppy = code.replace("-", "").toLowerCase();
+    const joined = await call("POST", "/api/auth/signup", {
+      email: "nico@example.com", password: "a-long-enough-passphrase", displayName: "Nico",
+      referralCode: sloppy,
+    });
+    expect(joined.status).toBe(200);
+    expect((await call("GET", "/api/share", undefined, sam)).json.joined).toBe(1);
+  });
+
+  it("still creates the account when the code is wrong, rather than losing a signup to a typo", async () => {
+    const joined = await call("POST", "/api/auth/signup", {
+      email: "ada@example.com", password: "a-long-enough-passphrase", displayName: "Ada",
+      referralCode: "ZZZ-999",
+    });
+    expect(joined.status).toBe(200);
+    expect(joined.json.traveler.id).toBeTruthy();
+    expect(store.data.referrals).toHaveLength(0);
+  });
+
+  it("records nothing for a signup with no code at all", async () => {
+    await call("POST", "/api/auth/signup", {
+      email: "kit@example.com", password: "a-long-enough-passphrase", displayName: "Kit",
+    });
+    expect(store.data.referrals).toHaveLength(0);
   });
 });

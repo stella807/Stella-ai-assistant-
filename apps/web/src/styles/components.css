@@ -612,3 +612,33 @@
   color: var(--muted);
   font-weight: 650;
 }
+
+/* The launch-party banner. Distinct from banner-info so a promotion never
+   wears the same colour as an operational notice — a person should be able to
+   tell "we're having a launch sale" from "sharing has stopped" at a glance. */
+.banner-launch {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* The referral code, sized to be read off a screen across a table. */
+.share-code {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  padding: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.share-code strong {
+  font-size: 1.4rem;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+}

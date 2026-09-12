@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Account } from "../api.ts";
+import { clearReferralCode, incomingReferralCode } from "../referral.ts";
 import { useLanguage } from "../i18n.tsx";
 
 /**
@@ -14,6 +15,9 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [homeLabel, setHomeLabel] = useState("");
+  // Pre-filled from a ?ref= link but left editable: someone who was told a
+  // code across a table has no link to click.
+  const [referralCode, setReferralCode] = useState(incomingReferralCode());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +34,11 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
     try {
       const res = mode === "login"
         ? await api.login({ email, password })
-        : await api.signup({ email, password, displayName, homeLabel: homeLabel || "Home" });
+        : await api.signup({
+          email, password, displayName, homeLabel: homeLabel || "Home",
+          referralCode: referralCode.trim() || undefined,
+        });
+      if (mode === "signup") clearReferralCode();
       onSignedIn(res.traveler);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -75,6 +83,15 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
           <div className="field">
             <label htmlFor="home">{t("auth.home")}</label>
             <input id="home" value={homeLabel} placeholder={t("auth.homePlaceholder")} onChange={(e) => setHomeLabel(e.target.value)} />
+          </div>
+        )}
+
+        {mode === "signup" && (
+          <div className="field">
+            <label htmlFor="ref">{t("auth.referral")}</label>
+            <input id="ref" value={referralCode} placeholder="ABC-DE4" autoCapitalize="characters"
+              onChange={(e) => setReferralCode(e.target.value)} />
+            <span className="tiny muted">{t("auth.referralHint")}</span>
           </div>
         )}
 

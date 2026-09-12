@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPlan, startSubscription } from "@safehubby/core";
+import { LAUNCH_DISCOUNT_RATE, findPlan, startSubscription } from "@safehubby/core";
 import type { Subscription } from "@safehubby/core";
 import { renewDueSubscriptions } from "../src/billing.ts";
 import { SEED } from "../src/seed.ts";
@@ -101,6 +101,56 @@ describe("renewDueSubscriptions", () => {
 
   it("is safe on a database with no subscriptions at all", () => {
     const db = structuredClone(SEED);
-    expect(renewDueSubscriptions(db, now)).toEqual({ renewed: 0, chargedCents: 0, storeRailPending: 0 });
+    expect(renewDueSubscriptions(db, now)).toEqual({ renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0 });
+  });
+});
+
+describe("the launch-party discount at renewal", () => {
+  /** Renewal is the only place a subscription actually charges — signup is a
+   *  free trial — so it is the only place the discount can be applied. */
+  const launchSub = (startedAt: string): Subscription => ({
+    ...subFor("premium-basic"),
+    startedAt,
+    currentPeriodEnd: startedAt,
+  });
+
+  it("takes the stated rate off an early sign-up's renewal", () => {
+    const sub = launchSub("2026-10-15T00:00:00.000Z");
+    const db = dbWith(sub);
+    const at = new Date("2026-11-15T00:00:00.000Z");
+    const result = renewDueSubscriptions(db, at);
+
+    const full = findPlan("premium-basic").monthlyCents;
+    const discount = Math.floor(full * LAUNCH_DISCOUNT_RATE);
+    expect(result.renewed).toBe(1);
+    expect(result.discountedCents).toBe(discount);
+    expect(result.chargedCents).toBe(full - discount);
+    // What the customer is charged, not just what the summary reports.
+    expect(db.charges.at(-1)!.amountCents).toBe(full - discount);
+  });
+
+  it("says so on the charge, so the line item explains itself on a statement", () => {
+    const db = dbWith(launchSub("2026-10-15T00:00:00.000Z"));
+    renewDueSubscriptions(db, new Date("2026-11-15T00:00:00.000Z"));
+    expect(db.charges.at(-1)!.description).toMatch(/launch-party discount/i);
+  });
+
+  it("charges full price outside the launch cohort, and says nothing about a discount", () => {
+    const db = dbWith(launchSub("2027-05-01T00:00:00.000Z"));
+    const result = renewDueSubscriptions(db, new Date("2027-06-01T00:00:00.000Z"));
+
+    expect(result.renewed).toBe(1);
+    expect(result.discountedCents).toBe(0);
+    expect(result.chargedCents).toBe(findPlan("premium-basic").monthlyCents);
+    expect(db.charges.at(-1)!.description).not.toMatch(/discount/i);
+  });
+
+  it("stops discounting after the first year, so the cohort is not cheap forever", () => {
+    const db = dbWith(launchSub("2026-10-15T00:00:00.000Z"));
+    // Thirteen months on: still an early sign-up, no longer discounted.
+    const result = renewDueSubscriptions(db, new Date("2027-11-15T00:00:00.000Z"));
+    expect(result.renewed).toBe(1);
+    expect(result.discountedCents).toBe(0);
+    expect(result.chargedCents).toBe(findPlan("premium-basic").monthlyCents);
   });
 });
