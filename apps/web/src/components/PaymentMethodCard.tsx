@@ -154,14 +154,17 @@ export function PaymentMethodCard() {
 
       {adding && (
         <>
+          {/* All four are always listed, including ones this browser or
+              server can't complete right now. A hidden option tells the
+              reader nothing; a visible one that states plainly why it won't
+              work tells them whether the problem is their device or our
+              setup. */}
           <div className="tabs" role="tablist">
-            {(Object.keys(TAB_LABEL) as Tab[])
-              .filter((t) => t !== "apple-pay" || canApplePay || statusOf("stripe")?.mode === "automatic")
-              .map((t) => (
-                <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-                  {TAB_LABEL[t]}
-                </button>
-              ))}
+            {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+              <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
+                {TAB_LABEL[t]}
+              </button>
+            ))}
           </div>
 
           {tab === "card" && (
@@ -205,9 +208,9 @@ export function PaymentMethodCard() {
             <>
               <p className="small muted">
                 {canApplePay
-                  ? "Your device supports Apple Pay."
-                  : "This browser or device doesn't report Apple Pay support."}
-                {" "}{processorReady ? "" : "Stripe isn't connected on this server yet, so it can't be offered for real."}
+                  ? "This device can use Apple Pay."
+                  : "Apple Pay needs Safari on an iPhone, iPad, or Mac — this browser doesn't offer it."}
+                {" "}{processorReady ? "" : "Stripe isn't connected on this server yet either, so it can't be offered for real."}
               </p>
               <button className="btn btn-block btn-primary" disabled={!canApplePay || !processorReady} onClick={() => attachViaSdk("apple-pay")}>
                 Pay with Apple Pay
