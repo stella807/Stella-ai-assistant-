@@ -114,6 +114,46 @@ survives a fresh `cap add`.
 `src/native/` holds the adapters. Each falls back to a browser API, so the web
 build still runs and the same code paths are exercised in development.
 
+### Adding a task card to Apple Pay
+
+An assistant paying for a grocery run should be tapping a phone at the till,
+not reading a virtual card number off a screen in a checkout queue. Two paths
+exist, and only one of them is available today.
+
+**What ships now: manual Wallet entry.** `TaskCardPopup` in
+`EmployeePortal.tsx` walks the assistant through Wallet → + → Debit or Credit
+Card → Enter Card Details Manually, using the number from the one-time reveal
+link. This needs no entitlement, no plugin, and no issuer integration, and it
+gets them to tap-to-pay. The steps are only shown on an Apple device (checked,
+not assumed — Android assistants are pointed at Google Wallet), and the copy
+says plainly that the card dies with the task, so there is nothing to remove
+afterwards.
+
+**What one-tap "Add to Apple Pay" would actually take.** Push provisioning is
+`PKAddPaymentPassViewController`. Four things have to be true, and three of
+them are not code:
+
+1. **Apple's `com.apple.developer.payment-pass-provisioning` entitlement.**
+   Granted by application, to card issuers and their partners. Not self-serve,
+   and not something this repo can switch on — there is no `.entitlements`
+   file in `apps/web/ios/` today for exactly that reason.
+2. **A native call.** The API is UIKit; it cannot be reached from a webview,
+   so this needs a Capacitor plugin bridging
+   `PKAddPaymentPassViewController` into the web layer. That is the one piece
+   that is purely work rather than permission.
+3. **Provisioning data from the issuer.** Revolut would have to expose the
+   encrypted payload Apple requires (`encryptedPassData`, `activationData`,
+   `ephemeralPublicKey`, `wrappedKey`) for a card issued through its Business
+   API. **Whether Revolut supports push provisioning for expense-management
+   virtual cards is unconfirmed** — check before planning around it, because
+   if the answer is no, the entitlement and the plugin buy nothing.
+4. **Apple Pay eligibility for the card program itself**, which is part of the
+   issuer relationship rather than the app.
+
+Until 1 and 3 are settled, building the plugin would be scaffolding with
+nothing to hold up, so it is deliberately not built — the same call made for
+driver payroll in `docs/driving.md`.
+
 ### Permission strings
 
 iOS rejects a build with missing purpose strings. In `ios/App/App/Info.plist`:

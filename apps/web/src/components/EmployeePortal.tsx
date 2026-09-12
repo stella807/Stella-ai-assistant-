@@ -6,6 +6,7 @@ import {
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
+import { isNative, platform } from "../native/platform.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -452,10 +453,30 @@ function TaskRow({ task, onOpen }: { task: PortalTask; onOpen: () => void }) {
  * passes through Safehubby's own servers or this bundle. The link is only
  * issued while the task is in progress — once it's marked done the card is
  * cancelled, which is the whole point of a single-use card.
+ *
+ * Apple Pay is offered as **manual** Wallet entry rather than a one-tap
+ * "Add to Apple Pay" button, and that is a constraint rather than a
+ * shortcut. One-tap provisioning is `PKAddPaymentPassViewController`, a
+ * native iOS API that (a) cannot be called from a webview at all, and (b)
+ * requires Apple's `com.apple.developer.payment-pass-provisioning`
+ * entitlement, which Apple grants by application to card issuers and their
+ * partners — it is not something this codebase can switch on. Typing the
+ * card into Wallet needs none of that and gets the assistant to the same
+ * place: tapping a phone at the till instead of reading a virtual card
+ * number off a screen in a checkout queue. See docs/mobile.md for what the
+ * one-tap path would actually take.
  */
 function TaskCardPopup({ task, onClose }: { task: PortalTask; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // An Apple device, whether that's the native shell or Safari on an iPhone —
+  // either way Wallet is present. Checked rather than assumed, so an Android
+  // assistant is pointed at Google Wallet instead of instructions they can't
+  // follow.
+  const onApple = isNative()
+    ? platform() === "ios"
+    : /iphone|ipad|ipod|macintosh/i.test(navigator.userAgent);
 
   const reveal = async () => {
     setBusy(true);
@@ -504,6 +525,44 @@ function TaskCardPopup({ task, onClose }: { task: PortalTask; onClose: () => voi
         <p className="tiny muted">
           Opens on the card issuer's own secure page, in a new tab. Safehubby never sees the number.
         </p>
+
+        <div className="stack" style={{ gap: 6 }}>
+          <button className="btn btn-block btn-ghost" aria-expanded={showWallet}
+            onClick={() => setShowWallet(!showWallet)}>
+            {showWallet ? "− " : "+ "}Add it to Apple Pay
+          </button>
+
+          {showWallet && (
+            <>
+              {onApple ? (
+                <>
+                  <p className="tiny muted">
+                    Easier than reading a card number out at the till — once it's in Wallet you just tap.
+                  </p>
+                  <ol className="timeline">
+                    <li><span className="tiny muted">Tap "Show the full card number" above and keep that page open.</span></li>
+                    <li><span className="tiny muted">Open the Wallet app, then tap + at the top right.</span></li>
+                    <li><span className="tiny muted">Choose "Debit or Credit Card", then "Enter Card Details Manually".</span></li>
+                    <li><span className="tiny muted">Type the number, {String(task.card?.expMonth ?? 0).padStart(2, "0")}/{task.card?.expYear}, and the security code.</span></li>
+                  </ol>
+                  <p className="tiny muted">
+                    It stops working the moment this task is done, so there's nothing to remove afterwards —
+                    and it still declines anything over {money(task.spendCapCents)}.
+                  </p>
+                </>
+              ) : (
+                <p className="tiny muted">
+                  Apple Pay needs an iPhone or Apple Watch — open this task on yours and this will show you
+                  how to add the card to Wallet. On Android, the same steps work in Google Wallet.
+                </p>
+              )}
+              <p className="tiny muted">
+                One-tap "Add to Apple Pay" isn't available yet: it needs an Apple entitlement Safehubby has
+                to apply for as a card issuer, so adding it by hand is the honest option today.
+              </p>
+            </>
+          )}
+        </div>
 
         {error && <div className="banner banner-danger">{error}</div>}
       </div>
