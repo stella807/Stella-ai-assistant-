@@ -24,6 +24,7 @@ export * from "./games.ts";
 export * from "./billing.ts";
 export * from "./promotions.ts";
 export * from "./application-review.ts";
+export * from "./market-pay.ts";
 export * from "./staffing.ts";
 export * from "./staff-applications.ts";
 export * from "./newsletter.ts";

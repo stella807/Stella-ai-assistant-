@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
+  DEFAULT_PAY_MARKET, LAUNCH_MARKETS, type LaunchMarketId,
   annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel, hourlyRateCentsFor,
   isQuickTaskEligible, remainingSpendCents, unaccountedSpendCents,
 } from "@safehubby/core";
@@ -157,6 +158,10 @@ function ForcedPasswordChange({ onChanged }: { onChanged: () => void }) {
  */
 function PayRates({ onBack }: { onBack: () => void }) {
   const [tasksPerWeek, setTasksPerWeek] = useState(3);
+  // Which market's rate card to show. Defaults to the reference market; an
+  // assistant picks their own so the table is about their pay, not somebody
+  // else's in a more expensive city.
+  const [market, setMarket] = useState<LaunchMarketId>(DEFAULT_PAY_MARKET);
 
   return (
     <div className="stack">
@@ -170,6 +175,17 @@ function PayRates({ onBack }: { onBack: () => void }) {
           docs/concierge.md). You're paid per task, not by the hour; the hourly figure is only a
           reference, using the typical time a task like this takes.
         </p>
+        {/* Pay is indexed to the market a task happens in (see market-pay.ts),
+            so one national column would overstate what most assistants
+            actually take home. Pick your market and see your own numbers. */}
+        <div className="tabs" role="tablist" aria-label="Market">
+          {LAUNCH_MARKETS.map((m) => (
+            <button key={m.id} role="tab" aria-selected={market === m.id} onClick={() => setMarket(m.id)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+
         <table className="pay-table">
           <thead>
             <tr><th>Task</th><th>Per task</th><th>≈ Per hour</th></tr>
@@ -179,16 +195,21 @@ function PayRates({ onBack }: { onBack: () => void }) {
               <tr key={c.id}>
                 <td>{c.label}</td>
                 <td>
-                  {money(assistantPayoutFor(c.id))}
+                  {money(assistantPayoutFor(c.id, false, 1, market))}
                   {isQuickTaskEligible(c.id) && (
-                    <span className="tiny muted"> (as low as {money(assistantPayoutFor(c.id, true))} for a quick task)</span>
+                    <span className="tiny muted"> (as low as {money(assistantPayoutFor(c.id, true, 1, market))} for a quick task)</span>
                   )}
                 </td>
-                <td>≈ {money(hourlyRateCentsFor(c.id))}/hr</td>
+                <td>≈ {money(hourlyRateCentsFor(c.id, false, market))}/hr</td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        <p className="tiny muted">
+          Every rate here is at or above the top of the local mid-level personal-assistant band for that
+          market — a quick task pays less because it is a shorter job, not a worse rate.
+        </p>
       </section>
 
       <section className="card stack">
@@ -204,7 +225,7 @@ function PayRates({ onBack }: { onBack: () => void }) {
             <li key={c.id}>
               <div className="row-between">
                 <span className="small">{c.label}</span>
-                <strong className="charge-amount">≈ {moneyRound(annualEstimateCentsFor(c.id, tasksPerWeek))}/yr</strong>
+                <strong className="charge-amount">≈ {moneyRound(annualEstimateCentsFor(c.id, tasksPerWeek, false, market))}/yr</strong>
               </div>
             </li>
           ))}

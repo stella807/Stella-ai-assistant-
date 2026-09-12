@@ -15,8 +15,16 @@
  * reverse-geocoding service before launch numbers make the edges matter.
  */
 
+/**
+ * The markets Safehubby operates in, as a closed union rather than loose
+ * strings. Adding one here is what makes the compiler demand a pay decision
+ * for it in `market-pay.ts` — a new market that silently inherits another
+ * market's wage band is exactly the mistake that type is there to prevent.
+ */
+export type LaunchMarketId = "puerto-rico" | "texas" | "los-angeles";
+
 export interface ServiceArea {
-  id: string;
+  id: LaunchMarketId;
   label: string;
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number };
 }

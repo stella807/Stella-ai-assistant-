@@ -146,6 +146,43 @@ export function discountedPriceCents(
   return priceCents - launchDiscountCentsFor(priceCents, sub, now);
 }
 
+/**
+ * The offer as a shopper sees it, before they are anybody's subscriber.
+ *
+ * The discount used to exist only at renewal, which meant the landing page
+ * promised "3% off" while every plan card underneath it showed the full
+ * price — the offer and the price disagreed, and the discount first became
+ * visible on an invoice months later. A price somebody is asked to agree to
+ * has to be the price they will be charged.
+ *
+ * So this answers the shopper's actual question: if I join now, what do I
+ * pay? It takes no subscription, because the person asking does not have one
+ * yet; joining now is exactly what it models.
+ */
+export interface LaunchOffer {
+  /** The list price, for showing what is being struck through. */
+  fullCents: number;
+  /** What comes off it. Zero outside the window. */
+  discountCents: number;
+  /** What they would actually be charged. */
+  payCents: number;
+  /** Whether there is an offer at all right now. */
+  discounted: boolean;
+}
+
+export function launchOfferFor(priceCents: number, now: Date): LaunchOffer {
+  // "Joining now" is the whole model: a shopper during the window would be
+  // in the cohort, and outside it would not.
+  const asIfJoiningNow = { startedAt: now.toISOString(), joinedAt: now.toISOString() };
+  const discountCents = launchDiscountCentsFor(priceCents, asIfJoiningNow, now);
+  return {
+    fullCents: priceCents,
+    discountCents,
+    payCents: priceCents - discountCents,
+    discounted: discountCents > 0,
+  };
+}
+
 /* ---------------------------------------------------------------------------
    Sharing
    ------------------------------------------------------------------------ */

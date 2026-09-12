@@ -33,6 +33,11 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           ? Math.round(((p.monthlyCents * 12 - p.annualCents) / (p.monthlyCents * 12)) * 100)
           : 0;
         const current = p.id === currentPlanId;
+        // What joining today actually costs, computed by the server (see the
+        // catalog route). The launch discount has to be visible on the price
+        // somebody is agreeing to, not just on a banner above it.
+        const offer = cadence === "annual" ? p.annualOffer : p.monthlyOffer;
+        const discounted = Boolean(offer?.discounted) && price > 0;
 
         return (
           <section key={p.id} className={`card plan${current ? " plan-on" : ""}`}>
@@ -42,10 +47,26 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
             </div>
 
             <div className="plan-price">
-              {price === 0 ? "Free" : money(price)}
+              {price === 0 ? "Free" : (
+                <>
+                  {discounted && <s className="plan-was">{money(price)}</s>}
+                  {money(discounted ? offer.payCents : price)}
+                </>
+              )}
               {price > 0 && <span className="plan-per">/{cadence === "annual" ? "year" : "month"}</span>}
             </div>
-            {cadence === "annual" && saving > 0 && <span className="pill pill-safe">Save {saving}%</span>}
+
+            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+              {cadence === "annual" && saving > 0 && <span className="pill pill-safe">Save {saving}%</span>}
+              {/* The amount, not just the percentage: 3% is a number nobody can
+                  price in their head, and this is small enough that hiding it
+                  behind a percentage would be the flattering version. */}
+              {discounted && (
+                <span className="pill pill-safe">
+                  Launch party — {money(offer.discountCents)} off your first year
+                </span>
+              )}
+            </div>
 
             <p className="small muted">{p.blurb}</p>
 

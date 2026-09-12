@@ -642,3 +642,14 @@
   letter-spacing: 0.14em;
   font-variant-numeric: tabular-nums;
 }
+
+/* The list price a launch-party discount is struck from. Muted and smaller
+   than the price that replaces it, so the number being charged is the one
+   the eye lands on. */
+.plan-was {
+  color: var(--faint);
+  font-size: 0.62em;
+  font-weight: 500;
+  margin-right: 8px;
+  text-decoration-thickness: 1px;
+}

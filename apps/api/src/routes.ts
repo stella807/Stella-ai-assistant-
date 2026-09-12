@@ -2,7 +2,7 @@ import {
   REWARD_CATALOG, DRINK_CATALOG,
   isPlanReleased, releasedPlans,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
-  newReferralCode, normalizeReferralCode, shareMessage,
+  newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   HIRING_BENEFITS, PRELAUNCH_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
   reviewStaffApplication, submitStaffApplication, withdrawStaffApplication,
   addSubscriber, activeSubscribers, newUnsubscribeToken, unsubscribe,
@@ -33,7 +33,7 @@ import {
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
   applyAdjustments, outstandingClawbackCents,
-  isInLaunchMarket, launchMarketNames,
+  isInLaunchMarket, launchMarketFor, launchMarketNames, DEFAULT_PAY_MARKET, type LaunchMarketId,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -712,6 +712,16 @@ function requireLaunchMarket(location: { lat: number; lng: number }): void {
   }
 }
 
+/**
+ * Which market's pay band a task is priced against: the one it actually
+ * happens in. Called after `requireLaunchMarket`, so in practice this is
+ * never null — but it falls back to the most expensive market rather than
+ * the cheapest if that ever stops being true. See market-pay.ts.
+ */
+function payMarketFor(location: { lat: number; lng: number }): LaunchMarketId {
+  return launchMarketFor(location)?.id ?? DEFAULT_PAY_MARKET;
+}
+
 /** Six characters from an unambiguous alphabet — no O/0, I/1 — read aloud in a bar. */
 function newInviteCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1157,7 +1167,16 @@ export const routes: Record<string, Handler> = {
     // Only what has actually shipped: the Elite tier is built and held
     // behind `elite-tier` (see features.ts), so it is absent here rather
     // than listed as something a subscriber can't have.
-    plans: releasedPlans(),
+    //
+    // Each plan carries what it would actually cost to join today, discount
+    // included. Computed here rather than in the browser so the price on the
+    // card is the price the server will charge — a plan card showing full
+    // price under a banner promising a discount is the two disagreeing.
+    plans: releasedPlans().map((plan) => ({
+      ...plan,
+      monthlyOffer: launchOfferFor(plan.monthlyCents, ctx.now()),
+      annualOffer: launchOfferFor(plan.annualCents, ctx.now()),
+    })),
     rewards: REWARD_CATALOG,
     // The one launch-party fact a signed-out visitor needs, on a request the
     // landing page already makes. A separate public endpoint for it would be
@@ -1845,10 +1864,14 @@ export const routes: Record<string, Handler> = {
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
     const people = peopleCountFor(ctx, me, input);
+    const market = payMarketFor(input.location);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
-      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people),
-      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people),
+      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people, market),
+      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people, market),
+      /** Which market's rate card this was priced against, so a quote can
+       *  explain itself rather than looking arbitrary. */
+      payMarket: market,
       quickTaskEligible: isQuickTaskEligible(input.category),
       peopleCount: people,
       /** The ceiling the clamp above used, so the UI can offer exactly the
@@ -1875,9 +1898,12 @@ export const routes: Record<string, Handler> = {
     requirePaymentMethod(ctx, me);
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
     const peopleCount = peopleCountFor(ctx, me, input);
-    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount);
-    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount);
-    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount);
+    // Priced against the market the task happens in, and stamped onto the
+    // task below — so a later rate change never reprices work already agreed.
+    const market = payMarketFor(input.location);
+    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount, market);
+    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount, market);
+    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount, market);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     const quote = await concierge.quote({

@@ -406,8 +406,15 @@ describe("pay-rate calculator — reference info, not a contract", () => {
     }
   });
 
-  it("uses the discounted fee for the hourly rate when quickTask applies", () => {
-    expect(hourlyRateCentsFor("grab-something", true)).toBeLessThan(hourlyRateCentsFor("grab-something", false));
+  it("pays a quick task less per task without paying a worse hourly rate", () => {
+    // This used to assert the opposite, and the opposite was the bug: the
+    // reduced tier was measured against the standard task's minutes, so a
+    // shorter job read as a lower rate for the same work. A quick task is
+    // less money because it is less time, not because the hour is worth less.
+    expect(assistantPayoutFor("grab-something", true))
+      .toBeLessThan(assistantPayoutFor("grab-something", false));
+    expect(hourlyRateCentsFor("grab-something", true))
+      .toBeGreaterThanOrEqual(hourlyRateCentsFor("grab-something", false) * 0.95);
   });
 
   it("multiplies the per-task fee by a weekly cadence and 52 weeks", () => {

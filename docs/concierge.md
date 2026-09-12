@@ -727,3 +727,46 @@ Until these are set, `GET /api/fulfillment/status` reports `concierge.mode:
 "handoff"` and every quote/booking route returns a `503` naming what's
 missing — the same "never claim a provider we cannot verify" rule as every
 other adapter in `docs/fulfillment.md`.
+
+## Pay is indexed to the market
+
+One flat national rate was wrong in both directions at once. Against local
+mid-level personal-assistant rates it paid roughly **50% over market in Texas
+and 75% over in Puerto Rico** — which sounds generous until you notice the
+customer fee is derived from it (`serviceFeeFor`), so the same number also
+made the service most expensive, relative to local wages, in the two markets
+least able to absorb it.
+
+`packages/core/src/market-pay.ts` indexes pay to the market a task actually
+happens in, with one guarantee: **no market pays below the top of its own
+local mid-level band.** That is a floor in `scalePayoutCents`, not a carefully
+chosen multiplier, because a multiplier is a number a later edit can nudge
+without noticing what it broke. `market-pay.test.ts` asserts it for every
+market, category and tier.
+
+| Task | Los Angeles | Texas | Puerto Rico |
+|---|---:|---:|---:|
+| Grab something | $9.00 | $7.25 | $6.50 |
+| Run an errand | $10.00 | $8.00 | $7.00 |
+| Check on someone | $12.00 | $9.75 | $8.50 |
+| Wait with someone | $18.00 | $14.75 | $12.75 |
+| *quick task* | *$5.00* | *$4.00* | *$3.50* |
+| **Implied hourly** | **$27–33** | **$22–27** | **$19–23** |
+| *local mid band* | *$24–27* | *$18–22* | *$15–19* |
+
+Los Angeles is the reference market at 1.00, so the published national rate
+card is unchanged there; Texas and Puerto Rico scale from it. A task whose
+location is unknown is priced at the **most expensive** market
+(`DEFAULT_PAY_MARKET`) — an unknown location must never be the cheap path to
+underpaying somebody.
+
+The market is resolved when the task is booked and stamped onto the task, so
+a later rate change never reprices work already agreed.
+
+### A quick task is shorter, not cheaper per hour
+
+`QUICK_TASK_MINUTES` exists because the reduced tier used to be measured
+against the standard task's duration, which made a Puerto Rico quick task read
+as **$11.67/hr against a $15–19 band**. It pays less because it takes less
+time — so it is timed as the shorter job and then held to exactly the same
+floor as everything else.

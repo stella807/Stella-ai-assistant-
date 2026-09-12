@@ -4,7 +4,7 @@ import {
   REFERRAL_CODE_LENGTH, discountBreakEvenLift, discountedPriceCents, isReferralCodeShaped,
   joinedDuringLaunch, launchDiscountApplies, launchDiscountCentsFor, launchDiscountEndsAt,
   newReferralCode, normalizeReferralCode, shareMessage,
-  SERVICE_LIVE_AT, billingStartsAt, serviceIsLive,
+  SERVICE_LIVE_AT, billingStartsAt, launchOfferFor, serviceIsLive,
 } from "../src/promotions.ts";
 import { findPlan } from "../src/billing.ts";
 
@@ -179,5 +179,66 @@ describe("the pre-launch window, when nobody can be served yet", () => {
     const first = launchDiscountEndsAt(LAUNCH_WINDOW_START).toISOString();
     const last = launchDiscountEndsAt("2026-11-30T12:00:00.000Z").toISOString();
     expect(last).toBe(first);
+  });
+});
+
+describe("the offer a shopper is shown, before they are a subscriber", () => {
+  const duringWindow = new Date(inWindow);
+  const beforeWindow = new Date("2026-09-12T00:00:00.000Z");
+  const afterWindow = new Date("2027-03-01T00:00:00.000Z");
+  const premium = findPlan("premium-basic").monthlyCents; // 1799
+
+  it("takes the rate OFF the price — it is not a charge of 3%", () => {
+    // The whole bug this exists for: "3% off $17.99" is $17.46, not $0.54.
+    const offer = launchOfferFor(premium, duringWindow);
+    expect(offer.fullCents).toBe(1799);
+    expect(offer.discountCents).toBe(53);
+    expect(offer.payCents).toBe(1746);
+    expect(offer.discounted).toBe(true);
+    // The number a customer is charged must be the big one, not the small one.
+    expect(offer.payCents).toBeGreaterThan(offer.fullCents * 0.9);
+  });
+
+  it("always adds up: what you pay plus what came off is the list price", () => {
+    for (const price of [0, 999, 1799, 2999, 6999, 19999]) {
+      for (const at of [beforeWindow, duringWindow, afterWindow]) {
+        const offer = launchOfferFor(price, at);
+        expect(offer.payCents + offer.discountCents).toBe(price);
+        expect(offer.payCents).toBeLessThanOrEqual(price);
+        expect(offer.payCents).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("offers nothing before the window opens, so the card matches the banner", () => {
+    const offer = launchOfferFor(premium, beforeWindow);
+    expect(offer.discounted).toBe(false);
+    expect(offer.payCents).toBe(premium);
+  });
+
+  it("offers nothing once the window has closed", () => {
+    expect(launchOfferFor(premium, afterWindow).discounted).toBe(false);
+  });
+
+  it("discounts an annual price too, not only a monthly one", () => {
+    const annual = findPlan("premium-basic").annualCents;
+    const offer = launchOfferFor(annual, duringWindow);
+    expect(offer.discounted).toBe(true);
+    expect(offer.discountCents).toBe(Math.floor(annual * LAUNCH_DISCOUNT_RATE));
+    expect(offer.payCents).toBe(annual - offer.discountCents);
+  });
+
+  it("leaves a free plan free rather than showing a discount on nothing", () => {
+    const offer = launchOfferFor(0, duringWindow);
+    expect(offer).toMatchObject({ fullCents: 0, discountCents: 0, payCents: 0, discounted: false });
+  });
+
+  it("agrees with what renewal will actually charge", () => {
+    // The offer is a promise about a future invoice, so the two have to be
+    // the same arithmetic rather than two implementations of it.
+    const sub = { startedAt: inWindow, joinedAt: inWindow };
+    const atRenewal = new Date("2027-02-01T00:00:00.000Z");
+    expect(launchOfferFor(premium, duringWindow).payCents)
+      .toBe(discountedPriceCents(premium, sub, atRenewal));
   });
 });
