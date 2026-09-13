@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  ALL_FEATURES, ELITE_ONLY, PLANS, annualSavingsPercent, findPlan, formatPrice, hasFeature,
-  isPlanReleased, releasedPlans,
+  ALL_FEATURES, ELITE_LADDER, ELITE_ONLY, PLANS, annualSavingsPercent, findPlan, formatPrice,
+  hasFeature, includedConciergeHours, isPlanReleased, releasedPlans,
 } from "../src/billing.ts";
 import { resetFlags, setFlag } from "../src/features.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
 import { estimateBac } from "../src/bac.ts";
 import { logDrink } from "../src/drinks.ts";
-import { CONCIERGE_CATEGORIES } from "../src/concierge.ts";
+import { CONCIERGE_CATEGORIES, serviceFeeFor } from "../src/concierge.ts";
 
 describe("plans", () => {
   it("never paywalls SOS or location sharing", () => {
@@ -84,36 +84,46 @@ describe("plans", () => {
     }
   });
 
-  it("holds Elite back until its flag is on, and never hides a shipped plan", () => {
-    expect(isPlanReleased("elite")).toBe(false);
-    expect(releasedPlans().map((p) => p.id)).not.toContain("elite");
-    // Every other tier has shipped and must always be listed.
-    for (const plan of PLANS.filter((p) => p.id !== "elite")) {
+  it("holds every Elite rung behind one flag, and never hides a shipped plan", () => {
+    // One switch for the whole ladder. Releasing a rung at a time would mean
+    // selling a jet and a doctor on the cheapest one while the dearer ones
+    // wait, which is the same exposure in a smaller font.
+    for (const id of ELITE_LADDER) {
+      expect(isPlanReleased(id), id).toBe(false);
+      expect(releasedPlans().map((p) => p.id)).not.toContain(id);
+    }
+    for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id))) {
       expect(isPlanReleased(plan.id)).toBe(true);
       expect(releasedPlans().map((p) => p.id)).toContain(plan.id);
     }
 
     setFlag("elite-tier", true);
-    expect(isPlanReleased("elite")).toBe(true);
-    expect(releasedPlans().map((p) => p.id)).toContain("elite");
+    for (const id of ELITE_LADDER) {
+      expect(isPlanReleased(id), id).toBe(true);
+      expect(releasedPlans().map((p) => p.id)).toContain(id);
+    }
     resetFlags();
-    expect(isPlanReleased("elite")).toBe(false);
+    for (const id of ELITE_LADDER) expect(isPlanReleased(id), id).toBe(false);
   });
 
-  it("prices Elite under assembling the same thing from separate memberships", () => {
-    // The binding competitor isn't Quintessentially at $12,000-$44,000/yr —
-    // it's the partner's own $99/mo membership, which a member can just buy.
-    // Family ($29.99) + a $99 partner membership is $128.99; Elite has to
-    // beat that or there's no reason to take it. See docs/billing.md. This
-    // test is why Elite was repriced when the tiers below it moved: at the
-    // old $149 it had quietly become the more expensive way to buy itself.
-    const PARTNER_OWN_MEMBERSHIP_CENTS = 9900;
-    const elite = findPlan("elite");
-    expect(elite.monthlyCents).toBeLessThan(findPlan("family").monthlyCents + PARTNER_OWN_MEMBERSHIP_CENTS);
-    // Still a step up from Family, or the ladder makes no sense.
-    expect(elite.monthlyCents).toBeGreaterThan(findPlan("family").monthlyCents);
-    // And an order of magnitude under Quintessentially's floor.
-    expect(elite.annualCents).toBeLessThan(1_200_000);
+  it("prices every Elite rung on its hours rather than against a membership card", () => {
+    // The old rationale here was that Elite had to undercut Family plus the
+    // partner's own membership, because it was the same kind of thing: a
+    // number to call. These rungs are not that — they are a retainer, and
+    // they are priced on somebody's time. So the invariant that matters is
+    // the one that keeps a rung solvent: the hours it gives away cost less
+    // than the rung charges, with room left for the desk behind them.
+    const hourFee = serviceFeeFor("book-and-buy", false, 1, 1);
+    for (const id of ELITE_LADDER) {
+      const plan = findPlan(id);
+      expect(includedConciergeHours(id), id).toBeGreaterThan(0);
+      expect(includedConciergeHours(id) * hourFee, id).toBeLessThan(plan.monthlyCents);
+      // Still a step up from the household tier, or the ladder makes no sense.
+      expect(plan.monthlyCents, id).toBeGreaterThan(findPlan("family").monthlyCents);
+    }
+    // And the band is the one that was asked for: $500 to $20,000 a month.
+    expect(findPlan("elite").monthlyCents).toBe(50_000);
+    expect(findPlan("elite-private").monthlyCents).toBe(2_000_000);
   });
 
   it("makes Family the same features as Premium Plus, differing only in seats", () => {

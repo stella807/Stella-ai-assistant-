@@ -316,9 +316,17 @@ export function directMembershipCrossoverCents(
   monthlyDuesCents: number,
   commissionRate: number,
   directAnnualCents = ELITE_DESK_MEMBERSHIP.monthlyCents * 12,
-): number {
+): number | null {
   if (commissionRate <= 0) throw new Error("A crossover needs a commission to trade off against.");
   const eliteDues = monthlyDuesCents * 12;
+  // Null, not zero. Once the dues meet the direct membership on their own,
+  // there is no spend below which Elite is the cheaper door — it is dearer
+  // from the first dollar of charter. Clamping that to 0 read like a
+  // threshold a member could sit under, which is the opposite of the truth,
+  // and it is the honest signal that this rung is not sold on jet access:
+  // what a member is buying at these dues is the hours and the safety
+  // product, with the desk riding along.
+  if (eliteDues >= directAnnualCents) return null;
   // dues + rate * spend = direct  =>  spend = (direct - dues) / rate
-  return Math.max(0, Math.round((directAnnualCents - eliteDues) / commissionRate));
+  return Math.round((directAnnualCents - eliteDues) / commissionRate);
 }

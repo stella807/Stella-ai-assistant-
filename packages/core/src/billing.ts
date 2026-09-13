@@ -11,7 +11,10 @@
 
 import { isEnabled } from "./features.ts";
 
-export type PlanId = "free" | "premium-basic" | "premium-plus" | "family" | "elite";
+export type PlanId =
+  | "free" | "premium-basic" | "premium-plus" | "family"
+  // Elite is a ladder, not a price. See ELITE_LADDER below.
+  | "elite" | "elite-signature" | "elite-private";
 
 export type Feature =
   | "location-sharing"
@@ -96,6 +99,11 @@ export interface Plan {
   seats: number;
   features: Feature[];
   blurb: string;
+  /** Hours of personal-assistant time the membership already pays for each
+   *  month, on the tiers that include any. Hours beyond it bill at the same
+   *  published rate, so the allowance is a prepayment and never a discount
+   *  hiding in a subscription. */
+  includedConciergeHours?: number;
 }
 
 /** Safety basics are never paywalled. SOS and location sharing are free forever. */
@@ -303,44 +311,78 @@ export const PLANS: Plan[] = [
   {
     id: "elite",
     name: "Elite",
-    // Repriced with the tiers below it. The binding competitor is not a
-    // London concierge house, it is the partner's own ~$99/mo membership,
-    // which a member can simply buy: Family plus that is $128.99, so Elite
-    // has to sit under it or assembling it yourself is strictly better.
-    // Dropping Family to $29.99 is what made $149 untenable here.
-    monthlyCents: 11900,
-    annualCents: 119999,
+    monthlyCents: 50000,
+    annualCents: 499999,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
-    blurb: "Everything in Family, plus a dedicated lifestyle manager and the luxury desk: jet travel, yacht charter, villa and property sourcing, full event production, premium hospitality, and access to a concierge doctor.",
+    includedConciergeHours: 10,
+    blurb: "Everything in Family, plus the luxury desk — jet charter arranged, a concierge physician practice introduced, villas, yachts and events — and ten hours of a personal assistant's time every month.",
+  },
+  {
+    id: "elite-signature",
+    name: "Elite Signature",
+    monthlyCents: 250000,
+    annualCents: 2499999,
+    seats: 6,
+    features: [...PLUS_FEATURES, ...ELITE_ONLY],
+    includedConciergeHours: 50,
+    blurb: "The same desk with fifty hours a month behind it — enough that the assistant knows your household rather than your last request.",
+  },
+  {
+    id: "elite-private",
+    name: "Elite Private",
+    monthlyCents: 2000000,
+    annualCents: 19999999,
+    seats: 6,
+    features: [...PLUS_FEATURES, ...ELITE_ONLY],
+    includedConciergeHours: 200,
+    blurb: "Two hundred hours a month: a named team rather than whoever is free, with the desk and the physician introduction behind them.",
   },
 ];
 
 /**
- * Elite is built and held for a later release — `isEnabled("elite-tier")`
- * gates it out of the catalogue and out of `changePlan`, the same way party
- * supply ships dark (see features.ts). It is listed in `PLANS` rather than
- * kept in a branch so it stays compiled, typed and tested meanwhile.
+ * Why Elite is a ladder from $500 to $20,000 rather than one price.
  *
- * **Why $149/month.** Two researched numbers set it (docs/billing.md has the
- * rest): Quintessentially charges $12,000-$44,000/year, so the ceiling is
- * nowhere near binding — and the partner whose network the luxury desk
- * borrows, Amalfi Jets, sells its *own* membership at $99/month covering
- * jets, hotels, dining and ground transport. A member can always buy that
- * directly, so Elite cannot be priced as if it were the only door.
+ * The earlier single-price Elite was set against the wrong competitor. It was
+ * $119 because the partner whose network the desk borrows sells its own
+ * membership at $99, so anything above "Family plus that" was unbuyable. That
+ * reasoning holds for a *card-access* membership — a number to call, a desk
+ * that books things — and Quintessentially's $12,000-$44,000 a year is the
+ * ceiling on that whole category.
  *
- * It is priced against assembling the same thing yourself instead: Family at
- * $69.99 plus a $99 partner membership is $169/month, so $149 undercuts doing
- * it by hand, and the safety product is the half the partner does not have.
+ * It does not hold for what these tiers actually sell, which is somebody's
+ * time. The hours are the price and the desk rides along: at the published
+ * rate an included hour costs what an extra hour costs, so a member is
+ * prepaying rather than buying a discount, and the tier is really a retainer
+ * with a concierge desk attached. Priced that way it is not competing with a
+ * membership card at all — it is competing with employing a house manager,
+ * which is $80,000-$150,000 a year before employer costs.
  *
- * Sustainable because the desk earns supplier-side rather than from the
- * membership — an 8% commission on one $50,000 charter is $4,000, nearly
- * three years of membership. What Elite is *not* is a retainer: $1,000-$5,000
- * a month buys a dedicated 10-40+ hours somewhere, and `lifestyle-manager`
- * is access to a desk, not a reserved block of anyone's month.
+ * That is also the honest reading of the top of the band. $20,000 a month is
+ * far above any card membership on the market and nowhere near the cost of
+ * staffing two hundred hours privately. Judge each rung by its hours, not
+ * against Quintessentially: the hours are what make the number defensible,
+ * and a rung that lost them would just be an expensive phone number.
+ *
+ * The desk itself still earns supplier-side — see elite.ts. Two of its
+ * services carry legal duties that no pricing decision may soften: charter is
+ * brokered under 14 CFR Part 295 with the operator named before a member
+ * agrees, and the concierge physician pays Safehubby nothing, ever, because a
+ * cut of a medical fee for a referral is a kickback.
  */
+export const ELITE_LADDER: PlanId[] = ["elite", "elite-signature", "elite-private"];
+
+export function isElitePlan(id: PlanId): boolean {
+  return ELITE_LADDER.includes(id);
+}
+
+/** The hours a plan's price already covers. Zero on everything below Elite. */
+export function includedConciergeHours(id: PlanId): number {
+  return findPlan(id).includedConciergeHours ?? 0;
+}
+
 export function isPlanReleased(id: PlanId): boolean {
-  return id === "elite" ? isEnabled("elite-tier") : true;
+  return isElitePlan(id) ? isEnabled("elite-tier") : true;
 }
 
 /** The plans a subscriber can actually see and choose today. */

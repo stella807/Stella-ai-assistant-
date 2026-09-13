@@ -5,7 +5,8 @@ import {
   doctorAvailableFor, eliteBreakEvenMembers, eliteDeskAnnualCostCents, eliteDeskIsViable,
   findEliteService, validateEliteRequest,
 } from "../src/elite.ts";
-import { ELITE_ONLY, findPlan } from "../src/billing.ts";
+import { ELITE_LADDER, ELITE_ONLY, findPlan, includedConciergeHours } from "../src/billing.ts";
+import { serviceFeeFor } from "../src/concierge.ts";
 import type { EliteBooking } from "../src/elite.ts";
 
 describe("the Elite service catalogue", () => {
@@ -144,13 +145,14 @@ describe("validateEliteRequest", () => {
 });
 
 describe("whether the Elite desk pays for itself", () => {
-  const dues = findPlan("elite").monthlyCents; // 14900
+  const dues = findPlan("elite").monthlyCents; // $500, the entry rung
 
-  it("needs six members in year one, five after, to carry the house membership", () => {
-    // Moves with the dues: repricing Elite down to sit under the do-it-
-    // yourself alternative means more members are needed to carry the desk.
-    expect(eliteBreakEvenMembers(dues, true)).toBe(6);
-    expect(eliteBreakEvenMembers(dues, false)).toBe(5);
+  it("needs two members in year one, one after, to carry the house membership", () => {
+    // Moves with the dues, and the ladder moved them a long way: entry dues
+    // now equal the desk's own monthly cost outright, so a single member
+    // carries it in steady state and two cover the initiation year.
+    expect(eliteBreakEvenMembers(dues, true)).toBe(2);
+    expect(eliteBreakEvenMembers(dues, false)).toBe(1);
   });
 
   it("counts the initiation only in the first year", () => {
@@ -171,31 +173,57 @@ describe("whether the Elite desk pays for itself", () => {
   it("says not to buy the desk before it can be carried", () => {
     // The rule this exists for: a desk bought for two members is the most
     // expensive possible way to learn the tier has not sold yet.
-    expect(eliteDeskIsViable(2, dues)).toBe(false);
-    expect(eliteDeskIsViable(5, dues)).toBe(false);
-    expect(eliteDeskIsViable(6, dues)).toBe(true);
+    expect(eliteDeskIsViable(1, dues)).toBe(false);
+    expect(eliteDeskIsViable(2, dues)).toBe(true);
     expect(eliteDeskIsViable(50, dues)).toBe(true);
   });
 
-  it("is priced well below joining the partner desk directly, for normal use", () => {
+  it("is not sold as the cheap way into the desk, because it is not one", () => {
+    // Entry dues now sit exactly at the desk's own membership, so Elite buys
+    // nothing on jet access alone. What it buys is the included hours, which
+    // are worth more than the whole desk membership by themselves — that is
+    // the claim the tier has to stand on, and the one this pins.
     const direct = ELITE_DESK_MEMBERSHIP.monthlyCents * 12;
-    expect(dues * 12).toBeLessThan(direct);
+    expect(dues * 12).toBeGreaterThanOrEqual(direct);
   });
 
-  it("knows the spend above which a member should join the desk directly", () => {
-    const jet = findEliteService("jet-travel");
-    const crossover = directMembershipCrossoverCents(dues, jet.commissionRate);
-    // Around $57.1k of charter a year — it rose when the dues fell, which is
-    // the right direction: cheaper dues means Elite stays the better deal
-    // further up the spend curve. Below it Elite is the cheaper way in;
-    // above it we should be telling them to go direct rather than selling
-    // them the more expensive option.
-    expect(crossover).toBeGreaterThan(5_500_000);
-    expect(crossover).toBeLessThan(6_000_000);
+  it("never includes more hours than the rung's price pays for", () => {
+    // The one line every rung has to stay the right side of. An allowance
+    // worth more than the membership is a tier that loses money before the
+    // desk, the insurance or a single booking is counted.
+    for (const id of ELITE_LADDER) {
+      const plan = findPlan(id);
+      const hoursValue = includedConciergeHours(id) * serviceFeeFor("book-and-buy", false, 1, 1);
+      expect(hoursValue, `${id} hours vs price`).toBeLessThan(plan.monthlyCents);
+    }
+  });
 
-    // Checked against the two costs rather than asserted: at the crossover
+  it("climbs in both price and hours, so a dearer rung is never a worse deal", () => {
+    const rungs = ELITE_LADDER.map(findPlan);
+    for (let i = 1; i < rungs.length; i++) {
+      expect(rungs[i]!.monthlyCents).toBeGreaterThan(rungs[i - 1]!.monthlyCents);
+      expect(includedConciergeHours(rungs[i]!.id))
+        .toBeGreaterThan(includedConciergeHours(rungs[i - 1]!.id));
+    }
+  });
+
+  it("reports no crossover at all once dues meet the direct membership", () => {
+    // Null rather than zero. At these dues Elite is dearer than joining the
+    // desk direct from the first dollar of charter, and a 0 would read as a
+    // threshold a light flyer could sit under — the opposite of the truth.
+    const jet = findEliteService("jet-travel");
+    expect(directMembershipCrossoverCents(dues, jet.commissionRate)).toBeNull();
+  });
+
+  it("still finds the crossover where one genuinely exists", () => {
+    // The function is not broken, the dues moved past it. At dues below the
+    // direct membership there is a real spend where the two meet, and at it
     // the member pays the same either way.
-    const viaElite = dues * 12 + commissionCentsFor("jet-travel", crossover);
+    const cheapDues = 10_000;
+    const jet = findEliteService("jet-travel");
+    const crossover = directMembershipCrossoverCents(cheapDues, jet.commissionRate);
+    expect(crossover).not.toBeNull();
+    const viaElite = cheapDues * 12 + commissionCentsFor("jet-travel", crossover!);
     expect(viaElite).toBeCloseTo(ELITE_DESK_MEMBERSHIP.monthlyCents * 12, -2);
   });
 
@@ -205,9 +233,16 @@ describe("whether the Elite desk pays for itself", () => {
     expect(() => directMembershipCrossoverCents(dues, 0)).toThrow(/commission/i);
   });
 
-  it("earns more from one real charter than from a member's whole year of dues", () => {
-    // The point of the tier: dues cover the desk, bookings are the business.
+  it("is a membership business now, not a commission one", () => {
+    // It used to be the other way round: at $119 dues, one four-hour midsize
+    // charter earned more than a member's entire year. At $500 it does not,
+    // and the tier's revenue is the dues and the hours rather than the spread
+    // on somebody's travel. Worth pinning, because it changes what the desk
+    // is for — it is a reason to hold the membership, not the earner.
     const fourHourMidsize = 4 * 796_600;
-    expect(commissionCentsFor("jet-travel", fourHourMidsize)).toBeGreaterThan(dues * 12);
+    expect(commissionCentsFor("jet-travel", fourHourMidsize)).toBeLessThan(dues * 12);
+    // And at the top rung the commission is not remotely the point.
+    expect(commissionCentsFor("jet-travel", fourHourMidsize))
+      .toBeLessThan(findPlan("elite-private").monthlyCents);
   });
 });

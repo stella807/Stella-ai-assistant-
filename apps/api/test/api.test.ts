@@ -8,7 +8,7 @@ import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runPayroll, type Ctx } from "../src/routes.ts";
-import { authorizeExactHold, assistantPayoutFor, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
+import { ELITE_LADDER, authorizeExactHold, assistantPayoutFor, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
 } from "@safehubby/core";
@@ -2404,14 +2404,21 @@ describe("Uber Guest Trips wiring", () => {
 describe("the Elite tier, held for a later release", () => {
   it("is absent from the catalogue while its flag is off", async () => {
     const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
-    expect(ids).not.toContain("elite");
+    for (const id of ELITE_LADDER) expect(ids).not.toContain(id);
     expect(ids).toContain("family");
   });
 
-  it("cannot be subscribed to, and says why rather than 404-ing blankly", async () => {
-    const res = await call("POST", "/api/subscription", { planId: "elite" }, sam);
-    expect(res.status).toBe(404);
-    expect(res.json.error).toMatch(/later release/i);
+  it("refuses every rung, and says what is holding it rather than 404-ing blankly", async () => {
+    // Each rung, not just the entry one: the dearer ones are the same jet and
+    // the same doctor, and a gap here would sell them while the cheapest
+    // waited. The message has to name what is missing — the phrasing is free
+    // to change, the fact that it explains itself is not.
+    for (const id of ELITE_LADDER) {
+      const res = await call("POST", "/api/subscription", { planId: id }, sam);
+      expect(res.status, id).toBe(404);
+      expect(res.json.error, id).toMatch(/charter operator|physician|agreement/i);
+      expect(String(res.json.error).length, id).toBeGreaterThan(40);
+    }
   });
 
   it("appears and becomes subscribable once the flag is on", async () => {

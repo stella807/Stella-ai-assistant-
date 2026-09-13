@@ -42,7 +42,7 @@ export const FLAGS: FlagDefinition[] = [
   {
     id: "elite-tier",
     enabled: false,
-    note: "The Elite luxury-lifestyle plan is built and held for a later release. Turning it on needs the supplier relationships behind it — see docs/billing.md.",
+    note: "The Elite ladder is built and priced, and held on two agreements rather than on any code: a charter operator to broker under 14 CFR Part 295, and a physician practice to introduce members to. Selling a membership whose headline is a jet and a doctor before either exists is the exposure, not the code path — flip this once they are signed.",
   },
   {
     id: "party-supply",
