@@ -16,6 +16,8 @@ import {
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateDisputeReason, validateIdentityPhoto,
   PURCHASE_MAX_CAP_CENTS, capPresetsFor, capScaleFor, defaultCapFor, maxCapFor, minutesFor,
+  HOURLY_CATEGORIES, PA_HOURLY_RATE_CENTS, defaultHoursFor, isHourlyCategory,
+  MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, clampHours,
 } from "../src/concierge.ts";
 import { presetAmounts } from "../src/amount-steps.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
@@ -120,10 +122,25 @@ describe("assistant roster", () => {
 });
 
 describe("the service fee — the customer's price, with the margin on top of the payout", () => {
-  it("has a published payout for every category", () => {
+  it("has a published payout for every category, whichever way it is paid", () => {
     for (const c of CONCIERGE_CATEGORIES) {
-      expect(CONCIERGE_ASSISTANT_PAYOUT_CENTS[c.id]).toBeGreaterThan(0);
-      expect(assistantPayoutFor(c.id)).toBe(CONCIERGE_ASSISTANT_PAYOUT_CENTS[c.id]);
+      expect(assistantPayoutFor(c.id)).toBeGreaterThan(0);
+      if (isHourlyCategory(c.id)) {
+        // Hourly work is the rate times the hours booked, and the per-task
+        // table has no entry for it to disagree with.
+        expect(assistantPayoutFor(c.id)).toBe(PA_HOURLY_RATE_CENTS * defaultHoursFor(c.id));
+      } else {
+        expect(assistantPayoutFor(c.id)).toBe(CONCIERGE_ASSISTANT_PAYOUT_CENTS[c.id]);
+      }
+    }
+  });
+
+  it("prices hourly work by the hours booked, not by a fixed block", () => {
+    for (const c of HOURLY_CATEGORIES) {
+      expect(assistantPayoutFor(c, false, 1, 1)).toBe(PA_HOURLY_RATE_CENTS);
+      expect(assistantPayoutFor(c, false, 1, 4)).toBe(PA_HOURLY_RATE_CENTS * 4);
+      // Twice the hours is twice the pay — there is no block to round into.
+      expect(assistantPayoutFor(c, false, 1, 5)).toBe(2 * assistantPayoutFor(c, false, 1, 2.5));
     }
   });
 
@@ -181,7 +198,7 @@ describe("quick-task discount", () => {
 
   it("ignores the quickTask flag for a category that isn't eligible", () => {
     expect(serviceFeeFor("wait-with-someone", true)).toBe(serviceFeeFor("wait-with-someone"));
-    expect(assistantPayoutFor("check-in-person", true)).toBe(CONCIERGE_ASSISTANT_PAYOUT_CENTS["check-in-person"]);
+    expect(assistantPayoutFor("check-in-person", true)).toBe(assistantPayoutFor("check-in-person"));
   });
 
   it("folds the discount into the total charge", () => {
@@ -253,14 +270,15 @@ describe("household scaling — a bigger family is more work, but not linearly",
   it("scales a family of six to the expected published numbers", () => {
     expect(assistantPayoutFor("grab-something", false, 6)).toBe(2363);
     expect(assistantPayoutFor("run-errand", false, 6)).toBe(2588);
-    expect(assistantPayoutFor("check-in-person", false, 6)).toBe(3375);
-    expect(assistantPayoutFor("wait-with-someone", false, 6)).toBe(5288);
+    // Hourly, at the default block: $35/hr x 1h and x 2h, scaled 2.25x.
+    expect(assistantPayoutFor("check-in-person", false, 6)).toBe(7875);
+    expect(assistantPayoutFor("wait-with-someone", false, 6)).toBe(15750);
   });
 
   it("scales two people to the expected published numbers", () => {
     expect(assistantPayoutFor("grab-something", false, 2)).toBe(1313);
-    expect(assistantPayoutFor("check-in-person", false, 2)).toBe(1875);
-    expect(assistantPayoutFor("wait-with-someone", false, 2)).toBe(2938);
+    expect(assistantPayoutFor("check-in-person", false, 2)).toBe(4375);
+    expect(assistantPayoutFor("wait-with-someone", false, 2)).toBe(8750);
   });
 
   it("keeps the margin on top of the scaled payout, at the same share", () => {
@@ -426,11 +444,16 @@ describe("receipts — unanswered spend comes out of the assistant's pay", () =>
 describe("pay-rate calculator — reference info, not a contract", () => {
   it("computes an hourly-equivalent rate from the assistant's payout, not the customer's fee", () => {
     for (const c of CONCIERGE_CATEGORIES) {
-      const expected = Math.round(assistantPayoutFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60));
+      // Hourly work has a real rate; per-task work has one implied by the
+      // published minutes. Either way it is the payout, never the fee.
+      const expected = isHourlyCategory(c.id)
+        ? PA_HOURLY_RATE_CENTS
+        : Math.round(assistantPayoutFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60));
       expect(hourlyRateCentsFor(c.id)).toBe(expected);
       // Quoting the grossed-up fee here would overstate take-home pay.
+      const minutes = minutesFor(c.id);
       expect(hourlyRateCentsFor(c.id))
-        .toBeLessThan(Math.round(serviceFeeFor(c.id) / (CONCIERGE_TASK_MINUTES[c.id] / 60)));
+        .toBeLessThan(Math.round(serviceFeeFor(c.id) / (minutes / 60)));
     }
   });
 
@@ -556,11 +579,71 @@ describe("two ceilings: an errand and a purchase are funded differently", () => 
     }
   });
 
-  it("pays the purchase task for the research, not for a trip", () => {
+  it("pays the purchase task for the hours it takes, not as a fixed trip", () => {
     // Finding what is available, comparing it and committing someone's money
-    // is the longest of the five, and priced at the same anchor rate.
-    expect(minutesFor("book-and-buy")).toBeGreaterThan(minutesFor("run-errand"));
-    expect(assistantPayoutFor("book-and-buy")).toBeGreaterThan(assistantPayoutFor("wait-with-someone"));
-    expect(hourlyRateCentsFor("book-and-buy")).toBeGreaterThanOrEqual(3000);
+    // has no natural end, so it is booked by the hour like the rest of the
+    // personal assistant's work — at the same rate as every other hour.
+    expect(isHourlyCategory("book-and-buy")).toBe(true);
+    expect(hourlyRateCentsFor("book-and-buy")).toBe(PA_HOURLY_RATE_CENTS);
+    expect(assistantPayoutFor("book-and-buy", false, 1, 6))
+      .toBe(3 * assistantPayoutFor("book-and-buy", false, 1, 2));
+  });
+});
+
+describe("booking a budget of hours", () => {
+  it("takes hours for the work that is paid by the hour", () => {
+    expect(() => validateConciergeRequest(request({ category: "book-and-buy", hours: 4 }))).not.toThrow();
+    expect(() => validateConciergeRequest(request({ category: "wait-with-someone", hours: 2.5 }))).not.toThrow();
+  });
+
+  it("refuses hours on an errand instead of quietly dropping them", () => {
+    // Dropping them would charge the per-task price for a booking the
+    // customer sized in hours — a mismatch nobody notices until the invoice.
+    expect(() => validateConciergeRequest(request({ category: "run-errand", hours: 3 })))
+      .toThrow(/priced per task/i);
+  });
+
+  it("holds the booking inside a day, and above a doorstep visit", () => {
+    expect(() => validateConciergeRequest(request({ category: "book-and-buy", hours: 0.5 })))
+      .toThrow(/between/i);
+    expect(() => validateConciergeRequest(request({ category: "book-and-buy", hours: MAX_BOOKED_HOURS + 1 })))
+      .toThrow(/between/i);
+    expect(() => validateConciergeRequest(request({ category: "book-and-buy", hours: MAX_BOOKED_HOURS })))
+      .not.toThrow();
+  });
+
+  it("books in half hours, not in arbitrary fractions", () => {
+    expect(() => validateConciergeRequest(request({ category: "book-and-buy", hours: 2.25 })))
+      .toThrow(/half hours/i);
+  });
+
+  it("charges the customer the booked hours grossed up, and pays the assistant all of them", () => {
+    const hours = 5;
+    const payout = assistantPayoutFor("book-and-buy", false, 1, hours);
+    expect(payout).toBe(PA_HOURLY_RATE_CENTS * hours);
+    const fee = serviceFeeFor("book-and-buy", false, 1, hours);
+    expect(fee).toBeGreaterThan(payout);
+    // The margin still sits on top of the hours rather than inside them.
+    expect(Math.round(fee * (1 - CONCIERGE_FEE_MARGIN))).toBe(payout);
+  });
+
+  it("keeps the card balance independent of the hours booked", () => {
+    // The two are different kinds of money: hours are the assistant's time,
+    // the cap is what goes on the card. Booking longer must not quietly
+    // change what they are allowed to spend.
+    const capCents = 120000;
+    const short = totalChargeCents("book-and-buy", capCents, false, 1, 2);
+    const long = totalChargeCents("book-and-buy", capCents, false, 1, 8);
+    expect(long - short).toBe(
+      serviceFeeFor("book-and-buy", false, 1, 8) - serviceFeeFor("book-and-buy", false, 1, 2),
+    );
+    expect(maxCapFor("book-and-buy")).toBe(PURCHASE_MAX_CAP_CENTS);
+  });
+
+  it("snaps a stray value onto something bookable rather than refusing to price it", () => {
+    expect(clampHours(0)).toBe(MIN_BOOKED_HOURS);
+    expect(clampHours(99)).toBe(MAX_BOOKED_HOURS);
+    expect(clampHours(2.3)).toBe(2.5);
+    expect(clampHours(Number.NaN)).toBe(MIN_BOOKED_HOURS);
   });
 });

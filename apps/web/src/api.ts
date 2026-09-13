@@ -354,13 +354,16 @@ export const api = {
   placeSearch: (query: string, near: { lat: number; lng: number }) =>
     request<{ places: NearbyStore[] }>(
       "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
-  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; peopleCount?: number }) =>
+  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; peopleCount?: number; hours?: number }) =>
     request<{
       quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[];
       serviceFeeCents: number; totalCents: number; quickTaskEligible: boolean;
       /** Clamped to the seats on the signed-in plan, so it can differ from what was asked for. */
       peopleCount: number;
       maxPeopleCount: number;
+      /** Present only for work paid by the hour, and only as the server
+       *  priced it — the client's number after clamping, not before. */
+      hoursBooked?: number;
     }>(
       "POST", "/api/concierge/quote", input),
   conciergeAssistants: (category: ConciergeCategory, location: { lat: number; lng: number }) =>
@@ -369,6 +372,7 @@ export const api = {
   bookConcierge: (input: {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
     spendCapCents: number; assistantId?: string; quickTask?: boolean; peopleCount?: number;
+    hours?: number;
   }) =>
     request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
       "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),

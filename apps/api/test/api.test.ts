@@ -3361,7 +3361,7 @@ describe("hiring somebody and actually sending them to a job", () => {
     const task = store.data.conciergeTasks.at(-1)!;
     expect(task.assistantId).toBe(assistantId);
     // Texas pay band, not the Los Angeles default.
-    expect(task.assistantPayoutCents).toBe(assistantPayoutFor("wait-with-someone", false, 1, "texas"));
+    expect(task.assistantPayoutCents).toBe(assistantPayoutFor("wait-with-someone", false, 1));
   });
 
   it("refuses to send somebody to a task their role does not cover", async () => {

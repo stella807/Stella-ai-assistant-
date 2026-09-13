@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
-  assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, defaultCapFor,
-  hasFeature, hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, minutesFor,
-  serviceFeeFor, totalChargeCents,
+  BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
+  assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, defaultCapFor,
+  defaultHoursFor, hasFeature, hourlyRateCentsFor, isAssistantAvailable, isHourlyCategory,
+  isQuickTaskEligible, minutesFor, serviceFeeFor, totalChargeCents,
 } from "@safehubby/core";
 import type {
   AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
@@ -22,6 +23,10 @@ const money = (cents: number) =>
 /** Whole dollars, for the amounts the cap control deals in, which step in
  *  fives and so can never have cents to lose. */
 const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
+
+/** One-tap durations, in hundredths of an hour to match the stepper's units:
+ *  an hour, a couple, an evening, a working day. */
+const HOUR_PRESETS = [100, 200, 400, 600, 800, 1200];
 
 
 
@@ -100,6 +105,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
   const [capCents, setCapCents] = useState(() => defaultCapFor(allowed[0] ?? "grab-something"));
+  const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
   const [quickTask, setQuickTask] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
@@ -129,7 +135,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   useEffect(() => {
     setCategory((current) => {
       const next = allowed.includes(current) ? current : allowed[0] ?? "grab-something";
-      if (next !== current) setCapCents(defaultCapFor(next));
+      if (next !== current) { setCapCents(defaultCapFor(next)); setHours(defaultHoursFor(next)); }
       return next;
     });
     setRoster(null);
@@ -159,9 +165,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // because that is what this form books — `peopleCountFor` on the server
   // defaults to 1 and this panel sends no count, so quoting plan seats here
   // would overstate the fee for a Family subscriber booking for themselves.
-  const serviceFee = serviceFeeFor(category, effectiveQuickTask);
-  const assistantPayout = assistantPayoutFor(category, effectiveQuickTask);
-  const totalHeld = totalChargeCents(category, spendCapCents, effectiveQuickTask);
+  // Hourly work is priced on the hours the customer booked; an errand is not
+  // priced on hours at all, and passing them would be rejected by the server.
+  const hourly = isHourlyCategory(category);
+  const bookedHours = hourly ? clampHours(hours) : undefined;
+  const serviceFee = serviceFeeFor(category, effectiveQuickTask, 1, bookedHours);
+  const assistantPayout = assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours);
+  const totalHeld = totalChargeCents(category, spendCapCents, effectiveQuickTask, 1, bookedHours);
 
   const browse = async () => {
     setBusy(true);
@@ -272,6 +282,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               // ceiling means nothing on a hotel booking, and a $500 one is not
               // a number anybody meant to authorize for a coffee run.
               setCapCents(defaultCapFor(c.id));
+              setHours(defaultHoursFor(c.id));
               setRoster(null);
               if (!isQuickTaskEligible(c.id)) setQuickTask(false);
             }}
@@ -345,6 +356,26 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         </label>
       )}
 
+      {/* Hours first, then the card. They are the two halves of an hourly
+          booking and they are not the same kind of money — what you are
+          paying the person, and what you are handing them to spend. */}
+      {hourly && (
+        <AmountStepper
+          id="concierge-hours"
+          label="How long do you need them?"
+          unit="hours"
+          hint={`Billed at ${money(PA_HOURLY_RATE_CENTS)}/hr. Book more or less any time before they start.`}
+          valueCents={Math.round(clampHours(hours) * 100)}
+          scale={{
+            minCents: MIN_BOOKED_HOURS * 100,
+            maxCents: MAX_BOOKED_HOURS * 100,
+            stepCents: BOOKED_HOUR_STEP * 100,
+          }}
+          presetsCents={HOUR_PRESETS}
+          onChange={(units) => { setHours(units / 100); setRoster(null); }}
+        />
+      )}
+
       <AmountStepper
         id="concierge-cap"
         label="Loaded on their card to spend"
@@ -366,7 +397,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <span className="small charge-amount">{money(serviceFee)}</span>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
-          Pays your assistant for about {minutesFor(category, effectiveQuickTask)} minutes of their time.
+          {hourly
+            ? `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(PA_HOURLY_RATE_CENTS)}/hr.`
+            : `Pays your assistant for about ${minutesFor(category, effectiveQuickTask)} minutes of their time.`}
         </p>
         {/* What the person doing the work actually takes home, said plainly to
             the customer paying for it. It is their money, and "service fee" on
@@ -378,9 +411,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <span className="small charge-amount">{money(assistantPayout)}</span>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
-          About {money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr for this kind of task. They keep
-          all of it — Safehubby's {money(serviceFee - assistantPayout)} is added on top of their rate, never
-          taken out of it.
+          {money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr{hourly ? "" : " for this kind of task"}. They
+          keep all of it — Safehubby's {money(serviceFee - assistantPayout)} is added on top of their rate,
+          never taken out of it.
         </p>
         <div className="row-between" style={{ marginTop: 6 }}>
           <span className="small"><strong>Held now</strong></span>
@@ -458,6 +491,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           category={category}
           note={note}
           spendCapCents={spendCapCents}
+          hours={bookedHours}
           quickTask={effectiveQuickTask}
           location={taskLocation}
           onBooked={onBooked}

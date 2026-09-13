@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { PostgresStore, sslConfigFor } from "../src/store-postgres.ts";
-import { keyFrom, makeCipher } from "../src/crypto.ts";
+import { keyFrom, makeCipher, type Cipher } from "../src/crypto.ts";
 import { SEED } from "../src/seed.ts";
 import type { Db } from "../src/store.ts";
 import { Client } from "pg";
@@ -22,7 +22,10 @@ const cipher = makeCipher(keyFrom("f".repeat(64))!);
 const empty = (): Db => structuredClone(SEED);
 const stores: PostgresStore[] = [];
 
-const open = async (c = cipher) => {
+// `null` is load-bearing and is what `connect` already takes: it is how a
+// case says "explicitly no key", which `undefined` cannot do here because
+// undefined is what triggers the default.
+const open = async (c: Cipher | null = cipher) => {
   const s = await PostgresStore.connect(URL, c, empty());
   stores.push(s);
   return s;

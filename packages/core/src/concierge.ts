@@ -210,18 +210,17 @@ export const DEFAULT_CONCIERGE_CAP_CENTS = 10000;
  * set from this schedule. Safehubby's margin is added *on top* to produce
  * the customer-facing fee (`serviceFeeFor`), never deducted from here.
  */
-export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<ConciergeCategory, number> = {
+/** The categories an errand runner is paid a fixed price for. Hourly work is
+ *  deliberately not assignable here: a per-task price for it would be a
+ *  second number that disagrees with what the customer is actually charged. */
+export type PerTaskCategory = Exclude<ConciergeCategory, HourlyCategory>;
+
+export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<PerTaskCategory, number> = {
   "grab-something": 1050, // ~18 min round trip, at the anchor rate
   // A dollar above grabbing one named thing, on purpose: an errand is
   // open-scoped within the trip — a grocery run means a list, aisles, and
   // choices to make, not one counter to collect from.
   "run-errand": 1150,
-  "check-in-person": 1500, // getting there and actually assessing someone takes longer
-  "wait-with-someone": 2350, // open-ended by nature; priced for a first ~40 min block
-  // The longest and most skilled of the five: finding what is actually
-  // available, comparing it, and committing the customer's money to it is
-  // research and judgement, not a trip. ~45 min at the same anchor rate.
-  "book-and-buy": 2625,
 };
 
 /**
@@ -286,6 +285,78 @@ export function isQuickTaskEligible(category: ConciergeCategory): boolean {
   return QUICK_TASK_CATEGORIES.includes(category);
 }
 
+/* ---------------------------------------------------------------------------
+   Two ways of being paid, because there are two jobs here
+   ------------------------------------------------------------------------ */
+
+/**
+ * An errand runner is paid per thing they do. A personal assistant is paid
+ * for a block of hours the customer books.
+ *
+ * This is not a pricing preference; it follows from the work. An errand has
+ * an end built into it — the burger is collected or it is not — so a fixed
+ * price per errand is a complete description of the deal. Sitting with
+ * someone until they are steady, or putting together a party, has no such
+ * edge: "one task" could be forty minutes or six hours, and pricing it as a
+ * single unit means one side of the deal absorbs every hour the estimate was
+ * wrong by. Whoever that is, it is the wrong answer. Booking hours makes the
+ * size of the job something the customer decides and can see, instead of
+ * something discovered afterwards by whoever ran out of goodwill first.
+ *
+ * The spend cap is untouched by any of this. It was never the assistant's
+ * pay — it is the balance on the card they carry, and it stays exactly as
+ * independent for an hourly booking as for an errand.
+ */
+export type HourlyCategory = "wait-with-someone" | "check-in-person" | "book-and-buy";
+
+export const HOURLY_CATEGORIES: HourlyCategory[] = [
+  "wait-with-someone", "check-in-person", "book-and-buy",
+];
+
+/** A type predicate, not just a boolean: narrowing here is what makes the
+ *  per-task rate tables unreachable from hourly work at compile time, rather
+ *  than by everyone remembering to check first. */
+export function isHourlyCategory(category: ConciergeCategory): category is HourlyCategory {
+  return (HOURLY_CATEGORIES as ConciergeCategory[]).includes(category);
+}
+
+/**
+ * What a personal assistant is paid per hour.
+ *
+ * The same $35 the per-task rate card was already built on — `grab-something`
+ * at $10.50 for 18 minutes is this rate, and so is every other row. Making
+ * the hourly categories bill by the hour does not reprice the work; it stops
+ * hiding the rate inside a block whose length nobody agreed to.
+ */
+export const PA_HOURLY_RATE_CENTS = 3500;
+
+/** Bookable in half hours, between one and a full working day. The floor is
+ *  an hour because nobody travels to somebody's door for fifteen minutes;
+ *  the ceiling is where a booking stops being a booking and starts being
+ *  employment, which is the line this module's own doc refuses to cross. */
+export const MIN_BOOKED_HOURS = 1;
+export const MAX_BOOKED_HOURS = 12;
+export const BOOKED_HOUR_STEP = 0.5;
+
+/** Where the hours control starts, per category. An estimate of the job, not
+ *  a limit on it — the customer moves it. */
+const DEFAULT_HOURS: Record<HourlyCategory, number> = {
+  "wait-with-someone": 2,   // you do not sit with someone for less
+  "check-in-person": 1,     // getting there, seeing they are okay, and going
+  "book-and-buy": 2,        // finding it, comparing it, committing to it
+};
+
+export function defaultHoursFor(category: ConciergeCategory): number {
+  return isHourlyCategory(category) ? DEFAULT_HOURS[category] : MIN_BOOKED_HOURS;
+}
+
+/** Hours rounded to something bookable, and held inside the bounds. */
+export function clampHours(hours: number): number {
+  if (!Number.isFinite(hours)) return MIN_BOOKED_HOURS;
+  const snapped = Math.round(hours / BOOKED_HOUR_STEP) * BOOKED_HOUR_STEP;
+  return Math.min(MAX_BOOKED_HOURS, Math.max(MIN_BOOKED_HOURS, snapped));
+}
+
 /**
  * How much each person beyond the first adds to the assistant's payout, as a
  * share of the one-person rate.
@@ -328,8 +399,15 @@ export function householdMultiplier(peopleCount = 1): number {
  * every market rather than scaling it down to each.
  */
 export function assistantPayoutFor(
-  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
 ): number {
+  // Hourly work ignores the per-task table entirely: the booked hours are the
+  // price. `hours` is optional so the published rate cards can ask what a
+  // standard booking costs without inventing a number.
+  if (isHourlyCategory(category)) {
+    const booked = clampHours(hours ?? defaultHoursFor(category));
+    return Math.round(PA_HOURLY_RATE_CENTS * booked * householdMultiplier(peopleCount));
+  }
   const quick = quickTask === true && isQuickTaskEligible(category);
   const base = quick
     ? QUICK_TASK_ASSISTANT_PAYOUT_CENTS[category]!
@@ -341,18 +419,18 @@ export function assistantPayoutFor(
  *  so `CONCIERGE_FEE_MARGIN` is a share of this fee rather than a cut taken
  *  out of their pay. */
 export function serviceFeeFor(
-  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
 ): number {
-  return Math.round(assistantPayoutFor(category, quickTask, peopleCount) / (1 - CONCIERGE_FEE_MARGIN));
+  return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours) / (1 - CONCIERGE_FEE_MARGIN));
 }
 
 /** Safehubby's cut of one task — the gap between what the customer pays for
  *  the assistant's time and what the assistant receives. */
 export function conciergeMarginCents(
-  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1,
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
 ): number {
-  return serviceFeeFor(category, quickTask, peopleCount)
-    - assistantPayoutFor(category, quickTask, peopleCount);
+  return serviceFeeFor(category, quickTask, peopleCount, hours)
+    - assistantPayoutFor(category, quickTask, peopleCount, hours);
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
@@ -360,8 +438,9 @@ export function conciergeMarginCents(
  *  so this is a sum, never a padded estimate. */
 export function totalChargeCents(
   category: ConciergeCategory, spendCapCents: number, quickTask?: boolean, peopleCount = 1,
+  hours?: number,
 ): number {
-  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount);
+  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount, hours);
 }
 
 /**
@@ -372,12 +451,9 @@ export function totalChargeCents(
  * time-tracking in this prototype, so an hourly-equivalent rate is only ever
  * as honest as this number is.
  */
-export const CONCIERGE_TASK_MINUTES: Record<ConciergeCategory, number> = {
+export const CONCIERGE_TASK_MINUTES: Record<PerTaskCategory, number> = {
   "grab-something": 18,
   "run-errand": 18,
-  "check-in-person": 25,
-  "wait-with-someone": 40,
-  "book-and-buy": 45,
 };
 
 /** The assistant's per-task *payout* expressed as an hourly-equivalent rate,
@@ -389,6 +465,10 @@ export const CONCIERGE_TASK_MINUTES: Record<ConciergeCategory, number> = {
  *  portal presents this as what an assistant earns, so quoting the grossed-up
  *  fee here would overstate their take by the margin. */
 export function hourlyRateCentsFor(category: ConciergeCategory, quickTask?: boolean): number {
+  // Hourly work has a real hourly rate rather than an implied one, so there
+  // is nothing to derive: quoting anything else here would be arithmetic
+  // disagreeing with the price the customer was actually shown.
+  if (isHourlyCategory(category)) return PA_HOURLY_RATE_CENTS;
   // `minutesFor`, not CONCIERGE_TASK_MINUTES: a quick task runs shorter, and
   // dividing its reduced pay by the standard task's duration understated the
   // rate on the one screen whose entire job is telling people what they earn.
@@ -430,6 +510,11 @@ export interface ConciergeTaskInput {
    *  category it does not apply to; `validateConciergeRequest` rejects that
    *  combination outright instead. */
   quickTask?: boolean;
+  /** How many hours of the assistant's time this books, for the categories
+   *  paid by the hour (`HOURLY_CATEGORIES`). Ignored for an errand, which is
+   *  priced per task; `validateConciergeRequest` rejects the combination
+   *  rather than silently dropping it. */
+  hours?: number;
   /** How many people this task is actually for — one person, or a whole
    *  household. Scales what the assistant is paid (`householdMultiplier`),
    *  since looking after six is more work than looking after one. Defaults
@@ -446,6 +531,20 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
   if (input.note.length > MAX_NOTE_LENGTH) throw new Error(`Keep the task description under ${MAX_NOTE_LENGTH} characters.`);
   if (input.quickTask && !isQuickTaskEligible(input.category)) {
     throw new Error(`${conciergeCategoryLabel(input.category)} isn't eligible for the quick-task discount.`);
+  }
+  if (input.hours !== undefined) {
+    if (!isHourlyCategory(input.category)) {
+      // Silently dropping the hours would charge a per-task price for a
+      // booking the customer sized in hours, which is the kind of mismatch
+      // nobody notices until the invoice.
+      throw new Error(`${conciergeCategoryLabel(input.category)} is priced per task, not by the hour.`);
+    }
+    if (!Number.isFinite(input.hours) || input.hours < MIN_BOOKED_HOURS || input.hours > MAX_BOOKED_HOURS) {
+      throw new Error(`Book between ${MIN_BOOKED_HOURS} and ${MAX_BOOKED_HOURS} hours.`);
+    }
+    if (Math.abs(input.hours / BOOKED_HOUR_STEP - Math.round(input.hours / BOOKED_HOUR_STEP)) > 1e-9) {
+      throw new Error("Hours are booked in half hours.");
+    }
   }
   if (input.peopleCount !== undefined) {
     if (!Number.isInteger(input.peopleCount) || input.peopleCount < 1 || input.peopleCount > MAX_PEOPLE_PER_TASK) {
@@ -523,6 +622,11 @@ export interface ConciergeTask {
    *  amounts above — kept on the task so a past payout stays explainable
    *  after the rate card or the household increment changes. */
   peopleCount: number;
+  /** Hours booked, for the categories paid by the hour. Stamped onto the task
+   *  for the same reason `peopleCount` is: it is what produced the two
+   *  amounts above, so a past payout stays explainable after the rate
+   *  changes. Absent on an errand, which is priced per task. */
+  hoursBooked?: number;
   /** Purchases the assistant has documented, each with a photo — see
    *  `SpendRequest`. Absent means none yet, which is why the card cannot be
    *  revealed on a task nobody has documented a purchase for. */
@@ -794,7 +898,8 @@ export function describeAssistantCapacity(profile: AssistantProfile): string {
 }
 
 /** How long this task runs, at this tier. */
-export function minutesFor(category: ConciergeCategory, quickTask = false): number {
+export function minutesFor(category: ConciergeCategory, quickTask = false, hours?: number): number {
+  if (isHourlyCategory(category)) return Math.round(clampHours(hours ?? defaultHoursFor(category)) * 60);
   return quickTask && isQuickTaskEligible(category)
     ? QUICK_TASK_MINUTES[category] ?? CONCIERGE_TASK_MINUTES[category]
     : CONCIERGE_TASK_MINUTES[category];

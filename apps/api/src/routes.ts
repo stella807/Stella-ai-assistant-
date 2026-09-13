@@ -30,6 +30,7 @@ import {
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
+  clampHours, defaultHoursFor, isHourlyCategory,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
@@ -284,7 +285,18 @@ function conciergeInputFrom(body: any): ConciergeTaskInput {
     spendCapCents: Number(body?.spendCapCents),
     quickTask: body?.quickTask === true,
     ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
+    ...(body?.hours === undefined ? {} : { hours: Number(body.hours) }),
   };
+}
+
+/** The hours a booking is priced on: what was asked for on hourly work, the
+ *  category's standard block when the client sent none, and nothing at all
+ *  for an errand, which is priced per task. Kept here rather than defaulted
+ *  inside the pricing functions so the number stamped on the task is the
+ *  number the quote was computed from. */
+function bookedHoursFor(input: ConciergeTaskInput): number | undefined {
+  if (!isHourlyCategory(input.category)) return undefined;
+  return clampHours(input.hours ?? defaultHoursFor(input.category));
 }
 
 /**
@@ -1932,12 +1944,14 @@ export const routes: Record<string, Handler> = {
     });
     if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
     const people = peopleCountFor(ctx, me, input);
+    const hours = bookedHoursFor(input);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
-      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people),
-      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people),
+      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people, hours),
+      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people, hours),
       quickTaskEligible: isQuickTaskEligible(input.category),
       peopleCount: people,
+      ...(hours === undefined ? {} : { hoursBooked: hours }),
       /** The ceiling the clamp above used, so the UI can offer exactly the
        *  seats this plan includes rather than guessing. */
       maxPeopleCount: findPlan(planOf(ctx, me)).seats,
@@ -1982,9 +1996,10 @@ export const routes: Record<string, Handler> = {
     // Stamped onto the task below, so a later rate change never reprices
     // work already agreed. One universal rate — see market-pay.ts for why
     // this does not vary by where the task happens.
-    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount);
-    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount);
-    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount);
+    const hoursBooked = bookedHoursFor(input);
+    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount, hoursBooked);
+    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked);
+    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount, hoursBooked);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     // Only the partner network gets quoted. Our own roster is not a supplier
@@ -2061,6 +2076,7 @@ export const routes: Record<string, Handler> = {
         id: newId("ct"), travelerId: me, category: input.category, note: input.note,
         location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
         assistantPayoutCents, peopleCount,
+        ...(hoursBooked === undefined ? {} : { hoursBooked }),
         quickTask: input.quickTask, status: "in-progress",
         provider: booked.provider, providerTaskId: booked.taskId, assistantId,
         assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,

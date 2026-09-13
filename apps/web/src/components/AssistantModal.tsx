@@ -20,11 +20,13 @@ const money = (cents: number) => `$${(cents / 100).toFixed(0)}`;
  * talking to the person they just hired would be a strange place to make
  * them re-orient.
  */
-export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, location, existingTask, onBooked, onClose }: {
+export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, hours, location, existingTask, onBooked, onClose }: {
   assistant: AssistantProfile;
   category: ConciergeCategory;
   note: string;
   spendCapCents: number;
+  /** Only for work paid by the hour; absent on an errand. */
+  hours?: number;
   /** Whether the subscriber opted into the discounted quick-task fee. */
   quickTask?: boolean;
   location: { lat: number; lng: number; label?: string };
@@ -79,7 +81,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
   useEffect(() => {
     if (task) return;
-    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, peopleCount })
+    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, peopleCount, hours })
       .then((r) => {
         setServiceFeeCents(r.serviceFeeCents);
         setTotalCents(r.totalCents);
@@ -88,7 +90,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         if (r.peopleCount !== peopleCount) setPeopleCount(r.peopleCount);
       })
       .catch(() => {});
-  }, [task, category, note, location, spendCapCents, quickTask, peopleCount]);
+  }, [task, category, note, location, spendCapCents, quickTask, peopleCount, hours]);
 
   useEffect(() => () => {
     activeRecording.current?.cancel();
@@ -100,7 +102,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     setError(null);
     try {
       const res = await api.bookConcierge({
-        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, peopleCount,
+        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, peopleCount, hours,
       });
       setTask(res.task);
       onBooked(res.task);

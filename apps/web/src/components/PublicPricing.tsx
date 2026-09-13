@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, QUICK_TASK_CATEGORIES, assistantPayoutFor,
-  driverEarningsCents, minutesFor, serviceFeeFor,
+  CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, PA_HOURLY_RATE_CENTS, QUICK_TASK_CATEGORIES, assistantPayoutFor,
+  defaultHoursFor, driverEarningsCents, isHourlyCategory, minutesFor, serviceFeeFor,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -111,8 +111,13 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
         {categories.map((c) => (
           <tr key={c.id}>
             <td>{c.label}</td>
-            <td className="tiny muted">{minutesFor(c.id)} min</td>
-            <td>{money(serviceFeeFor(c.id))}</td>
+            <td className="tiny muted">
+              {isHourlyCategory(c.id) ? `${defaultHoursFor(c.id)} hr` : `${minutesFor(c.id)} min`}
+            </td>
+            <td>
+              {money(serviceFeeFor(c.id))}
+              {isHourlyCategory(c.id) && <span className="tiny muted"> for that booking</span>}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -138,7 +143,9 @@ export function PublicWorkerPay() {
           {CONCIERGE_CATEGORIES.map((c) => (
             <tr key={c.id}>
               <td>{c.label}</td>
-              <td className="tiny muted">{minutesFor(c.id)} min</td>
+              <td className="tiny muted">
+                {isHourlyCategory(c.id) ? `${money(PA_HOURLY_RATE_CENTS)}/hr` : `${minutesFor(c.id)} min`}
+              </td>
               <td>{money(assistantPayoutFor(c.id))}</td>
             </tr>
           ))}

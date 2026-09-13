@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
   REFERENCE_MARKET, LAUNCH_MARKETS, describePayAgainstMarket, minutesFor, type LaunchMarketId,
-  annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel, hourlyRateCentsFor,
+  annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel, defaultHoursFor,
+  hourlyRateCentsFor, isHourlyCategory,
   isQuickTaskEligible, remainingSpendCents, unaccountedSpendCents,
 } from "@safehubby/core";
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
@@ -190,19 +191,28 @@ function PayRates({ onBack }: { onBack: () => void }) {
 
         <table className="pay-table">
           <thead>
-            <tr><th>Task</th><th>Per task</th><th>≈ Per hour</th></tr>
+            <tr><th>Task</th><th>What it pays</th><th>Rate</th></tr>
           </thead>
           <tbody>
             {CONCIERGE_CATEGORIES.map((c) => (
               <tr key={c.id}>
                 <td>{c.label}</td>
                 <td>
-                  {money(assistantPayoutFor(c.id))}
-                  {isQuickTaskEligible(c.id) && (
-                    <span className="tiny muted"> (as low as {money(assistantPayoutFor(c.id, true))} for a quick task)</span>
+                  {isHourlyCategory(c.id) ? (
+                    <>
+                      {money(assistantPayoutFor(c.id))}
+                      <span className="tiny muted"> for a typical {defaultHoursFor(c.id)}-hour booking</span>
+                    </>
+                  ) : (
+                    <>
+                      {money(assistantPayoutFor(c.id))}
+                      {isQuickTaskEligible(c.id) && (
+                        <span className="tiny muted"> (as low as {money(assistantPayoutFor(c.id, true))} for a quick task)</span>
+                      )}
+                    </>
                   )}
                 </td>
-                <td>≈ {money(hourlyRateCentsFor(c.id))}/hr</td>
+                <td>{isHourlyCategory(c.id) ? "" : "≈ "}{money(hourlyRateCentsFor(c.id))}/hr</td>
               </tr>
             ))}
           </tbody>
@@ -212,7 +222,9 @@ function PayRates({ onBack }: { onBack: () => void }) {
           {describePayAgainstMarket(
             assistantPayoutFor("wait-with-someone"), minutesFor("wait-with-someone"), market,
           )}{" "}
-          The rate is the same in every market we work — the job is the same job. A quick task pays less
+          The rate is the same in every market we work — the job is the same job. Errands pay a fixed price
+          per errand, because an errand has an end built into it. Personal assistant work is booked and paid
+          by the hour, so an evening that runs long is paid for rather than absorbed. A quick task pays less
           because it is a shorter job, not a worse rate.
         </p>
       </section>
