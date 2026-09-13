@@ -831,3 +831,15 @@
 }
 
 .assistant-full { color: var(--warn); }
+
+/* The assistant's own pay, beside the client's spend cap on the card screen.
+   Tinted so the two amounts are never mistaken for one another — the entire
+   rule of the task card is that the client's money and the assistant's pay
+   do not mix. */
+.pay-callout {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ok-fill);
+  border: 1px solid color-mix(in srgb, var(--ok) 34%, transparent);
+}
+.pay-callout .charge-amount { color: var(--ok); }

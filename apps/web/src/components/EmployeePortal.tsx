@@ -583,6 +583,20 @@ function TaskCardPopup({ task, onClose, onChanged }: {
           there is nothing to keep track of. Don't spend your own money and expect it back.
         </p>
 
+        {/* The other number on this screen, and the one that is actually
+            yours. Two amounts sit side by side here — the client's money and
+            your pay — and the whole rule of the card is that they never mix,
+            so the screen says both rather than leaving the second one to be
+            looked up somewhere else. */}
+        <div className="row-between small pay-callout">
+          <strong>You earn for this task</strong>
+          <strong className="charge-amount">{money(task.assistantPayoutCents)}</strong>
+        </div>
+        <p className="tiny muted">
+          Paid to you on the next payroll run, on top of anything you spend on the card. The card is the
+          client's money; this is yours.
+        </p>
+
         {unlocked ? (
           <>
             <button className="btn btn-primary btn-block" disabled={busy} onClick={reveal}>
