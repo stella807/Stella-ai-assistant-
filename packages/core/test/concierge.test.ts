@@ -15,8 +15,8 @@ import {
   describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateDisputeReason, validateIdentityPhoto,
-  PURCHASE_MAX_CAP_CENTS, capPresetsFor, capScaleFor, defaultCapFor, maxCapFor, minutesFor,
-  HOURLY_CATEGORIES, PA_HOURLY_RATE_CENTS, defaultHoursFor, isHourlyCategory,
+  PURCHASE_LADDER_TOP_CENTS, capPresetsFor, capScaleFor, defaultCapFor, maxCapFor, minutesFor,
+  HOURLY_CATEGORIES, PA_HOURLY_RATE_CENTS, defaultHoursFor, hasCapCeiling, isHourlyCategory,
   MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, clampHours,
 } from "../src/concierge.ts";
 import { presetAmounts } from "../src/amount-steps.ts";
@@ -527,10 +527,37 @@ describe("two ceilings: an errand and a purchase are funded differently", () => 
     }))).not.toThrow();
   });
 
-  it("still refuses a card with no ceiling on it, however large the purchase", () => {
+  it("loads whatever the customer funds, with no ceiling of Safehubby's", () => {
+    // A forty-thousand-dollar hotel stay is a real booking. What bounds this
+    // is the customer's own funding clearing, not a number picked in here.
     expect(() => validateConciergeRequest(request({
-      category: "book-and-buy", spendCapCents: PURCHASE_MAX_CAP_CENTS + 1,
-    }))).toThrow(/spend cap/i);
+      category: "book-and-buy", spendCapCents: 4_000_000,
+    }))).not.toThrow();
+    expect(maxCapFor("book-and-buy")).toBeNull();
+    expect(hasCapCeiling("book-and-buy")).toBe(false);
+  });
+
+  it("does not let the preset ladder become the limit it replaced", () => {
+    // The stepper needs a finite scale to step along, and the ladder's top is
+    // it. Treating that as the ceiling clamps a typed $40,000 back down to
+    // $10,000 — "no limit" with extra steps, which is how this first shipped.
+    const scale = capScaleFor("book-and-buy");
+    expect(scale.maxCents).toBe(PURCHASE_LADDER_TOP_CENTS);
+    expect(maxCapFor("book-and-buy")).toBeNull();
+    expect(() => validateConciergeRequest(request({
+      category: "book-and-buy", spendCapCents: PURCHASE_LADDER_TOP_CENTS * 4,
+    }))).not.toThrow();
+  });
+
+  it("still refuses an amount below the floor, and still holds it exactly", () => {
+    expect(() => validateConciergeRequest(request({
+      category: "book-and-buy", spendCapCents: CONCIERGE_MIN_CAP_CENTS - 1,
+    }))).toThrow(/at least/i);
+    // The promise the cap makes does not weaken as the number grows: the
+    // total is still cap + fee, with nothing padded.
+    const cap = 4_000_000;
+    expect(totalChargeCents("book-and-buy", cap, false, 1, 3))
+      .toBe(cap + serviceFeeFor("book-and-buy", false, 1, 3));
   });
 
   it("does not let an errand reach the purchase ceiling", () => {
@@ -540,7 +567,7 @@ describe("two ceilings: an errand and a purchase are funded differently", () => 
       category: "run-errand", spendCapCents: CONCIERGE_MAX_CAP_CENTS + 1,
     }))).toThrow(/spend cap/i);
     expect(maxCapFor("run-errand")).toBe(CONCIERGE_MAX_CAP_CENTS);
-    expect(maxCapFor("book-and-buy")).toBe(PURCHASE_MAX_CAP_CENTS);
+    expect(hasCapCeiling("run-errand")).toBe(true);
   });
 
   it("never offers a preset the ceiling would reject", () => {
@@ -637,7 +664,6 @@ describe("booking a budget of hours", () => {
     expect(long - short).toBe(
       serviceFeeFor("book-and-buy", false, 1, 8) - serviceFeeFor("book-and-buy", false, 1, 2),
     );
-    expect(maxCapFor("book-and-buy")).toBe(PURCHASE_MAX_CAP_CENTS);
   });
 
   it("snaps a stray value onto something bookable rather than refusing to price it", () => {

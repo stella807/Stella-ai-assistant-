@@ -101,29 +101,42 @@ export const CONCIERGE_MIN_CAP_CENTS = 1000;
 export const CONCIERGE_MAX_CAP_CENTS = 60000;
 
 /**
- * The ceiling for a task whose whole point is the purchase — `book-and-buy`.
+ * A purchase task has no product ceiling. The balance is whatever the
+ * customer funds it with.
  *
- * Both kinds of task get the same thing mechanically: a Safehubby-issued
- * card, killed when the task ends, funded from the hold placed on the
- * customer's own account. The only difference between them is the balance on
- * it, and $600 is the wrong balance for this one. Two concert tickets, a
- * night in a hotel, or a deposit on a table are routinely four figures, so
- * the errand ceiling would have turned "book me a room" into a task the
- * booking form refuses rather than a task an assistant can complete.
+ * There was a $5,000 cap here, and it was wrong for the same reason $600 was
+ * wrong before it: it made Safehubby the one deciding how much of their own
+ * money somebody may spend on their own hotel. A forty-thousand-dollar stay
+ * is a real booking, and refusing to load a card for it is not caution — it
+ * is a product that cannot do the thing it claims to do.
  *
- * Still a hard ceiling, and still the customer's own number. A card with no
- * limit on it is the one thing this module will not issue, however large the
- * purchase — the cap is a promise about a stranger spending someone else's
- * money, and that promise does not get weaker as the amount goes up.
+ * What actually bounds this is real and sits outside this module: the
+ * customer has to fund the card and the funding has to clear. That is a
+ * better limit than a number picked here, because it is their own bank
+ * telling the truth about what they have rather than Safehubby guessing on
+ * their behalf.
+ *
+ * The cap is still exact and still a promise. `authorizeExactHold` holds
+ * precisely it, the card declines a cent over it, and it dies with the task.
+ * None of that weakens as the number grows; what changed is only who picks
+ * the number.
  */
-export const PURCHASE_MAX_CAP_CENTS = 500000;
-
-/** The ceiling in force for a given task. Errands stay at $600; a purchase
- *  task is funded for what it is actually buying. */
-export function maxCapFor(category: ConciergeCategory, quickTask?: boolean): number {
-  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_MAX_CAP_CENTS;
-  return category === "book-and-buy" ? PURCHASE_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS;
+export function hasCapCeiling(category: ConciergeCategory, quickTask?: boolean): boolean {
+  if (quickTask && isQuickTaskEligible(category)) return true;
+  return category !== "book-and-buy";
 }
+
+/** The ceiling in force, or `null` where the customer sets the balance. */
+export function maxCapFor(category: ConciergeCategory, quickTask?: boolean): number | null {
+  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_MAX_CAP_CENTS;
+  return category === "book-and-buy" ? null : CONCIERGE_MAX_CAP_CENTS;
+}
+
+/**
+ * The top of the one-tap ladder for an uncapped task. Not a limit — larger
+ * amounts are typed in — just where another preset button stops being useful.
+ */
+export const PURCHASE_LADDER_TOP_CENTS = 1000000;
 
 /**
  * Everything the cap control needs, decided here rather than in the booking
@@ -135,7 +148,10 @@ export function maxCapFor(category: ConciergeCategory, quickTask?: boolean): num
 export function capScaleFor(category: ConciergeCategory, quickTask?: boolean): AmountScale {
   return {
     minCents: CONCIERGE_MIN_CAP_CENTS,
-    maxCents: maxCapFor(category, quickTask),
+    // Where there is no ceiling this is the ladder's top, not a limit: the
+    // stepper needs a finite scale to step along, and larger amounts are
+    // typed rather than nudged to.
+    maxCents: maxCapFor(category, quickTask) ?? PURCHASE_LADDER_TOP_CENTS,
     // A $5 nudge on a hotel booking is noise; a $25 nudge on a coffee run is
     // a blunt instrument. The step follows the size of the thing.
     stepCents: category === "book-and-buy" ? 2500 : 500,
@@ -154,7 +170,7 @@ export function defaultCapFor(category: ConciergeCategory): number {
  *  silently shortening the row. */
 export function capPresetsFor(category: ConciergeCategory): number[] {
   return category === "book-and-buy"
-    ? [10000, 25000, 50000, 100000, 250000, 500000]
+    ? [25000, 50000, 100000, 250000, 500000, PURCHASE_LADDER_TOP_CENTS]
     : [2500, 5000, 10000, 20000, 40000, 60000];
 }
 
@@ -555,10 +571,12 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
   if (
     !Number.isInteger(input.spendCapCents) ||
     input.spendCapCents < CONCIERGE_MIN_CAP_CENTS ||
-    input.spendCapCents > maxCap
+    (maxCap !== null && input.spendCapCents > maxCap)
   ) {
     throw new Error(
-      `Spend cap must be between $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}${input.quickTask ? " for a quick task" : ""}.`,
+      maxCap === null
+        ? `Load at least $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} onto the card.`
+        : `Spend cap must be between $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}${input.quickTask ? " for a quick task" : ""}.`,
     );
   }
 }

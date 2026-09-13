@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, defaultCapFor,
-  defaultHoursFor, hasFeature, hourlyRateCentsFor, isAssistantAvailable, isHourlyCategory,
+  defaultHoursFor, hasCapCeiling, hasFeature, hourlyRateCentsFor, isAssistantAvailable, isHourlyCategory,
   isQuickTaskEligible, minutesFor, serviceFeeFor, totalChargeCents,
 } from "@safehubby/core";
 import type {
@@ -106,6 +106,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const [note, setNote] = useState("");
   const [capCents, setCapCents] = useState(() => defaultCapFor(allowed[0] ?? "grab-something"));
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
+  /** The typed cap, kept as text so a half-entered "40" is not parsed as $40
+   *  and snapped away while somebody is still typing "40000". */
+  const [capEntry, setCapEntry] = useState("");
   const [quickTask, setQuickTask] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
@@ -155,7 +158,15 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // Ceiling, step and presets all come from core: a booking that buys concert
   // tickets is funded differently from one that fetches a burger, and that is
   // a pricing rule, not a form detail.
-  const capScale = capScaleFor(category, effectiveQuickTask);
+  const base = capScaleFor(category, effectiveQuickTask);
+  // Where Safehubby sets no ceiling, the scale stretches to whatever was
+  // typed. Its max is the top of the preset ladder, which the stepper needs
+  // something finite to step along — but leaving it there would clamp a
+  // typed $40,000 back down to the ladder, turning "no limit" into a limit
+  // with extra steps.
+  const capScale = hasCapCeiling(category, effectiveQuickTask)
+    ? base
+    : { ...base, maxCents: Math.max(base.maxCents, capCents) };
   // Clamped rather than stored clamped: switching a booking to a quick task
   // drops the ceiling, and the cap has to follow it down without losing the
   // customer's original number if they switch back.
@@ -283,6 +294,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               // a number anybody meant to authorize for a coffee run.
               setCapCents(defaultCapFor(c.id));
               setHours(defaultHoursFor(c.id));
+              setCapEntry("");
               setRoster(null);
               if (!isQuickTaskEligible(c.id)) setQuickTask(false);
             }}
@@ -385,6 +397,34 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         presetsCents={capPresetsFor(category)}
         onChange={(cents) => { setCapCents(cents); setRoster(null); }}
       />
+
+      {/* Where Safehubby sets no ceiling, the ladder cannot be the only way
+          in: a forty-thousand-dollar hotel stay is a real booking and there
+          is no sensible number of preset buttons that reaches it. Typed
+          rather than nudged, so an amount this size is always deliberate. */}
+      {!hasCapCeiling(category, effectiveQuickTask) && (
+        <div className="field">
+          <label htmlFor="concierge-cap-exact">Or load an exact amount</label>
+          <input
+            id="concierge-cap-exact"
+            inputMode="decimal"
+            value={capEntry}
+            placeholder={dollars(spendCapCents).replace("$", "")}
+            onChange={(e) => {
+              setCapEntry(e.target.value);
+              const parsed = Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) * 100);
+              if (Number.isFinite(parsed) && parsed >= CONCIERGE_MIN_CAP_CENTS) {
+                setCapCents(parsed);
+                setRoster(null);
+              }
+            }}
+          />
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Whatever you fund it with. Safehubby sets no upper limit here — the card carries what you put on
+            it, declines a cent over, and dies when the task ends.
+          </p>
+        </div>
+      )}
 
       {/* What this costs, before agreeing to it rather than after.
           Everything here comes from the same core functions the server
