@@ -37,7 +37,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
 
   return (
     <>
-      <section className="card stack">
+      <section className="card card-lead stack">
         <h2>{t("pricing.heading")}</h2>
         <p className="small muted" style={{ margin: 0 }}>{t("pricing.subtitle")}</p>
 
@@ -51,7 +51,12 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
               const discounted = Boolean(offer?.discounted) && p.monthlyCents > 0;
               return (
                 <tr key={p.id}>
-                  <td>{p.name}</td>
+                  <td>
+                    {p.name}
+                    {p.id === "premium-plus" && (
+                      <div className="plan-tag" style={{ marginTop: 2 }}>Most picked</div>
+                    )}
+                  </td>
                   <td>
                     {p.monthlyCents === 0 ? t("pricing.free") : (
                       <>

@@ -33,6 +33,10 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           ? Math.round(((p.monthlyCents * 12 - p.annualCents) / (p.monthlyCents * 12)) * 100)
           : 0;
         const current = p.id === currentPlanId;
+        // Premium Plus: everything the app does, for two, and the tier the
+        // pricing is actually built around. A list of four equal options
+        // makes the reader do the comparing.
+        const featured = p.id === "premium-plus" && !current;
         // What joining today actually costs, computed by the server (see the
         // catalog route). The launch discount has to be visible on the price
         // somebody is agreeing to, not just on a banner above it.
@@ -40,9 +44,10 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         const discounted = Boolean(offer?.discounted) && price > 0;
 
         return (
-          <section key={p.id} className={`card plan${current ? " plan-on" : ""}`}>
+          <section key={p.id} className={`card plan${current ? " plan-on" : ""}${featured ? " plan-featured" : ""}`}>
+            {featured && <span className="plan-tag">Most people pick this</span>}
             <div className="row-between">
-              <h3 style={{ color: "var(--text)", fontSize: 17 }}>{p.name}</h3>
+              <h3>{p.name}</h3>
               {current && <span className="pill pill-safe">Your plan</span>}
             </div>
 

@@ -34,7 +34,8 @@ export type StaffRole =
   | "driver"
   | "personal-assistant"
   | "errand-runner"
-  | "secretary";
+  | "secretary"
+  | "social-media-manager";
 
 export interface RoleInfo {
   id: StaffRole;
@@ -84,6 +85,21 @@ export const STAFF_ROLES: RoleInfo[] = [
     drives: false,
     prelaunchHoursPerWeek: 0,
     hourlyCents: 0,
+  },
+  {
+    id: "social-media-manager",
+    label: "Social media manager",
+    description: "Fill the launch: run the accounts, the launch party, the newsletter and the referral push that brings the first customers in.",
+    drives: false,
+    // The role the original plan forgot, and the one the launch actually
+    // depends on. Two months of pre-launch signups, a mailing list and a
+    // referral loop are all somebody's job, and if nobody does it the roster
+    // below is nine field workers waiting for customers who never heard of
+    // us. Paid for the window like the secretary, because the work is the
+    // run-up itself — the same rate, because it is the same kind of
+    // full-attention desk job.
+    prelaunchHoursPerWeek: 20,
+    hourlyCents: 2200,
   },
   {
     id: "secretary",
@@ -216,8 +232,9 @@ export function gasStipendCentsPerDriver(): number {
 /**
  * Who we are trying to have on the roster by go-live.
  *
- * Small on purpose. One market, one secretary, and enough drivers and
- * assistants to cover a weekend without anyone working every shift of it.
+ * Small on purpose. One market, one secretary, one person filling the
+ * launch, and enough drivers and assistants to cover a weekend without
+ * anyone working every shift of it.
  * Hiring ahead of demand is how a launch burns its runway before it has a
  * single paying customer, so these are floors to serve the first weekend, not
  * an org chart.
@@ -227,6 +244,7 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   "personal-assistant": 5,
   "errand-runner": 4,
   secretary: 1,
+  "social-media-manager": 1,
 };
 
 export interface RoleBudgetLine {

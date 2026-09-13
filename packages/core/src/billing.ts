@@ -174,7 +174,7 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * pharmacy-run menu (see care-package.ts), which is real takeout-grade food
  * and costs more per basket than a snack basket does. Those costs did not go
  * away when the features moved down; they are now spread across Premium Plus
- * subscribers too, at an unchanged $33.99. That is a deliberate margin
+ * subscribers too. That is a deliberate margin
  * trade, not an oversight: a tier that visibly holds back the safest way
  * home is a worse product than one that doesn't, and a simpler ladder
  * ("everything, for one or two people" vs "everything, for six") converts
@@ -184,13 +184,17 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * not re-fencing the feature.
  *
  * What this leaves Family to justify its price with is seats, and seats
- * alone: six instead of two, which is a real per-person discount
- * ($11.67/seat against $17.00) and the same shape every household plan
- * uses. **`seats` is not enforced anywhere in code yet** — nothing counts
- * profiles or crew members against it — so it is currently a published
- * number rather than a limit. That was tolerable while Family also carried
- * exclusive features; now that it doesn't, enforcing `seats` is what keeps
- * the tier meaningful, and is the next thing to build here.
+ * alone: six against Premium Plus's two, which is a real per-person
+ * discount ($5.00/seat against $10.00) and the same shape every household
+ * plan uses.
+ *
+ * The ladder is 1, 1, 2, 6. Free and Premium are **one person** — the
+ * entry tiers are for somebody looking after themselves, and a second seat
+ * is the first thing worth paying to add. `seats` is a published number and
+ * also a real limit in one place: `peopleCountFor` clamps a concierge
+ * task's household count to it, so a Premium subscriber books an assistant
+ * for themselves rather than for a group. Nothing counts profiles or crew
+ * members against it yet; that is still the next thing to build here.
  *
  * Ride and delivery costs are still passed through at the provider's price on
  * top of the subscription. Bundling them would mean either capping how often
@@ -263,18 +267,18 @@ export const PLANS: Plan[] = [
     name: "Free",
     monthlyCents: 0,
     annualCents: 0,
-    seats: 2,
+    seats: 1,
     features: FREE_FEATURES,
-    blurb: "Location sharing, check-ins, drink count, and SOS. Always free — safety basics are not a paywall.",
+    blurb: "For one person. Location sharing, check-ins, drink count, and SOS. Always free — safety basics are not a paywall.",
   },
   {
     id: "premium-basic",
     name: "Premium",
     monthlyCents: 999,
     annualCents: 9999,
-    seats: 2,
+    seats: 1,
     features: BASIC_FEATURES,
-    blurb: "Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
+    blurb: "For one person. Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
   },
   {
     id: "premium-plus",
@@ -283,7 +287,7 @@ export const PLANS: Plan[] = [
     annualCents: 19999,
     seats: 2,
     features: PLUS_FEATURES,
-    blurb: "Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
+    blurb: "For two. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
     id: "family",

@@ -128,12 +128,21 @@ h1::after {
 
 h2 { font-size: 24px; font-weight: 750; line-height: 1.18; }
 
-/* Card titles read as titles now — same ink as the body, not a grey whisper. */
+/*
+ * Card titles read as titles — in size as well as ink.
+ *
+ * They used to be 15.5px, which is exactly the body size (`.small`). That
+ * left no step at all between a card's heading and its text, so a screen of
+ * stacked cards read as one undifferentiated block: nothing announced where
+ * one thing ended and the next began. The scale now steps 26 / 24 / 17.5 /
+ * 15.5, which is enough for the eye to find the headings without them
+ * shouting.
+ */
 h3 {
-  font-size: 15.5px;
-  font-weight: 680;
-  line-height: 1.3;
-  letter-spacing: -0.014em;
+  font-size: 17.5px;
+  font-weight: 720;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 

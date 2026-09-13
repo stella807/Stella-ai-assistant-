@@ -27,10 +27,12 @@
      neighbouring slides peeking through the gutter, which reads as a
      rendering fault rather than an affordance. */
   scroll-snap-align: start;
-  /* Each slide keeps the app's normal vertical rhythm inside it. */
+  /* Cards on a slide sit further apart than elements inside one, so the
+     grouping is visible: at a uniform gap, a stack of same-coloured cards
+     reads as a single long panel rather than as separate things. */
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
   padding-inline: 2px;
 }
 
@@ -72,4 +74,23 @@
 @media (prefers-reduced-motion: reduce) {
   .slides { scroll-behavior: auto; transition: none; }
   .slide-dots button { transition: none; }
+}
+
+/* The sign-in tabs inside a slide must not be sticky.
+   `.tabs` is sticky-with-a-backdrop for the signed-in app, where it pins a
+   nav bar to the top of a long scrolling page — correct there. Inside the
+   carousel the nearest scrolling ancestor is the horizontal track, so the
+   signup slide's tab strip pinned itself to the track and painted over
+   whichever slide was on screen: a square-cornered, blurred, 32px-too-wide
+   block sitting across the neighbouring card's rounded corner. That is the
+   smear that made the landing look like one continuous surface instead of
+   separate cards. A slide is not a scrolling page and has nothing to pin. */
+.slides .tabs {
+  position: static;
+  z-index: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }

@@ -187,6 +187,26 @@ describe("plans", () => {
     }
   });
 
+  it("makes the entry tiers one person, and sells the second seat", () => {
+    // Free and Premium are for somebody looking after themselves. This is
+    // not only a published number: `peopleCountFor` clamps a concierge
+    // task's household count to it, so a Premium subscriber books an
+    // assistant for themselves rather than for a group.
+    expect(findPlan("free").seats).toBe(1);
+    expect(findPlan("premium-basic").seats).toBe(1);
+    expect(findPlan("premium-plus").seats).toBe(2);
+    expect(findPlan("family").seats).toBe(6);
+  });
+
+  it("never lets seats go down as the price goes up", () => {
+    const paid = releasedPlans().filter((p) => p.monthlyCents > 0)
+      .sort((a, b) => a.monthlyCents - b.monthlyCents);
+    for (let i = 1; i < paid.length; i++) {
+      expect(paid[i]!.seats, `${paid[i]!.id} vs ${paid[i - 1]!.id}`)
+        .toBeGreaterThanOrEqual(paid[i - 1]!.seats);
+    }
+  });
+
   it("rejects an unknown plan", () => {
     // @ts-expect-error exercising the runtime guard
     expect(() => findPlan("enterprise")).toThrow();

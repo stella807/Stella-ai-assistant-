@@ -34,14 +34,18 @@ import {
  * care. Sending the cheapest available person to it would be the most
  * consequential shortcut in this codebase.
  *
- * Secretaries and drivers take no concierge tasks at all — different jobs,
- * with their own pay in `driver-pay.ts` and `staffing.ts`.
+ * Secretaries, social media managers and drivers take no concierge tasks at
+ * all — different jobs, with their own pay in `driver-pay.ts` and
+ * `staffing.ts`. The compiler enforces that: `ROLE_CATEGORIES` is keyed by
+ * `StaffRole`, so adding a role without deciding what it may be sent to is
+ * a build error rather than an empty default.
  */
 export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   "personal-assistant": ["grab-something", "run-errand", "check-in-person", "wait-with-someone"],
   "errand-runner": [...QUICK_TASK_CATEGORIES],
   secretary: [],
   driver: [],
+  "social-media-manager": [],
 };
 
 export function categoriesForRole(role: StaffRole): ConciergeCategory[] {

@@ -3377,12 +3377,14 @@ export const routes: Record<string, Handler> = {
     requireAdmin(ctx);
     const approved = ctx.store.data.staffApplications.filter((a) => a.status === "approved");
     const approvedDrivers = ctx.store.data.driverApplications.filter((a) => a.status === "approved");
-    const hired: Record<StaffRole, number> = {
-      driver: approvedDrivers.length,
-      "personal-assistant": approved.filter((a) => a.role === "personal-assistant").length,
-      "errand-runner": approved.filter((a) => a.role === "errand-runner").length,
-      secretary: approved.filter((a) => a.role === "secretary").length,
-    };
+    // Keyed off STAFF_ROLES rather than written out, so a role added later
+    // is counted here instead of silently costing nothing.
+    const hired = Object.fromEntries(STAFF_ROLES.map((role) => [
+      role.id,
+      role.id === "driver"
+        ? approvedDrivers.length
+        : approved.filter((a) => a.role === role.id).length,
+    ])) as Record<StaffRole, number>;
     return {
       plan: { headcount: PRELAUNCH_HEADCOUNT, budget: prelaunchBudget(), monthlyAfterLaunch: monthlyRosterCents() },
       actual: { headcount: hired, budget: prelaunchBudget(hired), monthlyAfterLaunch: monthlyRosterCents(hired) },
