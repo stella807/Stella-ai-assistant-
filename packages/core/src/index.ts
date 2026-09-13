@@ -37,6 +37,8 @@ export * from "./driver-pay.ts";
 export * from "./concierge.ts";
 export * from "./elite.ts";
 export * from "./voice-messages.ts";
+export * from "./text-messages.ts";
+export * from "./master-access.ts";
 export * from "./ports.ts";
 export * from "./payroll.ts";
 export * from "./service-area.ts";

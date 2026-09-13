@@ -3420,3 +3420,105 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect((await callAdmin("GET", "/api/staff/roster")).status).toBe(200);
   });
 });
+
+describe("texting the assistant on your task", () => {
+  const IN_TEXAS = { lat: 29.76, lng: -95.37 };
+  useAdminKey();
+
+  const withCard = (token: string) =>
+    call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, token);
+
+  /** Hire somebody and book them, which is the only way a thread exists. */
+  const bookedTask = async () => {
+    const app = await call("POST", "/api/staff/apply", {
+      role: "personal-assistant", fullName: "Rosa Delgado", email: "rosa@example.com",
+      phone: "2125550147", city: "Houston", state: "TX", hoursPerWeek: 20,
+      backgroundCheckConsent: true,
+      experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
+    });
+    await callAdmin("POST", `/api/staff/applications/${app.json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${app.json.id}/review`, { status: "approved" });
+    const hired = await callAdmin("POST", `/api/staff/applications/${app.json.id}/hire`, { market: "texas" });
+    await withCard(sam);
+    const booked = await call("POST", "/api/concierge/tasks", {
+      category: "run-errand", note: "Two 2x4s from the hardware store on Main",
+      location: IN_TEXAS, spendCapCents: 12000, acknowledgedDisclosures: true,
+      assistantId: hired.json.assistant.id,
+    }, sam);
+    return { taskId: booked.json.task.id, assistantId: hired.json.assistant.id };
+  };
+
+  it("sends a message and reads it back on the thread", async () => {
+    const { taskId } = await bookedTask();
+    const sent = await call("POST", `/api/concierge/tasks/${taskId}/messages`, {
+      body: "  The 8ft ones, not the 10ft  ",
+    }, sam);
+    expect(sent.status).toBe(200);
+    expect(sent.json.message.body).toBe("The 8ft ones, not the 10ft");
+    expect(sent.json.message.sender).toBe("traveler");
+
+    const thread = await call("GET", `/api/concierge/tasks/${taskId}/messages`, undefined, sam);
+    expect(thread.json.messages).toHaveLength(1);
+  });
+
+  it("refuses an empty message rather than sending a blank bubble", async () => {
+    const { taskId } = await bookedTask();
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "   " }, sam)).status).toBe(400);
+  });
+
+  it("bounds the length", async () => {
+    const { taskId } = await bookedTask();
+    const res = await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "x".repeat(801) }, sam);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/under 800/i);
+  });
+
+  it("never shows another account's thread", async () => {
+    const { taskId } = await bookedTask();
+    await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "private" }, sam);
+    // Jordan owns no such task, so it is a 404 rather than an empty thread.
+    expect((await call("GET", `/api/concierge/tasks/${taskId}/messages`, undefined, jordan)).status).toBe(404);
+    expect((await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "hi" }, jordan)).status).toBe(404);
+  });
+
+  it("needs a session at all", async () => {
+    const { taskId } = await bookedTask();
+    expect((await call("GET", `/api/concierge/tasks/${taskId}/messages`)).status).toBe(401);
+  });
+
+  it("marks the other side's messages read on open, and never your own", async () => {
+    const { taskId, assistantId } = await bookedTask();
+    const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
+
+    await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "from the traveler" }, sam);
+    await call("POST", `/api/assistant/tasks/${taskId}/messages`, { body: "from the assistant" }, null, cookie);
+
+    // The traveler opening the thread marks the assistant's message read.
+    await call("GET", `/api/concierge/tasks/${taskId}/messages`, undefined, sam);
+    const stored = store.data.textMessages.filter((m) => m.taskId === taskId);
+    expect(stored.find((m) => m.sender === "assistant")!.readAt).toBeTruthy();
+    expect(stored.find((m) => m.sender === "traveler")!.readAt).toBeUndefined();
+  });
+
+  it("lets both sides see one conversation, in order", async () => {
+    const { taskId, assistantId } = await bookedTask();
+    const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
+
+    await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "first" }, sam);
+    advance(1);
+    await call("POST", `/api/assistant/tasks/${taskId}/messages`, { body: "second" }, null, cookie);
+
+    const asTraveler = await call("GET", `/api/concierge/tasks/${taskId}/messages`, undefined, sam);
+    const asAssistant = await call("GET", `/api/assistant/tasks/${taskId}/messages`, undefined, null, cookie);
+    expect(asTraveler.json.messages.map((m: { body: string }) => m.body)).toEqual(["first", "second"]);
+    expect(asAssistant.json.messages.map((m: { body: string }) => m.body)).toEqual(["first", "second"]);
+  });
+
+  it("carries a spend cap big enough to actually buy materials", async () => {
+    // $120 of lumber was above the old $300 ceiling only in the sense that
+    // nothing stopped it — but a bigger project needs the headroom.
+    const { taskId } = await bookedTask();
+    const task = store.data.conciergeTasks.find((t) => t.id === taskId)!;
+    expect(task.spendCapCents).toBe(12000);
+  });
+});

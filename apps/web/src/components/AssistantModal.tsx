@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { CONCIERGE_DISCLOSURES, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity } from "@safehubby/core";
+import { CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity } from "@safehubby/core";
 import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
+import type { TaskTextMessage } from "../api.ts";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
 import { permissionCopy, settingsPath } from "../native/permissions.ts";
@@ -49,6 +50,13 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   const [peopleCount, setPeopleCount] = useState(existingTask?.peopleCount ?? 1);
   const [maxPeopleCount, setMaxPeopleCount] = useState(1);
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
+  // Typed messages sit on the same thread as the voice clips: an assistant
+  // standing in an aisle asking "the 8ft or the 10ft?" should not have to
+  // record audio to do it, and text is the option that works in a loud bar,
+  // for someone hard of hearing, or when you cannot speak freely because of
+  // who is standing next to you.
+  const [texts, setTexts] = useState<TaskTextMessage[]>([]);
+  const [draft, setDraft] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [disputing, setDisputing] = useState(false);
@@ -66,6 +74,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   useEffect(() => {
     if (!task) return;
     api.voiceMessages(task.id).then((r) => setMessages(r.messages)).catch(() => {});
+    api.taskMessages(task.id).then((r) => setTexts(r.messages)).catch(() => {});
   }, [task?.id]);
 
   useEffect(() => {
@@ -136,6 +145,21 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     setIsRecording(true);
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+  };
+
+  const sendText = async () => {
+    if (!task || !draft.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.sendTaskMessage(task.id, draft);
+      setTexts((t) => [...t, res.message]);
+      setDraft("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that message");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const captureSelfie = async (file: File | undefined) => {
@@ -375,8 +399,39 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
               </div>
             )}
 
+            {/* Typed messages first — the quiet, ordinary channel — with the
+                voice thread under it for when talking is easier. */}
             <div className="voice-thread" aria-live="polite">
-              {messages.length === 0 && <p className="tiny muted">No messages yet.</p>}
+              {texts.length === 0 && messages.length === 0 && (
+                <p className="tiny muted">No messages yet.</p>
+              )}
+              {texts.map((m) => (
+                <div key={m.id} className={`voice-bubble${m.sender === "traveler" ? " voice-bubble-mine" : ""}`}>
+                  <div className="tiny muted">
+                    {m.sender === "traveler" ? "You" : assistant.name}
+                    {m.sender === "traveler" && m.readAt ? " · Read" : ""}
+                  </div>
+                  <p className="small" style={{ margin: 0 }}>{m.body}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                aria-label="Message your assistant"
+                placeholder={`Message ${assistant.name}`}
+                value={draft}
+                maxLength={MAX_TEXT_MESSAGE_LENGTH}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) sendText(); }}
+                style={{ flex: 1 }}
+              />
+              <button className="btn btn-sm btn-primary" disabled={busy || !draft.trim()} onClick={sendText}>
+                Send
+              </button>
+            </div>
+
+            <div className="voice-thread" aria-live="polite">
               {messages.map((m) => (
                 <div key={m.id} className={`voice-bubble${m.sender === "traveler" ? " voice-bubble-mine" : ""}`}>
                   <div className="tiny muted">{m.sender === "traveler" ? "You" : assistant.name} · {m.durationSeconds}s</div>

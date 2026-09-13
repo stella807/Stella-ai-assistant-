@@ -132,3 +132,93 @@ export function openPayoutDestination(
     accountNumber: cipher.decrypt(stored.accountNumberEnc),
   };
 }
+
+/**
+ * Field-level encryption for everything a task's thread carries: voice
+ * clips, the photos that gate spending, and typed messages.
+ *
+ * These were stored in the clear while location pings beside them were
+ * sealed, which is not a defensible line to draw. A voice message is
+ * somebody's actual voice, at 1am, saying what they need and often why. A
+ * task photo is the inside of a shop, a receipt with a name on it, or an
+ * assistant's face. A text is the conversation itself. None of it is
+ * something the operator of this app has any business reading out of a
+ * database, and all of it is exactly what a leaked backup or a read replica
+ * hands over.
+ *
+ * Same envelope and same key as `sealLocations` above, and the same
+ * degraded-read rule: without the key the content stays sealed and comes
+ * back empty rather than being handed over. Losing a message is the correct
+ * failure; returning it in the clear is not.
+ *
+ * The metadata stays readable on purpose — who sent it, when, how long the
+ * clip runs — so support can see that a thread exists and payroll can see a
+ * task happened without anyone reading a word of it.
+ */
+
+interface SealablePhoto { base64: unknown }
+
+interface SealableDb {
+  voiceMessages: { audioBase64: unknown }[];
+  textMessages: { body: unknown }[];
+  conciergeTasks: {
+    identityPhotos?: Record<string, SealablePhoto | undefined>;
+    spendRequests?: { photo?: SealablePhoto }[];
+  }[];
+}
+
+/** Every place in the document that holds message content. Written once so
+ *  seal and open cannot drift apart and leave a field in the clear. */
+function messageFields(db: SealableDb): { get(): unknown; set(v: unknown): void }[] {
+  const fields: { get(): unknown; set(v: unknown): void }[] = [];
+
+  for (const m of db.voiceMessages ?? []) {
+    fields.push({ get: () => m.audioBase64, set: (v) => { m.audioBase64 = v; } });
+  }
+  for (const m of db.textMessages ?? []) {
+    fields.push({ get: () => m.body, set: (v) => { m.body = v; } });
+  }
+  for (const task of db.conciergeTasks ?? []) {
+    // The assistant's arrival selfie and the traveler's own.
+    for (const photo of Object.values(task.identityPhotos ?? {})) {
+      if (photo) fields.push({ get: () => photo.base64, set: (v) => { photo.base64 = v; } });
+    }
+    // The photo that unlocks the card before anything is bought.
+    for (const request of task.spendRequests ?? []) {
+      const photo = request.photo;
+      if (photo) fields.push({ get: () => photo.base64, set: (v) => { photo.base64 = v; } });
+    }
+  }
+  return fields;
+}
+
+export function sealTaskMessages<T extends SealableDb>(db: T, cipher: Cipher | null): T {
+  if (!cipher) return db;
+  const copy = structuredClone(db);
+  for (const field of messageFields(copy)) {
+    const value = field.get();
+    if (typeof value !== "string" || isCiphertext(value) || value === "") continue;
+    field.set(cipher.encrypt(value));
+  }
+  return copy;
+}
+
+export function openTaskMessages<T extends SealableDb>(db: T, cipher: Cipher | null): T {
+  for (const field of messageFields(db)) {
+    const value = field.get();
+    if (!isCiphertext(value)) continue;
+    if (!cipher) {
+      // No key, so it stays sealed. An empty message is a visible failure;
+      // a decrypted one without the key is not a thing we can do anyway, and
+      // handing back the ciphertext would put it on somebody's screen.
+      field.set("");
+      continue;
+    }
+    try {
+      field.set(cipher.decrypt(value as string));
+    } catch {
+      field.set("");
+    }
+  }
+  return db;
+}

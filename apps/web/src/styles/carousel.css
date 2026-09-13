@@ -76,21 +76,8 @@
   .slide-dots button { transition: none; }
 }
 
-/* The sign-in tabs inside a slide must not be sticky.
-   `.tabs` is sticky-with-a-backdrop for the signed-in app, where it pins a
-   nav bar to the top of a long scrolling page — correct there. Inside the
-   carousel the nearest scrolling ancestor is the horizontal track, so the
-   signup slide's tab strip pinned itself to the track and painted over
-   whichever slide was on screen: a square-cornered, blurred, 32px-too-wide
-   block sitting across the neighbouring card's rounded corner. That is the
-   smear that made the landing look like one continuous surface instead of
-   separate cards. A slide is not a scrolling page and has nothing to pin. */
-.slides .tabs {
-  position: static;
-  z-index: auto;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
+/* The landing's signup tabs were the first sighting of a bug that turned out
+   to be general: `.tabs` was sticky for every tab strip in the app, so any of
+   them sitting inside a card floated over its own content. Sticky is opt-in
+   now (`.tabs-nav` in components.css), which covers the carousel too — there
+   is nothing left to override here. */

@@ -366,22 +366,40 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       )}
 
       {roster !== null && roster.length > 0 && (
-        <div className="stack" style={{ gap: 8 }}>
+        /*
+         * A side-scrolling rail rather than a vertical list. Choosing who
+         * comes to you is a comparison — you look across the options — and a
+         * stacked list makes you scroll past four people to see the fifth,
+         * with the booking form pushed off screen the whole time.
+         *
+         * Everything shown is self-reported by the assistant and optional.
+         * There is deliberately no way to filter the rail by any of it: a
+         * customer reading who somebody is while choosing is context, while
+         * narrowing a workforce by age or sex is allocating work by
+         * protected characteristic, which is a different thing with
+         * employment law attached.
+         */
+        <div className="assistant-rail" role="list">
           {roster.map((a) => {
             const available = isAssistantAvailable(a);
+            const facts = [
+              a.yearsExperience !== undefined
+                ? `${a.yearsExperience} ${a.yearsExperience === 1 ? "yr" : "yrs"} as a PA`
+                : null,
+              a.gender,
+              a.age !== undefined ? `${a.age}` : null,
+            ].filter(Boolean);
             return (
-              <button key={a.id} className="card card-quiet assistant-card" disabled={!available}
-                style={{ boxShadow: "inset 0 0 0 1px var(--line)", opacity: available ? 1 : 0.5 }}
-                onClick={() => setSelected(a)}>
-                <div className="assistant-avatar">
+              <button key={a.id} role="listitem" className="assistant-tile" disabled={!available}
+                aria-pressed={selected?.id === a.id} onClick={() => setSelected(a)}>
+                <div className="assistant-avatar assistant-avatar-lg">
                   {a.photoUrl ? <img src={a.photoUrl} alt="" /> : a.name.slice(0, 1)}
                 </div>
-                <div className="stack" style={{ gap: 2 }}>
-                  <strong className="small">{a.name}</strong>
-                  <span className="tiny muted">
-                    {available ? `Up to ${a.maxConcurrentCustomers} at once` : "At capacity right now"}
-                  </span>
-                </div>
+                <strong className="small">{a.name}</strong>
+                {facts.length > 0 && <span className="tiny muted">{facts.join(" · ")}</span>}
+                <span className={`tiny ${available ? "muted" : "assistant-full"}`}>
+                  {available ? `Up to ${a.maxConcurrentCustomers} at once` : "At capacity"}
+                </span>
               </button>
             );
           })}

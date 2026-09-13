@@ -30,6 +30,7 @@ import {
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
+  markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
   earningsFor, previousPayoutPeriod, totalEarningsCents, unpaidEarningsCents, validatePayoutDestination,
@@ -1875,6 +1876,10 @@ export const routes: Record<string, Handler> = {
       id: a.id,
       name: a.name,
       bio: a.bio,
+      photoUrl: a.photoUrl,
+      yearsExperience: a.yearsExperience,
+      gender: a.gender,
+      age: a.age,
       categories: a.categories,
       maxConcurrentCustomers: a.maxConcurrentCustomers,
       // Counted from live tasks rather than trusted from elsewhere: this is
@@ -2301,6 +2306,28 @@ export const routes: Record<string, Handler> = {
     return { id: message.id, createdAt: message.createdAt };
   },
 
+  /** The assistant's side of the same thread. Mirrors the traveler routes
+   *  exactly, including marking the other side's messages read on open. */
+  "GET /api/assistant/tasks/:taskId/messages": (ctx, p) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    ctx.store.update((db) => {
+      db.textMessages = markRead(db.textMessages, task.id, "assistant", ctx.now());
+    });
+    return { messages: messagesForTask(ctx.store.data.textMessages, task.id) };
+  },
+
+  "POST /api/assistant/tasks/:taskId/messages": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    const message = sendTextMessage({
+      id: newId("tm"), taskId: task.id, travelerId: task.travelerId, sender: "assistant",
+      body: String(body?.body ?? ""), now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.textMessages.push(message));
+    return { message };
+  },
+
   /** The assistant's own selfie, shown to the subscriber so they can confirm
    *  who's arriving — the other half of the same disclosure. */
   "POST /api/assistant/tasks/:taskId/selfie": (ctx, p, body) => {
@@ -2585,6 +2612,43 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
     return { messages: voiceMessagesFor(ctx.store.data.voiceMessages, task.id) };
+  },
+
+  /**
+   * Typing to the assistant working your task, and reading what they type
+   * back. The thread already carried voice and photos and had no text at
+   * all, which left the most ordinary exchange — "the 8ft or the 10ft?" —
+   * needing a voice recording to happen.
+   *
+   * Stored sealed like everything else on the thread (`sealTaskMessages`),
+   * and scoped to a task the caller actually owns: `conciergeTaskOf` is a
+   * 404 for anybody else's.
+   */
+  "POST /api/concierge/tasks/:taskId/messages": (ctx, p, body) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    const message = sendTextMessage({
+      id: newId("tm"),
+      taskId: task.id,
+      travelerId: me,
+      sender: "traveler",
+      body: String(body?.body ?? ""),
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => void db.textMessages.push(message));
+    return { message };
+  },
+
+  /** Reading the thread also marks the assistant's messages read — opening
+   *  it is what "read" means, and a separate call to say so is a call that
+   *  eventually does not get made. */
+  "GET /api/concierge/tasks/:taskId/messages": (ctx, p) => {
+    const me = actor(ctx);
+    const task = conciergeTaskOf(ctx, me, req(p, "taskId"));
+    ctx.store.update((db) => {
+      db.textMessages = markRead(db.textMessages, task.id, "traveler", ctx.now());
+    });
+    return { messages: messagesForTask(ctx.store.data.textMessages, task.id) };
   },
 
   /** Records that a ride was taken instead of driving; the booking happens in
@@ -3335,6 +3399,10 @@ export const routes: Record<string, Handler> = {
       maxConcurrentCustomers: body?.maxConcurrentCustomers !== undefined
         ? Number(body.maxConcurrentCustomers) : undefined,
       bio: body?.bio ? String(body.bio) : undefined,
+      photoUrl: body?.photoUrl ? String(body.photoUrl) : undefined,
+      yearsExperience: body?.yearsExperience !== undefined ? Number(body.yearsExperience) : undefined,
+      gender: body?.gender ? String(body.gender) : undefined,
+      age: body?.age !== undefined ? Number(body.age) : undefined,
       now: ctx.now(),
     });
 

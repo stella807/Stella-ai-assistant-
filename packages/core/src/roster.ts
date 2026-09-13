@@ -77,6 +77,13 @@ export interface HiredAssistant {
   /** How many customers at once, their own stated comfort level. */
   maxConcurrentCustomers: number;
   hiredAt: Iso8601;
+  /** Shown to a subscriber choosing who comes to them. Self-reported and
+   *  optional — see `AssistantProfile` in concierge.ts for why these are
+   *  displayed rather than filtered on. */
+  photoUrl?: string;
+  yearsExperience?: number;
+  gender?: string;
+  age?: number;
   /** Cleared when someone leaves or is stood down. The record stays —
    *  a past assistant is still attached to the tasks they worked. */
   activeUntil?: Iso8601;
@@ -100,6 +107,10 @@ export interface HireInput {
   market: LaunchMarketId;
   maxConcurrentCustomers?: number;
   bio?: string;
+  photoUrl?: string;
+  yearsExperience?: number;
+  gender?: string;
+  age?: number;
   now: Date;
 }
 
@@ -136,6 +147,10 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
     maxConcurrentCustomers: capacity,
     hiredAt: input.now.toISOString(),
     bio: input.bio?.trim() || undefined,
+    photoUrl: input.photoUrl?.trim() || undefined,
+    yearsExperience: Number.isFinite(input.yearsExperience) ? input.yearsExperience : undefined,
+    gender: input.gender?.trim() || undefined,
+    age: Number.isFinite(input.age) ? input.age : undefined,
   };
 }
 

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import type {
   Alert, AssistantAdjustment, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew,
   DriverApplication, GameRound, NewsletterSubscriber, NightOut, PaymentMethodOnFile, PendingOrder,
-  HiredAssistant, PreAuthorization, PushDevice, StaffApplication,
+  HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
 import type { EliteBooking, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
@@ -97,6 +97,9 @@ export interface Db {
   eliteBookings: EliteBooking[];
   referrals: Referral[];
   voiceMessages: VoiceMessage[];
+  /** Typed messages on a task's thread. Sealed at rest alongside the voice
+   *  clips and photos — see sealTaskMessages in crypto.ts. */
+  textMessages: TextMessage[];
   /** The employee portal's own sign-in — see AssistantCredential/AssistantSession
    *  above. Provisioned the first time an assistant is booked; see routes.ts
    *  provisionAssistantCredentials. */
@@ -125,7 +128,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], eliteBookings: [], referrals: [], voiceMessages: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], eliteBookings: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

@@ -88,7 +88,7 @@ export function App() {
         />
       ) : (
         <>
-          <div className="tabs" role="tablist">
+          <div className="tabs tabs-nav" role="tablist">
             <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>{t("nav.tonight")}</button>
             <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>{t("nav.watch")}</button>
             <button role="tab" aria-selected={role === "games"} onClick={() => setRole("games")}>{t("nav.games")}</button>

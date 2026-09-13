@@ -130,10 +130,30 @@
    scrolls away is not navigation — but pinning the wordmark above it too would
    tie the tabs' offset to the header's exact height, which is a magic number
    waiting to drift. The wordmark can scroll; the tabs cannot. */
+/*
+ * A tab strip. Plain by default.
+ *
+ * This used to be sticky-with-a-backdrop for every tab strip in the app,
+ * which is only ever right for one of them: the primary nav, which pins to
+ * the top of a long scrolling page. The other five — sign in / create
+ * account, monthly / annual, small errands / concierge, the card processors,
+ * the market picker — all sit *inside* a card partway down a screen, so
+ * pinning them to `top: 0` floated them over their own content as soon as
+ * the page scrolled, and the negative margin made them 32px wider than the
+ * card they were sitting in while they did it.
+ *
+ * Sticky is opt-in now, via `.tabs-nav`. That is also the general form of
+ * the carousel fix: the landing's signup tabs were the same bug seen from a
+ * different angle.
+ */
 .tabs {
   display: flex;
   gap: 2px;
   border-bottom: 1px solid var(--line);
+}
+
+/* The app's primary navigation, and the only strip that should pin. */
+.tabs-nav {
   position: sticky;
   top: 0;
   z-index: 15;
@@ -755,3 +775,59 @@
   text-transform: uppercase;
   color: var(--accent);
 }
+
+/* ---------------------------------------------------------------------------
+   Choosing an assistant
+   ------------------------------------------------------------------------ */
+
+/* A rail, not a list: picking who comes to you is a comparison, and a
+   vertical stack makes you scroll past four people to reach the fifth while
+   pushing the booking form off screen. Scroll-snap so a tile always lands
+   square rather than half-cut. */
+.assistant-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  /* Bleed to the screen edges so the rail reads as scrollable, while the
+     first and last tiles still line up with the card's own padding. */
+  margin-inline: -16px;
+  padding-inline: 16px;
+  padding-block: 2px;
+}
+.assistant-rail::-webkit-scrollbar { display: none; }
+
+.assistant-tile {
+  flex: 0 0 132px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.assistant-tile[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.assistant-tile:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.assistant-avatar-lg {
+  width: 60px;
+  height: 60px;
+  font-size: 22px;
+}
+
+.assistant-full { color: var(--warn); }

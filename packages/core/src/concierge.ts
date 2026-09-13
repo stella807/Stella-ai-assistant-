@@ -80,9 +80,17 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
   },
 ];
 
-/** A hard ceiling chosen by the subscriber, not a provider's estimate. */
+/**
+ * A hard ceiling chosen by the subscriber, not a provider's estimate.
+ *
+ * $600 at the top because a real errand is not always a sandwich. Somebody
+ * asking an assistant to pick up lumber for a project, a car part, or a
+ * week's shop for a household of six needs headroom that $300 did not give
+ * them — and the cap is the subscriber's own ceiling, so a higher maximum
+ * costs nothing to anyone who sets it lower.
+ */
 export const CONCIERGE_MIN_CAP_CENTS = 1000;
-export const CONCIERGE_MAX_CAP_CENTS = 30000;
+export const CONCIERGE_MAX_CAP_CENTS = 60000;
 
 /**
  * What compensates the assistant for their time, per task — see the module
@@ -162,6 +170,12 @@ export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory
   "run-errand": 600,
 };
 
+/**
+ * The discounted tier keeps its low ceiling on purpose. Raising it with the
+ * standard cap would turn "quick and simple" into a way to book a $600
+ * purchase at the reduced fee, which is the one thing this tier must not
+ * become.
+ */
 export const QUICK_TASK_MAX_CAP_CENTS = 5000;
 
 /**
@@ -656,6 +670,25 @@ export interface AssistantProfile {
   maxConcurrentCustomers: number;
   /** How many they are currently handling, per the partner network. */
   currentCustomers: number;
+
+  /**
+   * What a subscriber is told about the person coming to them.
+   *
+   * All self-reported by the assistant and all optional, and they are shown
+   * rather than filtered on — a customer reads them when choosing, and the
+   * app offers no way to narrow a roster by them. That distinction is
+   * deliberate: displaying who somebody is is context, while filtering a
+   * workforce by age or sex is allocating work by protected characteristic,
+   * which is a different thing with employment law attached (the ADEA covers
+   * 40-and-over, and Title VII covers sex). Gender is here because a person
+   * who is not okay and about to be alone with a stranger has a real and
+   * commonly-accommodated interest in knowing; age is here because it was
+   * asked for, and it is the one worth reconsidering.
+   */
+  yearsExperience?: number;
+  /** Self-identified, free text rather than a fixed set. */
+  gender?: string;
+  age?: number;
 }
 
 export function isAssistantAvailable(profile: AssistantProfile): boolean {

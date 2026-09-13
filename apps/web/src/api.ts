@@ -248,6 +248,15 @@ export interface StaffApplicationInput {
   backgroundCheckConsent: boolean;
 }
 
+export interface TaskTextMessage {
+  id: string;
+  taskId: string;
+  sender: "traveler" | "assistant";
+  body: string;
+  createdAt: string;
+  readAt?: string;
+}
+
 export interface ShareInvite {
   code: string;
   url: string;
@@ -371,6 +380,13 @@ export const api = {
   disputeConcierge: (taskId: string, reason: string) =>
     request<{ task: ConciergeTask; refundedCents: number; clawedBack: boolean }>(
       "POST", `/api/concierge/tasks/${taskId}/dispute`, { reason }),
+  /** The typed half of a task's thread. Sealed at rest server-side like the
+   *  voice clips and photos beside it — see sealTaskMessages. */
+  taskMessages: (taskId: string) =>
+    request<{ messages: TaskTextMessage[] }>("GET", `/api/concierge/tasks/${taskId}/messages`),
+  sendTaskMessage: (taskId: string, body: string) =>
+    request<{ message: TaskTextMessage }>("POST", `/api/concierge/tasks/${taskId}/messages`, { body }),
+
   sendVoiceMessage: (taskId: string, clip: { audioBase64: string; mimeType: string; durationSeconds: number }) =>
     request<{ id: string; createdAt: string }>("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip),
   voiceMessages: (taskId: string) =>

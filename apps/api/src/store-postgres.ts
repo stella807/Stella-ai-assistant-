@@ -1,5 +1,7 @@
 import { Pool } from "pg";
-import { openLocations, sealLocations, type Cipher } from "./crypto.ts";
+import {
+  openLocations, openTaskMessages, sealLocations, sealTaskMessages, type Cipher,
+} from "./crypto.ts";
 import type { Db, StoreLike } from "./store.ts";
 
 /**
@@ -61,6 +63,26 @@ const SCHEMA = `
   );
 `;
 
+/**
+ * Everything encrypted at rest, in one place.
+ *
+ * Sealing is composed rather than called field-by-field at each site so that
+ * adding a sensitive field means editing crypto.ts and nothing else — a
+ * `seal` that a `save` forgot to call is a field silently written in the
+ * clear, which is exactly the bug this shape prevents.
+ */
+function sealAll<T extends Parameters<typeof sealLocations>[0] & Parameters<typeof sealTaskMessages>[0]>(
+  db: T, cipher: Cipher | null,
+): T {
+  return sealTaskMessages(sealLocations(db, cipher), cipher);
+}
+
+function openAll<T extends Parameters<typeof openLocations>[0] & Parameters<typeof openTaskMessages>[0]>(
+  db: T, cipher: Cipher | null,
+): T {
+  return openTaskMessages(openLocations(db, cipher), cipher);
+}
+
 export class PostgresStore implements StoreLike {
   #pool: Pool;
   #cipher: Cipher | null;
@@ -90,12 +112,12 @@ export class PostgresStore implements StoreLike {
 
     if (rows.length === 0) {
       await pool.query("INSERT INTO safehubby_state (id, version, document) VALUES (1, 0, $1)", [
-        JSON.stringify(sealLocations(empty, cipher)),
+        JSON.stringify(sealAll(empty, cipher)),
       ]);
       return new PostgresStore(pool, cipher, structuredClone(empty), 0);
     }
 
-    const loaded = openLocations(rows[0]!.document, cipher);
+    const loaded = openAll(rows[0]!.document, cipher);
     return new PostgresStore(pool, cipher, { ...structuredClone(empty), ...loaded }, Number(rows[0]!.version));
   }
 
@@ -120,7 +142,7 @@ export class PostgresStore implements StoreLike {
    * blip is worse than serving it and retrying on the next write.
    */
   save(): void {
-    const snapshot = JSON.stringify(sealLocations(this.#db, this.#cipher));
+    const snapshot = JSON.stringify(sealAll(this.#db, this.#cipher));
     this.#flushing = this.#flushing.then(async () => {
       try {
         const next = this.#version + 1;

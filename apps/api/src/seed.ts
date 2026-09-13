@@ -25,7 +25,7 @@ export const SEED: Db = {
   charges: [],
   subscriptions: {},
   conciergeTasks: [],
-  voiceMessages: [],
+  voiceMessages: [], textMessages: [],
   assistantCredentials: {},
   assistantSessions: [],
   assistantPayoutDestinations: {},
