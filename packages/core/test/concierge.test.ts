@@ -534,6 +534,21 @@ describe("two ceilings: an errand and a purchase are funded differently", () => 
     }
   });
 
+  it("always offers the ceiling itself as one tap", () => {
+    // The quick-task checkbox names its ceiling in the label. When the ladder
+    // ran $20/$40/$75/... under a $50 quick ceiling, the copy promised an
+    // amount no button could produce — you could read "capped at $50" and
+    // have no way to actually choose $50. The ceiling has to be on the ladder.
+    for (const { id } of CONCIERGE_CATEGORIES) {
+      for (const quick of [false, true]) {
+        if (quick && !isQuickTaskEligible(id)) continue;
+        const scale = capScaleFor(id, quick);
+        expect(presetAmounts(capPresetsFor(id), scale), `${id} quick=${quick}`)
+          .toContain(scale.maxCents);
+      }
+    }
+  });
+
   it("opens each category on a cap that category can actually book", () => {
     for (const { id } of CONCIERGE_CATEGORIES) {
       expect(() => validateConciergeRequest(request({ category: id, spendCapCents: defaultCapFor(id) })),
