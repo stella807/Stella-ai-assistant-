@@ -93,6 +93,19 @@ export const CONCIERGE_MIN_CAP_CENTS = 1000;
 export const CONCIERGE_MAX_CAP_CENTS = 60000;
 
 /**
+ * Where the cap control starts before the customer touches it.
+ *
+ * It lives here rather than in the booking form because it is a pricing
+ * decision, not a UI default: it is the number most people will accept
+ * unchanged, so it has to cover an ordinary errand outright. $25 did not —
+ * a hardware run, a pharmacy trip, or a week's groceries all land above it,
+ * which left the most common path through this form being "the default was
+ * too low to use". The floor stays at $10 for the genuinely small jobs; the
+ * default is what an unedited booking should be able to buy.
+ */
+export const DEFAULT_CONCIERGE_CAP_CENTS = 10000;
+
+/**
  * What compensates the assistant for their time, per task — see the module
  * doc for why this is separate from the spend cap. Set per category rather
  * than as one flat number because the categories are not the same amount of
@@ -171,12 +184,18 @@ export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory
 };
 
 /**
- * The discounted tier keeps its low ceiling on purpose. Raising it with the
+ * The discounted tier keeps a lower ceiling on purpose. Raising it to the
  * standard cap would turn "quick and simple" into a way to book a $600
  * purchase at the reduced fee, which is the one thing this tier must not
- * become.
+ * become — but $50 was drawn too tight. A quick job is defined by how long
+ * it takes, not by how much the thing costs: one counter and back is ten
+ * minutes whether the item is a sandwich or a power tool. At $50 the tier
+ * was really rationing the purchase rather than the time, which pushed
+ * ordinary ten-minute errands onto the standard rate for no reason the
+ * customer could see. $100 still leaves the six-fold gap that stops this
+ * becoming the cheap way to book a large purchase.
  */
-export const QUICK_TASK_MAX_CAP_CENTS = 5000;
+export const QUICK_TASK_MAX_CAP_CENTS = 10000;
 
 /**
  * How long a quick task actually takes — shorter than the standard version

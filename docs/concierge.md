@@ -35,8 +35,11 @@ spend cap is different in kind: it's a ceiling the subscriber chose on
 purpose, for money a stranger is about to spend. Padding it would authorize
 more than what was promised. So concierge tasks use a separate function,
 `authorizeExactHold`, which holds precisely the cap given — no multiplier,
-ever. `CONCIERGE_MIN_CAP_CENTS` ($10) and `CONCIERGE_MAX_CAP_CENTS` ($300)
-bound what a subscriber can set in the first place.
+ever. `CONCIERGE_MIN_CAP_CENTS` ($10) and `CONCIERGE_MAX_CAP_CENTS` ($600)
+bound what a subscriber can set in the first place, and
+`DEFAULT_CONCIERGE_CAP_CENTS` ($100) is where the control starts — the
+number most bookings will keep, so it has to cover an ordinary errand
+outright.
 
 ## The four task types
 
@@ -175,9 +178,11 @@ the payout grossed up by the margin:
 involve open-ended real time with a person, and discounting them would mean
 underpaying an assistant for the same time commitment, not rewarding a
 genuinely shorter job. A quick task is also capped at a lower spend —
-`QUICK_TASK_MAX_CAP_CENTS` ($50), well under the standard $300 — so "quick and
-simple" stays true rather than becoming a way to book a large purchase at a
-discounted fee. `validateConciergeRequest` rejects `quickTask: true` outright
+`QUICK_TASK_MAX_CAP_CENTS` ($100), well under the standard $600 — so "quick
+and simple" stays true rather than becoming a way to book a large purchase at
+a discounted fee. It is a sixfold gap rather than a tight one on purpose: a
+quick job is short, not cheap, and the old $50 ceiling was rationing the
+purchase instead of the time. `validateConciergeRequest` rejects `quickTask: true` outright
 for an ineligible category or a cap above that lower ceiling.
 
 ### The customer sees the fee, itemized, before they book

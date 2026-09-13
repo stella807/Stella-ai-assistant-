@@ -2,14 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   canStepDown, canStepUp, clampAmount, presetAmounts, stepAmount, type AmountScale,
 } from "../src/amount-steps.ts";
-import { CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_MAX_CAP_CENTS } from "../src/concierge.ts";
+import { CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS } from "../src/concierge.ts";
+
+const QUICK_CEILING = 5000;
 
 const errand: AmountScale = {
   minCents: CONCIERGE_MIN_CAP_CENTS, maxCents: CONCIERGE_MAX_CAP_CENTS, stepCents: 500,
 };
-const quick: AmountScale = {
-  minCents: CONCIERGE_MIN_CAP_CENTS, maxCents: QUICK_TASK_MAX_CAP_CENTS, stepCents: 500,
-};
+// A narrower ceiling than the errand scale. Pinned to a literal rather than
+// to QUICK_TASK_MAX_CAP_CENTS: what is under test is how the helpers behave
+// when a scale shrinks, which should not need rewriting every time the
+// quick-task price changes.
+const quick: AmountScale = { minCents: CONCIERGE_MIN_CAP_CENTS, maxCents: QUICK_CEILING, stepCents: 500 };
 
 describe("clamping to a valid amount", () => {
   it("keeps an amount already on the grid", () => {
@@ -57,7 +61,7 @@ describe("stepping", () => {
   it("pulls an out-of-range starting value back onto the scale", () => {
     // Switching into quick-task mode leaves the old $600 cap in state; the
     // first press must not act on an amount that is no longer bookable.
-    expect(stepAmount(CONCIERGE_MAX_CAP_CENTS, -1, quick)).toBe(QUICK_TASK_MAX_CAP_CENTS - 500);
+    expect(stepAmount(CONCIERGE_MAX_CAP_CENTS, -1, quick)).toBe(QUICK_CEILING - 500);
   });
 
   it("reports which buttons are still live", () => {
@@ -76,8 +80,8 @@ describe("presets", () => {
   });
 
   it("collapses the ones a narrower scale cannot reach onto its ceiling", () => {
-    // Quick tasks cap at $50, so $100/$250/$600 all become $50 — one button,
-    // not three identical ones and not a silently shorter row.
+    // The narrow scale tops out at $50, so $100/$250/$600 all become $50 —
+    // one button, not three identical ones and not a silently shorter row.
     expect(presetAmounts(candidates, quick)).toEqual([2000, 5000]);
   });
 

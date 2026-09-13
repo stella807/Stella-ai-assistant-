@@ -24,7 +24,7 @@ drinks, tap "Share with someone", and read the six-character invite code to
 whoever is watching — they claim it from their own account on their own device.
 
 ```bash
-pnpm test         # 1047 tests (7 Postgres tests skip without a database)
+pnpm test         # 1050 tests (7 Postgres tests skip without a database)
 pnpm typecheck
 pnpm lint
 pnpm build
@@ -154,7 +154,7 @@ message thread with that assistant opens in a popup — async clips, not a
 live call, so an assistant mid-task is never expected to have a hand free
 for a ringing phone. A separate, published rate pays the assistant for
 their time — $9-$18 by task type, or $5 for a quick, single-purpose task
-(grabbing one named thing or running one errand, capped at a lower $50 spend
+(grabbing one named thing or running one errand, capped at a lower $100 spend
 to keep it honest). The spend cap only ever reimburses what they buy, the
 same way a ride fare passes through to a driver rather than being their wage.
 Safehubby's 20% margin is added on top of that rate rather than taken out of

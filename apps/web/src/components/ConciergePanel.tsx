@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
-  QUICK_TASK_MAX_CAP_CENTS,
+  CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS,
+  DEFAULT_CONCIERGE_CAP_CENTS, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   clampAmount,
   hasFeature, isAssistantAvailable, isQuickTaskEligible, minutesFor,
   serviceFeeFor, totalChargeCents,
@@ -26,9 +26,11 @@ const dollars = (cents: number) => `$${(cents / 100).toFixed(0)}`;
 
 /** How far one press of +/- moves the cap. */
 const CAP_STEP_CENTS = 500;
-/** The one-tap amounts. Clamped to whichever ceiling is in force, so the
- *  quick-task mode shows $20 / $40 / $50 from this same list. */
-const CAP_PRESETS_CENTS = [2000, 4000, 7500, 15000, 30000, 60000];
+/** The one-tap amounts. Clamped to whichever ceiling is in force, so
+ *  quick-task mode shows $25 / $50 / $100 from this same list. The default
+ *  is one of them deliberately — a starting value with no button lit reads
+ *  as an amount nobody chose. */
+const CAP_PRESETS_CENTS = [2500, 5000, 10000, 20000, 40000, 60000];
 
 /**
  * A real embedded map for the chosen place, when a browser-safe Maps key is
@@ -104,7 +106,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
-  const [capCents, setCapCents] = useState(2500);
+  const [capCents, setCapCents] = useState(DEFAULT_CONCIERGE_CAP_CENTS);
   const [quickTask, setQuickTask] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
@@ -153,8 +155,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     stepCents: CAP_STEP_CENTS,
   };
   // Clamped rather than stored clamped: switching a booking to a quick task
-  // drops the ceiling to $50, and the cap has to follow it down without
-  // losing the customer's original number if they switch back.
+  // drops the ceiling, and the cap has to follow it down without losing the
+  // customer's original number if they switch back.
   const spendCapCents = clampAmount(capCents, capScale);
   // Priced with the same functions the server charges with, so what is shown
   // here and what lands on the statement cannot drift apart. One person,

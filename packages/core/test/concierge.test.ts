@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES,
   CONCIERGE_ASSISTANT_PAYOUT_CENTS, CONCIERGE_FEE_MARGIN, CONCIERGE_MAX_CAP_CENTS,
-  CONCIERGE_MIN_CAP_CENTS, CONCIERGE_TASK_MINUTES,
+  CONCIERGE_MIN_CAP_CENTS, CONCIERGE_TASK_MINUTES, DEFAULT_CONCIERGE_CAP_CENTS,
   MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
   QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   HOUSEHOLD_INCREMENT, MAX_PEOPLE_PER_TASK,
@@ -202,6 +202,30 @@ describe("quick-task discount", () => {
 
   it("still allows the standard, higher cap when not booked as a quick task", () => {
     expect(() => validateConciergeRequest(request({ spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 }))).not.toThrow();
+  });
+});
+
+describe("the cap the customer starts from", () => {
+  it("books without being edited, in either mode", () => {
+    // The default is what most bookings will keep. If it ever sat above a
+    // ceiling, the commonest path through the form would open on an amount
+    // the server rejects.
+    expect(() => validateConciergeRequest(request({ spendCapCents: DEFAULT_CONCIERGE_CAP_CENTS })))
+      .not.toThrow();
+    expect(() => validateConciergeRequest(request({ quickTask: true, spendCapCents: DEFAULT_CONCIERGE_CAP_CENTS })))
+      .not.toThrow();
+  });
+
+  it("covers an ordinary errand rather than only a sandwich", () => {
+    // A hardware run, a pharmacy trip, a week's groceries. $25 did not reach
+    // any of them, which made "too low to use" the default experience.
+    expect(DEFAULT_CONCIERGE_CAP_CENTS).toBeGreaterThanOrEqual(10000);
+  });
+
+  it("leaves the floor low enough for genuinely small jobs", () => {
+    // Raising the default must not drag the minimum up with it: a $12 coffee
+    // run should not have to authorize a hold ten times its size.
+    expect(CONCIERGE_MIN_CAP_CENTS).toBeLessThan(DEFAULT_CONCIERGE_CAP_CENTS);
   });
 });
 
