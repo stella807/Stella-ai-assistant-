@@ -154,14 +154,19 @@
   border-bottom: 1px solid var(--line);
 }
 
-/* The app's primary navigation, and the only strip that should pin. */
+/* The app's primary navigation, and the only strip that should pin.
+ *
+ * Fully opaque, deliberately. A translucent bar with a backdrop blur is the
+ * usual treatment, but this theme is white text on pure black: at 94% the
+ * content sliding underneath printed straight through, so the Hiring
+ * sub-tabs appeared as a second row of labels across the nav. There is no
+ * frosted-glass effect to win on a black ground — only a legible bar or an
+ * illegible one. */
 .tabs-nav {
   position: sticky;
   top: 0;
   z-index: 15;
-  background: color-mix(in srgb, var(--ground) 94%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  background: var(--ground);
   margin: 0 -16px;
   padding: 0 16px;
 }
