@@ -347,8 +347,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
       <AmountStepper
         id="concierge-cap"
-        label="Spend cap — never charged more than this"
-        hint={`A ceiling, not a price. Tap an amount, or nudge it ${dollars(capScale.stepCents)} at a time.`}
+        label="Loaded on their card to spend"
+        hint={`Goes onto a card that works for this task only — the hotel, the tickets, whatever it takes. A ceiling, not a price: you pay what is actually spent. Nudge it ${dollars(capScale.stepCents)} at a time.`}
         valueCents={spendCapCents}
         scale={capScale}
         presetsCents={capPresetsFor(category)}
@@ -386,9 +386,14 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <span className="small"><strong>Held now</strong></span>
           <span className="small charge-amount"><strong>{money(totalHeld)}</strong></span>
         </div>
+        {/* Which number is which. The two are easy to read as one total, and
+            they are not the same kind of money at all: one is loaded onto a
+            card a stranger carries, the other pays for their time and never
+            touches that card. */}
         <p className="tiny muted" style={{ margin: 0 }}>
-          {money(spendCapCents)} cap + {money(serviceFee)} fee. The cap is a ceiling, not a price — you are
-          charged for what is actually spent, and never a cent over it.
+          {money(spendCapCents)} onto their card for the purchase, {money(serviceFee)} for their time. The
+          card money is a ceiling, not a price — you are charged for what is actually spent, and never a cent
+          over it. The fee is never on the card.
         </p>
       </div>
 
