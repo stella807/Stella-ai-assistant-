@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
+import { PublicPricing, PublicWorkerPay } from "./PublicPricing.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
@@ -50,8 +51,14 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
   // Leadership gets its own slide rather than sharing slide one. Three cards
   // deep (mission, leadership, what we do) the last of them ran past the fold
   // and the founder's bio was the part being cut.
-  const labels: TranslationKey[] = ["slide.about", "slide.leadership", "slide.signup", "slide.work"];
-  const SIGNUP_SLIDE = 2;
+  // The presentation, in the order a stranger needs it: what this is, who
+  // runs it, what it costs, sign up, work with us. Pricing sits *before* the
+  // form on purpose — asking someone to make an account to find out the
+  // price is the one thing the rest of this app never does.
+  const labels: TranslationKey[] = [
+    "slide.about", "slide.leadership", "slide.pricing", "slide.signup", "slide.work",
+  ];
+  const SIGNUP_SLIDE = 3;
   const invitedBy = incomingReferralCode();
 
   const goTo = (next: number) => {
@@ -163,7 +170,15 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           </button>
         </section>
 
-        {/* 3 — sign up, with how it works right beside the form so nobody has
+        {/* 3 — every price, before any commitment. */}
+        <section className="slide" aria-label={t("slide.pricing")}>
+          {/* The launch banner sits above every slide, so repeating its
+              sentence inside this card said the same thing twice on one
+              screen. */}
+          <PublicPricing onGetStarted={() => { setStartInSignup(true); goTo(SIGNUP_SLIDE); }} />
+        </section>
+
+        {/* 4 — sign up, with how it works right beside the form so nobody has
             to guess what they are signing up to. */}
         <section className="slide" aria-label={t("slide.signup")}>
           <AuthScreen onSignedIn={onSignedIn} startInSignup={startInSignup} />
@@ -182,7 +197,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           {launch && launch.phase !== "closed" && <NewsletterSignup source="landing" />}
         </section>
 
-        {/* 4 — the other side of the app: the people who work it. */}
+        {/* 5 — the other side of the app: the people who work it. */}
         <section className="slide" aria-label={t("slide.work")}>
           <section className="card stack">
             <h2>{t("work.heading")}</h2>
@@ -209,6 +224,11 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
               <p className="tiny muted" style={{ margin: 0 }}>{t("work.staffNote")}</p>
               <button className="btn btn-block btn-ghost" onClick={onWorkWithUs}>{t("work.staffCta")}</button>
             </div>
+
+            {/* The rate, here, rather than one click deeper inside whichever
+                application form you happen to open. Somebody deciding whether
+                to apply is exactly who the number is for. */}
+            <PublicWorkerPay />
           </section>
         </section>
       </div>

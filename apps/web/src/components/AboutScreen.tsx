@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLanguage } from "../i18n.tsx";
+import { useLanguage, type TranslationKey } from "../i18n.tsx";
 
 /** Mission and leadership. Public-facing, plain, and grounded in the
  *  founder's own reason for building this rather than anyone else's story.
@@ -30,10 +30,18 @@ export function LeadershipSection() {
   );
 }
 
-const FEATURES: { id: string; titleKey: "what.nightOut.title" | "what.watch.title" | "what.rideHome.title" | "what.concierge.title" | "what.emergency.title" | "what.games.title"; blurbKey: "what.nightOut.blurb" | "what.watch.blurb" | "what.rideHome.blurb" | "what.concierge.blurb" | "what.emergency.blurb" | "what.games.blurb" }[] = [
+/**
+ * Errands and the personal concierge are listed separately, and that is not
+ * a copy preference. They are different jobs done by different people — only
+ * a personal assistant is dispatched to sit with someone or check on them
+ * (see roster.ts) — and describing them as one "vetted assistant" hid both
+ * the price difference and the reason for it.
+ */
+const FEATURES: { id: string; titleKey: TranslationKey; blurbKey: TranslationKey }[] = [
   { id: "night-out", titleKey: "what.nightOut.title", blurbKey: "what.nightOut.blurb" },
   { id: "watch", titleKey: "what.watch.title", blurbKey: "what.watch.blurb" },
   { id: "ride-home", titleKey: "what.rideHome.title", blurbKey: "what.rideHome.blurb" },
+  { id: "errands", titleKey: "what.errands.title", blurbKey: "what.errands.blurb" },
   { id: "concierge", titleKey: "what.concierge.title", blurbKey: "what.concierge.blurb" },
   { id: "emergency", titleKey: "what.emergency.title", blurbKey: "what.emergency.blurb" },
   { id: "games", titleKey: "what.games.title", blurbKey: "what.games.blurb" },
