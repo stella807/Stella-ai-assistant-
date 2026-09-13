@@ -2,24 +2,33 @@ import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
   QUICK_TASK_MAX_CAP_CENTS,
+  clampAmount,
   hasFeature, isAssistantAvailable, isQuickTaskEligible, minutesFor,
   serviceFeeFor, totalChargeCents,
 } from "@safehubby/core";
 import type {
+  AmountScale,
   AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { currentFix, type Fix } from "../native/location.ts";
 import type { Account } from "../api.ts";
+import { AmountStepper } from "./AmountStepper.tsx";
 import { AssistantModal } from "./AssistantModal.tsx";
 
 /** Exact, to the cent. Amounts here are prices somebody agrees to and
  *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
  *  number the customer did not actually accept. */
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-/** Whole dollars, for the spend-cap slider, which steps in fives and so can
- *  never have cents to lose. */
+/** Whole dollars, for the amounts the cap control deals in, which step in
+ *  fives and so can never have cents to lose. */
 const dollars = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+
+/** How far one press of +/- moves the cap. */
+const CAP_STEP_CENTS = 500;
+/** The one-tap amounts. Clamped to whichever ceiling is in force, so the
+ *  quick-task mode shows $20 / $40 / $50 from this same list. */
+const CAP_PRESETS_CENTS = [2000, 4000, 7500, 15000, 30000, 60000];
 
 /**
  * A real embedded map for the chosen place, when a browser-safe Maps key is
@@ -95,7 +104,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
-  const [capDollars, setCapDollars] = useState(25);
+  const [capCents, setCapCents] = useState(2500);
   const [quickTask, setQuickTask] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
@@ -138,8 +147,15 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const quickEligible = isQuickTaskEligible(category);
   const effectiveQuickTask = quickTask && quickEligible;
-  const maxCapDollars = (effectiveQuickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS) / 100;
-  const spendCapCents = Math.round(Math.min(capDollars, maxCapDollars) * 100);
+  const capScale: AmountScale = {
+    minCents: CONCIERGE_MIN_CAP_CENTS,
+    maxCents: effectiveQuickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS,
+    stepCents: CAP_STEP_CENTS,
+  };
+  // Clamped rather than stored clamped: switching a booking to a quick task
+  // drops the ceiling to $50, and the cap has to follow it down without
+  // losing the customer's original number if they switch back.
+  const spendCapCents = clampAmount(capCents, capScale);
   // Priced with the same functions the server charges with, so what is shown
   // here and what lands on the statement cannot drift apart. One person,
   // because that is what this form books — `peopleCountFor` on the server
@@ -322,13 +338,15 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         </label>
       )}
 
-      <div className="field">
-        <label htmlFor="concierge-cap">Spend cap — never charged more than this</label>
-        <input id="concierge-cap" type="range" min={CONCIERGE_MIN_CAP_CENTS / 100} max={maxCapDollars}
-          step={5} value={Math.min(capDollars, maxCapDollars)}
-          onChange={(e) => { setCapDollars(Number(e.target.value)); setRoster(null); }} />
-        <span className="small">{dollars(spendCapCents)}</span>
-      </div>
+      <AmountStepper
+        id="concierge-cap"
+        label="Spend cap — never charged more than this"
+        hint={`A ceiling, not a price. Tap an amount, or nudge it ${dollars(CAP_STEP_CENTS)} at a time.`}
+        valueCents={spendCapCents}
+        scale={capScale}
+        presetsCents={CAP_PRESETS_CENTS}
+        onChange={(cents) => { setCapCents(cents); setRoster(null); }}
+      />
 
       {/* What this costs, before agreeing to it rather than after.
           Everything here comes from the same core functions the server

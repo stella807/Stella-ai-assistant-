@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
+import type { AmountScale } from "@safehubby/core";
 import { api, type Basket, type CarePackageState } from "../api.ts";
+import { AmountStepper } from "./AmountStepper.tsx";
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+/** $5 to $100, nudged in fives. The same control the concierge cap uses, so
+ *  the two places this app asks for a spending limit behave identically. */
+const CAP_SCALE: AmountScale = { minCents: 500, maxCents: 10000, stepCents: 500 };
+const CAP_PRESETS_CENTS = [1500, 3000, 5000, 10000];
 
 const TRIGGERS = [
   { id: "moderate", label: "When I'm impaired" },
@@ -29,7 +36,7 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
   const [baskets, setBaskets] = useState<Basket[]>([]);
   const [basketId, setBasketId] = useState("hydration");
   const [trigger, setTrigger] = useState<string>("high");
-  const [cap, setCap] = useState(30);
+  const [capCents, setCapCents] = useState(3000);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -144,21 +151,24 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
             </select>
           </div>
 
-          <div className="field">
-            <label htmlFor="cap">{prepared ? `Keep the basket under $${cap}` : `Never spend more than ($${cap})`}</label>
-            <input id="cap" type="range" min={5} max={100} step={5} value={cap}
-              onChange={(e) => setCap(Number(e.target.value))} />
-          </div>
+          <AmountStepper
+            id="cap"
+            label={prepared ? "Keep the basket under" : "Never spend more than"}
+            valueCents={capCents}
+            scale={CAP_SCALE}
+            presetsCents={CAP_PRESETS_CENTS}
+            onChange={setCapCents}
+          />
 
-          <button className="btn btn-primary btn-block" disabled={busy || Boolean(chosen?.locked) || total > cap * 100}
+          <button className="btn btn-primary btn-block" disabled={busy || Boolean(chosen?.locked) || total > capCents}
             onClick={() => run(async () => onChange(await api.authorizeCarePackage(nightId, {
-              basketId, capCents: cap * 100, triggerBand: trigger, deliverTo: homeLabel,
+              basketId, capCents, triggerBand: trigger, deliverTo: homeLabel,
             })))}>
             {chosen?.locked
               ? "Upgrade to arm this"
-              : total > cap * 100
+              : total > capCents
               ? "Raise the limit to arm this"
-              : prepared ? "Arm it" : `Arm it — up to ${money(cap * 100)}`}
+              : prepared ? "Arm it" : `Arm it — up to ${money(capCents)}`}
           </button>
 
           <p className="tiny muted">

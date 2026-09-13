@@ -236,7 +236,7 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
 
       <section className="card">
         <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 4 }} />
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span className="small">
             I consent to a background check, including driving record and, for secure transport, licence
             verification.

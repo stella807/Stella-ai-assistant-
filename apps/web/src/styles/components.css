@@ -92,7 +92,9 @@
 }
 .btn-ghost:hover:not(:disabled) { background: var(--fill); opacity: 1; }
 .btn-block { width: 100%; }
-.btn-sm { min-height: 40px; padding: 0 14px; font-size: 14.5px; font-weight: 650; border-radius: 8px; }
+/* Smaller than .btn, but never below 44px: the same thumb is doing the
+   tapping on this one. */
+.btn-sm { min-height: 44px; padding: 0 15px; font-size: 15px; font-weight: 650; border-radius: 9px; }
 
 /* Focus is the accent's job — it is the one ring that has to be seen against
    both ink buttons and white fields. */
@@ -417,10 +419,89 @@
 .plan-price { font-size: 31px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .plan-per { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: -0.01em; }
 
-/* Range input for the spending cap. */
+/* Range inputs survive only where they estimate rather than commit — the
+   earnings calculator in the employee portal. Anything that sets money a
+   customer will be held for uses .amount-stepper instead; see
+   AmountStepper.tsx. */
 .field input[type="range"] {
-  min-height: 32px; padding: 0; box-shadow: none; background: transparent;
+  min-height: 44px; padding: 0; box-shadow: none; background: transparent;
   accent-color: var(--accent-bright);
+}
+.field input[type="range"]::-webkit-slider-thumb { height: 28px; width: 28px; }
+
+/* ---------- Amount stepper ---------- */
+.amount-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.amount-step {
+  appearance: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 30px; font-weight: 600; line-height: 1;
+  color: var(--text); background: var(--fill-strong);
+  border-radius: var(--r-btn);
+  /* Square and large: two targets a thumb can find without looking. */
+  min-width: 64px; min-height: 64px;
+  flex: 0 0 auto;
+}
+.amount-step:active:not(:disabled) { transform: scale(0.96); }
+.amount-step:disabled { opacity: 0.35; cursor: default; }
+.amount-value {
+  flex: 1; text-align: center;
+  font-size: 34px; font-weight: 800; letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.amount-presets {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(74px, 1fr)); gap: 8px;
+}
+.amount-preset {
+  appearance: none; cursor: pointer;
+  font-family: var(--font); font-size: 16px; font-weight: 700;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  color: var(--text); background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  border: none; border-radius: var(--r-btn);
+  min-height: 52px; padding: 0 8px;
+}
+.amount-preset-on {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent-bright);
+  color: var(--text);
+}
+
+/* ---------- Checkboxes ---------- */
+/* A browser checkbox is ~16px. These gate consent and a silent SOS, so they
+   get a real target and a hit area that covers the label beside them. */
+input[type="checkbox"] {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  margin: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line-strong);
+  cursor: pointer;
+  display: grid; place-content: center;
+}
+input[type="checkbox"]::after {
+  content: "";
+  width: 14px; height: 8px;
+  border: 3px solid var(--ground);
+  border-top: none; border-right: none;
+  transform: translateY(-2px) rotate(-45deg);
+  opacity: 0;
+}
+input[type="checkbox"]:checked {
+  background: var(--accent-bright);
+  box-shadow: inset 0 0 0 2px var(--accent-bright);
+}
+input[type="checkbox"]:checked::after { opacity: 1; }
+/* The label is the rest of the target. Wrapping a checkbox in a <label> is
+   already the pattern everywhere it is used, so this costs nothing. */
+label:has(> input[type="checkbox"]) {
+  cursor: pointer;
+  padding: 8px 0;
+  min-height: 44px;
+  align-items: center;
 }
 
 /* ---------- Games ---------- */
