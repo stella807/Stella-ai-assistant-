@@ -21,7 +21,7 @@ const TABS: { id: HiringKind; label: string; blurb: string }[] = [
   {
     id: "concierge",
     label: "Concierge",
-    blurb: "Someone comes to you and stays: wait with a friend who should not be alone, or check on someone in person when a call is not enough.",
+    blurb: "A personal assistant: wait with a friend who should not be alone, check on someone in person, or book and buy something for you — tickets, a hotel, a table — on a card funded from your account.",
   },
 ];
 

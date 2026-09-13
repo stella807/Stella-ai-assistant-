@@ -126,3 +126,23 @@ describe("who gets offered for a task", () => {
     expect(rosterFor([], { category: "grab-something", market: "texas", now })).toEqual([]);
   });
 });
+
+describe("every task type has somebody who can be sent to it", () => {
+  it("leaves no category undispatchable", () => {
+    // ROLE_CATEGORIES is keyed by role, so the compiler catches a new *role*
+    // with no categories decided — but a new *category* slips in silently and
+    // is simply never matched by rosterFor, which reads to a customer as "no
+    // assistants available" forever. This is the other half of that check.
+    for (const category of CONCIERGE_CATEGORIES) {
+      const roles = STAFF_ROLES.filter((role) => roleCovers(role.id, category.id));
+      expect(roles.length, `nobody may be sent to ${category.id}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("never sends an errand runner to buy concert tickets or book a hotel", () => {
+    // Four figures of someone else's money on a funded card is the personal
+    // assistant's job, the same way sitting with someone is.
+    expect(roleCovers("errand-runner", "book-and-buy")).toBe(false);
+    expect(roleCovers("personal-assistant", "book-and-buy")).toBe(true);
+  });
+});

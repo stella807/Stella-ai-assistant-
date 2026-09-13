@@ -7,12 +7,22 @@ import { useLanguage, type TranslationKey } from "../i18n.tsx";
  *  (`LandingIntro.tsx`) and the signed-in "About" tab can share the exact
  *  same content instead of drifting apart over time. */
 
+/**
+ * The reason the app exists, set as the reason the app exists.
+ *
+ * This was a plain card in a stack of plain cards, at the far end of the tab
+ * bar — the same weight as "what we do" and the leadership bio, which made
+ * the mission read as one more section rather than the thing the rest of the
+ * product is downstream of. The first paragraph is now set large enough to
+ * be read as a statement, and the section is marked out from the cards around
+ * it instead of matching them.
+ */
 export function MissionSection() {
   const { t } = useLanguage();
   return (
-    <section className="card stack">
-      <h2>{t("mission.heading")}</h2>
-      <p className="small">{t("mission.p1")}</p>
+    <section className="card stack mission">
+      <p className="mission-eyebrow">{t("mission.heading")}</p>
+      <p className="mission-lead">{t("mission.p1")}</p>
       <p className="small">{t("mission.p2")}</p>
       <p className="tiny muted">{t("mission.disclaimer")}</p>
     </section>

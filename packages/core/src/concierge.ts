@@ -42,6 +42,7 @@
  * pay instead of a silent pay cut for the person doing the work.
  */
 
+import type { AmountScale } from "./amount-steps.ts";
 import { approximateDecodedBytes } from "./voice-messages.ts";
 
 
@@ -49,7 +50,8 @@ export type ConciergeCategory =
   | "grab-something"
   | "wait-with-someone"
   | "check-in-person"
-  | "run-errand";
+  | "run-errand"
+  | "book-and-buy";
 
 export interface ConciergeCategoryInfo {
   id: ConciergeCategory;
@@ -78,6 +80,12 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
     label: "Run an errand",
     description: "A specific, bounded task nearby.",
   },
+  {
+    id: "book-and-buy",
+    label: "Book or buy something",
+    description:
+      "Concert tickets, a hotel room, a table somewhere — researched, chosen and paid for on your behalf.",
+  },
 ];
 
 /**
@@ -91,6 +99,64 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
  */
 export const CONCIERGE_MIN_CAP_CENTS = 1000;
 export const CONCIERGE_MAX_CAP_CENTS = 60000;
+
+/**
+ * The ceiling for a task whose whole point is the purchase — `book-and-buy`.
+ *
+ * Both kinds of task get the same thing mechanically: a Safehubby-issued
+ * card, killed when the task ends, funded from the hold placed on the
+ * customer's own account. The only difference between them is the balance on
+ * it, and $600 is the wrong balance for this one. Two concert tickets, a
+ * night in a hotel, or a deposit on a table are routinely four figures, so
+ * the errand ceiling would have turned "book me a room" into a task the
+ * booking form refuses rather than a task an assistant can complete.
+ *
+ * Still a hard ceiling, and still the customer's own number. A card with no
+ * limit on it is the one thing this module will not issue, however large the
+ * purchase — the cap is a promise about a stranger spending someone else's
+ * money, and that promise does not get weaker as the amount goes up.
+ */
+export const PURCHASE_MAX_CAP_CENTS = 500000;
+
+/** The ceiling in force for a given task. Errands stay at $600; a purchase
+ *  task is funded for what it is actually buying. */
+export function maxCapFor(category: ConciergeCategory, quickTask?: boolean): number {
+  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_MAX_CAP_CENTS;
+  return category === "book-and-buy" ? PURCHASE_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS;
+}
+
+/**
+ * Everything the cap control needs, decided here rather than in the booking
+ * form: the ceiling, where the control starts, how far one nudge moves it,
+ * and the one-tap amounts. These are pricing decisions — what a customer is
+ * offered to authorize — and keeping them beside the ceiling they have to
+ * respect is what stops a preset drifting above a cap the server rejects.
+ */
+export function capScaleFor(category: ConciergeCategory, quickTask?: boolean): AmountScale {
+  return {
+    minCents: CONCIERGE_MIN_CAP_CENTS,
+    maxCents: maxCapFor(category, quickTask),
+    // A $5 nudge on a hotel booking is noise; a $25 nudge on a coffee run is
+    // a blunt instrument. The step follows the size of the thing.
+    stepCents: category === "book-and-buy" ? 2500 : 500,
+  };
+}
+
+/** Where the control starts for this category. A purchase task opens higher
+ *  because $100 is not a plausible ceiling for the thing being bought — but
+ *  it is still the customer's to lower. */
+export function defaultCapFor(category: ConciergeCategory): number {
+  return category === "book-and-buy" ? 50000 : DEFAULT_CONCIERGE_CAP_CENTS;
+}
+
+/** The one-tap amounts. Clamped against the scale by `presetAmounts`, so the
+ *  quick-task ceiling collapses the tail of the errand ladder rather than
+ *  silently shortening the row. */
+export function capPresetsFor(category: ConciergeCategory): number[] {
+  return category === "book-and-buy"
+    ? [10000, 25000, 50000, 100000, 250000, 500000]
+    : [2500, 5000, 10000, 20000, 40000, 60000];
+}
 
 /**
  * Where the cap control starts before the customer touches it.
@@ -152,6 +218,10 @@ export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<ConciergeCategory, number>
   "run-errand": 1150,
   "check-in-person": 1500, // getting there and actually assessing someone takes longer
   "wait-with-someone": 2350, // open-ended by nature; priced for a first ~40 min block
+  // The longest and most skilled of the five: finding what is actually
+  // available, comparing it, and committing the customer's money to it is
+  // research and judgement, not a trip. ~45 min at the same anchor rate.
+  "book-and-buy": 2625,
 };
 
 /**
@@ -307,6 +377,7 @@ export const CONCIERGE_TASK_MINUTES: Record<ConciergeCategory, number> = {
   "run-errand": 18,
   "check-in-person": 25,
   "wait-with-someone": 40,
+  "book-and-buy": 45,
 };
 
 /** The assistant's per-task *payout* expressed as an hourly-equivalent rate,
@@ -381,7 +452,7 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
       throw new Error(`A task can cover between 1 and ${MAX_PEOPLE_PER_TASK} people.`);
     }
   }
-  const maxCap = input.quickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS;
+  const maxCap = maxCapFor(input.category, input.quickTask);
   if (
     !Number.isInteger(input.spendCapCents) ||
     input.spendCapCents < CONCIERGE_MIN_CAP_CENTS ||

@@ -41,7 +41,11 @@ import {
  * a build error rather than an empty default.
  */
 export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
-  "personal-assistant": ["grab-something", "run-errand", "check-in-person", "wait-with-someone"],
+  // `book-and-buy` is here and nowhere else on purpose. Committing four
+  // figures of someone else's money to a hotel or a pair of tickets is
+  // judgement work on a funded card — the same reason an errand runner is
+  // never sent to sit with someone.
+  "personal-assistant": ["grab-something", "run-errand", "check-in-person", "wait-with-someone", "book-and-buy"],
   "errand-runner": [...QUICK_TASK_CATEGORIES],
   secretary: [],
   driver: [],

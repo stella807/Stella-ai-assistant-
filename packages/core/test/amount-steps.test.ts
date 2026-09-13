@@ -94,3 +94,32 @@ describe("presets", () => {
     }
   });
 });
+
+describe("round numbers", () => {
+  // A $10 floor with a $25 step used to put every reachable amount $10 high:
+  // the $500 preset rendered as $510 and the $1,000 one as $1,010. The grid
+  // is anchored at zero for this reason.
+  const purchase: AmountScale = { minCents: 1000, maxCents: 500000, stepCents: 2500 };
+
+  it("keeps a round amount round on a coarse step above an odd floor", () => {
+    for (const round of [10000, 25000, 50000, 100000, 250000, 500000]) {
+      expect(clampAmount(round, purchase)).toBe(round);
+    }
+  });
+
+  it("steps between round amounts rather than off by the floor", () => {
+    expect(stepAmount(50000, 1, purchase)).toBe(52500);
+    expect(stepAmount(50000, -1, purchase)).toBe(47500);
+  });
+
+  it("still reaches both ends exactly, on or off the grid", () => {
+    expect(clampAmount(0, purchase)).toBe(1000);
+    expect(clampAmount(999_999, purchase)).toBe(500000);
+  });
+
+  it("always makes progress upward from an off-grid floor", () => {
+    // The minimum need not sit on the grid. Stepping up from it must move,
+    // or the + button is dead at the one place people start.
+    expect(stepAmount(1000, 1, purchase)).toBeGreaterThan(1000);
+  });
+});

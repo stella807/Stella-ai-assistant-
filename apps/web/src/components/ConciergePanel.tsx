@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, CONCIERGE_MAX_CAP_CENTS, CONCIERGE_MIN_CAP_CENTS,
-  DEFAULT_CONCIERGE_CAP_CENTS, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
-  clampAmount,
-  hasFeature, isAssistantAvailable, isQuickTaskEligible, minutesFor,
+  CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, defaultCapFor,
+  hasFeature, hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, minutesFor,
   serviceFeeFor, totalChargeCents,
 } from "@safehubby/core";
 import type {
-  AmountScale,
   AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -19,18 +17,13 @@ import { AssistantModal } from "./AssistantModal.tsx";
 /** Exact, to the cent. Amounts here are prices somebody agrees to and
  *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
  *  number the customer did not actually accept. */
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+const money = (cents: number) =>
+  `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 /** Whole dollars, for the amounts the cap control deals in, which step in
  *  fives and so can never have cents to lose. */
-const dollars = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
 
-/** How far one press of +/- moves the cap. */
-const CAP_STEP_CENTS = 500;
-/** The one-tap amounts. Clamped to whichever ceiling is in force, so
- *  quick-task mode shows $25 / $50 / $100 from this same list. The default
- *  is one of them deliberately — a starting value with no button lit reads
- *  as an amount nobody chose. */
-const CAP_PRESETS_CENTS = [2500, 5000, 10000, 20000, 40000, 60000];
+
 
 /**
  * A real embedded map for the chosen place, when a browser-safe Maps key is
@@ -89,7 +82,7 @@ const COPY_FOR: Record<HiringKind, { heading: string; blurb: string; locked: str
   concierge: {
     heading: "Personal concierge",
     blurb: "Send someone for one bounded task, capped at exactly what you set below — never more, whatever it ends up costing.",
-    locked: "🔒 Send a vetted assistant to wait with a friend or check on someone in person. Included on every paid plan.",
+    locked: "🔒 Send a vetted personal assistant to wait with a friend, check on someone, or book and buy something for you. Included on every paid plan.",
   },
 };
 
@@ -106,7 +99,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
-  const [capCents, setCapCents] = useState(DEFAULT_CONCIERGE_CAP_CENTS);
+  const [capCents, setCapCents] = useState(() => defaultCapFor(allowed[0] ?? "grab-something"));
   const [quickTask, setQuickTask] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
@@ -134,7 +127,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // Switching tabs must not leave the previous tab's category selected, which
   // would book a concierge job from the errands screen.
   useEffect(() => {
-    setCategory((current) => (allowed.includes(current) ? current : allowed[0] ?? "grab-something"));
+    setCategory((current) => {
+      const next = allowed.includes(current) ? current : allowed[0] ?? "grab-something";
+      if (next !== current) setCapCents(defaultCapFor(next));
+      return next;
+    });
     setRoster(null);
   }, [kind]);
 
@@ -149,11 +146,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const quickEligible = isQuickTaskEligible(category);
   const effectiveQuickTask = quickTask && quickEligible;
-  const capScale: AmountScale = {
-    minCents: CONCIERGE_MIN_CAP_CENTS,
-    maxCents: effectiveQuickTask ? QUICK_TASK_MAX_CAP_CENTS : CONCIERGE_MAX_CAP_CENTS,
-    stepCents: CAP_STEP_CENTS,
-  };
+  // Ceiling, step and presets all come from core: a booking that buys concert
+  // tickets is funded differently from one that fetches a burger, and that is
+  // a pricing rule, not a form detail.
+  const capScale = capScaleFor(category, effectiveQuickTask);
   // Clamped rather than stored clamped: switching a booking to a quick task
   // drops the ceiling, and the cap has to follow it down without losing the
   // customer's original number if they switch back.
@@ -164,6 +160,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // defaults to 1 and this panel sends no count, so quoting plan seats here
   // would overstate the fee for a Family subscriber booking for themselves.
   const serviceFee = serviceFeeFor(category, effectiveQuickTask);
+  const assistantPayout = assistantPayoutFor(category, effectiveQuickTask);
   const totalHeld = totalChargeCents(category, spendCapCents, effectiveQuickTask);
 
   const browse = async () => {
@@ -269,7 +266,15 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       <div className="chip-grid">
         {CONCIERGE_CATEGORIES.filter((c) => allowed.includes(c.id)).map((c) => (
           <button key={c.id} className={`chip${c.id === category ? " chip-on" : ""}`}
-            onClick={() => { setCategory(c.id); setRoster(null); if (!isQuickTaskEligible(c.id)) setQuickTask(false); }}
+            onClick={() => {
+              setCategory(c.id);
+              // The cap follows the category rather than carrying over. A $100
+              // ceiling means nothing on a hotel booking, and a $500 one is not
+              // a number anybody meant to authorize for a coffee run.
+              setCapCents(defaultCapFor(c.id));
+              setRoster(null);
+              if (!isQuickTaskEligible(c.id)) setQuickTask(false);
+            }}
             aria-pressed={c.id === category}>
             <strong>{c.label}</strong>
             <span className="tiny">{c.description}</span>
@@ -343,10 +348,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       <AmountStepper
         id="concierge-cap"
         label="Spend cap — never charged more than this"
-        hint={`A ceiling, not a price. Tap an amount, or nudge it ${dollars(CAP_STEP_CENTS)} at a time.`}
+        hint={`A ceiling, not a price. Tap an amount, or nudge it ${dollars(capScale.stepCents)} at a time.`}
         valueCents={spendCapCents}
         scale={capScale}
-        presetsCents={CAP_PRESETS_CENTS}
+        presetsCents={capPresetsFor(category)}
         onChange={(cents) => { setCapCents(cents); setRoster(null); }}
       />
 
@@ -362,6 +367,20 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           Pays your assistant for about {minutesFor(category, effectiveQuickTask)} minutes of their time.
+        </p>
+        {/* What the person doing the work actually takes home, said plainly to
+            the customer paying for it. It is their money, and "service fee" on
+            its own hides whether any of it reaches the assistant — the number
+            here is the same `assistantPayoutFor` payroll pays out, not a
+            share of the fee estimated for display. */}
+        <div className="row-between" style={{ marginTop: 6 }}>
+          <span className="small">Your assistant is paid</span>
+          <span className="small charge-amount">{money(assistantPayout)}</span>
+        </div>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          About {money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr for this kind of task. They keep
+          all of it — Safehubby's {money(serviceFee - assistantPayout)} is added on top of their rate, never
+          taken out of it.
         </p>
         <div className="row-between" style={{ marginTop: 6 }}>
           <span className="small"><strong>Held now</strong></span>

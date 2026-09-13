@@ -15,7 +15,9 @@ import {
   describeAssistantCapacity,
   hourlyRateCentsFor, isAssistantAvailable, isQuickTaskEligible, serviceFeeFor,
   totalChargeCents, validateConciergeRequest, validateDisputeReason, validateIdentityPhoto,
+  PURCHASE_MAX_CAP_CENTS, capPresetsFor, capScaleFor, defaultCapFor, maxCapFor, minutesFor,
 } from "../src/concierge.ts";
+import { presetAmounts } from "../src/amount-steps.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
 
 const request = (over: Partial<ConciergeTaskInput> = {}): ConciergeTaskInput => ({
@@ -492,5 +494,58 @@ describe("validateIdentityPhoto", () => {
   it("caps how large the encoded photo can be", () => {
     const huge = "A".repeat(MAX_PHOTO_BYTES * 2);
     expect(() => validateIdentityPhoto(photo({ base64: huge }))).toThrow(/too large/i);
+  });
+});
+
+describe("two ceilings: an errand and a purchase are funded differently", () => {
+  it("funds a hotel or a pair of tickets well past the errand ceiling", () => {
+    expect(() => validateConciergeRequest(request({
+      category: "book-and-buy", spendCapCents: 180000,
+    }))).not.toThrow();
+  });
+
+  it("still refuses a card with no ceiling on it, however large the purchase", () => {
+    expect(() => validateConciergeRequest(request({
+      category: "book-and-buy", spendCapCents: PURCHASE_MAX_CAP_CENTS + 1,
+    }))).toThrow(/spend cap/i);
+  });
+
+  it("does not let an errand reach the purchase ceiling", () => {
+    // The higher balance belongs to the task that is buying something, not to
+    // whoever picks the roomier category by accident.
+    expect(() => validateConciergeRequest(request({
+      category: "run-errand", spendCapCents: CONCIERGE_MAX_CAP_CENTS + 1,
+    }))).toThrow(/spend cap/i);
+    expect(maxCapFor("run-errand")).toBe(CONCIERGE_MAX_CAP_CENTS);
+    expect(maxCapFor("book-and-buy")).toBe(PURCHASE_MAX_CAP_CENTS);
+  });
+
+  it("never offers a preset the ceiling would reject", () => {
+    for (const { id } of CONCIERGE_CATEGORIES) {
+      for (const quick of [false, true]) {
+        if (quick && !isQuickTaskEligible(id)) continue;
+        const scale = capScaleFor(id, quick);
+        for (const preset of presetAmounts(capPresetsFor(id), scale)) {
+          expect(() => validateConciergeRequest(request({
+            category: id, quickTask: quick, spendCapCents: preset,
+          })), `${id} preset ${preset}`).not.toThrow();
+        }
+      }
+    }
+  });
+
+  it("opens each category on a cap that category can actually book", () => {
+    for (const { id } of CONCIERGE_CATEGORIES) {
+      expect(() => validateConciergeRequest(request({ category: id, spendCapCents: defaultCapFor(id) })),
+        `${id} default`).not.toThrow();
+    }
+  });
+
+  it("pays the purchase task for the research, not for a trip", () => {
+    // Finding what is available, comparing it and committing someone's money
+    // is the longest of the five, and priced at the same anchor rate.
+    expect(minutesFor("book-and-buy")).toBeGreaterThan(minutesFor("run-errand"));
+    expect(assistantPayoutFor("book-and-buy")).toBeGreaterThan(assistantPayoutFor("wait-with-someone"));
+    expect(hourlyRateCentsFor("book-and-buy")).toBeGreaterThanOrEqual(3000);
   });
 });
