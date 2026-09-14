@@ -13,9 +13,7 @@ import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { isNative, platform } from "../native/platform.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
 
-const money = (cents: number) =>
-  `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const moneyRound = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
+import { dollars as moneyRound, money } from "../money.ts";
 
 type PortalTask = ConciergeTask & { requesterName: string };
 

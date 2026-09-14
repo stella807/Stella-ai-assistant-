@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type PendingOrder } from "../api.ts";
 
-const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+import { money } from "../money.ts";
 
 /**
  * The sober ask.

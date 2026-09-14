@@ -3,7 +3,7 @@ import { api, type Billing } from "../api.ts";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { PlanPicker } from "./PlanPicker.tsx";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+import { money } from "../money.ts";
 
 const dayOf = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });

@@ -418,5 +418,9 @@ export function annualSavingsPercent(plan: Plan): number {
 }
 
 export function formatPrice(cents: number): string {
-  return cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)}`;
+  // Grouped, because the Elite ladder put four- and six-figure prices through
+  // here: "$199999.99" is a number somebody has to count the digits of.
+  return cents === 0 ? "Free" : `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })}`;
 }

@@ -3,7 +3,7 @@ import type { AmountScale } from "@safehubby/core";
 import { api, type Basket, type CarePackageState } from "../api.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+import { money } from "../money.ts";
 
 /** $5 to $100, nudged in fives. The same control the concierge cap uses, so
  *  the two places this app asks for a spending limit behave identically. */

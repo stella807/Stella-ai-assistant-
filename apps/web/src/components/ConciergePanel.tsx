@@ -4,7 +4,8 @@ import {
   BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, defaultCapFor,
   defaultHoursFor, hasCapCeiling, hasFeature, hourlyRateCentsFor, isAssistantAvailable, isHourlyCategory,
-  isQuickTaskEligible, minutesFor, serviceFeeFor, totalChargeCents,
+  isInLaunchMarket, isQuickTaskEligible, launchMarketNames, minutesFor, serviceFeeFor,
+  totalChargeCents,
 } from "@safehubby/core";
 import type {
   AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
@@ -18,11 +19,9 @@ import { AssistantModal } from "./AssistantModal.tsx";
 /** Exact, to the cent. Amounts here are prices somebody agrees to and
  *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
  *  number the customer did not actually accept. */
-const money = (cents: number) =>
-  `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { dollars, money } from "../money.ts";
 /** Whole dollars, for the amounts the cap control deals in, which step in
  *  fives and so can never have cents to lose. */
-const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
 
 /** One-tap durations, in hundredths of an hour to match the stepper's units:
  *  an hour, a couple, an evening, a working day. */
@@ -131,6 +130,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     if (locked) return;
     api.conciergeTasks().then((r) => setTasks(r.tasks)).catch(() => {});
     api.fulfillmentStatus().then((r) => setPlaceSearchStatus(r.placeSearch)).catch(() => {});
+    // Asked for on mount, not at submit. Whether we cover where somebody is
+    // standing is knowable before they describe a task, pick an assistant and
+    // choose an amount — and finding out afterwards, in a red banner under a
+    // form they just filled in, is the version this used to ship.
+    currentFix().then(setFix).catch(() => {});
   }, [locked]);
 
   // Switching tabs must not leave the previous tab's category selected, which
@@ -152,6 +156,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       </section>
     );
   }
+
+  // Null while the fix is still being fetched or was refused: unknown is not
+  // the same as uncovered, and greying out the form on a permission prompt
+  // that has not been answered yet would be its own bug.
+  const covered = fix ? isInLaunchMarket(fix) : null;
 
   const quickEligible = isQuickTaskEligible(category);
   const effectiveQuickTask = quickTask && quickEligible;
@@ -259,6 +268,19 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     <section className="card stack">
       <h3>{COPY_FOR[kind].heading}</h3>
       <p className="small muted">{COPY_FOR[kind].blurb}</p>
+
+      {/* Said here, at the top, rather than in a red banner under a finished
+          form. Not an error either: being outside the launch markets is not
+          something the customer did wrong. */}
+      {covered === false && (
+        <div className="banner">
+          <strong>We are not in your area yet.</strong>
+          <span className="tiny">
+            Assistants work {launchMarketNames()} for now. Everything else on your plan still works
+            wherever you are — this is the one part that needs somebody local.
+          </span>
+        </div>
+      )}
 
       {active.length > 0 && (
         <ul className="timeline">
@@ -471,7 +493,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       </div>
 
       {roster === null && (
-        <button className="btn btn-block" disabled={busy || !note.trim()} onClick={browse}>
+        <button className="btn btn-block" disabled={busy || !note.trim() || covered === false} onClick={browse}>
           Browse assistants
         </button>
       )}

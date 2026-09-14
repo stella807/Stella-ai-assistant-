@@ -2,7 +2,7 @@ import { canStepDown, canStepUp, clampAmount, presetAmounts, stepAmount, type Am
 
 /** Whole dollars. Every amount this control can produce sits on a step of at
  *  least a dollar, so there are never cents to lose. */
-const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString()}`;
+import { dollars } from "../money.ts";
 
 /** What the control is counting. The stepper is the same control either way —
  *  big targets, valid-by-construction values, presets plus a coarse nudge —

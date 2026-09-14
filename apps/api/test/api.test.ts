@@ -131,7 +131,8 @@ describe("API basics", () => {
     expect((await call("GET", "/api/health")).json.ok).toBe(true);
     const catalog = (await call("GET", "/api/catalog")).json;
     expect(catalog.drinks.length).toBeGreaterThan(5);
-    expect(catalog.plans.length).toBe(4);
+    // Four everyday tiers plus the three Elite rungs.
+    expect(catalog.plans.length).toBe(4 + ELITE_LADDER.length);
   });
 
   it("404s an unknown route and 400s bad JSON", async () => {
@@ -2401,23 +2402,34 @@ describe("Uber Guest Trips wiring", () => {
   });
 });
 
-describe("the Elite tier, held for a later release", () => {
-  it("is absent from the catalogue while its flag is off", async () => {
+describe("the Elite ladder", () => {
+  it("serves every rung in the catalogue", async () => {
     const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
-    for (const id of ELITE_LADDER) expect(ids).not.toContain(id);
+    for (const id of ELITE_LADDER) expect(ids).toContain(id);
     expect(ids).toContain("family");
   });
 
-  it("refuses every rung, and says what is holding it rather than 404-ing blankly", async () => {
-    // Each rung, not just the entry one: the dearer ones are the same jet and
-    // the same doctor, and a gap here would sell them while the cheapest
-    // waited. The message has to name what is missing — the phrasing is free
-    // to change, the fact that it explains itself is not.
+  it("can be subscribed to, on every rung", async () => {
     for (const id of ELITE_LADDER) {
       const res = await call("POST", "/api/subscription", { planId: id }, sam);
-      expect(res.status, id).toBe(404);
-      expect(res.json.error, id).toMatch(/charter operator|physician|agreement/i);
-      expect(String(res.json.error).length, id).toBeGreaterThan(40);
+      expect(res.status, id).toBe(200);
+      expect(res.json.subscription.planId, id).toBe(id);
+    }
+  });
+
+  it("goes back behind the flag as a whole if it is ever pulled", async () => {
+    // The switch still works in both directions, which is what makes pulling
+    // the ladder a one-line decision rather than a revert.
+    setFlag("elite-tier", false);
+    try {
+      const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
+      for (const id of ELITE_LADDER) expect(ids).not.toContain(id);
+      for (const id of ELITE_LADDER) {
+        expect((await call("POST", "/api/subscription", { planId: id }, sam)).status, id).toBe(404);
+      }
+      expect(ids).toContain("family");
+    } finally {
+      resetFlags();
     }
   });
 
@@ -2460,9 +2472,23 @@ describe("the Elite luxury desk", () => {
     await call("POST", "/api/subscription", { planId: "elite" }, sam);
   };
 
-  it("does not exist at all while the tier is unreleased", async () => {
-    expect((await call("GET", "/api/elite/services", undefined, sam)).status).toBe(404);
-    expect((await call("POST", "/api/elite/bookings", { serviceId: "jet-travel", brief: "x" }, sam)).status).toBe(404);
+  it("stays closed to anyone not actually on an Elite plan", async () => {
+    // The ladder is released, so the gate is the subscription rather than the
+    // flag. A member must not reach the desk by knowing the URL — and 402
+    // rather than 404 because the tier is openly sold now, so "upgrade" is
+    // the honest answer instead of a dead end.
+    expect((await call("GET", "/api/elite/services", undefined, sam)).status).toBe(402);
+    expect((await call("POST", "/api/elite/bookings", { serviceId: "jet-travel", brief: "x" }, sam)).status).toBe(402);
+  });
+
+  it("disappears again for everyone if the ladder is pulled", async () => {
+    await elite();
+    setFlag("elite-tier", false);
+    try {
+      expect((await call("GET", "/api/elite/services", undefined, sam)).status).toBe(404);
+    } finally {
+      resetFlags();
+    }
   });
 
   it("offers the luxury catalogue once a member is on Elite", async () => {
@@ -2486,8 +2512,14 @@ describe("the Elite luxury desk", () => {
         serviceId: "jet-travel", brief: "Austin to Aspen Friday, four of us",
       }, sam);
       expect(res.status).toBe(402);
+      // And the catalogue is closed too, not merely empty. It used to answer
+      // 200 with no services and the partner desk's configuration status
+      // attached, to anybody signed in — invisible while the flag was off,
+      // because the route 404'd for everyone before the plan was ever read.
       const services = await call("GET", "/api/elite/services", undefined, sam);
-      expect(services.json.services).toEqual([]);
+      expect(services.status).toBe(402);
+      expect(services.json.services).toBeUndefined();
+      expect(services.json.desk).toBeUndefined();
     } finally {
       resetFlags();
     }

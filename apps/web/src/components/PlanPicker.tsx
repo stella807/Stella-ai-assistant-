@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+import { money } from "../money.ts";
 
 /**
  * The plan list, and nothing else.

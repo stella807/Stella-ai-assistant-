@@ -41,8 +41,8 @@ export interface FlagDefinition {
 export const FLAGS: FlagDefinition[] = [
   {
     id: "elite-tier",
-    enabled: false,
-    note: "The Elite ladder is built and priced, and held on two agreements rather than on any code: a charter operator to broker under 14 CFR Part 295, and a physician practice to introduce members to. Selling a membership whose headline is a jet and a doctor before either exists is the exposure, not the code path — flip this once they are signed.",
+    enabled: true,
+    note: "The Elite ladder is live. The desk reports per service rather than per plan: with no charter operator or physician practice configured, a request is taken and answered by a person instead of quoted automatically — the same honesty rule every other adapter here follows. The legal duties do not ride on this flag: Part 295 disclosures are attached to every jet quote, medical commission is zero and cannot be set otherwise, and the doctor disappears entirely when the assessment says call emergency services.",
   },
   {
     id: "party-supply",

@@ -11,7 +11,7 @@ import {
   ELITE_SERVICES, commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService,
   validateEliteRequest,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
-  createGrant, deriveAlerts, estimateBac, hasFeature, leaderboard, logDrink, redeem,
+  createGrant, deriveAlerts, estimateBac, hasFeature, isElitePlan, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
   canActOnNight, canReadAccount, canReadScope, canRevokeGrant, canSeeGrant, claimGrant,
@@ -659,9 +659,30 @@ function launchStatus(now: Date) {
  * feature. The flag check comes first, so a deployment that has not shipped
  * Elite answers "no such thing" rather than "upgrade your plan".
  */
+/**
+ * The Elite desk, gated on both things that have to be true: the ladder is
+ * released, and the caller is actually on one of its rungs.
+ *
+ * The plan check is the half that was missing. While the flag was off this
+ * route 404'd for everyone, so nothing exercised it — `requireElite` took a
+ * ctx it did not read and checked only the flag, which meant releasing the
+ * ladder would have opened the desk to every signed-in account regardless of
+ * plan. Booking was still covered by `requireFeature` downstream, but the
+ * catalogue was not: it answered 200 to anyone and handed back the partner
+ * desk's configuration status with it.
+ *
+ * 402 rather than 404 for the plan half, matching `requireFeature`. Hiding
+ * the desk behind a "not found" made sense while the ladder was unreleased
+ * and the tier did not publicly exist; now that it is in the catalogue and
+ * openly priced, a member who could simply upgrade should be told so rather
+ * than shown a dead end. The flag half stays 404 — an unreleased ladder
+ * genuinely is not there.
+ */
 function requireElite(ctx: Ctx): void {
-  void ctx;
   if (!isEnabled("elite-tier")) throw new HttpError(404, flagNote("elite-tier"));
+  if (!isElitePlan(planOf(ctx, actor(ctx)))) {
+    throw new HttpError(402, "The luxury desk is part of Elite. Upgrade to reach it.");
+  }
 }
 
 /**

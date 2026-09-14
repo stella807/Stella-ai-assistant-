@@ -6,7 +6,7 @@ import {
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+import { money } from "../money.ts";
 
 /**
  * What everything costs, before anybody signs up.

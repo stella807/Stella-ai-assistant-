@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_FEATURES, ELITE_LADDER, ELITE_ONLY, PLANS, annualSavingsPercent, findPlan, formatPrice,
-  hasFeature, includedConciergeHours, isPlanReleased, releasedPlans,
+  hasFeature, includedConciergeHours, isElitePlan, isPlanReleased, releasedPlans,
 } from "../src/billing.ts";
+import { disclosuresFor, doctorAvailableFor, findEliteService } from "../src/elite.ts";
 import { resetFlags, setFlag } from "../src/features.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
 import { estimateBac } from "../src/bac.ts";
@@ -39,9 +40,13 @@ describe("plans", () => {
     }
   });
 
-  it("formats prices", () => {
+  it("formats prices, grouped once they get long", () => {
     expect(formatPrice(0)).toBe("Free");
     expect(formatPrice(1499)).toBe("$14.99");
+    // The Elite ladder puts four- and six-figure prices through here.
+    expect(formatPrice(499_999)).toBe("$4,999.99");
+    expect(formatPrice(19_999_999)).toBe("$199,999.99");
+    for (const plan of PLANS) expect(formatPrice(plan.annualCents)).not.toMatch(/\d{5}/);
   });
 
   it("gates automatic fulfilment above the entry tier", () => {
@@ -84,26 +89,31 @@ describe("plans", () => {
     }
   });
 
-  it("holds every Elite rung behind one flag, and never hides a shipped plan", () => {
-    // One switch for the whole ladder. Releasing a rung at a time would mean
-    // selling a jet and a doctor on the cheapest one while the dearer ones
-    // wait, which is the same exposure in a smaller font.
+  it("moves every Elite rung together on one flag, and never hides a shipped plan", () => {
+    // One switch for the whole ladder, in both directions. Releasing or
+    // pulling a rung at a time would mean a jet and a doctor on sale under
+    // one price while the others wait, which is the same exposure in a
+    // smaller font.
     for (const id of ELITE_LADDER) {
-      expect(isPlanReleased(id), id).toBe(false);
-      expect(releasedPlans().map((p) => p.id)).not.toContain(id);
+      expect(isPlanReleased(id), id).toBe(true);
+      expect(releasedPlans().map((p) => p.id)).toContain(id);
     }
     for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id))) {
       expect(isPlanReleased(plan.id)).toBe(true);
       expect(releasedPlans().map((p) => p.id)).toContain(plan.id);
     }
 
-    setFlag("elite-tier", true);
+    setFlag("elite-tier", false);
     for (const id of ELITE_LADDER) {
-      expect(isPlanReleased(id), id).toBe(true);
-      expect(releasedPlans().map((p) => p.id)).toContain(id);
+      expect(isPlanReleased(id), id).toBe(false);
+      expect(releasedPlans().map((p) => p.id)).not.toContain(id);
+    }
+    // Pulling the ladder must never take an everyday tier with it.
+    for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id))) {
+      expect(isPlanReleased(plan.id), plan.id).toBe(true);
     }
     resetFlags();
-    for (const id of ELITE_LADDER) expect(isPlanReleased(id), id).toBe(false);
+    for (const id of ELITE_LADDER) expect(isPlanReleased(id), id).toBe(true);
   });
 
   it("prices every Elite rung on its hours rather than against a membership card", () => {
@@ -148,38 +158,44 @@ describe("plans", () => {
     }
   });
 
-  it("never lets a released plan reach jet travel or a concierge doctor", () => {
+  it("lets a plan reach jet travel or a doctor only with the guardrails attached", () => {
     /**
-     * The scope decision, as a test rather than a promise.
-     *
-     * The personal concierge ships: someone goes and does a bounded, capped
-     * task for you. Private aviation and the concierge doctor do not, and
-     * they are the two entries in the catalogue that carry legal duties of
+     * This used to assert that no purchasable plan reached either one, which
+     * was right while the ladder was held: the two carry legal duties of
      * their own — 14 CFR Part 295 broker disclosures for charter, and the
-     * federal Anti-Kickback Statute for anything that looks like paying for
-     * a patient referral. Turning either on by accident is not a feature
-     * creeping out early, it is a regulatory exposure.
+     * federal Anti-Kickback Statute for anything shaped like paying for a
+     * patient referral — and shipping them by accident was the exposure.
      *
-     * So this asserts it against the plans that are actually purchasable,
-     * whatever the flags happen to say.
+     * Elite is released now, so the absence is gone and the duties are what
+     * is left to hold. They do not ride on the feature flag, and this is the
+     * test that says so: whatever is purchasable, the disclosures exist, the
+     * medical rate is zero, and the doctor is unavailable the moment the
+     * assessment says call an ambulance.
      */
     const OFF_LIMITS = ["private-aviation", "concierge-doctor"] as const;
     for (const plan of releasedPlans()) {
       for (const feature of OFF_LIMITS) {
-        expect(hasFeature(plan.id, feature), `${plan.id}/${feature}`).toBe(false);
+        if (!hasFeature(plan.id, feature)) continue;
+        expect(isElitePlan(plan.id), `${plan.id} reaches ${feature}`).toBe(true);
       }
-      // But the concierge itself is on every paid tier — that is the thing
-      // being kept, and it is what the doctor and the jets are being kept
-      // apart from.
+      // The concierge itself is on every paid tier — that is the thing the
+      // doctor and the jets are kept distinct from, not hidden behind.
       if (plan.monthlyCents > 0) expect(hasFeature(plan.id, "personal-concierge")).toBe(true);
     }
+
+    // The duties themselves, asserted here rather than left to elite.ts, so
+    // that releasing a plan can never be the change that drops them.
+    expect(findEliteService("concierge-doctor").commissionRate).toBe(0);
+    expect(disclosuresFor("jet-travel").join(" ")).toMatch(/air carrier operating your flight is named/i);
+    expect(disclosuresFor("concierge-doctor").join(" ")).toMatch(/not emergency care/i);
+    expect(doctorAvailableFor("call-emergency")).toBe(false);
   });
 
-  it("keeps the whole luxury desk out of the catalogue while Elite is held", () => {
-    // releasedPlans() is what the API serves and the app renders, so this is
-    // the check that matters for anything a customer can actually buy.
-    expect(releasedPlans().map((p) => p.id)).not.toContain("elite");
-    for (const plan of releasedPlans()) {
+  it("never puts the luxury desk on an everyday tier", () => {
+    // The ladder is released; the desk is still Elite-only. A jet on the
+    // $9.99 tier would not be a pricing mistake, it would be a different
+    // product with different duties attached to it.
+    for (const plan of releasedPlans().filter((p) => !isElitePlan(p.id))) {
       for (const feature of ELITE_ONLY) {
         expect(hasFeature(plan.id, feature), `${plan.id}/${feature}`).toBe(false);
       }

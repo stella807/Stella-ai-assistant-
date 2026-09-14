@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type CartLine, type CartSummary, type PartyCategory, type PartyItem } from "../api.ts";
 
-const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+import { money } from "../money.ts";
 
 /**
  * Party supply — the daytime half of the product. Safehubby already knows a

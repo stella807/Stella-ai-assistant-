@@ -8,7 +8,7 @@ import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { PermissionGate } from "./PermissionGate.tsx";
 import { readFileAsBase64 } from "../native/camera.ts";
 
-const money = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+import { dollars as money } from "../money.ts";
 
 /**
  * Popup shown after picking a specific assistant from the roster. Two modes
