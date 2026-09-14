@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { QUICK_TASK_MAX_CAP_CENTS } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
+import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
 import type { Account } from "../api.ts";
 
 /**
@@ -12,7 +13,14 @@ import type { Account } from "../api.ts";
  * the one core already draws in `QUICK_TASK_CATEGORIES` rather than a new
  * distinction invented in the UI — see `HiringKind` in ConciergePanel.
  */
-const TABS: { id: HiringKind; label: string; blurb: string }[] = [
+type Tab = HiringKind | "desk";
+
+const TABS: { id: Tab; label: string; blurb: string }[] = [
+  {
+    id: "desk",
+    label: "Ask an assistant",
+    blurb: "Appointments, reminders, emails, admin — the half of the job that happens at a desk. Included in your plan, with nothing to set and nothing to agree to.",
+  },
   {
     id: "errand",
     label: "Small errands",
@@ -26,7 +34,9 @@ const TABS: { id: HiringKind; label: string; blurb: string }[] = [
 ];
 
 export function HiringScreen({ account }: { account: Account }) {
-  const [kind, setKind] = useState<HiringKind>("errand");
+  // The desk tab first: it is the one most people will use most weeks,
+  // and it costs nothing, so it should not be the one they have to find.
+  const [kind, setKind] = useState<Tab>("desk");
   const active = TABS.find((t) => t.id === kind) ?? TABS[0]!;
 
   return (
@@ -50,7 +60,9 @@ export function HiringScreen({ account }: { account: Account }) {
 
       {/* Keyed by tab so switching resets the form rather than carrying a
           half-filled concierge request into the errands screen. */}
-      <ConciergePanel key={kind} account={account} kind={kind} />
+      {kind === "desk"
+        ? <DeskTasksPanel account={account} />
+        : <ConciergePanel key={kind} account={account} kind={kind} />}
     </div>
   );
 }

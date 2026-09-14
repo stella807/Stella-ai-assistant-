@@ -3561,3 +3561,63 @@ describe("texting the assistant on your task", () => {
     expect(task.spendCapCents).toBe(12000);
   });
 });
+
+describe("desk tasks — the assistant's job that does not need feet", () => {
+  // Sam is premium-plus from the outer setup; Jordan stays free.
+  it("takes a task, and never holds or charges anything for it", async () => {
+    const before = store.data.charges.length;
+    const res = await call("POST", "/api/desk/tasks", {
+      kind: "appointment", note: "Book the dentist, any afternoon after the 12th",
+    }, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.task.status).toBe("open");
+    // The whole point of this being included: no ledger entry, no hold.
+    expect(store.data.charges.length).toBe(before);
+    expect(store.data.holds.length).toBe(0);
+    expect(res.json.task.chargeId).toBeUndefined();
+    expect(res.json.task.holdId).toBeUndefined();
+  });
+
+  it("says what is left before anything is asked for", async () => {
+    const res = await call("GET", "/api/desk/tasks", undefined, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.allowance).toBeGreaterThan(0);
+    expect(res.json.remaining).toBe(res.json.allowance);
+    expect(res.json.resetsAt).toMatch(/^\d{4}-\d{2}-01T00:00:00/);
+    expect(res.json.accessRule).toMatch(/never signs in as you/i);
+  });
+
+  it("refuses past the month's allowance, and says when it resets", async () => {
+    const { allowance } = (await call("GET", "/api/desk/tasks", undefined, sam)).json;
+    for (let i = 0; i < allowance; i++) {
+      expect((await call("POST", "/api/desk/tasks", { kind: "reminder", note: `Thing ${i}` }, sam)).status).toBe(200);
+    }
+    const over = await call("POST", "/api/desk/tasks", { kind: "reminder", note: "One too many" }, sam);
+    expect(over.status).toBe(429);
+    expect(over.json.error).toMatch(/resets on the 1st/i);
+  });
+
+  it("gives a cancelled task's slot back", async () => {
+    const made = await call("POST", "/api/desk/tasks", { kind: "research", note: "Compare the two policies" }, sam);
+    const after = (await call("GET", "/api/desk/tasks", undefined, sam)).json;
+    expect(after.remaining).toBe(after.allowance - 1);
+    await call("POST", `/api/desk/tasks/${made.json.task.id}/cancel`, {}, sam);
+    const back = (await call("GET", "/api/desk/tasks", undefined, sam)).json;
+    expect(back.remaining).toBe(back.allowance);
+  });
+
+  it("is closed to the free plan, and to somebody else's task", async () => {
+    expect((await call("GET", "/api/desk/tasks", undefined, jordan)).status).toBe(402);
+    expect((await call("POST", "/api/desk/tasks", { kind: "reminder", note: "x" }, jordan)).status).toBe(402);
+
+    const made = await call("POST", "/api/desk/tasks", { kind: "reminder", note: "Mine" }, sam);
+    store.update((db) => { db.travelers.find((t) => t.id === jordanId)!.planId = "premium-basic"; });
+    expect((await call("POST", `/api/desk/tasks/${made.json.task.id}/cancel`, {}, jordan)).status).toBe(404);
+    expect((await call("GET", "/api/desk/tasks", undefined, jordan)).json.tasks).toEqual([]);
+  });
+
+  it("refuses an empty ask rather than opening an empty task", async () => {
+    expect((await call("POST", "/api/desk/tasks", { kind: "reminder", note: "  " }, sam)).status).toBe(400);
+    expect((await call("POST", "/api/desk/tasks", { kind: "teleport", note: "x" }, sam)).status).toBe(400);
+  });
+});

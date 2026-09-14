@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   Alert, AssistantAdjustment, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew,
-  DriverApplication, GameRound, NewsletterSubscriber, NightOut, PaymentMethodOnFile, PendingOrder,
+  DeskTask, DriverApplication, GameRound, NewsletterSubscriber, NightOut, PaymentMethodOnFile, PendingOrder,
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
@@ -94,6 +94,10 @@ export interface Db {
   charges: Charge[];
   subscriptions: Record<string, Subscription>;
   conciergeTasks: ConciergeTask[];
+  /** The desk half of the assistant's job — appointments, reminders, the
+   *  email nobody wants to write. Included in the plan rather than charged,
+   *  so these carry no hold and no card. See desk-tasks.ts. */
+  deskTasks: DeskTask[];
   eliteBookings: EliteBooking[];
   referrals: Referral[];
   voiceMessages: VoiceMessage[];
@@ -128,7 +132,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], eliteBookings: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

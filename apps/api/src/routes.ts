@@ -31,6 +31,8 @@ import {
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   clampHours, defaultHoursFor, isHourlyCategory,
+  DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
+  remainingDeskTasks, validateDeskTask,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
@@ -47,7 +49,7 @@ import {
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
-  ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DriverTier, EliteBooking, EliteServiceId,
+  ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DeskTask, DeskTaskKind, DriverTier, EliteBooking, EliteServiceId,
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
@@ -2123,6 +2125,70 @@ export const routes: Record<string, Handler> = {
         failCharge(c, err instanceof Error ? err.message : "The task could not be booked.", ctx.now()));
       throw err;
     }
+  },
+
+  /* ---------------------------------------------------------------
+     Desk tasks — the assistant's job that does not need feet.
+     Included in the plan, so nothing here holds, charges or issues a
+     card. See desk-tasks.ts for why it is included rather than billed,
+     and why the allowance is finite.
+     --------------------------------------------------------------- */
+
+  "GET /api/desk/tasks": (ctx) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "desk-tasks");
+    const mine = ctx.store.data.deskTasks.filter((t) => t.travelerId === me);
+    const { start, end } = monthBoundsFor(ctx.now());
+    const allowance = deskTaskAllowanceFor(planOf(ctx, me));
+    const used = deskTasksUsedIn(mine, start, end);
+    return {
+      kinds: DESK_TASK_KINDS,
+      accessRule: DESK_TASK_ACCESS_RULE,
+      allowance,
+      used,
+      remaining: remainingDeskTasks(allowance, used),
+      // Said before anything is asked for, not at the point of refusal.
+      resetsAt: end.toISOString(),
+      tasks: mine.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    };
+  },
+
+  "POST /api/desk/tasks": (ctx, _p, body) => {
+    requireServiceLive(ctx);
+    const me = actor(ctx);
+    requireFeature(ctx, me, "desk-tasks");
+    const input = { kind: body?.kind as DeskTaskKind, note: String(body?.note ?? "") };
+    validateDeskTask(input);
+
+    const mine = ctx.store.data.deskTasks.filter((t) => t.travelerId === me);
+    const { start, end } = monthBoundsFor(ctx.now());
+    const allowance = deskTaskAllowanceFor(planOf(ctx, me));
+    const used = deskTasksUsedIn(mine, start, end);
+    if (used >= allowance) {
+      throw new HttpError(
+        429,
+        `That is all ${allowance} of this month's included tasks. The count resets on the 1st — or a bigger plan carries more.`,
+      );
+    }
+
+    const task: DeskTask = {
+      id: newId("desk"), travelerId: me, kind: input.kind, note: input.note.trim(),
+      status: "open", createdAt: ctx.now().toISOString(),
+    };
+    ctx.store.update((db) => void db.deskTasks.push(task));
+    return { task, remaining: remainingDeskTasks(allowance, used + 1) };
+  },
+
+  "POST /api/desk/tasks/:id/cancel": (ctx, params) => {
+    const me = actor(ctx);
+    const task = ctx.store.data.deskTasks.find((t) => t.id === params.id && t.travelerId === me);
+    if (!task) throw notFound("Task");
+    if (task.status !== "open") throw new HttpError(409, "That task is already closed.");
+    ctx.store.update((db) => {
+      const t = db.deskTasks.find((x) => x.id === task.id)!;
+      t.status = "cancelled";
+    });
+    return { task: { ...task, status: "cancelled" as const } };
   },
 
   "GET /api/concierge/tasks": (ctx) => {

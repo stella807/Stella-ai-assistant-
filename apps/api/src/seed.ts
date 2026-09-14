@@ -35,4 +35,5 @@ export const SEED: Db = {
   referrals: [],
   holds: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
+  deskTasks: [],
 };

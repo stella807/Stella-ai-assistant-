@@ -1,6 +1,6 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
-  Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask,
+  Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
   SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
@@ -377,6 +377,15 @@ export const api = {
     request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
       "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),
   conciergeTasks: () => request<{ tasks: ConciergeTask[] }>("GET", "/api/concierge/tasks"),
+  deskTasks: () => request<{
+    kinds: { id: string; label: string; description: string }[];
+    accessRule: string;
+    allowance: number; used: number; remaining: number; resetsAt: string;
+    tasks: DeskTask[];
+  }>("GET", "/api/desk/tasks"),
+  createDeskTask: (input: { kind: string; note: string }) =>
+    request<{ task: DeskTask; remaining: number }>("POST", "/api/desk/tasks", input),
+  cancelDeskTask: (id: string) => request<{ task: DeskTask }>("POST", `/api/desk/tasks/${id}/cancel`, {}),
   completeConcierge: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
   cancelConcierge: (taskId: string) =>

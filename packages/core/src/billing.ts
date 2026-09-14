@@ -37,6 +37,7 @@ export type Feature =
   | "extended-sos-contacts"
   | "extended-menu"
   | "personal-concierge"
+  | "desk-tasks"
   // Elite-only, and held for a later release behind the `elite-tier` flag —
   // see ELITE_ONLY below and docs/billing.md. Each one needs a real supplier
   // relationship before it can be turned on, and two of them carry legal
@@ -80,6 +81,7 @@ const EVERY_FEATURE = {
   "extended-sos-contacts": true,
   "extended-menu": true,
   "personal-concierge": true,
+  "desk-tasks": true,
   "private-aviation": true,
   "yacht-charter": true,
   "luxury-property": true,
@@ -118,6 +120,11 @@ const BASIC_FEATURES: Feature[] = [
   // On every paid tier, not just Family — see the pricing comment below for
   // why the standing costs behind it are spread the same way.
   "personal-concierge",
+  // The desk half of the same job: appointments, reminders, the email nobody
+  // wants to write. Included rather than billed — see desk-tasks.ts — and on
+  // the entry tier for the same reason the concierge is, since a feature
+  // withheld from the cheapest paid plan is the one people judge it on.
+  "desk-tasks",
 ];
 
 /**
@@ -374,6 +381,33 @@ export const ELITE_LADDER: PlanId[] = ["elite", "elite-signature", "elite-privat
 
 export function isElitePlan(id: PlanId): boolean {
   return ELITE_LADDER.includes(id);
+}
+
+/**
+ * How many desk tasks a month each plan includes.
+ *
+ * "Free" here means included in the price, not unmetered: a person does every
+ * one of these, so an unbounded promise is one the roster cannot keep. The
+ * numbers are deliberately generous against what a household actually asks
+ * for in a month, and deliberately finite so the limit is a published number
+ * rather than a conversation at the point of refusal.
+ *
+ * Elite carries a much larger allowance rather than "unlimited" for the same
+ * reason. What Elite buys beyond this is the *hours* — someone who goes
+ * somewhere — which is a different and far more expensive thing.
+ */
+const DESK_TASK_ALLOWANCE: Record<PlanId, number> = {
+  free: 0,
+  "premium-basic": 10,
+  "premium-plus": 25,
+  family: 40,
+  elite: 100,
+  "elite-signature": 250,
+  "elite-private": 500,
+};
+
+export function deskTaskAllowanceFor(id: PlanId): number {
+  return hasFeature(id, "desk-tasks") ? DESK_TASK_ALLOWANCE[id] : 0;
 }
 
 /** The hours a plan's price already covers. Zero on everything below Elite. */
