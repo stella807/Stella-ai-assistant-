@@ -105,7 +105,13 @@
 }
 
 /* ---------- Fields ---------- */
-.field { display: flex; flex-direction: column; gap: 7px; }
+/* min-width: 0 because a field is routinely a flex item in a two-up row,
+   and its input carries a browser default width that `min-width: auto`
+   refuses to shrink below — which pushed the staff application's
+   City/State row to 511px on a 393px screen and made the whole page
+   scroll sideways. `.grow` already carried this; a field laid out with
+   a plain `flex: 1` did not. */
+.field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .field label { font-size: 13.5px; font-weight: 650; color: var(--muted); letter-spacing: -0.005em; }
 .field input,
 .field select {
