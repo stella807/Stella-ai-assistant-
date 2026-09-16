@@ -365,6 +365,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             aria-pressed={c.id === category}>
             <span className="category-tile-icon"><CategoryIcon id={c.id} /></span>
             <span className="category-tile-label">{c.label}</span>
+            {/* What it actually runs, on every tile at once — picking one to
+                find out was the same "swipe to compare" problem the plan
+                picker has, just for "what does a simple errand cost"
+                instead of "what does a bigger plan cost". */}
+            <span className="category-tile-price">
+              from {money(serviceFeeFor(c.id, isQuickTaskEligible(c.id), 1, defaultHoursFor(c.id)))}
+            </span>
           </button>
         ))}
       </div>

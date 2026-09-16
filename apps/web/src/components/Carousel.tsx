@@ -34,13 +34,24 @@ export const Carousel = forwardRef<CarouselHandle, {
   /** Print the current slide's label under the dots. */
   showCaption?: boolean;
   onEngage?: () => void;
+  /** Told every time the on-screen slide changes, index included — for a
+   *  parent that shows its own summary of all the slides (the plan price
+   *  ladder) and needs to know which one the carousel is currently on. */
+  onIndexChange?: (index: number) => void;
   children: ReactNode;
-}>(function Carousel({ labels, ariaLabel, autoAdvanceMs, prevLabel, nextLabel, showCaption, onEngage, children }, ref) {
+}>(function Carousel({
+  labels, ariaLabel, autoAdvanceMs, prevLabel, nextLabel, showCaption, onEngage, onIndexChange, children,
+}, ref) {
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [engaged, setEngaged] = useState(false);
 
   const engage = () => { setEngaged(true); onEngage?.(); };
+
+  const setCurrent = (next: number) => {
+    setIndex(next);
+    onIndexChange?.(next);
+  };
 
   const goTo = (next: number) => {
     const el = track.current;
@@ -51,7 +62,7 @@ export const Carousel = forwardRef<CarouselHandle, {
     // sub-pixel and leaves a sliver of the neighbour showing at the edge.
     const slide = el.children[clamped] as HTMLElement | undefined;
     el.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: "smooth" });
-    setIndex(clamped);
+    setCurrent(clamped);
   };
 
   useImperativeHandle(ref, () => ({ goTo }));
@@ -61,7 +72,7 @@ export const Carousel = forwardRef<CarouselHandle, {
   useEffect(() => {
     const el = track.current;
     if (!el) return;
-    const onScroll = () => setIndex(Math.round(el.scrollLeft / (el.clientWidth || 1)));
+    const onScroll = () => setCurrent(Math.round(el.scrollLeft / (el.clientWidth || 1)));
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, []);
@@ -76,7 +87,7 @@ export const Carousel = forwardRef<CarouselHandle, {
       const next = (current + 1) % labels.length;
       const slide = el.children[next] as HTMLElement | undefined;
       el.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: "smooth" });
-      setIndex(next);
+      setCurrent(next);
     }, autoAdvanceMs);
     return () => clearInterval(timer);
   }, [autoAdvanceMs, engaged, labels.length]);

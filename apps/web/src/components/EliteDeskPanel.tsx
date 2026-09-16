@@ -70,6 +70,13 @@ export function EliteDeskPanel() {
             onClick={() => { setSelected(s.id); setNote(null); }}>
             <span className="category-tile-icon"><CategoryIcon id={s.id} /></span>
             <span className="category-tile-label">{s.label}</span>
+            {/* No fixed price to show — the desk quotes each request — but the
+                commission rate is the one number that does differ service to
+                service, and it's the same reason a customer picking a plan
+                shouldn't have to swipe through all of them to see it. */}
+            <span className="category-tile-price">
+              {s.commissionRate === 0 ? "no commission" : `${Math.round(s.commissionRate * 100)}% fee`}
+            </span>
           </button>
         ))}
       </div>

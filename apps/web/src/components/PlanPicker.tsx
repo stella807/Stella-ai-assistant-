@@ -23,6 +23,13 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
   const [showElite, setShowElite] = useState(false);
   const carousel = useRef<CarouselHandle>(null);
+  // The carousel shows one plan at a time so comparing prices isn't a scroll
+  // past three you weren't looking at — but that means nothing on screen
+  // says what any *other* plan costs unless you remember it from the last
+  // swipe. This tracks which slide is up so the ladder below can highlight
+  // it, and the ladder itself is what actually answers "what's the price
+  // difference" without swiping through all of them to find out.
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => { api.catalog().then((c) => setPlans(c.plans)).catch(() => {}); }, []);
 
@@ -92,7 +99,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
   // once the plans have actually rendered, since Carousel reads real DOM
   // offsets to scroll and there is nothing to jump to before that.
   useEffect(() => {
-    if (everyday.length > 0) carousel.current?.goTo(everydayIndex);
+    if (everyday.length > 0) { carousel.current?.goTo(everydayIndex); setActiveIndex(everydayIndex); }
   }, [everyday.length, everydayIndex]);
 
   return (
@@ -102,10 +109,30 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         <button role="tab" aria-selected={cadence === "annual"} onClick={() => setCadence("annual")}>Annual</button>
       </div>
 
+      {/* The actual answer to "what's the difference" — every plan's price
+          in one row, so it doesn't depend on remembering the last one you
+          swiped past. Tapping one jumps the carousel straight to it. */}
+      {everyday.length > 1 && (
+        <div className="plan-ladder" role="list" aria-label="Compare plan prices">
+          {everyday.map((p, i) => {
+            const price = cadence === "annual" ? p.annualCents : p.monthlyCents;
+            return (
+              <button key={p.id} role="listitem"
+                className={`plan-ladder-item${i === activeIndex ? " plan-ladder-active" : ""}`}
+                aria-current={i === activeIndex} onClick={() => carousel.current?.goTo(i)}>
+                <span className="plan-ladder-name">{p.name}</span>
+                <span className="plan-ladder-price">{price === 0 ? "Free" : dollars(price)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* One plan at a time rather than four cards stacked: comparing prices
           used to mean scrolling past three you were not looking at to reach
           the fourth. The subscriber's own plan opens the carousel so
-          "what am I on" needs no swiping to answer. */}
+          "what am I on" needs no swiping to answer, and the ladder above now
+          covers the actual comparing. */}
       {everyday.length > 0 && (
         <Carousel
           ref={carousel}
@@ -113,6 +140,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           ariaLabel="Plans"
           prevLabel="Previous plan"
           nextLabel="Next plan"
+          onIndexChange={setActiveIndex}
         >
           {everyday.map((p) => <div key={p.id} className="slide">{card(p)}</div>)}
         </Carousel>
