@@ -9,14 +9,17 @@ import { lazy, Suspense } from "react";
  */
 const LiveMapImpl = lazy(() => import("./LiveMapImpl.tsx"));
 
-export function LiveMap({ points, height = 200 }: {
+export function LiveMap({ points, height = 200, onPick }: {
   points: { lat: number; lng: number; label?: string }[];
   height?: number;
+  /** See the doc on `onPick` in LiveMapImpl.tsx — lets the rider drag or
+   *  tap to move the first point instead of trusting a GPS fix outright. */
+  onPick?: (point: { lat: number; lng: number }) => void;
 }) {
   if (points.length === 0) return null;
   return (
     <Suspense fallback={<div style={{ height, borderRadius: "var(--r-btn)", background: "var(--fill)" }} />}>
-      <LiveMapImpl points={points} height={height} />
+      <LiveMapImpl points={points} height={height} onPick={onPick} />
     </Suspense>
   );
 }

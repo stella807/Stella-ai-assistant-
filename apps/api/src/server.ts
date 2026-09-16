@@ -4,7 +4,8 @@ import { extname, join, normalize, resolve } from "node:path";
 import { HttpError, makeLimiters, routes, type Ctx } from "./routes.ts";
 import { Store, type StoreLike } from "./store.ts";
 import {
-  ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS, SESSION_COOKIE, clearedCookie, parseCookies, sessionCookie,
+  ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_COOKIE, MASTER_SESSION_TTL_MS, SESSION_COOKIE,
+  clearedCookie, parseCookies, sessionCookie,
 } from "./auth.ts";
 
 /**
@@ -136,12 +137,15 @@ export function createApp(base: Ctx) {
     // so a browser can hold both at once with no interaction between them.
     const token = readToken(req);
     const assistantToken = readAssistantToken(req);
+    const masterToken = readMasterToken(req);
     const ctx: Ctx = {
       ...base,
       actorId: resolveActor(base, token),
       sessionToken: token,
       assistantActorId: resolveAssistantActor(base, assistantToken),
       assistantSessionToken: assistantToken,
+      masterActorId: resolveMasterActor(base, masterToken),
+      masterSessionToken: masterToken,
       clientKey: clientKey(req),
       adminKey: firstHeader(req.headers["x-admin-key"]),
       partnerKey: firstHeader(req.headers["x-concierge-key"]),
@@ -152,6 +156,11 @@ export function createApp(base: Ctx) {
         appendSetCookie(res, next === null
           ? clearedCookie(SECURE_COOKIES, ASSISTANT_SESSION_COOKIE)
           : sessionCookie(next, SECURE_COOKIES, ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS));
+      },
+      setMasterSession: (next) => {
+        appendSetCookie(res, next === null
+          ? clearedCookie(SECURE_COOKIES, MASTER_SESSION_COOKIE)
+          : sessionCookie(next, SECURE_COOKIES, MASTER_SESSION_COOKIE, MASTER_SESSION_TTL_MS));
       },
     };
 
@@ -209,8 +218,8 @@ function send(res: ServerResponse, status: number, payload: unknown, headOnly = 
 
 export function makeCtx(store: StoreLike = new Store()): Ctx {
   return {
-    store, now: () => new Date(), actorId: null, assistantActorId: null, clientKey: "local", limiters: makeLimiters(),
-    adminKey: null, partnerKey: null,
+    store, now: () => new Date(), actorId: null, assistantActorId: null, masterActorId: null,
+    clientKey: "local", limiters: makeLimiters(), adminKey: null, partnerKey: null,
   };
 }
 
@@ -247,6 +256,22 @@ function resolveAssistantActor(ctx: Ctx, token: string | null): string | null {
   if (!session) return null;
   if (new Date(session.expiresAt).getTime() <= ctx.now().getTime()) return null;
   return session.assistantId;
+}
+
+/** The master (owner/secretary) dashboard's own identity, read from its own
+ *  cookie only — see `MASTER_SESSION_COOKIE`'s doc comment on why this is a
+ *  third, entirely separate identity space rather than reusing either of
+ *  the other two. */
+function readMasterToken(req: IncomingMessage): string | null {
+  return parseCookies(req.headers.cookie)[MASTER_SESSION_COOKIE] ?? null;
+}
+
+function resolveMasterActor(ctx: Ctx, token: string | null): string | null {
+  if (!token) return null;
+  const session = ctx.store.data.masterSessions.find((s) => s.token === token);
+  if (!session) return null;
+  if (new Date(session.expiresAt).getTime() <= ctx.now().getTime()) return null;
+  return session.accountId;
 }
 
 /** Rate-limit key. Behind a proxy this needs the real client ip — see SECURITY.md. */

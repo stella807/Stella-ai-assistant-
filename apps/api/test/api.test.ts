@@ -3690,9 +3690,15 @@ describe("the Wingman Club — modeled economics, no billing wired to it yet", (
     expect(res.status).toBe(200);
     expect(res.json.isMember).toBe(false);
     expect(res.json.memberCount).toBe(0);
-    expect(res.json.monthlyCents).toBeGreaterThan(0);
+    expect(res.json.thisMonth.duesCents).toBeGreaterThan(0);
     expect(res.json.thisMonth.experience).toBeTruthy();
+    expect(res.json.perks.length).toBeGreaterThan(0);
     expect(res.json.disclosures.length).toBeGreaterThan(0);
+  });
+
+  it("charges more for a pricier pick than a cheaper one, in the same due", async () => {
+    const res = await call("GET", "/api/club/status", undefined, sam);
+    expect(res.json.thisMonth.duesCents).toBeGreaterThan(res.json.thisMonth.experience.negotiatedPerPersonCents);
   });
 
   it("lets someone join and leave, and the roster count follows them", async () => {
@@ -3728,5 +3734,140 @@ describe("the Wingman Club — modeled economics, no billing wired to it yet", (
     const a = (await call("GET", "/api/club/status", undefined, sam)).json.thisMonth.experience.id;
     const b = (await call("GET", "/api/club/status", undefined, jordan)).json.thisMonth.experience.id;
     expect(a).toBe(b);
+  });
+});
+
+describe("master access — a per-account role instead of one shared secret", () => {
+  useAdminKey();
+
+  /** Provisions a master account with the admin key, then signs it in and
+   *  returns a Cookie header for it — the master portal is cookie-only, the
+   *  same shape assistantLogin already uses for the employee portal. */
+  const masterLogin = async (role: "owner" | "secretary", name = "Luis Garcia", email = "luis@example.com") => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", { name, email, role });
+    expect(created.status).toBe(200);
+    const key = created.json.key as string;
+    const accountId = created.json.account.id as string;
+
+    const signedIn = await call("POST", "/api/master/auth/login", { key });
+    expect(signedIn.status).toBe(200);
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    return { cookie: { Cookie: `sh_master_session=${token}` }, key, accountId, signedIn };
+  };
+
+  it("provisions an account and returns the key once, never storing it in the clear", async () => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", {
+      name: "Luis Garcia", email: "luis@example.com", role: "owner",
+    });
+    expect(created.status).toBe(200);
+    expect(created.json.key).toBeTruthy();
+    expect(created.json.account.role).toBe("owner");
+
+    const stored = store.data.masterCredentials[created.json.account.id as string];
+    expect(stored).toBeTruthy();
+    expect(stored!.keyHash).not.toContain(created.json.key);
+  });
+
+  it("refuses to provision without the admin key or an owner session", async () => {
+    const res = await call("POST", "/api/admin/master-accounts", {
+      name: "Nobody", email: "nobody@example.com", role: "owner",
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects an unknown role rather than guessing", async () => {
+    const res = await callAdmin("POST", "/api/admin/master-accounts", {
+      name: "Luis Garcia", email: "luis@example.com", role: "wizard",
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("signs in with the key and rejects a wrong one", async () => {
+    const { key } = await masterLogin("owner");
+    expect((await call("POST", "/api/master/auth/login", { key: "not-the-key" })).status).toBe(401);
+    // The real key still works — a failed attempt does not lock the account.
+    expect((await call("POST", "/api/master/auth/login", { key })).status).toBe(200);
+  });
+
+  it("lists provisioned accounts with their scopes, never their keys", async () => {
+    await masterLogin("owner");
+    const list = await callAdmin("GET", "/api/admin/master-accounts");
+    expect(list.status).toBe(200);
+    expect(list.json[0].scopes).toContain("write");
+    expect(JSON.stringify(list.json)).not.toMatch(/keyHash/);
+  });
+
+  it("gives the owner every section of the overview", async () => {
+    const { cookie } = await masterLogin("owner");
+    const res = await call("GET", "/api/master/overview", undefined, null, cookie);
+    expect(res.status).toBe(200);
+    expect(res.json.customers).toBeTruthy();
+    expect(res.json.operations).toBeTruthy();
+    expect(res.json.money).toBeTruthy();
+  });
+
+  it("gives the secretary customers and operations, but not money", async () => {
+    const { cookie } = await masterLogin("secretary");
+    const res = await call("GET", "/api/master/overview", undefined, null, cookie);
+    expect(res.status).toBe(200);
+    expect(res.json.customers).toBeTruthy();
+    expect(res.json.operations).toBeTruthy();
+    expect(res.json.money).toBeUndefined();
+  });
+
+  it("counts the real customer roster, not a hypothetical one", async () => {
+    const { cookie } = await masterLogin("owner");
+    const res = await call("GET", "/api/master/overview", undefined, null, cookie);
+    const ids = res.json.customers.map((c: any) => c.id);
+    expect(ids).toContain(samId);
+    expect(ids).toContain(jordanId);
+  });
+
+  it("refuses the overview and the audit log with no session at all", async () => {
+    expect((await call("GET", "/api/master/overview")).status).toBe(401);
+    expect((await call("GET", "/api/master/audit-log")).status).toBe(401);
+  });
+
+  it("records who looked at what, and lets both roles read the trail back", async () => {
+    const { cookie: ownerCookie } = await masterLogin("owner", "Owner One", "owner1@example.com");
+    await call("GET", "/api/master/overview", undefined, null, ownerCookie);
+
+    const log = await call("GET", "/api/master/audit-log", undefined, null, ownerCookie);
+    expect(log.status).toBe(200);
+    expect(log.json.length).toBeGreaterThan(0);
+    expect(log.json.some((e: any) => e.scope === "customers")).toBe(true);
+    expect(log.json.every((e: any) => typeof e.subject === "string")).toBe(true);
+
+    const { cookie: secCookie } = await masterLogin("secretary", "Sec One", "sec1@example.com");
+    expect((await call("GET", "/api/master/audit-log", undefined, null, secCookie)).status).toBe(200);
+  });
+
+  it("stops a revoked account from signing in or acting on an existing session", async () => {
+    const { cookie, accountId, key } = await masterLogin("owner");
+    const revoke = await callAdmin("POST", `/api/admin/master-accounts/${accountId}/revoke`);
+    expect(revoke.status).toBe(200);
+
+    expect((await call("POST", "/api/master/auth/login", { key })).status).toBe(401);
+    expect((await call("GET", "/api/master/overview", undefined, null, cookie)).status).toBe(401);
+  });
+
+  it("signs out cleanly, after which the old cookie no longer works", async () => {
+    const { cookie } = await masterLogin("owner");
+    const out = await call("POST", "/api/master/auth/logout", {}, null, cookie);
+    expect(out.status).toBe(200);
+    expect((await call("GET", "/api/master/overview", undefined, null, cookie)).status).toBe(401);
+  });
+
+  it("now lets a master key stand in for the admin key on every admin route it covers", async () => {
+    const { cookie: ownerCookie } = await masterLogin("owner");
+    expect((await call("GET", "/api/staff/roster", undefined, null, ownerCookie)).status).toBe(200);
+    expect((await call("GET", "/api/admin/budget", undefined, null, ownerCookie)).status).toBe(200);
+
+    const { cookie: secCookie } = await masterLogin("secretary", "Sec Two", "sec2@example.com");
+    expect((await call("GET", "/api/staff/roster", undefined, null, secCookie)).status).toBe(200);
+    // Read-only: the secretary's role carries no `write`, so the budget
+    // read (money-scoped) and a mutating action both stay out of reach.
+    expect((await call("GET", "/api/admin/budget", undefined, null, secCookie)).status).toBe(401);
+    expect((await call("POST", "/api/staff/roster/nope/stand-down", {}, null, secCookie)).status).toBe(401);
   });
 });

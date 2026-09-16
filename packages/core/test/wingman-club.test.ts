@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH, CLUB_MONTHLY_CENTS,
-  averageExperienceCostCents, canAffordExperience, clubEventBudgetCents, clubMonthKey,
-  clubMonthlyRevenueCents, findClubExperience, minMembersForAverageExperience,
-  perMemberEventBudgetCents, pickMonthlyExperience, reserveDeltaCents,
+  CLUB_BASE_DUES_CENTS, CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH,
+  CLUB_PERKS, clubBaseRevenueCents, clubMonthKey, duesForCents, findClubExperience,
+  minMembersForOverhead, overheadCovered, pickMonthlyExperience,
 } from "../src/wingman-club.ts";
 
 describe("the catalogue", () => {
@@ -20,69 +19,41 @@ describe("the catalogue", () => {
   });
 });
 
-describe("revenue and the event budget", () => {
-  it("rejects a nonsense member count", () => {
-    expect(() => clubMonthlyRevenueCents(-1)).toThrow(/non-negative/i);
-    expect(() => clubMonthlyRevenueCents(1.5)).toThrow(/non-negative/i);
+describe("perks", () => {
+  it("includes a cigar and a drink of choice at every event", () => {
+    expect(CLUB_PERKS.join(" ")).toMatch(/cigar/i);
+    expect(CLUB_PERKS.join(" ")).toMatch(/drink of (your |)choice/i);
   });
+});
 
-  it("computes revenue as dues times members, exactly", () => {
-    expect(clubMonthlyRevenueCents(100)).toBe(CLUB_MONTHLY_CENTS * 100);
-  });
-
-  it("never lets the event budget go negative when overhead exceeds revenue", () => {
-    // A club too small to clear overhead has nothing left over that month —
-    // not a deficit charged back to members who already paid their dues.
-    expect(clubEventBudgetCents(1)).toBe(0);
-    expect(clubEventBudgetCents(0)).toBe(0);
-  });
-
-  it("gives a zero-member roster a zero per-member budget rather than dividing by zero", () => {
-    expect(perMemberEventBudgetCents(0)).toBe(0);
-  });
-
-  it("raises the per-member budget monotonically as the roster grows", () => {
-    // Fixed overhead is a smaller share of a bigger pool, so the residual per
-    // head can only go up (or hold steady once overhead is fully amortized),
-    // never down, as membership grows.
-    const sizes = [10, 50, 200, 1000, 5000];
-    for (let i = 1; i < sizes.length; i++) {
-      expect(perMemberEventBudgetCents(sizes[i]!)).toBeGreaterThanOrEqual(perMemberEventBudgetCents(sizes[i - 1]!));
+describe("dues track the month's pick", () => {
+  it("is the flat base plus that experience's own negotiated cost, exactly", () => {
+    for (const e of CLUB_EXPERIENCES) {
+      expect(duesForCents(e)).toBe(CLUB_BASE_DUES_CENTS + e.negotiatedPerPersonCents);
     }
   });
 
-  it("approaches, but never reaches or exceeds, the dues themselves", () => {
-    // The ceiling on per-member spending power is what one person actually
-    // paid in — overhead can only eat into that, never turn it into more.
-    for (const n of [1, 100, 10_000, 1_000_000]) {
-      expect(perMemberEventBudgetCents(n)).toBeLessThan(CLUB_MONTHLY_CENTS);
+  it("goes up for a pricier pick and down for a cheaper one", () => {
+    const cheapest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents < b.negotiatedPerPersonCents ? a : b));
+    const priciest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents > b.negotiatedPerPersonCents ? a : b));
+    expect(duesForCents(priciest)).toBeGreaterThan(duesForCents(cheapest));
+  });
+
+  it("never charges less than the flat base, even for the cheapest pick", () => {
+    for (const e of CLUB_EXPERIENCES) {
+      expect(duesForCents(e)).toBeGreaterThan(CLUB_BASE_DUES_CENTS);
     }
   });
 });
 
-describe("pricing against the rotation's average, not against any one month", () => {
-  it("computes the live average from the actual catalogue, not a copied-in number", () => {
-    const total = CLUB_EXPERIENCES.reduce((sum, e) => sum + e.negotiatedPerPersonCents, 0);
-    expect(averageExperienceCostCents()).toBe(Math.round(total / CLUB_EXPERIENCES.length));
+describe("base revenue and overhead", () => {
+  it("rejects a nonsense member count", () => {
+    expect(() => clubBaseRevenueCents(-1)).toThrow(/non-negative/i);
+    expect(() => clubBaseRevenueCents(1.5)).toThrow(/non-negative/i);
   });
 
-  it("refuses to name a break-even roster size when dues do not even clear the average", () => {
-    // If dues sit at or below the rotation's own average cost, no amount of
-    // scale ever fixes that — the fix is the price or the catalogue, not more
-    // members. This is the test that would catch dues being cut without
-    // anyone checking the arithmetic still works.
-    const brokenCatalog = CLUB_EXPERIENCES.map((e) => ({ ...e, negotiatedPerPersonCents: CLUB_MONTHLY_CENTS + 100 }));
-    expect(() => minMembersForAverageExperience(brokenCatalog)).toThrow(/no roster size fixes/i);
-  });
-
-  it("names a real, finite break-even roster for the actual priced catalogue", () => {
-    const n = minMembersForAverageExperience();
-    expect(n).toBeGreaterThan(0);
-    expect(Number.isFinite(n)).toBe(true);
-    // Just below the break-even point, the average is not yet affordable...
-    expect(perMemberEventBudgetCents(n - 1)).toBeLessThan(averageExperienceCostCents());
-    // ...and at it, it is.
-    expect(perMemberEventBudgetCents(n)).toBeGreaterThanOrEqual(averageExperienceCostCents());
+  it("computes base revenue as the flat base times members, exactly", () => {
+    expect(clubBaseRevenueCents(100)).toBe(CLUB_BASE_DUES_CENTS * 100);
   });
 
   it("keeps the fixed overhead genuinely material, not a rounding error dressed up as one", () => {
@@ -91,50 +62,17 @@ describe("pricing against the rotation's average, not against any one month", ()
     // requirement mean something.
     expect(CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH).toBeGreaterThanOrEqual(500_000);
   });
-});
 
-describe("what the roster can actually afford, month to month", () => {
-  it("affords the cheap end of the rotation well below the break-even roster size", () => {
-    const cheapest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents < b.negotiatedPerPersonCents ? a : b));
-    const smallRoster = 300;
-    expect(smallRoster).toBeLessThan(minMembersForAverageExperience());
-    expect(canAffordExperience(cheapest, smallRoster)).toBe(true);
+  it("names a real, finite roster size that clears overhead on base dues alone", () => {
+    const n = minMembersForOverhead();
+    expect(n).toBeGreaterThan(0);
+    expect(Number.isFinite(n)).toBe(true);
+    expect(overheadCovered(n - 1)).toBe(false);
+    expect(overheadCovered(n)).toBe(true);
   });
 
-  it("does not afford the priciest experience even at a roster well past break-even", () => {
-    const priciest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents > b.negotiatedPerPersonCents ? a : b));
-    // Past break-even for the *average*, but a specific expensive month can
-    // still outrun that month's own per-member budget — that gap is exactly
-    // what the reserve from cheaper months exists to cover.
-    expect(canAffordExperience(priciest, minMembersForAverageExperience())).toBe(false);
-  });
-
-  it("reports a reserve surplus for a cheap month and a drawdown for a pricey one, at the same roster size", () => {
-    const roster = 2000;
-    const cheapest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents < b.negotiatedPerPersonCents ? a : b));
-    const priciest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents > b.negotiatedPerPersonCents ? a : b));
-    expect(reserveDeltaCents(cheapest, roster).perMemberCents).toBeGreaterThan(0);
-    expect(reserveDeltaCents(priciest, roster).perMemberCents).toBeLessThan(0);
-  });
-
-  it("always reports the total as exactly the per-member delta times the roster", () => {
-    const e = CLUB_EXPERIENCES[0]!;
-    for (const n of [1, 1000, 2000]) {
-      const { perMemberCents, totalCents } = reserveDeltaCents(e, n);
-      expect(totalCents).toBe(perMemberCents * n);
-    }
-  });
-
-  it("only improves the per-member delta as the roster grows, for the same fixed-cost experience", () => {
-    // perMemberEventBudgetCents only approaches its ceiling asymptotically —
-    // it is not literally identical between arbitrary sizes — but for a
-    // fixed experience it must never move the wrong way as the roster grows.
-    const e = CLUB_EXPERIENCES[0]!;
-    const sizes = [500, 1000, 2000, 5000];
-    for (let i = 1; i < sizes.length; i++) {
-      expect(reserveDeltaCents(e, sizes[i]!).perMemberCents)
-        .toBeGreaterThanOrEqual(reserveDeltaCents(e, sizes[i - 1]!).perMemberCents);
-    }
+  it("never reports overhead covered by an empty roster", () => {
+    expect(overheadCovered(0)).toBe(false);
   });
 });
 
@@ -178,5 +116,13 @@ describe("disclosures", () => {
 
   it("says a missed month is not a personal credit", () => {
     expect(CLUB_DISCLOSURES.join(" ")).toMatch(/not a credit/i);
+  });
+
+  it("says dues track the pick rather than a smoothed average", () => {
+    expect(CLUB_DISCLOSURES.join(" ")).toMatch(/pricier month costs more/i);
+  });
+
+  it("says the cigar and drink are included in the due, not billed at the venue", () => {
+    expect(CLUB_DISCLOSURES.join(" ")).toMatch(/cigar and drink/i);
   });
 });

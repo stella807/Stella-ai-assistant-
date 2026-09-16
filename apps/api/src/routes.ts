@@ -33,8 +33,8 @@ import {
   clampHours, defaultHoursFor, isHourlyCategory,
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
-  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_CENTS, canAffordExperience,
-  minMembersForAverageExperience, perMemberEventBudgetCents, pickMonthlyExperience,
+  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
+  minMembersForOverhead, overheadCovered, pickMonthlyExperience,
   validateAiDraftInstruction,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
@@ -44,6 +44,8 @@ import {
   isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, REFERENCE_MARKET,
   type LaunchMarketId,
   hireFromApplication, isOnRoster, rosterFor, standDown,
+  canAccess, isActive as isMasterAccountActive, recordAccess, revoke as revokeMasterAccess, scopesFor,
+  type MasterAccount, type MasterAuditEntry, type MasterScope,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
@@ -79,8 +81,8 @@ import { guardianMessages } from "./notify.ts";
 import { renewDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
-  ASSISTANT_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword, normalizeEmail,
-  SESSION_TTL_MS, secureFraction, sweepExpiredSessions, validatePassword, verifyPassword,
+  ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword,
+  normalizeEmail, SESSION_TTL_MS, secureFraction, sweepExpiredSessions, validatePassword, verifyPassword,
 } from "./auth.ts";
 import { cipherFromEnv, openPayoutDestination, sealPayoutDestination } from "./crypto.ts";
 import { deleteAccount, exportAccount } from "./account.ts";
@@ -127,12 +129,21 @@ export interface Ctx {
   assistantActorId: string | null;
   setAssistantSession?: (token: string | null) => void;
   assistantSessionToken?: string | null;
+  /**
+   * The signed-in master (owner/secretary) account for this request — a
+   * third identity space, resolved from its own cookie and session table
+   * (`MasterSession` in store.ts), never conflated with `actorId` or
+   * `assistantActorId`. See master-access.ts for what the role can reach.
+   */
+  masterActorId: string | null;
+  setMasterSession?: (token: string | null) => void;
+  masterSessionToken?: string | null;
   clientKey: string;
   /** Per-instance, not module-global: one server's traffic must not throttle
    *  another's, and tests need isolation between instances. */
   limiters: {
-    login: RateLimiter; assistantLogin: RateLimiter; signup: RateLimiter; applications: RateLimiter;
-    codes: RateLimiter; places: RateLimiter;
+    login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
+    applications: RateLimiter; codes: RateLimiter; places: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -692,18 +703,37 @@ function requireElite(ctx: Ctx): void {
   }
 }
 
+/** The signed-in master account for this request, or null — resolved from
+ *  `ctx.masterActorId`, which the server layer already checked against a
+ *  live, unexpired session. */
+function masterAccountOf(ctx: Ctx): MasterAccount | null {
+  if (!ctx.masterActorId) return null;
+  return ctx.store.data.masterAccounts.find((a) => a.id === ctx.masterActorId) ?? null;
+}
+
 /**
- * Admin gate for driver-application review. Checked live against the
- * environment rather than a stored role, because there is no admin-account
- * system yet — this is the minimum that keeps the review endpoints from being
- * open to the internet, not a real access-control system. A production
- * deployment should replace it with per-account roles before real applicant
- * data is stored here.
+ * Admin gate, with two ways in.
+ *
+ * The original version checked only `SAFEHUBBY_ADMIN_KEY` — one shared
+ * secret with no idea who used it, "the minimum that keeps the review
+ * endpoints from being open to the internet, not a real access-control
+ * system," by its own former doc comment. That per-account system now
+ * exists (master-access.ts) — see `POST /api/admin/master-accounts` — so
+ * this accepts either: the legacy shared key (kept for scripts and the
+ * bootstrap route itself, which cannot yet hold a master session), or a
+ * signed-in master account whose role actually carries `scope`. The
+ * shared-key path stays unattributed on purpose — it always was — which is
+ * exactly the gap a real master account closes.
  */
-function requireAdmin(ctx: Ctx): void {
+function requireAdmin(ctx: Ctx, scope: MasterScope = "operations"): void {
   const expected = process.env.SAFEHUBBY_ADMIN_KEY;
-  if (!expected) throw new HttpError(503, "Admin access is not configured on this server.");
-  if (!ctx.adminKey || ctx.adminKey !== expected) throw new HttpError(401, "Bad or missing admin key.");
+  if (expected && ctx.adminKey === expected) return;
+
+  const account = masterAccountOf(ctx);
+  if (account && isMasterAccountActive(account, ctx.now()) && canAccess(account, scope, ctx.now())) return;
+
+  if (!expected && !account) throw new HttpError(503, "Admin access is not configured on this server.");
+  throw new HttpError(401, "Bad or missing admin key.");
 }
 
 /**
@@ -808,6 +838,11 @@ export function makeLimiters() {
     // employee sign-in should never be able to throttle a real traveler
     // trying to sign in from the same address, or vice versa.
     assistantLogin: new RateLimiter(8, 15 * 60_000),
+    // Tighter than either login above: a master key reaches every customer's
+    // data across every scope its role carries, the single highest-value
+    // credential in this system, on an account count small enough that a
+    // legitimate person is never going to need many tries.
+    masterLogin: new RateLimiter(5, 15 * 60_000),
     signup: new RateLimiter(5, 60 * 60_000),
     // Public and unauthenticated — a driver application needs no account —
     // so it gets its own budget rather than borrowing signup's.
@@ -2228,14 +2263,14 @@ export const routes: Record<string, Handler> = {
     return {
       isMember: Boolean(traveler.clubMember),
       memberCount,
-      monthlyCents: CLUB_MONTHLY_CENTS,
-      breakEvenMembers: minMembersForAverageExperience(),
+      breakEvenMembers: minMembersForOverhead(),
+      overheadCovered: overheadCovered(memberCount),
+      perks: CLUB_PERKS,
       disclosures: CLUB_DISCLOSURES,
       catalog: CLUB_EXPERIENCES,
       thisMonth: {
         experience: pick,
-        perMemberBudgetCents: perMemberEventBudgetCents(memberCount),
-        affordable: canAffordExperience(pick, memberCount),
+        duesCents: duesForCents(pick),
       },
     };
   },
@@ -2385,6 +2420,193 @@ export const routes: Record<string, Handler> = {
       db.assistantCredentials[assistantId] = { ...credential, passwordHash, mustChangePassword: false };
     });
     return { ok: true };
+  },
+
+  /* ---------------------------------------------------------------
+     Master access — the owner/secretary dashboard.
+     A third identity space, entirely separate from a traveler's session
+     and an assistant's. See master-access.ts for the roles, the scopes,
+     and why message contents are never among them. Accounts are
+     provisioned by whoever already holds SAFEHUBBY_ADMIN_KEY, not
+     self-served — there is no public sign-up for "sees everything."
+     --------------------------------------------------------------- */
+
+  /**
+   * Provisions a master account and returns its access key **once** — the
+   * same "shown once, hashed thereafter" discipline
+   * `provisionAssistantCredentials` already uses for an assistant's temp
+   * password. There is nowhere else this key can be recovered from; losing
+   * it means revoking the account and provisioning a new one.
+   *
+   * Reachable with `SAFEHUBBY_ADMIN_KEY` (the only way in for the very
+   * first account, since none exists yet to hold `write`) or by an existing
+   * owner — see `requireAdmin`.
+   */
+  "POST /api/admin/master-accounts": async (ctx, _p, body) => {
+    requireAdmin(ctx, "write");
+    const name = String(body?.name ?? "").trim();
+    const email = normalizeEmail(body?.email);
+    const role = body?.role === "secretary" ? "secretary" : body?.role === "owner" ? "owner" : null;
+    if (!name) throw new HttpError(400, "Name the person this account belongs to.");
+    if (!email) throw new HttpError(400, "Enter a valid email address.");
+    if (!role) throw new HttpError(400, 'Role must be "owner" or "secretary".');
+
+    const account: MasterAccount = { id: newId("mst"), role, name, email, createdAt: ctx.now().toISOString() };
+    const key = newSessionToken();
+    const keyHash = await hashPassword(key);
+    ctx.store.update((db) => {
+      db.masterAccounts.push(account);
+      db.masterCredentials[account.id] = { keyHash, createdAt: ctx.now().toISOString() };
+    });
+    return { account, key };
+  },
+
+  /** The roster of who has master access, and what each role can reach —
+   *  never the keys themselves, which cannot be recovered once issued. */
+  "GET /api/admin/master-accounts": (ctx) => {
+    requireAdmin(ctx, "operations");
+    const now = ctx.now();
+    return ctx.store.data.masterAccounts.map((a) => ({
+      ...a, scopes: scopesFor(a.role), active: isMasterAccountActive(a, now),
+    }));
+  },
+
+  /** Revokes a master account. The record stays — the audit log still
+   *  points at it — only `revokedAt` is set. */
+  "POST /api/admin/master-accounts/:id/revoke": (ctx, p) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const account = ctx.store.data.masterAccounts.find((a) => a.id === id);
+    if (!account) throw notFound("Master account");
+    const revoked = revokeMasterAccess(account, ctx.now());
+    ctx.store.update((db) => {
+      const i = db.masterAccounts.findIndex((a) => a.id === id);
+      db.masterAccounts[i] = revoked;
+      db.masterSessions = db.masterSessions.filter((s) => s.accountId !== id);
+    });
+    return revoked;
+  },
+
+  /**
+   * Signs a master account in with its key. Checked against every active
+   * credential in turn (there are only ever a handful of these accounts)
+   * rather than looked up by an index, because the key itself — not a
+   * separate username — is the whole credential; nothing about it should
+   * be searchable in the clear.
+   */
+  "POST /api/master/auth/login": async (ctx, _p, body) => {
+    if (ctx.limiters.masterLogin.hit(ctx.clientKey)) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
+    const key = String(body?.key ?? "");
+    const now = ctx.now();
+    let matched: MasterAccount | null = null;
+    for (const account of ctx.store.data.masterAccounts) {
+      if (!isMasterAccountActive(account, now)) continue;
+      const credential = ctx.store.data.masterCredentials[account.id];
+      if (!credential) continue;
+      if (await verifyPassword(key, credential.keyHash)) { matched = account; break; }
+    }
+    if (!matched) throw new HttpError(401, "That key is not valid.");
+
+    const token = newSessionToken();
+    ctx.store.update((db) => {
+      db.masterSessions = sweepExpiredSessions(db.masterSessions, now);
+      db.masterSessions.push({
+        token, accountId: matched!.id, createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + MASTER_SESSION_TTL_MS).toISOString(),
+      });
+    });
+    ctx.limiters.masterLogin.reset(ctx.clientKey);
+    ctx.setMasterSession?.(token);
+    return { accountId: matched.id, name: matched.name, role: matched.role };
+  },
+
+  "POST /api/master/auth/logout": (ctx) => {
+    const token = ctx.masterSessionToken;
+    if (token) ctx.store.update((db) => { db.masterSessions = db.masterSessions.filter((s) => s.token !== token); });
+    ctx.setMasterSession?.(null);
+    return { ok: true };
+  },
+
+  /**
+   * Everything the signed-in account's role can see, in one call — the
+   * dashboard this exists to be. Each section is included only when
+   * `canAccess` says so, so a secretary's response simply has no `money`
+   * key rather than one that is present but empty (which would look like
+   * "there is no money" instead of "you cannot see this").
+   *
+   * Every section read is recorded to the audit log — see `recordAccess`
+   * in master-access.ts and the doc on why: master access with no trail is
+   * indistinguishable from a breach after the fact.
+   */
+  "GET /api/master/overview": (ctx) => {
+    const account = masterAccountOf(ctx);
+    if (!account || !isMasterAccountActive(account, ctx.now())) throw unauthorized();
+    const now = ctx.now();
+    const audit: MasterAuditEntry[] = [];
+    const record = (scope: MasterScope, subject: string) =>
+      audit.push(recordAccess({ id: newId("aud"), account, scope, subject, now }));
+
+    const overview: Record<string, unknown> = {
+      account: { id: account.id, name: account.name, role: account.role },
+      scopes: scopesFor(account.role),
+      generatedAt: now.toISOString(),
+    };
+
+    if (canAccess(account, "customers", now)) {
+      const customers = ctx.store.data.travelers.map((t) => ({
+        id: t.id, name: t.displayName, email: t.email, planId: t.planId, clubMember: Boolean(t.clubMember),
+      }));
+      overview.customers = customers;
+      record("customers", `traveler roster (${customers.length})`);
+    }
+
+    if (canAccess(account, "operations", now)) {
+      overview.operations = {
+        activeConciergeTasks: ctx.store.data.conciergeTasks.filter((t) => t.status === "in-progress").length,
+        openDeskTasks: ctx.store.data.deskTasks.filter((t) => t.status === "open").length,
+        rosterActive: ctx.store.data.assistants.filter((a) => isOnRoster(a, now)).length,
+        rosterTotal: ctx.store.data.assistants.length,
+        pendingDriverApplications: ctx.store.data.driverApplications
+          .filter((a) => a.status === "submitted" || a.status === "under-review").length,
+        pendingStaffApplications: ctx.store.data.staffApplications
+          .filter((a) => a.status === "submitted" || a.status === "under-review").length,
+        wingmanClubMembers: ctx.store.data.travelers.filter((t) => t.clubMember).length,
+      };
+      record("operations", "operations overview");
+    }
+
+    if (canAccess(account, "money", now)) {
+      const settled = ctx.store.data.charges.filter((c) => c.status === "settled");
+      const byKind: Record<string, number> = {};
+      for (const c of settled) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.amountCents;
+      overview.money = {
+        settledChargesCents: settled.reduce((sum, c) => sum + c.amountCents, 0),
+        chargeCount: settled.length,
+        byKind,
+        unpaidPayoutsCents: ctx.store.data.assistants.reduce(
+          (sum, a) => sum + unpaidEarningsCents(ctx.store.data.conciergeTasks, a.id), 0,
+        ),
+        // The hiring-budget breakdown lives at its own resolution, not
+        // duplicated here — see GET /api/admin/budget, now reachable with
+        // the same master key rather than only the shared admin one.
+      };
+      record("money", "ledger summary");
+    }
+
+    ctx.store.update((db) => void db.masterAuditLog.push(...audit));
+    return overview;
+  },
+
+  /** The trail behind every master-access read — see `recordAccess`'s doc
+   *  comment on why this exists. Gated at "operations" rather than "write"
+   *  so a secretary can see the same trail an owner can; neither role can
+   *  edit or clear it. */
+  "GET /api/master/audit-log": (ctx) => {
+    const account = masterAccountOf(ctx);
+    if (!account || !isMasterAccountActive(account, ctx.now()) || !canAccess(account, "operations", ctx.now())) {
+      throw unauthorized();
+    }
+    return ctx.store.data.masterAuditLog.slice().sort((a, b) => b.at.localeCompare(a.at));
   },
 
   /**
@@ -3385,7 +3607,7 @@ export const routes: Record<string, Handler> = {
    * naming the operating carrier a precondition of the member agreeing.
    */
   "POST /api/admin/elite/bookings/:bookingId/quote": (ctx, p, body) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "write");
     const id = req(p, "bookingId");
     const booking = ctx.store.data.eliteBookings.find((b) => b.id === id);
     if (!booking) throw notFound("Booking");
@@ -3473,7 +3695,7 @@ export const routes: Record<string, Handler> = {
    * why repeat calls never double-pay.
    */
   "POST /api/admin/payroll/run": async (ctx) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "write");
     return runPayroll(ctx);
   },
 
@@ -3481,12 +3703,12 @@ export const routes: Record<string, Handler> = {
    *  personal data, so this is the one place in the app gated by a shared
    *  secret rather than a per-account role — see requireAdmin. */
   "GET /api/drivers/applications": (ctx) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "operations");
     return ctx.store.data.driverApplications;
   },
 
   "POST /api/drivers/applications/:id/review": (ctx, p, body) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "write");
     const id = req(p, "id");
     const app = ctx.store.data.driverApplications.find((a) => a.id === id);
     if (!app) throw notFound("Application");
@@ -3546,12 +3768,12 @@ export const routes: Record<string, Handler> = {
   /** Admin: the review queue for non-driving roles, gated the same way the
    *  driver queue is and for the same reason — it is real personal data. */
   "GET /api/staff/applications": (ctx) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "operations");
     return ctx.store.data.staffApplications;
   },
 
   "POST /api/staff/applications/:id/review": (ctx, p, body) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "write");
     const id = req(p, "id");
     const app = ctx.store.data.staffApplications.find((a) => a.id === id);
     if (!app) throw notFound("Application");
@@ -3579,7 +3801,7 @@ export const routes: Record<string, Handler> = {
    * the portal forces.
    */
   "POST /api/staff/applications/:id/hire": async (ctx, p, body) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "write");
     const id = req(p, "id");
     const app = ctx.store.data.staffApplications.find((a) => a.id === id);
     if (!app) throw notFound("Application");
@@ -3613,7 +3835,7 @@ export const routes: Record<string, Handler> = {
 
   /** Admin: the roster, including who has been stood down. */
   "GET /api/staff/roster": (ctx) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "operations");
     const now = ctx.now();
     return {
       assistants: ctx.store.data.assistants,
@@ -3624,7 +3846,7 @@ export const routes: Record<string, Handler> = {
   /** Admin: stand someone down. The record stays — they are still attached
    *  to every task they worked and the pay owed for it. */
   "POST /api/staff/roster/:assistantId/stand-down": (ctx, p) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "write");
     const assistantId = req(p, "assistantId");
     const assistant = ctx.store.data.assistants.find((a) => a.id === assistantId);
     if (!assistant) throw notFound("Assistant");
@@ -3642,7 +3864,7 @@ export const routes: Record<string, Handler> = {
    * reality rather than against the plan it was written from.
    */
   "GET /api/admin/budget": (ctx) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "money");
     const approved = ctx.store.data.staffApplications.filter((a) => a.status === "approved");
     const approvedDrivers = ctx.store.data.driverApplications.filter((a) => a.status === "approved");
     // Keyed off STAFF_ROLES rather than written out, so a role added later
@@ -3715,7 +3937,7 @@ export const routes: Record<string, Handler> = {
 
   /** Admin: the list itself, for the day there is something to send. */
   "GET /api/admin/newsletter": (ctx) => {
-    requireAdmin(ctx);
+    requireAdmin(ctx, "operations");
     const all = ctx.store.data.newsletterSubscribers;
     return {
       total: all.length,

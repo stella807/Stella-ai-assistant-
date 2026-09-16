@@ -91,6 +91,22 @@ export const ASSISTANT_SESSION_COOKIE = "sh_assistant_session";
  *  than a personal safety app. */
 export const ASSISTANT_SESSION_TTL_MS = 12 * 3_600_000;
 
+/**
+ * A third, distinct cookie for master access (the owner/secretary
+ * dashboard) — see `MasterAccount` in master-access.ts and routes.ts's
+ * `master/auth/*` routes. Kept separate from both cookies above for the
+ * same reason they are separate from each other: a browser can hold a
+ * traveler session, an assistant session, and a master session at once,
+ * and signing out of one never touches the others.
+ */
+export const MASTER_SESSION_COOKIE = "sh_master_session";
+
+/** Same short lifetime as the employee portal, for the same reason: this is
+ *  a work surface, not the safety app itself, and a login left open on a
+ *  shared device is a real exposure — more so here, since it sees every
+ *  customer's account. */
+export const MASTER_SESSION_TTL_MS = 12 * 3_600_000;
+
 export function sessionCookie(token: string, secure: boolean, name: string = SESSION_COOKIE, maxAgeMs: number = SESSION_TTL_MS): string {
   const parts = [
     `${name}=${token}`,

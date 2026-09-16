@@ -23,19 +23,38 @@ L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, 
  * OSM's tile usage policy and stays on screen, not just in source.
  *
  * A pin per point, never a claim of live movement: nothing in this app
- * tracks an assistant's real-time location (see the voice/text thread
- * pattern in AssistantModal), so a moving dot here would be exactly the kind
- * of faked capability the rest of the app refuses to show.
+ * tracks an assistant's or a ride's real-time location on our own map (see
+ * the voice/text thread pattern in AssistantModal, and the note on
+ * `onPick` below), so a moving dot here would be exactly the kind of faked
+ * capability the rest of the app refuses to show. Where a real live
+ * position genuinely exists — Uber's own trip page once a ride is booked —
+ * this links out to it instead of drawing a fake one (see `GetHomePanel`).
  */
 /** Default export so this module can be `React.lazy`-loaded from LiveMap.tsx
  *  — Leaflet is ~50KB gzipped, not worth paying on every app launch for a
  *  map that most screens never show. */
-export default function LiveMapImpl({ points, height = 200 }: {
+export default function LiveMapImpl({ points, height = 200, onPick }: {
   points: { lat: number; lng: number; label?: string }[];
   height?: number;
+  /**
+   * Turns the *first* point into a pickup pin the rider can move — dragged,
+   * or moved by tapping anywhere else on the map — instead of trusting the
+   * device's GPS fix outright. GPS in a crowded venue or a parking structure
+   * is routinely off by the width of a building, and there was previously no
+   * way to correct that before a driver got sent to the wrong door. This
+   * only ever repositions a point already on the map to a point the rider
+   * themself chose; it is not, and must never become, a way to draw a
+   * live-updating driver location this app does not actually have.
+   */
+  onPick?: (point: { lat: number; lng: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  // Read inside the effect via a ref rather than retriggering the whole map
+  // setup on every render — the callback identity is not what should decide
+  // whether Leaflet gets torn down and rebuilt.
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
 
   useEffect(() => {
     if (!containerRef.current || points.length === 0) return;
@@ -52,7 +71,22 @@ export default function LiveMapImpl({ points, height = 200 }: {
       maxZoom: 19,
     }).addTo(map);
 
-    const markers = points.map((p) => L.marker([p.lat, p.lng]).addTo(map).bindPopup(p.label ?? ""));
+    const pickable = Boolean(onPickRef.current);
+    const markers = points.map((p, i) =>
+      L.marker([p.lat, p.lng], { draggable: pickable && i === 0 }).addTo(map).bindPopup(p.label ?? ""));
+
+    const pin = markers[0];
+    if (pickable && pin) {
+      pin.on("dragend", () => {
+        const { lat, lng } = pin.getLatLng();
+        onPickRef.current?.({ lat, lng });
+      });
+      map.on("click", (e: L.LeafletMouseEvent) => {
+        pin.setLatLng(e.latlng);
+        onPickRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng });
+      });
+    }
+
     if (points.length === 1) {
       map.setView([points[0]!.lat, points[0]!.lng], 15);
     } else {

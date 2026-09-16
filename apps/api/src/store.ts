@@ -2,7 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   Alert, AssistantAdjustment, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew,
-  DeskTask, DriverApplication, GameRound, NewsletterSubscriber, NightOut, PaymentMethodOnFile, PendingOrder,
+  DeskTask, DriverApplication, GameRound, MasterAccount, MasterAuditEntry, NewsletterSubscriber, NightOut,
+  PaymentMethodOnFile, PendingOrder,
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage,
 } from "@safehubby/core";
@@ -58,6 +59,27 @@ export interface AssistantCredential {
 export interface AssistantSession {
   token: string;
   assistantId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/**
+ * The credential behind a `MasterAccount` (master-access.ts) — a single
+ * long random key rather than a username and password, because a master
+ * account is provisioned for one specific named person by whoever already
+ * holds `SAFEHUBBY_ADMIN_KEY` (see `POST /api/admin/master-accounts`), not
+ * self-served. `keyHash` is what a login proves against; the plaintext key
+ * exists once, at creation, the same "shown once, hashed thereafter"
+ * discipline `AssistantCredential`'s temp password already follows.
+ */
+export interface MasterCredential {
+  keyHash: string;
+  createdAt: string;
+}
+
+export interface MasterSession {
+  token: string;
+  accountId: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -139,6 +161,16 @@ export interface Db {
    *  cannot quietly resubscribe somebody who left. */
   newsletterSubscribers: NewsletterSubscriber[];
   pushDevices: PushDevice[];
+  /** Who has master (owner/secretary) access — see master-access.ts and the
+   *  `POST /api/admin/master-accounts` bootstrap. Provisioned by whoever
+   *  already holds `SAFEHUBBY_ADMIN_KEY`, never self-served. */
+  masterAccounts: MasterAccount[];
+  masterCredentials: Record<string, MasterCredential>;
+  masterSessions: MasterSession[];
+  /** Every master-access read, so access is attributable rather than
+   *  indistinguishable from a breach — see `recordAccess` in
+   *  master-access.ts and its own doc comment on why this exists. */
+  masterAuditLog: MasterAuditEntry[];
 }
 
 const EMPTY: Db = {
@@ -147,6 +179,7 @@ const EMPTY: Db = {
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
+  masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
 };
 
 /** What routes need from a store, so the file and Postgres backings are

@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
-import { dollars, money } from "../money.ts";
+import { money } from "../money.ts";
 
 /**
  * The Wingman Club: shown as its own folded section, the same treatment
  * `PlanPicker` gives the Elite ladder — a different product from the plan
  * you're on, not a fifth option in the same list. See wingman-club.ts for
- * the naming decision, the reveal mechanic, and the roster economics this
- * screen is just reading back.
+ * the naming decision, the reveal mechanic, the perk included in every
+ * event, and why the due moves with the month's pick instead of sitting at
+ * one flat number.
  *
  * There is deliberately no charge wired to the join button yet — see the
  * doc on `clubMember` in the API's store.ts. Joining changes the roster
@@ -39,7 +40,6 @@ export function WingmanClub() {
   };
 
   const { thisMonth } = status;
-  const shortOfBreakEven = status.memberCount < status.breakEvenMembers;
 
   return (
     <section className="card stack">
@@ -47,8 +47,8 @@ export function WingmanClub() {
         <div className="stack" style={{ gap: 2 }}>
           <h3>Wingman Club</h3>
           <p className="tiny muted" style={{ margin: 0 }}>
-            One membership, one group experience a month — {dollars(status.monthlyCents)} a month, revealed, not
-            chosen by any one member.
+            One membership, one group experience a month — revealed, not chosen by any one member. The due moves
+            with the pick: {money(thisMonth.duesCents)} this month for {thisMonth.experience.label.toLowerCase()}.
           </p>
         </div>
         {!status.isMember && (
@@ -65,22 +65,29 @@ export function WingmanClub() {
               <strong className="small">
                 {thisMonth.experience.emoji} This month: {thisMonth.experience.label}
               </strong>
-              <span className={`pill ${thisMonth.affordable ? "pill-safe" : "pill-warn"}`}>
-                {thisMonth.affordable ? "Roster can fund it" : "Roster too small yet"}
-              </span>
+              <span className="charge-amount">{money(thisMonth.duesCents)}</span>
             </div>
             <p className="tiny muted" style={{ margin: 0 }}>
               Negotiated group rate {money(thisMonth.experience.negotiatedPerPersonCents)}/person — retail alone
-              runs {money(thisMonth.experience.retailPerPersonCents)}. Your roster's per-member budget this month is
-              {" "}{money(thisMonth.perMemberBudgetCents)}.
+              runs {money(thisMonth.experience.retailPerPersonCents)}. The rest of this month's due is the club's
+              flat desk fee.
             </p>
+          </div>
+
+          <div className="stack" style={{ gap: 4 }}>
+            <strong className="tiny" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--accent-bright)" }}>
+              Every event includes
+            </strong>
+            {status.perks.map((p) => (
+              <p key={p} className="tiny muted" style={{ margin: 0 }}>🥃 {p}</p>
+            ))}
           </div>
 
           <p className="tiny muted" style={{ margin: 0 }}>
             {status.memberCount} member{status.memberCount === 1 ? "" : "s"} today
-            {shortOfBreakEven
-              ? ` — the rotation's own average month needs ${status.breakEvenMembers} to fund itself; a cheap month still runs, a pricey one may wait.`
-              : " — enough to fund the rotation's average month, cheap and pricey alike, over time."}
+            {status.overheadCovered
+              ? " — enough for the club's flat desk fee to clear what it costs to run, every month."
+              : ` — the desk fee needs ${status.breakEvenMembers} members to clear what it costs to run; below that, the club still runs, on less margin.`}
           </p>
 
           <ul className="timeline">

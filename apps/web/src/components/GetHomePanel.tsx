@@ -42,7 +42,15 @@ export function GetHomePanel({ pickup, homeLabel }: {
   const [stores, setStores] = useState<NearbyStore[]>([]);
   const [storeId, setStoreId] = useState<string | null>(null);
 
-  const at = pickup ?? { lat: 40.714, lng: -74.003 };
+  const gpsFix = pickup ?? { lat: 40.714, lng: -74.003 };
+  // The exact spot a driver is sent to, not just wherever the phone's GPS
+  // says it is. A fix is routinely off by a building's width in a crowded
+  // venue or a parking structure, and until now there was no way to correct
+  // that before someone got sent to the wrong door — see the pin-drop map
+  // below. Starts at the GPS fix and only moves when the rider says so.
+  const [pin, setPin] = useState(gpsFix);
+  useEffect(() => { setPin(gpsFix); }, [gpsFix.lat, gpsFix.lng]);
+  const at = pin;
 
   useEffect(() => { api.nearbyStores(at).then(setStores).catch(() => {}); }, [at.lat, at.lng]);
 
@@ -57,10 +65,19 @@ export function GetHomePanel({ pickup, homeLabel }: {
     <section className="card" aria-label="Get home">
       <h3>Get home</h3>
 
-      <LiveMap points={[
-        { lat: at.lat, lng: at.lng, label: "You" },
-        { lat: HOME.lat, lng: HOME.lng, label: homeLabel },
-      ]} />
+      <LiveMap
+        points={[
+          { lat: at.lat, lng: at.lng, label: "Pickup — drag or tap to move" },
+          { lat: HOME.lat, lng: HOME.lng, label: homeLabel },
+        ]}
+        onPick={!handoffs ? setPin : undefined}
+      />
+      {!handoffs && (
+        <p className="tiny muted" style={{ margin: 0 }}>
+          Drag the pin, or tap anywhere on the map, to set exactly where the driver should pick you up — your
+          device's location is only a starting guess.
+        </p>
+      )}
 
       {!handoffs && (
         <button className="btn btn-primary btn-block" disabled={busy}
@@ -124,6 +141,16 @@ export function GetHomePanel({ pickup, homeLabel }: {
           {booked.etaMinutes ? `About ${booked.etaMinutes} min away. ` : ""}
           {booked.driver?.plate ? `Look for ${booked.driver.plate}. ` : ""}
           <b>+100 points</b> for not driving.
+          {booked.trackingUrl && (
+            <>
+              {" "}
+              {/* {booked.provider}'s own live trip page — the actual moving car,
+                  which only the provider can show, since only they have it. */}
+              <a href={booked.trackingUrl} target="_blank" rel="noreferrer" className="inline-link">
+                Watch it get closer on {booked.provider}
+              </a>
+            </>
+          )}
         </div>
       )}
 

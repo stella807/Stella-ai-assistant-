@@ -1,0 +1,327 @@
+import { useEffect, useState } from "react";
+import type { MasterAuditEntry } from "@safehubby/core";
+import { api, type MasterOverview } from "../api.ts";
+import { dollars } from "../money.ts";
+
+/**
+ * The master (owner/secretary) dashboard — a third area of the app, reached
+ * at `/master`, with its own sign-in and its own session cookie
+ * (`sh_master_session`), entirely separate from a Safehubby traveler or
+ * assistant account. See master-access.ts for the roles, the scopes, and
+ * why message contents are never among them; see `GET /api/master/overview`
+ * in routes.ts for what each section actually reads.
+ *
+ * There is no self-service sign-up here on purpose. An account is
+ * provisioned by whoever already holds `SAFEHUBBY_ADMIN_KEY` — the
+ * "Provision an account" panel below is that same action, done from a
+ * browser instead of a terminal, not a new way in.
+ */
+export function MasterScreen() {
+  const [status, setStatus] = useState<"checking" | "signed-out" | "signed-in">("checking");
+  const [overview, setOverview] = useState<MasterOverview | null>(null);
+
+  const load = () => api.masterOverview().then((o) => { setOverview(o); setStatus("signed-in"); }).catch(() => setStatus("signed-out"));
+  useEffect(() => { void load(); }, []);
+
+  if (status === "checking") {
+    return <Shell><p className="small muted">Loading…</p></Shell>;
+  }
+  if (status === "signed-in" && overview) {
+    return <Dashboard overview={overview} onRefresh={load} onSignedOut={() => setStatus("signed-out")} />;
+  }
+  return <MasterSignIn onSignedIn={load} />;
+}
+
+function Shell({ children, onSignOut }: { children: React.ReactNode; onSignOut?: () => void }) {
+  return (
+    <div className="app stack">
+      <div className="row-between">
+        <div>
+          <h1>Safehubby</h1>
+          <p className="tiny muted">Master access — not the app customers or assistants use.</p>
+        </div>
+        {onSignOut && <button className="btn btn-sm btn-ghost" onClick={onSignOut}>Sign out</button>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MasterSignIn({ onSignedIn }: { onSignedIn: () => void }) {
+  const [key, setKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [showBootstrap, setShowBootstrap] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.masterLogin(key.trim());
+      onSignedIn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not sign in");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Shell>
+      <div className="card stack">
+        <h2>Sign in with your access key</h2>
+        <p className="small muted">
+          Not a username and password — one key, issued to you when your account was provisioned. Lost it?
+          Whoever holds the server's admin key can revoke it below and provision a new one.
+        </p>
+        <div className="field">
+          <label htmlFor="mst-key">Access key</label>
+          <input id="mst-key" type="password" autoComplete="off" value={key}
+            onChange={(e) => setKey(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        </div>
+        <button className="btn btn-primary btn-block" disabled={busy || !key.trim()} onClick={submit}>
+          Sign in
+        </button>
+        {error && <div className="banner banner-danger">{error}</div>}
+      </div>
+
+      <div className="card stack">
+        <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+          aria-expanded={showBootstrap} onClick={() => setShowBootstrap((v) => !v)}>
+          <h3 style={{ margin: 0 }}>Provision an account</h3>
+          <span className="chev">{showBootstrap ? "︿" : "﹀"}</span>
+        </button>
+        {showBootstrap && <BootstrapPanel />}
+      </div>
+    </Shell>
+  );
+}
+
+/**
+ * The one place `SAFEHUBBY_ADMIN_KEY` itself is typed into this app, rather
+ * than a terminal — everything downstream of provisioning uses the master
+ * key it hands back, never the admin key again. The returned key is shown
+ * exactly once, the same "shown once, hashed thereafter" rule the employee
+ * portal's temp password already follows: there is nowhere it can be
+ * recovered from after this screen is closed.
+ */
+function BootstrapPanel() {
+  const [adminKey, setAdminKey] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"owner" | "secretary">("owner");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [issued, setIssued] = useState<{ name: string; role: string; key: string } | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.masterCreateAccount(adminKey.trim(), { name: name.trim(), email: email.trim(), role });
+      setIssued({ name: res.account.name, role: res.account.role, key: res.key });
+      setName(""); setEmail("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not provision that account");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (issued) {
+    return (
+      <div className="stack">
+        <div className="banner banner-safe">
+          Account created for {issued.name} ({issued.role}).
+        </div>
+        <div className="field">
+          <label>Access key — shown once, copy it now</label>
+          <input readOnly value={issued.key} onFocus={(e) => e.target.select()} />
+        </div>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          This cannot be shown again. If it's lost, revoke the account from the dashboard and provision a
+          new one.
+        </p>
+        <button className="btn btn-block" onClick={() => setIssued(null)}>Provision another</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="stack">
+      <p className="small muted">
+        Requires the server's admin key (<code>SAFEHUBBY_ADMIN_KEY</code>) — the one shared secret this
+        replaces for everything except issuing the very first account.
+      </p>
+      <div className="field">
+        <label htmlFor="mst-admin-key">Server admin key</label>
+        <input id="mst-admin-key" type="password" autoComplete="off" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="mst-name">Name</label>
+        <input id="mst-name" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="mst-email">Email</label>
+        <input id="mst-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="mst-role">Role</label>
+        <select id="mst-role" value={role} onChange={(e) => setRole(e.target.value as "owner" | "secretary")}>
+          <option value="owner">Owner — everything, including money and write</option>
+          <option value="secretary">Secretary — everything operational, read-only, no money</option>
+        </select>
+      </div>
+      <button className="btn btn-primary btn-block" disabled={busy || !adminKey.trim() || !name.trim() || !email.trim()}
+        onClick={submit}>
+        {busy ? "Provisioning…" : "Provision account"}
+      </button>
+      {error && <div className="banner banner-danger">{error}</div>}
+    </div>
+  );
+}
+
+function Dashboard({ overview, onRefresh, onSignedOut }: {
+  overview: MasterOverview; onRefresh: () => void; onSignedOut: () => void;
+}) {
+  const [showAudit, setShowAudit] = useState(false);
+  const [audit, setAudit] = useState<MasterAuditEntry[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const signOut = async () => {
+    setBusy(true);
+    try { await api.masterLogout(); } catch { /* signing out locally either way */ }
+    finally { setBusy(false); onSignedOut(); }
+  };
+
+  const toggleAudit = async () => {
+    if (!showAudit && !audit) {
+      try { setAudit(await api.masterAuditLog()); } catch { setAudit([]); }
+    }
+    setShowAudit((v) => !v);
+  };
+
+  return (
+    <Shell onSignOut={signOut}>
+      <div className="card row-between">
+        <div className="stack" style={{ gap: 2 }}>
+          <strong className="small">{overview.account.name}</strong>
+          <span className="tiny muted">
+            {overview.account.role === "owner" ? "Owner — everything, including money and write" : "Secretary — everything operational, read-only"}
+          </span>
+        </div>
+        <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onRefresh}>Refresh</button>
+      </div>
+
+      {overview.customers && <CustomersSection customers={overview.customers} />}
+      {overview.operations && <OperationsSection operations={overview.operations} />}
+      {overview.money && <MoneySection money={overview.money} />}
+
+      <section className="card stack">
+        <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+          aria-expanded={showAudit} onClick={toggleAudit}>
+          <h3 style={{ margin: 0 }}>Access log</h3>
+          <span className="chev">{showAudit ? "︿" : "﹀"}</span>
+        </button>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          Every master-access read, recorded — who looked, at what, and when. Never at what was inside.
+        </p>
+        {showAudit && (
+          <ul className="timeline">
+            {(audit ?? []).length === 0 && <li><span className="tiny muted">Nothing recorded yet.</span></li>}
+            {(audit ?? []).map((e) => (
+              <li key={e.id} className="row-between">
+                <span className="tiny muted">{e.subject} · {e.scope}</span>
+                <span className="tiny muted">{new Date(e.at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </Shell>
+  );
+}
+
+function CustomersSection({ customers }: { customers: NonNullable<MasterOverview["customers"]> }) {
+  return (
+    <section className="card stack">
+      <h3>Customers</h3>
+      <p className="tiny muted" style={{ margin: 0 }}>{customers.length} total</p>
+      <div style={{ overflowX: "auto" }}>
+        <table className="pay-table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Plan</th><th>Wingman</th></tr>
+          </thead>
+          <tbody>
+            {customers.map((c) => (
+              <tr key={c.id}>
+                <td>{c.name}</td>
+                <td className="tiny muted">{c.email}</td>
+                <td>{c.planId}</td>
+                <td>{c.clubMember ? "Member" : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function OperationsSection({ operations }: { operations: NonNullable<MasterOverview["operations"]> }) {
+  const rows: [string, number | string][] = [
+    ["Active concierge tasks", operations.activeConciergeTasks],
+    ["Open desk tasks", operations.openDeskTasks],
+    ["Roster — active / total", `${operations.rosterActive} / ${operations.rosterTotal}`],
+    ["Driver applications pending", operations.pendingDriverApplications],
+    ["Staff applications pending", operations.pendingStaffApplications],
+    ["Wingman Club members", operations.wingmanClubMembers],
+  ];
+  return (
+    <section className="card stack">
+      <h3>Operations</h3>
+      <ul className="timeline">
+        {rows.map(([label, value]) => (
+          <li key={label} className="row-between">
+            <span className="tiny muted">{label}</span>
+            <span className="small">{value}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }) {
+  return (
+    <section className="card stack">
+      <h3>Money</h3>
+      <ul className="timeline">
+        <li className="row-between">
+          <span className="tiny muted">Settled charges</span>
+          <span className="small charge-amount">{dollars(money.settledChargesCents)} ({money.chargeCount})</span>
+        </li>
+        <li className="row-between">
+          <span className="tiny muted">Owed to assistants, unpaid</span>
+          <span className="small charge-amount">{dollars(money.unpaidPayoutsCents)}</span>
+        </li>
+      </ul>
+      {Object.keys(money.byKind).length > 0 && (
+        <div className="stack" style={{ gap: 4 }}>
+          <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.02em" }}>By kind</strong>
+          {Object.entries(money.byKind).map(([kind, cents]) => (
+            <div key={kind} className="row-between">
+              <span className="tiny muted">{kind}</span>
+              <span className="tiny">{dollars(cents)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="tiny muted" style={{ margin: 0 }}>
+        The hiring-budget breakdown (headcount, plan vs. actual) lives at its own resolution — see
+        GET /api/admin/budget, reachable with this same key.
+      </p>
+    </section>
+  );
+}

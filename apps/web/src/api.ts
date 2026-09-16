@@ -2,8 +2,8 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId,
-  IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
-  SpendRequest,
+  IdentityPhoto, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, Plan, ProviderStatus,
+  RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
@@ -197,12 +197,14 @@ export interface DriverApplicationInput {
   backgroundCheckConsent: boolean;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>,
+): Promise<T> {
   const res = await fetch(apiBase() + path, {
     method,
     // The session is an HttpOnly cookie, so it must ride along explicitly.
     credentials: "include",
-    headers: body ? { "content-type": "application/json" } : undefined,
+    headers: { ...(body ? { "content-type": "application/json" } : {}), ...extraHeaders },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
@@ -402,14 +404,14 @@ export const api = {
   clubStatus: () => request<{
     isMember: boolean;
     memberCount: number;
-    monthlyCents: number;
     breakEvenMembers: number;
+    overheadCovered: boolean;
+    perks: readonly string[];
     disclosures: string[];
     catalog: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number }[];
     thisMonth: {
       experience: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number };
-      perMemberBudgetCents: number;
-      affordable: boolean;
+      duesCents: number;
     };
   }>("GET", "/api/club/status"),
   joinClub: () => request<{ isMember: boolean }>("POST", "/api/club/join", {}),
@@ -598,6 +600,52 @@ export const api = {
   confirmStorePurchase: (chargeId: string, receipt: string) =>
     request<Billing & { verified: boolean; note: string }>(
       "POST", `/api/billing/charges/${chargeId}/confirm`, { receipt }),
+
+  /**
+   * Master access — the owner/secretary dashboard, a third identity space
+   * with its own session cookie (`sh_master_session`). See master-access.ts
+   * and the `/master` routes in routes.ts.
+   *
+   * `masterCreateAccount` is the one call here that carries the shared
+   * `SAFEHUBBY_ADMIN_KEY` directly, as a header rather than a cookie —
+   * provisioning a brand-new account has no session to authenticate with
+   * yet. Every other call rides the master session cookie like the rest of
+   * this file rides the traveler one.
+   */
+  masterCreateAccount: (adminKey: string, input: { name: string; email: string; role: "owner" | "secretary" }) =>
+    request<{ account: MasterAccount; key: string }>(
+      "POST", "/api/admin/master-accounts", input, { "x-admin-key": adminKey }),
+  masterLogin: (key: string) =>
+    request<{ accountId: string; name: string; role: "owner" | "secretary" }>(
+      "POST", "/api/master/auth/login", { key }),
+  masterLogout: () => request<{ ok: true }>("POST", "/api/master/auth/logout", {}),
+  masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
+  masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
 };
+
+/** Present only when the signed-in role's scopes include it — see
+ *  `GET /api/master/overview` in routes.ts. A missing key means "you can't
+ *  see this," never "there is nothing here." */
+export interface MasterOverview {
+  account: { id: string; name: string; role: "owner" | "secretary" };
+  scopes: string[];
+  generatedAt: string;
+  customers?: { id: string; name: string; email: string; planId: string; clubMember: boolean }[];
+  operations?: {
+    activeConciergeTasks: number;
+    openDeskTasks: number;
+    rosterActive: number;
+    rosterTotal: number;
+    pendingDriverApplications: number;
+    pendingStaffApplications: number;
+    wingmanClubMembers: number;
+  };
+  money?: {
+    settledChargesCents: number;
+    chargeCount: number;
+    byKind: Record<string, number>;
+    unpaidPayoutsCents: number;
+  };
+}
 
 export { ApiError };
