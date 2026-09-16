@@ -16,6 +16,7 @@ import type { Account } from "../api.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
 import { AssistantModal } from "./AssistantModal.tsx";
 import { CategoryIcon } from "./CategoryIcons.tsx";
+import { RequestDetail } from "./RequestDetail.tsx";
 
 /** Exact, to the cent. Amounts here are prices somebody agrees to and
  *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
@@ -115,6 +116,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const [fix, setFix] = useState<Fix | null>(null);
   const [selected, setSelected] = useState<AssistantProfile | null>(null);
   const [openTask, setOpenTask] = useState<ConciergeTask | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -264,6 +266,45 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     .catch((e) => setError(e instanceof Error ? e.message : "Could not mark that done"));
 
   const active = tasks.filter((t) => t.status === "in-progress");
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+
+  // Shared between the detail view below and the booking form further down,
+  // so reopening an existing task's thread works identically from either.
+  const openTaskModal = openTask && (
+    <AssistantModal
+      assistant={{
+        id: openTask.assistantId ?? "assistant",
+        name: openTask.assistantName ?? (openTask.assistantId ? "Your assistant" : openTask.provider),
+        categories: [openTask.category],
+        maxConcurrentCustomers: 1,
+        currentCustomers: 0,
+      }}
+      category={openTask.category}
+      note={openTask.note}
+      spendCapCents={openTask.spendCapCents}
+      quickTask={openTask.quickTask}
+      location={openTask.location}
+      existingTask={openTask}
+      onBooked={() => {}}
+      onClose={() => setOpenTask(null)}
+    />
+  );
+
+  if (selectedTask) {
+    return (
+      <>
+        <RequestDetail
+          task={selectedTask}
+          onBack={() => setSelectedTaskId(null)}
+          onMessage={() => setOpenTask(selectedTask)}
+          onComplete={selectedTask.status === "in-progress" ? () => complete(selectedTask.id) : undefined}
+          onCancel={selectedTask.status === "in-progress" ? () => cancel(selectedTask.id) : undefined}
+          busy={busy}
+        />
+        {openTaskModal}
+      </>
+    );
+  }
 
   return (
     <section className="card stack">
@@ -287,21 +328,20 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         <ul className="timeline">
           {active.map((t) => (
             <li key={t.id}>
-              <div className="row-between">
-                <div>
-                  <strong className="small">{t.note}</strong>
-                  <div className="tiny muted">
-                    {t.provider} · {money(t.spendCapCents + t.serviceFeeCents)} held
-                    ({money(t.spendCapCents)} cap + {money(t.serviceFeeCents)} fee)
-                    {t.card && ` · paying on a card ending ${t.card.last4} — not yours`}
+              <button className="row-between" style={{
+                width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left",
+              }} onClick={() => setSelectedTaskId(t.id)}>
+                <div className="row" style={{ gap: 10 }}>
+                  <span className="category-tile-icon"><CategoryIcon id={t.category} /></span>
+                  <div>
+                    <strong className="small">{t.note}</strong>
+                    <div className="tiny muted">
+                      {t.provider} · {money(t.spendCapCents + t.serviceFeeCents)} held
+                    </div>
                   </div>
                 </div>
-                <div className="row" style={{ gap: 6 }}>
-                  <button className="btn btn-sm" disabled={busy} onClick={() => setOpenTask(t)}>Message</button>
-                  <button className="btn btn-sm" disabled={busy} onClick={() => complete(t.id)}>Done</button>
-                  <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => cancel(t.id)}>Cancel</button>
-                </div>
-              </div>
+                <span className="chev">›</span>
+              </button>
             </li>
           ))}
         </ul>
@@ -567,25 +607,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         />
       )}
 
-      {openTask && (
-        <AssistantModal
-          assistant={{
-            id: openTask.assistantId ?? "assistant",
-            name: openTask.assistantName ?? (openTask.assistantId ? "Your assistant" : openTask.provider),
-            categories: [openTask.category],
-            maxConcurrentCustomers: 1,
-            currentCustomers: 0,
-          }}
-          category={openTask.category}
-          note={openTask.note}
-          spendCapCents={openTask.spendCapCents}
-          quickTask={openTask.quickTask}
-          location={openTask.location}
-          existingTask={openTask}
-          onBooked={() => {}}
-          onClose={() => setOpenTask(null)}
-        />
-      )}
+      {openTaskModal}
     </section>
   );
 }
