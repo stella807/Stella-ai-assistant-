@@ -22,7 +22,7 @@ import {
   GAMES, findGame, recordGuess, settleGuessTheTab, settleRound, settleWithWinner, startRound,
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
-  isEnabled, flagNote, ridesFor,
+  isEnabled, flagNote, ridesFor, featureLabel,
   isAutomatic, SECURE_TRANSPORT_DISCLOSURES,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
@@ -845,7 +845,7 @@ function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
   const traveler = ctx.store.data.travelers.find((t) => t.id === travelerId);
   if (!traveler) throw notFound("Traveler");
   if (!hasFeature(traveler.planId, feature)) {
-    throw new HttpError(402, `Your plan does not include "${feature}". Upgrade to unlock it.`);
+    throw new HttpError(402, `Your plan does not include "${featureLabel(feature)}". Upgrade to unlock it.`);
   }
 }
 

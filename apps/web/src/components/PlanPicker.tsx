@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isElitePlan, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
 import { Carousel, type CarouselHandle } from "./Carousel.tsx";
+import { PlanComparison } from "./PlanComparison.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
 
 import { dollars, money } from "../money.ts";
@@ -127,6 +128,8 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           })}
         </div>
       )}
+
+      <PlanComparison plans={everyday} />
 
       {/* One plan at a time rather than four cards stacked: comparing prices
           used to mean scrolling past three you were not looking at to reach

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, PA_HOURLY_RATE_CENTS, QUICK_TASK_CATEGORIES, assistantPayoutFor,
-  defaultHoursFor, driverEarningsCents, isHourlyCategory, minutesFor, serviceFeeFor,
+  defaultHoursFor, driverEarningsCents, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
+  type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
+import { PlanComparison } from "./PlanComparison.tsx";
 
 import { money } from "../money.ts";
 
@@ -73,6 +75,8 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
         </table>
         <p className="tiny muted" style={{ margin: 0 }}>{t("pricing.freeNote")}</p>
       </section>
+
+      <PlanComparison plans={plans.filter((p) => !isElitePlan(p.id as PlanId))} />
 
       {/* The two services, priced and kept apart. */}
       <section className="card stack">

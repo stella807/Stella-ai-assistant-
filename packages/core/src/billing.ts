@@ -93,6 +93,45 @@ const EVERY_FEATURE = {
 
 export const ALL_FEATURES: Feature[] = Object.keys(EVERY_FEATURE) as Feature[];
 
+/** What to call a `Feature` in front of a customer — never the raw id, which
+ *  is a code identifier, not a sentence. Used both by the "your plan
+ *  doesn't include this" error and by the plan comparison table, so the two
+ *  can never drift into calling the same feature two different things. */
+export const FEATURE_LABELS: Record<Feature, string> = {
+  "location-sharing": "Location sharing",
+  "automatic-rides": "Safehubby books your ride",
+  "automatic-delivery": "Safehubby sends supplies",
+  "secure-transport": "Secure transport",
+  "check-ins": "Check-ins",
+  "drink-count": "Drink count",
+  sos: "SOS",
+  "drink-details": "Detailed drink logging",
+  "venue-menus": "Venue menus",
+  "bac-estimate": "Intoxication estimate",
+  "recovery-plan": "Recovery plan",
+  "ride-booking": "Ride booking",
+  "supply-delivery": "Supply delivery",
+  "safe-routes": "Safe routes",
+  "history-analytics": "Night history",
+  "group-games": "Group games",
+  "multi-profile": "Multiple people on one account",
+  "extended-sos-contacts": "Extended SOS contacts",
+  "extended-menu": "Extended pharmacy-run menu",
+  "personal-concierge": "Personal concierge",
+  "desk-tasks": "Ask an assistant (desk tasks)",
+  "private-aviation": "Jet travel",
+  "yacht-charter": "Yacht charter",
+  "luxury-property": "Villas and property",
+  "event-production": "Event production",
+  "premium-hospitality": "Hotels and hospitality",
+  "lifestyle-manager": "Lifestyle manager",
+  "concierge-doctor": "Concierge doctor",
+};
+
+export function featureLabel(feature: Feature): string {
+  return FEATURE_LABELS[feature];
+}
+
 export interface Plan {
   id: PlanId;
   name: string;
