@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isElitePlan, QUICK_TASK_MAX_CAP_CENTS, type PlanId } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
 import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
 import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
+import { GetHomePanel } from "./GetHomePanel.tsx";
+import { WingmanClub } from "./WingmanClub.tsx";
+import { currentFix, type Fix } from "../native/location.ts";
 import type { Account } from "../api.ts";
 
 /**
@@ -14,7 +17,7 @@ import type { Account } from "../api.ts";
  * the one core already draws in `QUICK_TASK_CATEGORIES` rather than a new
  * distinction invented in the UI — see `HiringKind` in ConciergePanel.
  */
-type Tab = HiringKind | "desk" | "elite";
+type Tab = HiringKind | "desk" | "ride" | "club" | "elite";
 
 const TABS: { id: Tab; label: string; blurb: string }[] = [
   {
@@ -31,6 +34,19 @@ const TABS: { id: Tab; label: string; blurb: string }[] = [
     id: "concierge",
     label: "Concierge",
     blurb: "A personal assistant: wait with a friend who should not be alone, check on someone in person, or book and buy something for you — tickets, a hotel, a table — on a card funded from your account.",
+  },
+  {
+    id: "ride",
+    label: "Get a ride",
+    blurb: "Opens Uber or Lyft with your ride home already filled in — Safehubby never invents a fare, so it links you to the real one rather than quoting its own.",
+  },
+  {
+    id: "club",
+    // Not a task any assistant does for you — a separate membership that
+    // stacks on top of your plan. Kept off to the side rather than folded
+    // into a concierge category for exactly that reason.
+    label: "Wingman Club",
+    blurb: "A monthly membership, not a task: one group experience a month, revealed for everyone at once, funded by the whole roster's dues rather than billed per person.",
   },
 ];
 
@@ -55,6 +71,12 @@ export function HiringScreen({ account }: { account: Account }) {
   const [kind, setKind] = useState<Tab>("desk");
   const active = tabs.find((t) => t.id === kind) ?? tabs[0]!;
 
+  // Fetched once a ride is actually asked for, not on every visit to this
+  // screen — the same "don't ask for a permission nobody has used yet" rule
+  // TravelerScreen already follows for its own copy of this fix.
+  const [fix, setFix] = useState<Fix | null>(null);
+  useEffect(() => { if (kind === "ride") void currentFix().then(setFix); }, [kind]);
+
   return (
     <div className="stack">
       <div>
@@ -64,7 +86,7 @@ export function HiringScreen({ account }: { account: Account }) {
         </p>
       </div>
 
-      <div className="tabs" role="tablist" aria-label="What you need">
+      <div className="tabs tabs-scroll" role="tablist" aria-label="What you need">
         {tabs.map((tab) => (
           <button key={tab.id} role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)}>
             {tab.label}
@@ -78,6 +100,10 @@ export function HiringScreen({ account }: { account: Account }) {
           half-filled concierge request into the errands screen. */}
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
+        : kind === "ride"
+        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || "home"} />
+        : kind === "club"
+        ? <WingmanClub />
         : kind === "elite"
         ? <EliteDeskPanel />
         : <ConciergePanel key={kind} account={account} kind={kind} />}

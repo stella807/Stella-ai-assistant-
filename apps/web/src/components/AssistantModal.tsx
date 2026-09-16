@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, describeAssistantCapacity } from "@safehubby/core";
+import {
+  CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, assistantPayoutFor,
+  describeAssistantCapacity,
+} from "@safehubby/core";
 import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
 import type { TaskTextMessage } from "../api.ts";
 import { api } from "../api.ts";
@@ -8,7 +11,10 @@ import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { PermissionGate } from "./PermissionGate.tsx";
 import { readFileAsBase64 } from "../native/camera.ts";
 
-import { dollars as money } from "../money.ts";
+/** Exact, to the cent — this screen is where the hold is actually agreed to,
+ *  so it follows the same rule ConciergePanel's own pricing card does: a fee
+ *  of $87.50 shown as $88 is a number the customer did not actually accept. */
+import { money } from "../money.ts";
 
 /**
  * Popup shown after picking a specific assistant from the roster. Two modes
@@ -257,10 +263,19 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
             </div>
             <div className="row-between tiny muted">
               <span>
-                Service fee (pays your assistant)
+                Service fee
                 {peopleCount > 1 && ` — for ${peopleCount} people`}
               </span>
               <span className="charge-amount">{serviceFeeCents === null ? "…" : money(serviceFeeCents)}</span>
+            </div>
+            {/* The fee above is not what the assistant is paid — it is what the
+                assistant is paid *plus* Safehubby's margin, per assistantPayoutFor.
+                Showing only the fee and calling it "pays your assistant" is how a
+                customer who does the hourly math themselves ends up thinking the
+                numbers don't add up; this line is the one that actually adds up. */}
+            <div className="row-between tiny muted">
+              <span>Your assistant is paid</span>
+              <span className="charge-amount">{money(assistantPayoutFor(category, quickTask, peopleCount, hours))}</span>
             </div>
             <div className="row-between small">
               <strong>Held on your card now</strong>

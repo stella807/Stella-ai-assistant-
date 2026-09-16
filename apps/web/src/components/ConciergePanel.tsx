@@ -99,6 +99,33 @@ const CATEGORIES_FOR: Record<HiringKind, ConciergeCategory[]> = {
     .filter((id) => !QUICK_TASK_CATEGORIES.includes(id)),
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  "in-progress": "In progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+/** One row, active or past — tap it to open the full detail screen. */
+function TaskRow({ task, onOpen }: { task: ConciergeTask; onOpen: () => void }) {
+  return (
+    <button className="row-between" style={{
+      width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left",
+    }} onClick={onOpen}>
+      <div className="row" style={{ gap: 10 }}>
+        <span className="category-tile-icon"><CategoryIcon id={task.category} /></span>
+        <div>
+          <strong className="small">{task.note}</strong>
+          <div className="tiny muted">
+            {task.provider} · {money(task.spendCapCents + task.serviceFeeCents)} held
+            {task.status !== "in-progress" && ` · ${STATUS_LABEL[task.status] ?? task.status}`}
+          </div>
+        </div>
+      </div>
+      <span className="chev">›</span>
+    </button>
+  );
+}
+
 export function ConciergePanel({ account, kind = "concierge" }: { account: Account; kind?: HiringKind }) {
   const locked = !hasFeature(account.planId as PlanId, "personal-concierge");
   const allowed = CATEGORIES_FOR[kind];
@@ -261,11 +288,16 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
     .catch((e) => setError(e instanceof Error ? e.message : "Could not cancel"));
 
+  const dispute = (taskId: string, reason: string) => api.disputeConcierge(taskId, reason)
+    .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
+    .catch((e) => { throw new Error(e instanceof Error ? e.message : "Could not send that"); });
+
   const complete = (taskId: string) => api.completeConcierge(taskId)
     .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
     .catch((e) => setError(e instanceof Error ? e.message : "Could not mark that done"));
 
   const active = tasks.filter((t) => t.status === "in-progress");
+  const past = tasks.filter((t) => t.status !== "in-progress");
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
 
   // Shared between the detail view below and the booking form further down,
@@ -299,6 +331,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           onMessage={() => setOpenTask(selectedTask)}
           onComplete={selectedTask.status === "in-progress" ? () => complete(selectedTask.id) : undefined}
           onCancel={selectedTask.status === "in-progress" ? () => cancel(selectedTask.id) : undefined}
+          onDispute={selectedTask.status === "completed" ? (reason) => dispute(selectedTask.id, reason) : undefined}
           busy={busy}
         />
         {openTaskModal}
@@ -326,25 +359,17 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
       {active.length > 0 && (
         <ul className="timeline">
-          {active.map((t) => (
-            <li key={t.id}>
-              <button className="row-between" style={{
-                width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left",
-              }} onClick={() => setSelectedTaskId(t.id)}>
-                <div className="row" style={{ gap: 10 }}>
-                  <span className="category-tile-icon"><CategoryIcon id={t.category} /></span>
-                  <div>
-                    <strong className="small">{t.note}</strong>
-                    <div className="tiny muted">
-                      {t.provider} · {money(t.spendCapCents + t.serviceFeeCents)} held
-                    </div>
-                  </div>
-                </div>
-                <span className="chev">›</span>
-              </button>
-            </li>
-          ))}
+          {active.map((t) => <li key={t.id}><TaskRow task={t} onOpen={() => setSelectedTaskId(t.id)} /></li>)}
         </ul>
+      )}
+
+      {past.length > 0 && (
+        <>
+          <span className="section-label">Past requests</span>
+          <ul className="timeline">
+            {past.map((t) => <li key={t.id}><TaskRow task={t} onOpen={() => setSelectedTaskId(t.id)} /></li>)}
+          </ul>
+        </>
       )}
 
       <div className="category-grid">
@@ -572,7 +597,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                 ? `${a.yearsExperience} ${a.yearsExperience === 1 ? "yr" : "yrs"} as a PA`
                 : null,
               a.gender,
-              a.age !== undefined ? `${a.age}` : null,
+              a.age !== undefined ? `age ${a.age}` : null,
             ].filter(Boolean);
             return (
               <button key={a.id} role="listitem" className="assistant-tile" disabled={!available}
@@ -582,6 +607,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                 </div>
                 <strong className="small">{a.name}</strong>
                 {facts.length > 0 && <span className="tiny muted">{facts.join(" · ")}</span>}
+                {/* Self-reported, same as the facts above — a couple of lines,
+                    not the assistant's full application bio, since the tile
+                    is a comparison at a glance and the modal opens onto the
+                    rest once one is picked. */}
+                {a.bio && <span className="tiny muted assistant-bio">{a.bio}</span>}
                 <span className={`tiny ${available ? "muted" : "assistant-full"}`}>
                   {available ? `Up to ${a.maxConcurrentCustomers} at once` : "At capacity"}
                 </span>

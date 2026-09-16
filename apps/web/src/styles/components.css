@@ -156,6 +156,22 @@
   border-bottom: 1px solid var(--line);
 }
 
+/* Opt-in for a strip with more items than a phone width can give each one an
+   equal share of — Hiring's six tabs, at this point. Scrolls instead of
+   wrapping each label onto three lines to stay the same width as its
+   neighbours. */
+.tabs-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-wrap: nowrap;
+}
+.tabs-scroll::-webkit-scrollbar { display: none; }
+.tabs-scroll button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 14px 10px;
+}
+
 /*
  * The app's primary navigation: icon over label, fixed to the bottom of the
  * screen rather than pinned to the top.
@@ -1009,6 +1025,15 @@ label:has(> input[type="checkbox"]) {
 }
 
 .assistant-full { color: var(--warn); }
+
+/* A couple of lines of self-reported bio on the tile, clipped rather than
+   left to blow out a 132px-wide comparison card. */
+.assistant-bio {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
 
 /* The assistant's own pay, beside the client's spend cap on the card screen.
    Tinted so the two amounts are never mistaken for one another — the entire

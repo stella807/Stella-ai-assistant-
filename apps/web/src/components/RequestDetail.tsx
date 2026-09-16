@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { conciergeCategoryLabel } from "@safehubby/core";
 import type { ConciergeTask } from "@safehubby/core";
 import { CategoryIcon } from "./CategoryIcons.tsx";
@@ -9,23 +10,49 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+const MAX_DISPUTE_REASON = 280;
+
 /**
- * A single request, opened from the active-requests list — the same "tap a
- * row, see the details" shape as the task card in the employee portal, just
- * from the customer's side. Every field here is real data already on
- * `ConciergeTask`; nothing is invented for the sake of a fuller-looking
- * screen.
+ * A single request, opened from the active- or past-requests list — the
+ * same "tap a row, see the details" shape as the task card in the employee
+ * portal, just from the customer's side. Every field here is real data
+ * already on `ConciergeTask`; nothing is invented for the sake of a
+ * fuller-looking screen.
  */
-export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, busy }: {
+export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, onDispute, busy }: {
   task: ConciergeTask;
   onBack: () => void;
   onMessage: () => void;
   /** Omitted once the task is no longer in progress — there is nothing left to mark done or cancel. */
   onComplete?: () => void;
   onCancel?: () => void;
+  /** Only offered on a completed task — see the "Only a completed task can
+   *  be disputed" rule in routes.ts. Undefined elsewhere, including when
+   *  the task is already disputed. */
+  onDispute?: (reason: string) => Promise<unknown>;
   busy: boolean;
 }) {
+  const [disputing, setDisputing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [disputeBusy, setDisputeBusy] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+
   const totalHeld = task.spendCapCents + task.serviceFeeCents;
+
+  const sendDispute = async () => {
+    if (!onDispute) return;
+    setDisputeBusy(true);
+    setDisputeError(null);
+    try {
+      await onDispute(reason);
+      setDisputing(false);
+      setReason("");
+    } catch (e) {
+      setDisputeError(e instanceof Error ? e.message : "Could not send that.");
+    } finally {
+      setDisputeBusy(false);
+    }
+  };
 
   return (
     <div className="stack">
@@ -89,6 +116,48 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, b
         {onComplete && <button className="btn btn-block" disabled={busy} onClick={onComplete}>Mark done</button>}
         {onCancel && <button className="btn btn-block btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>}
       </section>
+
+      {/* The help for when the assistant, not the app, is what went wrong —
+          never delivered, or kept money for something they didn't do. Only
+          offered once a task is done; one still in progress is cancelled
+          instead, which already stops the money. */}
+      {task.disputed ? (
+        <section className="card stack">
+          <h3>Reported</h3>
+          <p className="small muted">{task.disputeReason}</p>
+          {typeof task.refundedCents === "number" && (
+            <p className="small">{money(task.refundedCents)} refunded to your card.</p>
+          )}
+        </section>
+      ) : onDispute && (
+        <section className="card stack">
+          <h3>Something wrong with this one?</h3>
+          {!disputing ? (
+            <button className="btn btn-block btn-ghost" onClick={() => setDisputing(true)}>
+              Report a problem
+            </button>
+          ) : (
+            <>
+              <div className="field">
+                <label htmlFor="dispute-reason">What happened</label>
+                <textarea id="dispute-reason" rows={3} maxLength={MAX_DISPUTE_REASON} value={reason}
+                  placeholder="Never showed up, and I was still charged the service fee"
+                  onChange={(e) => setReason(e.target.value)} />
+              </div>
+              <div className="row">
+                <button className="btn grow" disabled={disputeBusy}
+                  onClick={() => { setDisputing(false); setReason(""); setDisputeError(null); }}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary grow" disabled={disputeBusy || !reason.trim()} onClick={sendDispute}>
+                  Send report
+                </button>
+              </div>
+              {disputeError && <div className="banner banner-danger">{disputeError}</div>}
+            </>
+          )}
+        </section>
+      )}
     </div>
   );
 }
