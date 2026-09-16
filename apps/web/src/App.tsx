@@ -65,14 +65,22 @@ export function App() {
         </div>
       )}
 
-      {/* Applying to drive needs no rider account. While signed out, the
-          landing carousel's third slide is where that lives, so this would
-          just be the same button twice — it appears for signed-in riders,
-          who have no carousel. */}
+      {/* Applying to drive or to a non-driving role needs no rider account.
+          While signed out, the landing carousel's fifth slide has both — so
+          these would just be the same buttons twice there. They appear here
+          for signed-in riders, who have no carousel to find them on: without
+          this, StaffSignupScreen ("work" role) had no way in at all once
+          somebody had an account, since onWorkWithUs is a LandingIntro prop
+          and LandingIntro only renders while signed out. */}
       {role !== "drive" && role !== "work" && account && (
-        <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setRole("drive")}>
-          {t("app.drive")}
-        </button>
+        <div className="row" style={{ gap: 6, alignSelf: "flex-start" }}>
+          <button className="btn btn-sm btn-ghost" onClick={() => setRole("drive")}>
+            {t("app.drive")}
+          </button>
+          <button className="btn btn-sm btn-ghost" onClick={() => setRole("work")}>
+            {t("app.careers")}
+          </button>
+        </div>
       )}
 
       {role === "drive" ? (
