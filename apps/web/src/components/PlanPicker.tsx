@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isElitePlan, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
+import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 
 import { dollars, money } from "../money.ts";
 
@@ -20,6 +21,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
   const [cadence, setCadence] = useState<"monthly" | "annual">("annual");
 
   const [showElite, setShowElite] = useState(false);
+  const carousel = useRef<CarouselHandle>(null);
 
   useEffect(() => { api.catalog().then((c) => setPlans(c.plans)).catch(() => {}); }, []);
 
@@ -83,6 +85,15 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
     );
   };
 
+  const everydayIndex = Math.max(0, everyday.findIndex((p) => p.id === currentPlanId));
+
+  // Opens on the subscriber's own plan rather than always on Free — jumped to
+  // once the plans have actually rendered, since Carousel reads real DOM
+  // offsets to scroll and there is nothing to jump to before that.
+  useEffect(() => {
+    if (everyday.length > 0) carousel.current?.goTo(everydayIndex);
+  }, [everyday.length, everydayIndex]);
+
   return (
     <>
       <div className="tabs" role="tablist">
@@ -90,7 +101,21 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         <button role="tab" aria-selected={cadence === "annual"} onClick={() => setCadence("annual")}>Annual</button>
       </div>
 
-      {everyday.map(card)}
+      {/* One plan at a time rather than four cards stacked: comparing prices
+          used to mean scrolling past three you were not looking at to reach
+          the fourth. The subscriber's own plan opens the carousel so
+          "what am I on" needs no swiping to answer. */}
+      {everyday.length > 0 && (
+        <Carousel
+          ref={carousel}
+          labels={everyday.map((p) => p.name)}
+          ariaLabel="Plans"
+          prevLabel="Previous plan"
+          nextLabel="Next plan"
+        >
+          {everyday.map((p) => <div key={p.id} className="slide">{card(p)}</div>)}
+        </Carousel>
+      )}
 
       {/* The Elite ladder is a different product, not a fifth option, and
           leaving it in the same flat list meant scrolling past three

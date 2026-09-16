@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
@@ -43,10 +44,8 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
   launch: LaunchStatus | null;
 }) {
   const { t, language } = useLanguage();
-  const track = useRef<HTMLDivElement>(null);
-  const [index, setIndex] = useState(0);
-  const [engaged, setEngaged] = useState(false);
   const [startInSignup, setStartInSignup] = useState(false);
+  const carousel = useRef<CarouselHandle>(null);
 
   // Leadership gets its own slide rather than sharing slide one. Three cards
   // deep (mission, leadership, what we do) the last of them ran past the fold
@@ -61,72 +60,8 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
   const SIGNUP_SLIDE = 3;
   const invitedBy = incomingReferralCode();
 
-  const goTo = (next: number) => {
-    const el = track.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(next, labels.length - 1));
-    setEngaged(true);
-    // The slide's own offset, not clientWidth * index: the product drifts a
-    // sub-pixel and leaves a sliver of the neighbour showing at the edge.
-    const slide = el.children[clamped] as HTMLElement | undefined;
-    el.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: "smooth" });
-    setIndex(clamped);
-  };
-
-  // Which slide is actually on screen, read from the scroll position rather
-  // than tracked separately — a swipe moves the container, not our state.
-  useEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const onScroll = () => {
-      const width = el.clientWidth || 1;
-      setIndex(Math.round(el.scrollLeft / width));
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    if (engaged) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = setInterval(() => {
-      const el = track.current;
-      if (!el) return;
-      const width = el.clientWidth || 1;
-      const current = Math.round(el.scrollLeft / width);
-      const next = (current + 1) % labels.length;
-      const slide = el.children[next] as HTMLElement | undefined;
-      el.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: "smooth" });
-      setIndex(next);
-    }, AUTO_ADVANCE_MS);
-    return () => clearInterval(timer);
-  }, [engaged, labels.length]);
-
-  // The track is a flex row, so its natural height is the tallest slide —
-  // which would leave the short slides sitting above a canyon of empty
-  // space. Measure whichever slide is on screen and size the track to it,
-  // re-measuring when the content or the viewport changes.
-  useEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const fit = () => {
-      const slide = el.children[index] as HTMLElement | undefined;
-      if (slide) el.style.height = `${slide.offsetHeight}px`;
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    for (const child of Array.from(el.children)) observer.observe(child);
-    window.addEventListener("resize", fit);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", fit);
-    };
-  }, [index]);
-
-  const stopRevolving = () => setEngaged(true);
-
   return (
-    <div className="stack" onPointerDown={stopRevolving} onKeyDown={stopRevolving} onFocus={stopRevolving}>
+    <div className="stack">
       <div className="card stack" style={{ textAlign: "center" }}>
         <h1 style={{ margin: 0 }}>{t("landing.heading")}</h1>
         <p className="small muted" style={{ margin: 0 }}>{t("landing.subtitle")}</p>
@@ -150,12 +85,23 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
         </p>
       )}
 
-      <div className="slides" ref={track} aria-live="off">
+      <Carousel
+        ref={carousel}
+        labels={labels.map((l) => t(l))}
+        ariaLabel={t("slide.about")}
+        autoAdvanceMs={AUTO_ADVANCE_MS}
+        prevLabel={t("slide.prev")}
+        nextLabel={t("slide.next")}
+        showCaption
+        onEngage={() => {}}
+      >
+        {/* Track which slide is on screen only to drive `startInSignup`'s
+            reset target — Carousel owns the scroll position itself. */}
         {/* 1 — why the app exists, and what it actually does. */}
         <section className="slide" aria-label={t("slide.about")}>
           <MissionSection />
           <WhatWeDoSection />
-          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); goTo(SIGNUP_SLIDE); }}>
+          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}>
             {t("landing.getStarted")}
           </button>
         </section>
@@ -165,7 +111,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
             an app you are about to trust with where you are at 1am. */}
         <section className="slide" aria-label={t("slide.leadership")}>
           <LeadershipSection />
-          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); goTo(SIGNUP_SLIDE); }}>
+          <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}>
             {t("landing.getStarted")}
           </button>
         </section>
@@ -175,7 +121,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           {/* The launch banner sits above every slide, so repeating its
               sentence inside this card said the same thing twice on one
               screen. */}
-          <PublicPricing onGetStarted={() => { setStartInSignup(true); goTo(SIGNUP_SLIDE); }} />
+          <PublicPricing onGetStarted={() => setStartInSignup(true)} />
         </section>
 
         {/* 4 — sign up, with how it works right beside the form so nobody has
@@ -231,30 +177,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
             <PublicWorkerPay />
           </section>
         </section>
-      </div>
-
-      <div className="slide-nav">
-        <button className="btn btn-sm btn-ghost" disabled={index === 0}
-          onClick={() => goTo(index - 1)} aria-label={t("slide.prev")}>
-          ←
-        </button>
-
-        <div className="slide-dots" role="tablist" aria-label={t("slide.about")}>
-          {labels.map((label, i) => (
-            <button key={label} role="tab" aria-current={index === i} aria-label={t(label)}
-              onClick={() => goTo(i)} />
-          ))}
-        </div>
-
-        <button className="btn btn-sm btn-ghost" disabled={index === labels.length - 1}
-          onClick={() => goTo(index + 1)} aria-label={t("slide.next")}>
-          →
-        </button>
-      </div>
-
-      <p className="tiny muted" style={{ textAlign: "center", margin: 0 }}>
-        {t(labels[index] ?? "slide.about")}
-      </p>
+      </Carousel>
     </div>
   );
 }

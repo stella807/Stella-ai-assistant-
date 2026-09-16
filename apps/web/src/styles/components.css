@@ -427,7 +427,7 @@
   box-shadow: inset 0 0 0 2px var(--accent-bright), var(--shadow);
   border-color: transparent;
 }
-.plan-price { font-size: 31px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.plan-price { font-size: 23px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .plan-per { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: -0.01em; }
 
 /* Range inputs survive only where they estimate rather than commit — the
