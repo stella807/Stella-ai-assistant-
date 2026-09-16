@@ -442,7 +442,11 @@ export const api = {
     request<{
       assistantId: string; mustChangePassword: boolean; tasks: (ConciergeTask & { requesterName: string })[];
       unpaidEarningsCents: number; outstandingClawbackCents: number;
+      aiAssist: { mode: "automatic" | "handoff" | "unavailable"; requires: string };
     }>("GET", "/api/assistant/portal"),
+  /** A faster first draft of the assistant's own wording — see ai-assist.ts. Never sent on its own. */
+  assistantAiDraft: (taskId: string, input: { purpose: string; instruction: string }) =>
+    request<{ text: string }>("POST", `/api/assistant/tasks/${taskId}/ai-draft`, input),
   assistantSetPayoutDestination: (accountHolderName: string, routingNumber: string, accountNumber: string) =>
     request<{ accountHolderName: string; accountNumberLast4: string }>(
       "POST", "/api/assistant/payout-destination", { accountHolderName, routingNumber, accountNumber }),

@@ -394,6 +394,9 @@ function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
   const [assistantId, setAssistantId] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [tasks, setTasks] = useState<PortalTask[] | null>(null);
+  const [aiAssist, setAiAssist] = useState<{ mode: "automatic" | "handoff" | "unavailable"; requires: string }>(
+    { mode: "handoff", requires: "" },
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPay, setShowPay] = useState(false);
   const [showPayouts, setShowPayouts] = useState(false);
@@ -401,7 +404,10 @@ function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
 
   const load = () => {
     api.assistantPortal()
-      .then((r) => { setAssistantId(r.assistantId); setMustChangePassword(r.mustChangePassword); setTasks(r.tasks); setError(null); })
+      .then((r) => {
+        setAssistantId(r.assistantId); setMustChangePassword(r.mustChangePassword); setTasks(r.tasks);
+        setAiAssist(r.aiAssist); setError(null);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load your tasks"));
   };
 
@@ -430,7 +436,7 @@ function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
   return (
     <Shell onSignOut={signOut}>
       {selected ? (
-        <TaskDetail task={selected} onBack={() => setSelectedId(null)} onChanged={load} />
+        <TaskDetail task={selected} onBack={() => setSelectedId(null)} onChanged={load} aiAssist={aiAssist} />
       ) : showPay ? (
         <PayRates onBack={() => setShowPay(false)} />
       ) : showPayouts ? (
@@ -704,14 +710,16 @@ function TaskCardPopup({ task, onClose, onChanged }: {
   );
 }
 
-function TaskDetail({ task, onBack, onChanged }: {
+function TaskDetail({ task, onBack, onChanged, aiAssist }: {
   task: PortalTask; onBack: () => void; onChanged: () => void;
+  aiAssist: { mode: "automatic" | "handoff" | "unavailable"; requires: string };
 }) {
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [billed, setBilled] = useState("");
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeRecording = useRef<ActiveRecording | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -841,6 +849,28 @@ function TaskDetail({ task, onBack, onChanged }: {
       setError(e instanceof Error ? e.message : "Could not send that receipt");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /**
+   * A faster first draft of the note itself, not a message the customer
+   * ever sees on its own. It expands whatever's already typed — the rough
+   * words the assistant knows are true — into the two or three sentences
+   * they'd otherwise have to write by hand, and lands back in the same
+   * field for them to edit or send as-is.
+   */
+  const draftChangeNote = async () => {
+    setDrafting(true);
+    setError(null);
+    try {
+      const { text } = await api.assistantAiDraft(task.id, {
+        purpose: "explaining a change to a purchase to the customer", instruction: changeNote,
+      });
+      setChangeNote(text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not get a draft — write it yourself instead.");
+    } finally {
+      setDrafting(false);
     }
   };
 
@@ -978,6 +1008,12 @@ function TaskDetail({ task, onBack, onChanged }: {
                       <div className="stack" style={{ gap: 6 }}>
                         <input value={changeNote} placeholder="They were out of the 2lb bag, got the 1lb"
                           maxLength={280} onChange={(e) => setChangeNote(e.target.value)} />
+                        {aiAssist.mode === "automatic" && (
+                          <button className="btn btn-sm btn-ghost" disabled={busy || drafting || !changeNote.trim()}
+                            onClick={draftChangeNote}>
+                            {drafting ? "Drafting…" : "✨ Draft with AI"}
+                          </button>
+                        )}
                         <div className="row">
                           <button className="btn btn-sm grow" disabled={busy}
                             onClick={() => { setChangeFor(null); setChangeNote(""); }}>

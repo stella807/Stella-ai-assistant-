@@ -35,6 +35,7 @@ import {
   remainingDeskTasks, validateDeskTask,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_CENTS, canAffordExperience,
   minMembersForAverageExperience, perMemberEventBudgetCents, pickMonthlyExperience,
+  validateAiDraftInstruction,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
@@ -67,6 +68,7 @@ import { revolutCards } from "./adapters/cards.ts";
 import { revolutPayouts } from "./adapters/payouts.ts";
 import { stripeProcessor } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
+import { aiAssist } from "./adapters/ai-assist.ts";
 import { paypalProcessor } from "./adapters/paypal.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
@@ -2391,7 +2393,37 @@ export const routes: Record<string, Handler> = {
       outstandingClawbackCents: outstandingClawbackCents(
         ctx.store.data.assistantAdjustments.filter((a) => a.assistantId === assistantId),
       ),
+      // So the portal knows whether to offer "Draft with AI" at all, without
+      // a second round trip. Handoff means the button never appears — an
+      // assistant with nothing configured writes their own note, exactly as
+      // they always could.
+      aiAssist: aiAssist.status,
     };
+  },
+
+  /**
+   * A faster first draft of the assistant's own wording for a note on this
+   * task — never sent on its own. See ai-assist.ts: the provider is given
+   * only this task's real facts and the assistant's own instruction, and the
+   * result comes back as plain text for the assistant to read, edit, and
+   * send themselves through whichever note field they were already using.
+   * Reachable only from the assistant's own session — never from a
+   * traveler's, so a customer can never reach this even by guessing the URL.
+   */
+  "POST /api/assistant/tasks/:taskId/ai-draft": async (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
+    if (!isAutomatic(aiAssist.status)) throw new HttpError(503, aiAssist.status.requires);
+
+    const instruction = String(body?.instruction ?? "");
+    const error = validateAiDraftInstruction(instruction);
+    if (error) throw new HttpError(400, error);
+
+    const context = `Task: ${conciergeCategoryLabel(task.category)}. Customer asked for: ${task.note}.`;
+    const { text } = await aiAssist.draft({
+      purpose: String(body?.purpose ?? "a note to the customer"), context, instruction: instruction.trim(),
+    });
+    return { text };
   },
 
   /**

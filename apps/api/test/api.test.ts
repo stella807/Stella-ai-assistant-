@@ -1903,6 +1903,36 @@ describe("assistant portal", () => {
     expect(tasks.find((t: any) => t.id === taskId).identityPhotos.assistant.mimeType).toBe("image/jpeg");
   });
 
+  describe("AI drafting help — a faster first draft, never sent on its own", () => {
+    it("reports handoff with nothing configured, so the portal knows to hide the button", async () => {
+      const res = await call("GET", "/api/assistant/portal", undefined, null, cookie);
+      expect(res.json.aiAssist.mode).toBe("handoff");
+      expect(res.json.aiAssist.requires).toMatch(/AI_ASSIST_API_BASE/);
+    });
+
+    it("refuses to draft rather than fake one when no provider is configured", async () => {
+      const res = await call(
+        "POST", `/api/assistant/tasks/${taskId}/ai-draft`,
+        { purpose: "explaining a change", instruction: "they were out of the burger, got a wrap instead" },
+        null, cookie,
+      );
+      expect(res.status).toBe(503);
+    });
+
+    it("requires a valid employee session, not a token or a traveler session", async () => {
+      const body = { instruction: "test" };
+      expect((await call("POST", `/api/assistant/tasks/${taskId}/ai-draft`, body)).status).toBe(401);
+      expect((await call("POST", `/api/assistant/tasks/${taskId}/ai-draft`, body, sam)).status).toBe(401);
+    });
+
+    it("keeps one assistant's tasks out of another's reach", async () => {
+      const res = await call(
+        "POST", `/api/assistant/tasks/${otherTaskId}/ai-draft`, { instruction: "test" }, null, cookie,
+      );
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe("the task card, for actually paying", () => {
     const cardedTaskId = "ct_carded";
 
