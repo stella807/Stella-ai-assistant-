@@ -3,6 +3,7 @@ import { hasFeature, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
 import type { Account } from "../api.ts";
 import type { DeskTask } from "@safehubby/core";
+import { CategoryIcon } from "./CategoryIcons.tsx";
 
 /**
  * The assistant's job that does not need feet: appointments, reminders, the
@@ -72,15 +73,17 @@ export function DeskTasksPanel({ account }: { account: Account }) {
         part of your plan.
       </p>
 
-      <div className="stack" style={{ gap: 8 }}>
+      <div className="category-grid">
         {kinds.map((k) => (
-          <button key={k.id} className={`card card-quiet${kind === k.id ? " plan-on" : ""}`}
-            style={{ textAlign: "left" }} aria-pressed={kind === k.id} onClick={() => setKind(k.id)}>
-            <strong className="small">{k.label}</strong>
-            <p className="tiny muted" style={{ margin: "4px 0 0" }}>{k.description}</p>
+          <button key={k.id} className="category-tile" aria-pressed={kind === k.id} onClick={() => setKind(k.id)}>
+            <span className="category-tile-icon"><CategoryIcon id={k.id} /></span>
+            <span className="category-tile-label">{k.label}</span>
           </button>
         ))}
       </div>
+      {kinds.find((k) => k.id === kind) && (
+        <p className="tiny muted" style={{ margin: 0 }}>{kinds.find((k) => k.id === kind)!.description}</p>
+      )}
 
       <div className="field">
         <label htmlFor="desk-note">What do you need?</label>

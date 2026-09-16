@@ -16,6 +16,7 @@ import { HiringScreen } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
+import { IconBriefcase, IconCard, IconConfetti, IconDice, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
 type Role =
   | "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account"
@@ -47,6 +48,7 @@ export function App() {
         <div className="row" style={{ gap: 6, alignItems: "center" }}>
           {account ? (
             <>
+              <button className="btn btn-sm btn-ghost" onClick={() => setRole("about")}>{t("nav.about")}</button>
               <button className="btn btn-sm btn-ghost" onClick={() => setRole("account")}>{t("app.account")}</button>
               <button className="btn btn-sm btn-ghost" onClick={() => api.logout().then(() => setAccount(null))}>
                 {t("app.signOut")}
@@ -96,17 +98,28 @@ export function App() {
         />
       ) : (
         <>
-          <div className="tabs tabs-nav" role="tablist">
-            <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>{t("nav.tonight")}</button>
-            <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>{t("nav.watch")}</button>
-            <button role="tab" aria-selected={role === "games"} onClick={() => setRole("games")}>{t("nav.games")}</button>
+          <nav className="tabs-bottom" role="tablist" aria-label="Main">
+            <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>
+              <span className="tab-icon"><IconMoon /></span><span>{t("nav.tonight")}</span>
+            </button>
+            <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>
+              <span className="tab-icon"><IconEye /></span><span>{t("nav.watch")}</span>
+            </button>
+            <button role="tab" aria-selected={role === "games"} onClick={() => setRole("games")}>
+              <span className="tab-icon"><IconDice /></span><span>{t("nav.games")}</span>
+            </button>
             {isEnabled("party-supply") && (
-              <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>{t("nav.party")}</button>
+              <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>
+                <span className="tab-icon"><IconConfetti /></span><span>{t("nav.party")}</span>
+              </button>
             )}
-            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>{t("nav.payments")}</button>
-            <button role="tab" aria-selected={role === "hiring"} onClick={() => setRole("hiring")}>{t("nav.hiring")}</button>
-            <button role="tab" aria-selected={role === "about"} onClick={() => setRole("about")}>{t("nav.about")}</button>
-          </div>
+            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>
+              <span className="tab-icon"><IconCard /></span><span>{t("nav.payments")}</span>
+            </button>
+            <button role="tab" aria-selected={role === "hiring"} onClick={() => setRole("hiring")}>
+              <span className="tab-icon"><IconBriefcase /></span><span>{t("nav.hiring")}</span>
+            </button>
+          </nav>
 
           {/* The sober ask outranks whatever tab you are on: it is a question
               about your money that has been waiting for you to be able to

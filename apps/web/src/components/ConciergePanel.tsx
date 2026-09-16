@@ -15,6 +15,7 @@ import { currentFix, type Fix } from "../native/location.ts";
 import type { Account } from "../api.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
 import { AssistantModal } from "./AssistantModal.tsx";
+import { CategoryIcon } from "./CategoryIcons.tsx";
 
 /** Exact, to the cent. Amounts here are prices somebody agrees to and
  *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
@@ -306,9 +307,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         </ul>
       )}
 
-      <div className="chip-grid">
+      <div className="category-grid">
         {CONCIERGE_CATEGORIES.filter((c) => allowed.includes(c.id)).map((c) => (
-          <button key={c.id} className={`chip${c.id === category ? " chip-on" : ""}`}
+          <button key={c.id} className="category-tile"
             onClick={() => {
               setCategory(c.id);
               // The cap follows the category rather than carrying over. A $100
@@ -321,11 +322,16 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               if (!isQuickTaskEligible(c.id)) setQuickTask(false);
             }}
             aria-pressed={c.id === category}>
-            <strong>{c.label}</strong>
-            <span className="tiny">{c.description}</span>
+            <span className="category-tile-icon"><CategoryIcon id={c.id} /></span>
+            <span className="category-tile-label">{c.label}</span>
           </button>
         ))}
       </div>
+      {CONCIERGE_CATEGORIES.find((c) => c.id === category) && (
+        <p className="tiny muted" style={{ margin: 0 }}>
+          {CONCIERGE_CATEGORIES.find((c) => c.id === category)!.description}
+        </p>
+      )}
 
       <div className="field">
         <label htmlFor="concierge-note">What do you need?</label>

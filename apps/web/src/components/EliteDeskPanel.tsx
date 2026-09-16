@@ -3,6 +3,7 @@ import { MAX_ELITE_BRIEF_LENGTH } from "@safehubby/core";
 import type { EliteBooking, EliteService, EliteServiceId } from "@safehubby/core";
 import { api } from "../api.ts";
 import { money } from "../money.ts";
+import { CategoryIcon } from "./CategoryIcons.tsx";
 
 /**
  * The Elite luxury desk: jet travel, yacht charter, villas, event production,
@@ -63,13 +64,12 @@ export function EliteDeskPanel() {
 
   return (
     <div className="stack">
-      <div className="stack" style={{ gap: 8 }}>
+      <div className="category-grid">
         {services.map((s) => (
-          <button key={s.id} className={`card card-quiet${selected === s.id ? " plan-on" : ""}`}
-            style={{ textAlign: "left" }} aria-pressed={selected === s.id}
+          <button key={s.id} className="category-tile" aria-pressed={selected === s.id}
             onClick={() => { setSelected(s.id); setNote(null); }}>
-            <strong className="small">{s.label}</strong>
-            <p className="tiny muted" style={{ margin: "4px 0 0" }}>{s.description}</p>
+            <span className="category-tile-icon"><CategoryIcon id={s.id} /></span>
+            <span className="category-tile-label">{s.label}</span>
           </button>
         ))}
       </div>
@@ -77,6 +77,7 @@ export function EliteDeskPanel() {
       {service && (
         <section className="card stack">
           <h3>{service.label}</h3>
+          <p className="small muted" style={{ margin: 0 }}>{service.description}</p>
           <p className="tiny muted">{service.commissionNote}</p>
 
           {service.disclosures.length > 0 && (

@@ -1,17 +1,18 @@
 /*
- * Visual language: the high-contrast, type-led style of modern ride-hailing
- * apps — near-black and white, heavy tight headlines, full-width primary
- * actions, grey fill instead of borders. Safehubby's own product, not anyone
- * else's branding.
+ * Visual language: a concierge app's palette — deep navy ground, warm gold
+ * for the brand and every primary action, heavy tight headlines, full-width
+ * CTAs. Safehubby's own product, not anyone else's branding, but reading
+ * closer to "a person is arranging this for you" than to a dispatch app.
  *
- * One colour carries the brand: indigo, for the identity and wayfinding —
- * the wordmark, the live tab, focus rings, selected state, the estimate meter.
- * It is deliberately NOT used for primary actions, which stay ink, and
- * deliberately not amber/red/green, which are spoken for by warn, danger and
- * ok. A brand colour that reads as a warning on a safety app is a bug.
+ * One colour carries the brand: gold, for the identity and wayfinding — the
+ * wordmark's dot, the live tab, focus rings, selected state, every primary
+ * button. It reads as valet and porch-light rather than as a warning, which
+ * is exactly the tone a human-assistant product wants; the safety colours
+ * (warn/danger/ok) stay their own hues so gold is never mistaken for either.
  *
- * Light is the base theme; dark is true black, which is what these apps use
- * and what suits a phone held at 1am.
+ * Light is the base theme; dark is navy rather than true black — dark enough
+ * for a phone at 1am, warm enough that the gold accent has something to sit
+ * against instead of vanishing on pure black.
  *
  * No webfont. The app ships inside a native shell (see docs/mobile.md), where
  * a blocking font fetch on bad signal is a flash of unstyled text at exactly
@@ -36,24 +37,32 @@
  * notch larger than a sober-user app would need.
  */
 :root {
-  --ground: #000000;
+  /* Navy, not black — the gold accent needs a ground with some colour of its
+     own to sit against, and a concierge app reads calmer than a dispatch
+     app's true-black urgency. */
+  --ground: #0a0e1a;
   /* Lifted well clear of the ground: at 1am, a 3% difference is invisible. */
-  --surface: #17171c;
-  --fill: #1f1f26;
-  --fill-strong: #2c2c35;
-  --line: #34343f;
-  --line-strong: #45454f;
+  --surface: #121a2c;
+  --fill: #1a2438;
+  --fill-strong: #232f4a;
+  --line: #263454;
+  --line-strong: #3a4a72;
   /* Pure white. This is the one screen that should not be tasteful about it. */
   --text: #ffffff;
-  --muted: #bcbcc8;
-  --faint: #8e8e9c;
+  --muted: #a7b1cc;
+  --faint: #7a86a5;
 
-  --primary: #ffffff;
-  --on-primary: #000000;
+  /* Gold carries every primary action now — the one thing on screen that
+     always means "the next step", the same job a concierge's own gold
+     lapel pin does. Kept muted rather than saturated-yellow on purpose: a
+     champagne gold reads as premium and stays visibly its own colour next
+     to --warn, which a brighter amber would start to double for. */
+  --primary: #c99a4c;
+  --on-primary: #17130a;
 
-  --accent: #b4bcff;
-  --accent-bright: #8b93ff;
-  --accent-soft: #1c1c33;
+  --accent: #d9bd8a;
+  --accent-bright: #c99a4c;
+  --accent-soft: #251d10;
 
   --ok: #3ddc97;
   --ok-fill: #06281d;
@@ -97,7 +106,10 @@ body {
 .app {
   max-width: 448px;
   margin: 0 auto;
-  padding: 18px 16px 96px;
+  /* Extra bottom room for the fixed bottom nav (.tabs-bottom) plus the
+     device's own home-indicator safe area, so the last card in a scroll
+     never sits half-hidden behind the bar. */
+  padding: 18px 16px calc(88px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 18px;

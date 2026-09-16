@@ -134,25 +134,21 @@
 .field select { padding-right: 34px; }
 
 /* ---------- Segmented tabs ---------- */
-/* The tab bar is the only thing pinned. On a screen this long, navigation that
-   scrolls away is not navigation — but pinning the wordmark above it too would
-   tie the tabs' offset to the header's exact height, which is a magic number
-   waiting to drift. The wordmark can scroll; the tabs cannot. */
 /*
  * A tab strip. Plain by default.
  *
  * This used to be sticky-with-a-backdrop for every tab strip in the app,
- * which is only ever right for one of them: the primary nav, which pins to
- * the top of a long scrolling page. The other five — sign in / create
- * account, monthly / annual, small errands / concierge, the card processors,
- * the market picker — all sit *inside* a card partway down a screen, so
- * pinning them to `top: 0` floated them over their own content as soon as
- * the page scrolled, and the negative margin made them 32px wider than the
- * card they were sitting in while they did it.
+ * which is only ever right for one of them: the primary nav. The other five
+ * — sign in / create account, monthly / annual, small errands / concierge,
+ * the card processors, the market picker — all sit *inside* a card partway
+ * down a screen, so pinning them to `top: 0` floated them over their own
+ * content as soon as the page scrolled, and the negative margin made them
+ * 32px wider than the card they were sitting in while they did it.
  *
- * Sticky is opt-in now, via `.tabs-nav`. That is also the general form of
- * the carousel fix: the landing's signup tabs were the same bug seen from a
- * different angle.
+ * The primary nav itself now lives at the bottom of the screen as
+ * `.tabs-bottom` below, not as a `.tabs` variant — a bottom icon bar and an
+ * inline segmented control are different enough components that sharing one
+ * base class was costing more overrides than it saved.
  */
 .tabs {
   display: flex;
@@ -160,22 +156,65 @@
   border-bottom: 1px solid var(--line);
 }
 
-/* The app's primary navigation, and the only strip that should pin.
+/*
+ * The app's primary navigation: icon over label, fixed to the bottom of the
+ * screen rather than pinned to the top.
  *
- * Fully opaque, deliberately. A translucent bar with a backdrop blur is the
- * usual treatment, but this theme is white text on pure black: at 94% the
- * content sliding underneath printed straight through, so the Hiring
- * sub-tabs appeared as a second row of labels across the nav. There is no
- * frosted-glass effect to win on a black ground — only a legible bar or an
- * illegible one. */
-.tabs-nav {
-  position: sticky;
-  top: 0;
+ * A bottom bar is what a concierge app's own hand lands on one-thumbed, and
+ * it never has to fight the header for the top of the screen the way a
+ * sticky top strip did. Fully opaque, deliberately — a translucent bar with
+ * a backdrop blur has nothing to win on this ground, only a legible bar or
+ * an illegible one.
+ */
+.tabs-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 15;
-  background: var(--ground);
-  margin: 0 -16px;
-  padding: 0 16px;
+  display: flex;
+  gap: 2px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+  max-width: 448px;
+  margin: 0 auto;
 }
+.tabs-bottom button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  font: 620 11px/1 var(--font);
+  letter-spacing: -0.005em;
+  padding: 6px 2px;
+  min-height: 54px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color .12s ease;
+}
+.tabs-bottom button:hover { color: var(--muted); }
+.tabs-bottom button[aria-selected="true"] { color: var(--accent-bright); }
+.tabs-bottom button span { white-space: nowrap; }
+/* A soft rounded highlight behind the icon, not the label — the same
+   treatment a phone's own tab bar uses, so the active tab reads as lit up
+   rather than just a different ink colour. */
+.tabs-bottom .tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 26px;
+  border-radius: 9px;
+  transition: background .12s ease;
+}
+.tabs-bottom button[aria-selected="true"] .tab-icon { background: var(--accent-soft); }
+
 .tabs button {
   flex: 1;
   border: none;
@@ -532,6 +571,53 @@ label:has(> input[type="checkbox"]) {
 
 /* ---------- The sober ask ---------- */
 .ask { box-shadow: inset 0 0 0 2px var(--accent-bright), var(--shadow); border-color: transparent; }
+
+/* ---------- Category tiles ----------
+   "What do you need?" — a 3-column grid of icon tiles rather than a vertical
+   stack of cards, for the same reason the assistant rail is a row and not a
+   list: choosing among six roughly-equal options is a scan, and a grid lets
+   the eye cover all six in one glance instead of scrolling past five to
+   confirm there is a sixth. */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.category-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 14px 6px 12px;
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 14px;
+  cursor: pointer;
+  min-height: 80px;
+  font-family: var(--font);
+  transition: box-shadow .12s ease, background .12s ease, transform .1s ease;
+}
+.category-tile:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--accent-bright); }
+.category-tile:active:not(:disabled) { transform: scale(.97); }
+.category-tile[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px var(--accent-bright);
+  background: var(--accent-soft);
+}
+.category-tile-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--fill-strong);
+  color: var(--accent-bright);
+  flex: none;
+}
+.category-tile[aria-pressed="true"] .category-tile-icon { background: var(--accent-bright); color: var(--on-primary); }
+.category-tile-label { font-size: 12.5px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.25; }
 
 /* ---------- Party ---------- */
 .cat {
