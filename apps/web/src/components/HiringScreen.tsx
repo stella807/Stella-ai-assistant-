@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { QUICK_TASK_MAX_CAP_CENTS } from "@safehubby/core";
+import { isElitePlan, QUICK_TASK_MAX_CAP_CENTS, type PlanId } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
 import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
+import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
 import type { Account } from "../api.ts";
 
 /**
@@ -13,7 +14,7 @@ import type { Account } from "../api.ts";
  * the one core already draws in `QUICK_TASK_CATEGORIES` rather than a new
  * distinction invented in the UI — see `HiringKind` in ConciergePanel.
  */
-type Tab = HiringKind | "desk";
+type Tab = HiringKind | "desk" | "elite";
 
 const TABS: { id: Tab; label: string; blurb: string }[] = [
   {
@@ -33,11 +34,26 @@ const TABS: { id: Tab; label: string; blurb: string }[] = [
   },
 ];
 
+/**
+ * Jet travel, yacht charter, villas, event production, hospitality, and a
+ * concierge doctor — sold and priced on the Elite ladder, but not something
+ * everyday plans should even see a tab for. Appended only for a member
+ * actually on Elite, the same gate `requireElite` applies server-side.
+ */
+const ELITE_TAB: { id: Tab; label: string; blurb: string } = {
+  id: "elite",
+  label: "Elite desk",
+  blurb: "Jet travel, yacht charter, villas, events and a concierge doctor — arranged by your assistant. You pay the supplier directly; Safehubby's commission is disclosed before you agree to anything.",
+};
+
 export function HiringScreen({ account }: { account: Account }) {
+  const onElite = isElitePlan(account.planId as PlanId);
+  const tabs = onElite ? [...TABS, ELITE_TAB] : TABS;
+
   // The desk tab first: it is the one most people will use most weeks,
   // and it costs nothing, so it should not be the one they have to find.
   const [kind, setKind] = useState<Tab>("desk");
-  const active = TABS.find((t) => t.id === kind) ?? TABS[0]!;
+  const active = tabs.find((t) => t.id === kind) ?? tabs[0]!;
 
   return (
     <div className="stack">
@@ -49,7 +65,7 @@ export function HiringScreen({ account }: { account: Account }) {
       </div>
 
       <div className="tabs" role="tablist" aria-label="What you need">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button key={tab.id} role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)}>
             {tab.label}
           </button>
@@ -62,6 +78,8 @@ export function HiringScreen({ account }: { account: Account }) {
           half-filled concierge request into the errands screen. */}
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
+        : kind === "elite"
+        ? <EliteDeskPanel />
         : <ConciergePanel key={kind} account={account} kind={kind} />}
     </div>
   );

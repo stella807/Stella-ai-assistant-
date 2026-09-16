@@ -1,6 +1,7 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
+  EliteBooking, EliteService, EliteServiceId,
   IdentityPhoto, LocationPing, NearbyStore, NightOut, Plan, ProviderStatus, RecoveryPlan, ShareGrant,
   SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
@@ -386,6 +387,18 @@ export const api = {
   createDeskTask: (input: { kind: string; note: string }) =>
     request<{ task: DeskTask; remaining: number }>("POST", "/api/desk/tasks", input),
   cancelDeskTask: (id: string) => request<{ task: DeskTask }>("POST", `/api/desk/tasks/${id}/cancel`, {}),
+  /** The Elite luxury desk's catalogue — jet travel and the rest — see elite.ts. Only reachable on an Elite plan. */
+  eliteServices: () =>
+    request<{
+      desk: ProviderStatus;
+      services: (EliteService & { disclosures: string[]; commissionNote: string })[];
+    }>("GET", "/api/elite/services"),
+  eliteBookings: () => request<{ bookings: EliteBooking[] }>("GET", "/api/elite/bookings"),
+  /** Opens a request on the desk. No charge and no hold — the member pays the supplier directly, see elite.ts. */
+  requestEliteBooking: (serviceId: EliteServiceId, brief: string) =>
+    request<{ booking: EliteBooking; disclosures: string[]; note: string | null }>(
+      "POST", "/api/elite/bookings", { serviceId, brief },
+    ),
   clubStatus: () => request<{
     isMember: boolean;
     memberCount: number;
