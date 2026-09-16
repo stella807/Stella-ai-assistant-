@@ -1914,6 +1914,7 @@ export const routes: Record<string, Handler> = {
     const assistants: AssistantProfile[] = ours.map((a) => ({
       id: a.id,
       name: a.name,
+      role: a.role,
       bio: a.bio,
       photoUrl: a.photoUrl,
       yearsExperience: a.yearsExperience,

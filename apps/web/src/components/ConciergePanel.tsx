@@ -3,8 +3,8 @@ import {
   CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, defaultCapFor,
-  defaultHoursFor, hasCapCeiling, hasFeature, hourlyRateCentsFor, isAssistantAvailable, isHourlyCategory,
-  isInLaunchMarket, isQuickTaskEligible, launchMarketNames, minutesFor, serviceFeeFor,
+  defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor, isAssistantAvailable,
+  isHourlyCategory, isInLaunchMarket, isQuickTaskEligible, launchMarketNames, minutesFor, serviceFeeFor,
   totalChargeCents,
 } from "@safehubby/core";
 import type {
@@ -16,6 +16,7 @@ import type { Account } from "../api.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
 import { AssistantModal } from "./AssistantModal.tsx";
 import { CategoryIcon } from "./CategoryIcons.tsx";
+import { LiveMap } from "./LiveMap.tsx";
 import { RequestDetail } from "./RequestDetail.tsx";
 
 /** Exact, to the cent. Amounts here are prices somebody agrees to and
@@ -28,31 +29,6 @@ import { dollars, money } from "../money.ts";
 /** One-tap durations, in hundredths of an hour to match the stepper's units:
  *  an hour, a couple, an evening, a working day. */
 const HOUR_PRESETS = [100, 200, 400, 600, 800, 1200];
-
-
-
-/**
- * A real embedded map for the chosen place, when a browser-safe Maps key is
- * configured — the Embed API takes a key scoped to HTTP referrers, unlike the
- * server-side Places key, so it's safe to ship in the client bundle. With no
- * key configured this renders nothing rather than a fake or placeholder map,
- * the same discipline as every other unconfigured provider in this app.
- */
-const MAPS_BROWSER_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY;
-
-function PlaceMap({ place }: { place: NearbyStore }) {
-  if (!MAPS_BROWSER_KEY) return null;
-  const src = `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(String(MAPS_BROWSER_KEY))}&q=${encodeURIComponent(`${place.name} ${place.address}`.trim())}&center=${place.lat},${place.lng}`;
-  return (
-    <iframe
-      title={`Map of ${place.name}`}
-      src={src}
-      style={{ width: "100%", height: 160, border: 0, borderRadius: 8 }}
-      loading="lazy"
-      referrerPolicy="no-referrer-when-downgrade"
-    />
-  );
-}
 
 /**
  * Personal concierge: request a vetted partner-network professional for one
@@ -448,7 +424,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             )}
           </>
         )}
-        {selectedPlace && <PlaceMap place={selectedPlace} />}
+        {selectedPlace && (
+          <LiveMap points={[{ lat: selectedPlace.lat, lng: selectedPlace.lng, label: selectedPlace.name }]} />
+        )}
       </div>
 
       {quickEligible && (
@@ -606,6 +584,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                   {a.photoUrl ? <img src={a.photoUrl} alt="" /> : a.name.slice(0, 1)}
                 </div>
                 <strong className="small">{a.name}</strong>
+                {/* The role, not just the person — an errand runner and a
+                    personal assistant are different jobs with a different
+                    duty of care (see ROLE_CATEGORIES in roster.ts), and a
+                    subscriber picking who comes to them should see which
+                    one this is, not just a name and a photo. Absent for a
+                    partner-network professional, who carries no StaffRole. */}
+                {a.role && <span className="pill">{findRole(a.role).label}</span>}
                 {facts.length > 0 && <span className="tiny muted">{facts.join(" · ")}</span>}
                 {/* Self-reported, same as the facts above — a couple of lines,
                     not the assistant's full application bio, since the tile

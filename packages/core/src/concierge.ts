@@ -44,6 +44,7 @@
 
 import type { AmountScale } from "./amount-steps.ts";
 import { approximateDecodedBytes } from "./voice-messages.ts";
+import type { StaffRole } from "./staffing.ts";
 
 
 export type ConciergeCategory =
@@ -872,6 +873,13 @@ export const ASSISTANT_MAX_CAPACITY = 3;
 export interface AssistantProfile {
   id: string;
   name: string;
+  /** Present only for Safehubby's own hires (see `HiredAssistant` in
+   *  roster.ts) — a partner-network professional has no `StaffRole`, since
+   *  that typing is ours, not theirs. Shown to the subscriber so an errand
+   *  runner and a personal assistant never look like the same hire: see
+   *  `ROLE_CATEGORIES` in roster.ts for why sending an errand runner to sit
+   *  with someone who is not okay is not a shortcut this app takes. */
+  role?: StaffRole;
   bio?: string;
   photoUrl?: string;
   /** Task types this assistant takes. A profile with none for the requested

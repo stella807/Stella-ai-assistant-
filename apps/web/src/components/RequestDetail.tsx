@@ -2,6 +2,7 @@ import { useState } from "react";
 import { conciergeCategoryLabel } from "@safehubby/core";
 import type { ConciergeTask } from "@safehubby/core";
 import { CategoryIcon } from "./CategoryIcons.tsx";
+import { LiveMap } from "./LiveMap.tsx";
 import { money } from "../money.ts";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -78,6 +79,8 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
         </div>
 
         <p className="small">{task.note}</p>
+
+        <LiveMap points={[{ lat: task.location.lat, lng: task.location.lng, label: task.location.label ?? "Task location" }]} />
 
         <ul className="timeline">
           <li className="row-between">

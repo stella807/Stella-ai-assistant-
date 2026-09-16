@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { NearbyStore } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
+import { LiveMap } from "./LiveMap.tsx";
 
 const HOME = { lat: 40.7488, lng: -73.9857 };
 
@@ -55,6 +56,11 @@ export function GetHomePanel({ pickup, homeLabel }: {
   return (
     <section className="card" aria-label="Get home">
       <h3>Get home</h3>
+
+      <LiveMap points={[
+        { lat: at.lat, lng: at.lng, label: "You" },
+        { lat: HOME.lat, lng: HOME.lng, label: homeLabel },
+      ]} />
 
       {!handoffs && (
         <button className="btn btn-primary btn-block" disabled={busy}

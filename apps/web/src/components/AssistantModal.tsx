@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, assistantPayoutFor,
-  describeAssistantCapacity,
+  describeAssistantCapacity, findRole,
 } from "@safehubby/core";
 import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
 import type { TaskTextMessage } from "../api.ts";
@@ -229,6 +229,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
             </div>
             <div>
               <strong className="small">{assistant.name}</strong>
+              {assistant.role && <div className="tiny muted">{findRole(assistant.role).label}</div>}
               <div className="tiny muted">{describeAssistantCapacity(assistant)}</div>
             </div>
           </div>
