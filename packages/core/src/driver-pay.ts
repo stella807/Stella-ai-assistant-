@@ -40,10 +40,28 @@ export interface DriverRate {
  * fulfillment.ts): a licensed protective-services driver's insurance,
  * training, and ongoing certification are real overhead standard driving
  * doesn't carry, not a premium charged just because the job sounds riskier.
+ *
+ * secure-transport's per-mile and per-minute numbers are set inside Uber
+ * Black's own published fare-component band ($2.50-$4.00/mi, $0.40-$0.65/min
+ * — the closest real comparison, since it is the same chauffeured,
+ * licensed-driver product). This rate card has no margin taken out of it
+ * yet (see `driverEarningsCents` below), so the driver keeps every cent of
+ * it — an Uber Black driver nets roughly 75-80% of those same raw numbers
+ * after Uber's 20-25% commission, so landing inside the band rather than at
+ * its very top is still generous, not stingy. Base is left above the
+ * comparable range on purpose: it is what a driver is guaranteed for simply
+ * showing up, and Uber Black's is bundled with a per-trip minimum a
+ * standalone base number should not undercut.
+ *
+ * Standard is deliberately not moved to match. It is a different product —
+ * everyday driving, not a chauffeured black-car tier — and inflating it to
+ * Black's numbers would misprice the one thing this rate card already gets
+ * right: that secure-transport costs more for real, stated reasons, not
+ * because a number elsewhere went up.
  */
 export const DRIVER_RATE_CARD: Record<DriverTier, DriverRate> = {
   standard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-  "secure-transport": { baseCents: 1500, perMileCents: 220, perMinuteCents: 60 },
+  "secure-transport": { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
 };
 
 export function driverRateFor(tier: DriverTier): DriverRate {

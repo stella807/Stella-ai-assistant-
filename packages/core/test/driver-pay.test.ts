@@ -19,8 +19,21 @@ describe("driver pay scale", () => {
   });
 
   it("computes the exact secure-transport fare", () => {
-    // base 1500 + 5mi * 220 + 15min * 60 = 1500 + 1100 + 900 = 3500
-    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(3500);
+    // base 1500 + 5mi * 300 + 15min * 60 = 1500 + 1500 + 900 = 3900
+    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(3900);
+  });
+
+  it("keeps secure-transport's per-mile and per-minute inside Uber Black's own published band", () => {
+    // Uber Black's fare components run $2.50-$4.00/mi and $0.40-$0.65/min.
+    // This rate card takes no margin from the driver, so landing inside that
+    // band — rather than at a fraction of it — is the generous comparison,
+    // not a stingy one. If this ever drifts below the floor, secure-transport
+    // has quietly stopped being competitive with the tier it is compared to.
+    const rate = DRIVER_RATE_CARD["secure-transport"];
+    expect(rate.perMileCents).toBeGreaterThanOrEqual(250);
+    expect(rate.perMileCents).toBeLessThanOrEqual(400);
+    expect(rate.perMinuteCents).toBeGreaterThanOrEqual(40);
+    expect(rate.perMinuteCents).toBeLessThanOrEqual(65);
   });
 
   it("pays secure transport meaningfully more than standard for the identical trip", () => {
