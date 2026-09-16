@@ -33,6 +33,8 @@ import {
   clampHours, defaultHoursFor, isHourlyCategory,
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
+  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_CENTS, canAffordExperience,
+  minMembersForAverageExperience, perMemberEventBudgetCents, pickMonthlyExperience,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
@@ -2189,6 +2191,56 @@ export const routes: Record<string, Handler> = {
       t.status = "cancelled";
     });
     return { task: { ...task, status: "cancelled" as const } };
+  },
+
+  /* ---------------------------------------------------------------
+     Wingman Club — a real, tested membership economics model with no
+     billing wired to it yet. See wingman-club.ts for the pricing, the
+     monthly reveal mechanic, and why the name is not what this
+     started as. `clubMember` is a plain flag (store.ts) so the roster
+     size behind the economics below is a real count, not a
+     hypothetical one — it does not charge anyone, the same "modeled
+     and disclosed before it's live" honesty driver-pay.ts uses for
+     driver payouts.
+     --------------------------------------------------------------- */
+
+  "GET /api/club/status": (ctx) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    const memberCount = ctx.store.data.travelers.filter((t) => t.clubMember).length;
+    const pick = pickMonthlyExperience(ctx.now());
+    return {
+      isMember: Boolean(traveler.clubMember),
+      memberCount,
+      monthlyCents: CLUB_MONTHLY_CENTS,
+      breakEvenMembers: minMembersForAverageExperience(),
+      disclosures: CLUB_DISCLOSURES,
+      catalog: CLUB_EXPERIENCES,
+      thisMonth: {
+        experience: pick,
+        perMemberBudgetCents: perMemberEventBudgetCents(memberCount),
+        affordable: canAffordExperience(pick, memberCount),
+      },
+    };
+  },
+
+  "POST /api/club/join": (ctx) => {
+    const me = actor(ctx);
+    ctx.store.update((db) => {
+      const traveler = db.travelers.find((t) => t.id === me);
+      if (traveler) traveler.clubMember = true;
+    });
+    return { isMember: true };
+  },
+
+  "POST /api/club/leave": (ctx) => {
+    const me = actor(ctx);
+    ctx.store.update((db) => {
+      const traveler = db.travelers.find((t) => t.id === me);
+      if (traveler) traveler.clubMember = false;
+    });
+    return { isMember: false };
   },
 
   "GET /api/concierge/tasks": (ctx) => {

@@ -20,6 +20,17 @@ export interface Traveler {
   emergencyContacts: { name: string; phone: string }[];
   /** Their own code to share. Minted at signup — see promotions.ts. */
   referralCode?: string;
+  /**
+   * Whether they've opted into the Wingman Club — see wingman-club.ts.
+   * Deliberately a plain flag with no charge behind it yet, the same
+   * "modeled and disclosed before it's live" honesty `driver-pay.ts` uses
+   * for driver payouts: the pricing and roster-economics are real and
+   * tested, but nothing here moves money. Wiring real dues would follow the
+   * same subscription/wallet pattern billing.ts already uses for plans —
+   * this flag exists so the roster size behind the economics is a real
+   * count rather than a hypothetical one, not to pretend dues are collected.
+   */
+  clubMember?: boolean;
 }
 
 export interface Session {

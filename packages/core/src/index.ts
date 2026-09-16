@@ -44,3 +44,4 @@ export * from "./payroll.ts";
 export * from "./service-area.ts";
 export * from "./amount-steps.ts";
 export * from "./desk-tasks.ts";
+export * from "./wingman-club.ts";

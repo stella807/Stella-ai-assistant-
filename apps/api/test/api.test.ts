@@ -3621,3 +3621,50 @@ describe("desk tasks — the assistant's job that does not need feet", () => {
     expect((await call("POST", "/api/desk/tasks", { kind: "teleport", note: "x" }, sam)).status).toBe(400);
   });
 });
+
+describe("the Wingman Club — modeled economics, no billing wired to it yet", () => {
+  it("starts everyone out not a member, and reports the live roster count", async () => {
+    const res = await call("GET", "/api/club/status", undefined, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.isMember).toBe(false);
+    expect(res.json.memberCount).toBe(0);
+    expect(res.json.monthlyCents).toBeGreaterThan(0);
+    expect(res.json.thisMonth.experience).toBeTruthy();
+    expect(res.json.disclosures.length).toBeGreaterThan(0);
+  });
+
+  it("lets someone join and leave, and the roster count follows them", async () => {
+    const before = (await call("GET", "/api/club/status", undefined, sam)).json.memberCount;
+    const joined = await call("POST", "/api/club/join", {}, sam);
+    expect(joined.status).toBe(200);
+    expect(joined.json.isMember).toBe(true);
+
+    const afterJoin = await call("GET", "/api/club/status", undefined, sam);
+    expect(afterJoin.json.isMember).toBe(true);
+    expect(afterJoin.json.memberCount).toBe(before + 1);
+
+    const left = await call("POST", "/api/club/leave", {}, sam);
+    expect(left.json.isMember).toBe(false);
+    const afterLeave = await call("GET", "/api/club/status", undefined, sam);
+    expect(afterLeave.json.memberCount).toBe(before);
+  });
+
+  it("counts every member's join toward the same shared roster, not a private one each", async () => {
+    await call("POST", "/api/club/join", {}, sam);
+    await call("POST", "/api/club/join", {}, jordan);
+    const res = await call("GET", "/api/club/status", undefined, sam);
+    expect(res.json.memberCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("never charges anyone for joining", async () => {
+    const before = store.data.charges.length;
+    await call("POST", "/api/club/join", {}, sam);
+    expect(store.data.charges.length).toBe(before);
+  });
+
+  it("shows the same monthly pick to everyone, regardless of who asks", async () => {
+    const a = (await call("GET", "/api/club/status", undefined, sam)).json.thisMonth.experience.id;
+    const b = (await call("GET", "/api/club/status", undefined, jordan)).json.thisMonth.experience.id;
+    expect(a).toBe(b);
+  });
+});

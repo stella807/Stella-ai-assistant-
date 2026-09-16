@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isElitePlan, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
 import { Carousel, type CarouselHandle } from "./Carousel.tsx";
+import { WingmanClub } from "./WingmanClub.tsx";
 
 import { dollars, money } from "../money.ts";
 
@@ -141,6 +142,10 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           {(showElite || onElite) && elite.map(card)}
         </section>
       )}
+
+      {/* A separate membership, not a plan tier — it stacks on top of
+          whatever plan is chosen above rather than replacing it. */}
+      <WingmanClub />
 
       <p className="tiny muted">
         SOS, location sharing, check-ins and drink count are free forever. Switching mid-month only bills the

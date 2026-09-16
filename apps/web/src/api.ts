@@ -386,6 +386,21 @@ export const api = {
   createDeskTask: (input: { kind: string; note: string }) =>
     request<{ task: DeskTask; remaining: number }>("POST", "/api/desk/tasks", input),
   cancelDeskTask: (id: string) => request<{ task: DeskTask }>("POST", `/api/desk/tasks/${id}/cancel`, {}),
+  clubStatus: () => request<{
+    isMember: boolean;
+    memberCount: number;
+    monthlyCents: number;
+    breakEvenMembers: number;
+    disclosures: string[];
+    catalog: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number }[];
+    thisMonth: {
+      experience: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number };
+      perMemberBudgetCents: number;
+      affordable: boolean;
+    };
+  }>("GET", "/api/club/status"),
+  joinClub: () => request<{ isMember: boolean }>("POST", "/api/club/join", {}),
+  leaveClub: () => request<{ isMember: boolean }>("POST", "/api/club/leave", {}),
   completeConcierge: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/concierge/tasks/${taskId}/complete`, { billedCents }),
   cancelConcierge: (taskId: string) =>
