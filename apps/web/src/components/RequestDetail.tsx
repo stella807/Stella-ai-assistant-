@@ -3,6 +3,7 @@ import { conciergeCategoryLabel } from "@safehubby/core";
 import type { ConciergeTask } from "@safehubby/core";
 import { CategoryIcon } from "./CategoryIcons.tsx";
 import { LiveMap } from "./LiveMap.tsx";
+import { TaskCardVisual } from "./TaskCardVisual.tsx";
 import { money } from "../money.ts";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -101,12 +102,6 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
             <span className="tiny muted">Held on your card</span>
             <span className="small charge-amount">{money(totalHeld)}</span>
           </li>
-          {task.card && (
-            <li className="row-between">
-              <span className="tiny muted">Paying on</span>
-              <span className="small">{task.card.network} ···· {task.card.last4} — not yours</span>
-            </li>
-          )}
           {task.billedCents !== undefined && (
             <li className="row-between">
               <span className="tiny muted">Actually spent</span>
@@ -114,6 +109,17 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
             </li>
           )}
         </ul>
+
+        {task.card && (
+          <TaskCardVisual
+            card={task.card}
+            capCents={task.spendCapCents}
+            caption="Assistant's card for this task"
+            holderLabel="Holder"
+            holderValue={task.assistantName ?? task.provider}
+            footnote={`Not yours — this card only covers what ${task.assistantName ?? "your assistant"} spends on this task, up to the cap above.`}
+          />
+        )}
 
         <button className="btn btn-block" disabled={busy} onClick={onMessage}>Message concierge</button>
         {onComplete && <button className="btn btn-block" disabled={busy} onClick={onComplete}>Mark done</button>}

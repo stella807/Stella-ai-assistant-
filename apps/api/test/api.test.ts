@@ -720,6 +720,38 @@ describe("subscription", () => {
     expect((await call("POST", "/api/subscription", { planId: "enterprise" }, jordan)).status).toBe(400);
     expect((await call("POST", "/api/subscription", { planId: "family" })).status).toBe(401);
   });
+
+  describe("downgrading between paid tiers", () => {
+    it("refuses to move to a cheaper paid plan and points at the help desk", async () => {
+      await call("POST", "/api/subscription", { planId: "family" }, jordan);
+      const res = await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+      expect(res.status).toBe(409);
+      expect(res.json.error).toMatch(/help desk/i);
+
+      // Refused, not silently applied.
+      const billing = (await call("GET", "/api/billing", undefined, jordan)).json;
+      expect(billing.plan.id).toBe("family");
+    });
+
+    it("still allows an upgrade", async () => {
+      await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+      const res = await call("POST", "/api/subscription", { planId: "premium-plus" }, jordan);
+      expect(res.status).toBe(200);
+      expect(res.json.plan.id).toBe("premium-plus");
+    });
+
+    it("still allows cancelling all the way down to Free through the plan route", async () => {
+      await call("POST", "/api/subscription", { planId: "premium-plus" }, jordan);
+      const res = await call("POST", "/api/subscription", { planId: "free" }, jordan);
+      expect(res.status).toBe(200);
+      expect(res.json.plan.id).toBe("free");
+    });
+
+    it("is not triggered by the very first subscription — there is nothing to downgrade from", async () => {
+      const res = await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+      expect(res.status).toBe(200);
+    });
+  });
 });
 
 describe("one billing surface", () => {

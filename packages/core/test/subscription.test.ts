@@ -3,8 +3,8 @@ import { TRIAL_DAYS, findPlan } from "../src/billing.ts";
 import { SERVICE_LIVE_AT } from "../src/promotions.ts";
 import {
   cancelSubscription, changePlan, describeSubscription, effectivePlan, isRenewalDue,
-  markPastDue, periodEnd, priceOf, prorationCreditCents, renew, startSubscription,
-  unusedFraction,
+  markPastDue, periodEnd, priceOf, prorationCreditCents, renew, requiresHelpDeskToDowngrade,
+  startSubscription, unusedFraction,
 } from "../src/subscription.ts";
 import type { Subscription } from "../src/subscription.ts";
 
@@ -204,5 +204,29 @@ describe("describeSubscription", () => {
 
   it("reassures on free rather than upselling", () => {
     expect(describeSubscription(start("free").subscription, now)).toMatch(/never cost anything/);
+  });
+});
+
+describe("requiresHelpDeskToDowngrade", () => {
+  it("is true moving to a cheaper plan that still costs something", () => {
+    expect(requiresHelpDeskToDowngrade("family", "premium-basic")).toBe(true);
+    expect(requiresHelpDeskToDowngrade("premium-plus", "premium-basic")).toBe(true);
+  });
+
+  it("is false cancelling down to Free — that stays self-service", () => {
+    expect(requiresHelpDeskToDowngrade("premium-plus", "free")).toBe(false);
+    expect(requiresHelpDeskToDowngrade("family", "free")).toBe(false);
+  });
+
+  it("is false for an upgrade", () => {
+    expect(requiresHelpDeskToDowngrade("premium-basic", "premium-plus")).toBe(false);
+  });
+
+  it("is false switching cadence on the same plan", () => {
+    expect(requiresHelpDeskToDowngrade("premium-plus", "premium-plus")).toBe(false);
+  });
+
+  it("is false starting from Free — there is nothing to downgrade from", () => {
+    expect(requiresHelpDeskToDowngrade("free", "premium-basic")).toBe(false);
   });
 });

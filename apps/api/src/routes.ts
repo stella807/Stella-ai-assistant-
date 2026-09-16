@@ -47,6 +47,7 @@ import {
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
+  requiresHelpDeskToDowngrade,
   devicesFor, registerDevice, upsertDevice,
   submitApplication, reviewApplication, withdrawApplication,
 } from "@safehubby/core";
@@ -1670,6 +1671,17 @@ export const routes: Record<string, Handler> = {
     if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
     catchUpBilling(ctx);
     const existing = subscriptionOf(ctx, me);
+
+    // A downgrade between two still-paid tiers goes through the help desk
+    // instead of this route — see `requiresHelpDeskToDowngrade`. Checked
+    // here, not just hidden client-side, so the same rule holds for a
+    // direct API call.
+    if (existing && requiresHelpDeskToDowngrade(existing.planId, plan.id)) {
+      throw new HttpError(
+        409,
+        "Downgrading to a cheaper plan goes through the help desk, not this button — send a message from the Plans screen and we'll take care of it.",
+      );
+    }
 
     const change = existing
       ? changePlan({ subscription: existing, planId: plan.id, cadence, platform, now: ctx.now() })

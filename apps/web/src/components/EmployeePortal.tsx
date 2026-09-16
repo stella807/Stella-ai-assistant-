@@ -12,6 +12,7 @@ import { startRecording, type ActiveRecording } from "../native/audio.ts";
 import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { isNative, platform } from "../native/platform.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
+import { TaskCardVisual } from "./TaskCardVisual.tsx";
 
 import { dollars as moneyRound, money } from "../money.ts";
 
@@ -583,22 +584,14 @@ function TaskCardPopup({ task, onClose, onChanged }: {
           <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        <div className="row-between small">
-          <span>{task.card?.network} ···· {task.card?.last4}</span>
-          <span className="tiny muted">
-            Exp {String(task.card?.expMonth ?? 0).padStart(2, "0")}/{task.card?.expYear}
-          </span>
-        </div>
-
-        <div className="row-between small">
-          <strong>You can spend up to</strong>
-          <strong className="charge-amount">{money(task.spendCapCents)}</strong>
-        </div>
-
-        <p className="tiny muted">
-          This card only works for this task and only up to that amount — it declines anything above it, so
-          there is nothing to keep track of. Don't spend your own money and expect it back.
-        </p>
+        <TaskCardVisual
+          card={task.card}
+          capCents={task.spendCapCents}
+          caption="Your card for this task"
+          holderLabel="For"
+          holderValue={task.requesterName}
+          footnote="This card only works for this task and only up to the cap above — it declines anything over that, so there's nothing to keep track of. Don't spend your own money and expect it back."
+        />
 
         {/* The other number on this screen, and the one that is actually
             yours. Two amounts sit side by side here — the client's money and

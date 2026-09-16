@@ -155,10 +155,31 @@ export function prorationCreditCents(sub: Subscription, now: Date): number {
 }
 
 /**
+ * True only for a downgrade between two still-paid tiers — cheaper, but not
+ * free. Cancelling down to Free stays self-service, the same as it always
+ * has: that is the consumer-protection case (auto-renewal cancellation),
+ * not a business one, and a store rail already requires it to be a single
+ * tap. Every upgrade stays self-service too. It is specifically "pay us
+ * less, but still pay us something" that goes through a person instead of a
+ * button, so nobody talks themselves down a tier by mis-tapping on a screen
+ * that is also trying to sell them three other plans.
+ */
+export function requiresHelpDeskToDowngrade(currentPlanId: PlanId, nextPlanId: PlanId): boolean {
+  const current = findPlan(currentPlanId);
+  const next = findPlan(nextPlanId);
+  return current.monthlyCents > 0 && next.monthlyCents > 0 && next.monthlyCents < current.monthlyCents;
+}
+
+/**
  * Switches plans. The period restarts, the unused remainder of the old one
  * comes off the price, and a downgrade never produces a bill — a negative
  * difference is carried as nothing owed rather than as a refund, because
  * refunding through a store rail is the store's decision, not ours.
+ *
+ * Does not itself enforce `requiresHelpDeskToDowngrade` — that is a routing
+ * decision about who is allowed to call this, not part of what a plan
+ * change computes, so the boundary that receives the request checks it
+ * (see `POST /api/subscription` in routes.ts) rather than this function.
  */
 export function changePlan(input: {
   subscription: Subscription;

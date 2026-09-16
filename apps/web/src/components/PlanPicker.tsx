@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isElitePlan, type PlanId } from "@safehubby/core";
+import { isElitePlan, requiresHelpDeskToDowngrade, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
 import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { PlanComparison } from "./PlanComparison.tsx";
@@ -37,6 +37,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
   const everyday = plans.filter((p) => !isElitePlan(p.id as PlanId));
   const elite = plans.filter((p) => isElitePlan(p.id as PlanId));
   const onElite = elite.some((p) => p.id === currentPlanId);
+  const currentPlan = plans.find((p) => p.id === currentPlanId);
 
   const card = (p: any) => {
     const price = cadence === "annual" ? p.annualCents : p.monthlyCents;
@@ -44,6 +45,9 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
       ? Math.round(((p.monthlyCents * 12 - p.annualCents) / (p.monthlyCents * 12)) * 100)
       : 0;
     const current = p.id === currentPlanId;
+    // Cheaper, but still a paid plan — see requiresHelpDeskToDowngrade.
+    // Cancelling down to Free is not this case, and stays a plain button.
+    const isDowngrade = !current && currentPlan && requiresHelpDeskToDowngrade(currentPlanId as PlanId, p.id as PlanId);
     // Premium Plus: everything the app does, for two, and the tier the
     // pricing is actually built around. A list of four equal options
     // makes the reader do the comparing.
@@ -86,10 +90,14 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
         <p className="small muted">{p.blurb}</p>
 
-        <button className={`btn btn-block${current ? "" : " btn-primary"}`} disabled={busy || current}
-          onClick={() => onChoose(p.id, cadence)}>
-          {current ? "Current plan" : p.monthlyCents === 0 ? "Switch to Free" : `Choose ${p.name}`}
-        </button>
+        {isDowngrade ? (
+          <HelpDeskDowngradeButton fromName={currentPlan?.name ?? ""} toPlanId={p.id} toName={p.name} />
+        ) : (
+          <button className={`btn btn-block${current ? "" : " btn-primary"}`} disabled={busy || current}
+            onClick={() => onChoose(p.id, cadence)}>
+            {current ? "Current plan" : p.monthlyCents === 0 ? "Switch to Free" : `Choose ${p.name}`}
+          </button>
+        )}
       </section>
     );
   };
@@ -180,8 +188,52 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
       <p className="tiny muted">
         SOS, location sharing, check-ins and drink count are free forever. Switching mid-month only bills the
-        difference — the part of the period you already paid for is credited, never charged twice.
+        difference — the part of the period you already paid for is credited, never charged twice. Moving to
+        a cheaper paid plan goes through the help desk rather than this screen; cancelling to Free never does.
       </p>
     </>
+  );
+}
+
+/**
+ * Stands in for the plain "Choose {name}" button on a downgrade between two
+ * still-paid tiers — see `requiresHelpDeskToDowngrade` in subscription.ts.
+ * Files a real desk task (the same "message" kind the desk-tasks screen
+ * already offers) rather than pretending there is a live chat to a PA: a
+ * person on the roster picks it up and makes the change, the same way they
+ * already pick up "cancel this for me" today.
+ */
+function HelpDeskDowngradeButton({ fromName, toPlanId, toName }: { fromName: string; toPlanId: string; toName: string }) {
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.createDeskTask({
+        kind: "message",
+        note: `Please move my subscription from ${fromName} to ${toName} (plan id: ${toPlanId}).`,
+      });
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reach the help desk.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (sent) {
+    return <div className="banner banner-safe">Sent — the help desk will make the switch.</div>;
+  }
+
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <button className="btn btn-block btn-ghost" disabled={busy} onClick={send}>
+        {busy ? "Sending…" : `Contact the help desk to switch to ${toName}`}
+      </button>
+      {error && <div className="banner banner-danger">{error}</div>}
+    </div>
   );
 }

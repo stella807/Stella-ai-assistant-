@@ -1019,6 +1019,92 @@ label:has(> input[type="checkbox"]) {
 }
 
 /* ---------------------------------------------------------------------------
+   The task card — a real card, not a row of text
+   ------------------------------------------------------------------------ */
+
+/* The spend-capped card issued for one task, drawn as an actual card so the
+   cap reads as a hard edge rather than a number in a sentence. Dark and
+   gilt-edged like the rest of this theme's surfaces, with its own gradient
+   so it still looks like a physical card sitting on top of an ordinary
+   list card rather than one more row inside it. */
+.task-card-visual {
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: linear-gradient(135deg, #1a2440 0%, var(--ground) 100%);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent), var(--shadow);
+  position: relative;
+  overflow: hidden;
+  /* `overflow: hidden` (for the sheen below) makes this flex item's
+     automatic minimum size resolve to 0 instead of its content size — a
+     real flexbox gotcha. Inside a column flex container that is itself
+     taller than its own max-height (e.g. `.modal-sheet`), that lets this
+     one item get crushed to a sliver while its siblings keep their content
+     size, since they have no `overflow` to trigger the same rule. Fixed by
+     opting this item out of shrinking at all. */
+  flex-shrink: 0;
+}
+/* A quiet sheen, the way a foil edge catches light on an actual card —
+   decorative only, so it is not read by anything but the eye. */
+.task-card-visual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 40%, color-mix(in srgb, var(--primary) 14%, transparent) 50%, transparent 62%);
+  pointer-events: none;
+}
+
+.task-card-visual-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.task-card-visual-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.task-card-visual-network {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.task-card-visual-number {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 19px;
+  letter-spacing: 0.09em;
+  color: var(--text);
+}
+
+.task-card-visual-details {
+  align-items: flex-end;
+}
+
+.task-card-visual-caption {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.task-card-visual-value {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------------------
    Choosing an assistant
    ------------------------------------------------------------------------ */
 
