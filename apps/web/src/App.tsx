@@ -130,7 +130,8 @@ export function App() {
           {role === "games" && <GamesScreen account={account} />}
           {role === "party" && isEnabled("party-supply") && <PartyScreen />}
           {role === "account" && (
-            <AccountScreen account={account} onDeleted={() => { setAccount(null); setRole("out"); }} />
+            <AccountScreen account={account} onDeleted={() => { setAccount(null); setRole("out"); }}
+              onManagePlan={() => setRole("plans")} />
           )}
           {role === "plans" && (
             <BillingScreen
