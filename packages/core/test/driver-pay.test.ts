@@ -19,19 +19,22 @@ describe("driver pay scale", () => {
   });
 
   it("computes the exact secure-transport fare", () => {
-    // base 1500 + 5mi * 300 + 15min * 60 = 1500 + 1500 + 900 = 3900
-    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(3900);
+    // base 1500 + 5mi * 450 + 15min * 60 = 1500 + 2250 + 900 = 4650
+    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(4650);
   });
 
-  it("keeps secure-transport's per-mile and per-minute inside Uber Black's own published band", () => {
+  it("keeps secure-transport's per-minute inside Uber Black's band, and deliberately puts per-mile above it", () => {
     // Uber Black's fare components run $2.50-$4.00/mi and $0.40-$0.65/min.
-    // This rate card takes no margin from the driver, so landing inside that
-    // band — rather than at a fraction of it — is the generous comparison,
-    // not a stingy one. If this ever drifts below the floor, secure-transport
-    // has quietly stopped being competitive with the tier it is compared to.
+    // Per-minute still lands inside that band — this rate card takes no
+    // margin from the driver, so landing inside it is the generous
+    // comparison, not a stingy one. Per-mile was moved above the band on
+    // purpose, to a real premium over what an Uber Black driver actually
+    // nets per mile after commission (see DRIVER_RATE_CARD's own comment).
+    // If per-minute ever drifts below the floor, or per-mile drifts back to
+    // (or below) the band, secure-transport has quietly stopped being the
+    // premium it's compared against.
     const rate = DRIVER_RATE_CARD["secure-transport"];
-    expect(rate.perMileCents).toBeGreaterThanOrEqual(250);
-    expect(rate.perMileCents).toBeLessThanOrEqual(400);
+    expect(rate.perMileCents).toBeGreaterThan(400);
     expect(rate.perMinuteCents).toBeGreaterThanOrEqual(40);
     expect(rate.perMinuteCents).toBeLessThanOrEqual(65);
   });

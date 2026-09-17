@@ -817,7 +817,7 @@ function defaultPricing(): CurrentPricing {
     paHourlyCents: 3500,
     errandRunnerTaskCents: 300,
     driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-    driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
+    driverSecureTransport: { baseCents: 1500, perMileCents: 450, perMinuteCents: 60 },
     secretaryHourlyCents: 2200,
     socialMediaManagerHourlyCents: 2200,
     ownerMonthlyCents: 0,

@@ -11,6 +11,9 @@ code that pays it, not written fresh for a job post:
 | $22.00/hr desk roles, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $125.00/hr lawyer, 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $70.00/hr web developer, 25 hrs/week | `STAFF_ROLES`, `staffing.ts` |
+| $150.00/hr physician (Elite advisor), 8 hrs/week | `STAFF_ROLES`, `staffing.ts` |
+| $45.00/hr nurse (Elite coordination), 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
+| $40.00/hr Wingman Club coordinator, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | Insurance, gas stipend, published rates | `HIRING_BENEFITS`, `staffing.ts` |
 | Puerto Rico, Texas, Los Angeles | `LAUNCH_MARKETS`, `service-area.ts` |
 | Service starts 1 December 2026 | `SERVICE_LIVE_AT`, `promotions.ts` |
@@ -33,8 +36,15 @@ decisions and guessing at them in a public job post creates real liability:
   line in each post below.
 - **Legal entity and address.** Every post needs the hiring entity's real
   registered name and a physical address.
+- **The physician and nurse roles' scope, state by state.** Both are written
+  as advising the Elite desk and vetting its referral network — never
+  treating a member directly — because directly employing a physician to
+  practice medicine runs into corporate-practice-of-medicine restrictions
+  that vary by state. Whether the scope as written actually clears that
+  restriction everywhere Safehubby hires is a legal question, not an
+  engineering one. Get this confirmed before either listing goes live.
 
-Both are marked `[TO CONFIRM]` where they appear.
+All three are marked `[TO CONFIRM]` where they appear.
 
 ---
 
@@ -189,10 +199,10 @@ Per trip, on a published rate card:
 | Tier | Base | Per mile | Per minute |
 |---|---|---|---|
 | Standard | $3.00 | $0.90 | $0.18 |
-| Secure transport | $15.00 | $3.00 | $0.60 |
+| Secure transport | $15.00 | $4.50 | $0.60 |
 
 A 6-mile, 15-minute standard trip pays $11.10. The same trip on secure
-transport pays $42.00.
+transport pays $51.00.
 
 Secure transport costs more because it *is* more — it is not standard driving
 with a bigger number attached. Standard is deliberately not inflated to match.
@@ -464,6 +474,165 @@ by whichever ticket is most interesting. Post-launch, scope and hours are
 expected to grow with the roster, not shrink.
 
 **Apply:** Careers → Web developer, in the app.
+
+---
+
+# 8. Physician (Elite medical advisor)
+
+**Location:** Remote (work from anywhere, licensed to practice in the US)
+**Pay:** $150.00 per hour
+**Hours:** 8 hours a week, part time
+**Type:** [TO CONFIRM: classification] · [TO CONFIRM: scope, state by state — see below]
+**Starts:** Immediately — this role works *through* the pre-launch window
+
+## What the job is
+
+Advise the Elite concierge desk on its medical-adjacent catalogue, and vet
+the outside practices Elite members are referred to for concierge medicine:
+
+- Review and approve the practices the desk refers members to
+- Set the medical judgment the desk uses to decide what it can and cannot
+  responsibly offer
+- Confirm the emergency-first rule holds — the app already refuses to offer
+  a concierge doctor when a red flag calls for 911 instead (`assess`,
+  `doctorAvailableFor`), and this role is who signs off that the rule itself
+  is medically sound
+
+**This is not a treating role.** You do not see or treat Elite members
+directly, and Safehubby does not bill for or take a cut of anyone's medical
+care — see "What you need to know" below for exactly why.
+
+## What you get paid
+
+$150.00 an hour, 8 hours a week, paid from your start date. For context:
+general physician consulting averages $121/hour nationally (ZipRecruiter,
+March 2026); specialty consulting runs materially higher — $215/hour for
+family medicine, $340/hour for neurology (2023-2024 figures). $150/hour
+reflects genuine advisory judgment with real liability, without pricing at
+a sub-specialty's rate this role doesn't require.
+
+## What you need
+
+- Licensed to practice medicine in at least one US state, in good standing
+- Comfortable evaluating other practices' scope and quality, not just your own
+- Understands why a referral commission on a patient's medical fee is a
+  kickback, not a business model — because that is the exact line this role
+  exists to keep the desk on the right side of
+
+## What you need to know before applying
+
+Safehubby's Elite tier refers members to outside physicians for concierge
+medicine; it never bills for that care and never takes a percentage of the
+practice's fee, because a cut of a physician's fee for a patient referral is
+the shape of a kickback under the federal Anti-Kickback Statute. This role
+is the other side of that same line: employing a physician to *practice*
+medicine on Safehubby members directly, rather than to advise the desk and
+vet its referral network, runs into corporate-practice-of-medicine
+restrictions that vary by state. Whether this role's scope as written
+clears that restriction in every state Safehubby hires in is a legal
+question that has to be answered before this listing goes live — not
+assumed because the job description says "advisory."
+
+**Apply:** Careers → Physician, in the app.
+
+---
+
+# 9. Nurse (Elite tier coordination)
+
+**Location:** Remote (work from anywhere, licensed to practice in the US)
+**Pay:** $45.00 per hour
+**Hours:** 15 hours a week, part time
+**Type:** [TO CONFIRM: classification] · [TO CONFIRM: scope, state by state — see the physician listing above]
+**Starts:** Immediately — this role works *through* the pre-launch window
+
+## What the job is
+
+The first read on an Elite member's request, before it reaches the desk or
+the physician advisor:
+
+- Review incoming Elite requests that touch health, and help route them —
+  to the referral network, to the physician advisor, or straight to
+  emergency services if that's what it actually is
+- Coordinate with the outside practices in the referral network on
+  scheduling and follow-up
+- Keep the desk's health-adjacent playbook current as the network grows
+
+**This is coordination, not bedside care.** The 911-first rule is already
+enforced in code (`assess` in emergency.ts, `doctorAvailableFor` in
+elite.ts) before this role ever sees a request — nobody on staff overrides
+it, this role included.
+
+## What you get paid
+
+$45.00 an hour, 15 hours a week, paid from your start date. Reference: BLS
+puts the 2026 median RN hourly wage at $48.76; Salary.com and ZipRecruiter
+report $42-48/hour. $45/hour sits in the middle of that band for
+coordination and triage-adjacent work, not bedside nursing.
+
+## What you need
+
+- Licensed as a registered nurse in at least one US state, in good standing
+- Comfortable making a fast, correct call on what's urgent and what isn't
+- Organized enough to run a referral pipeline without dropping a request
+
+## What you need to know before applying
+
+Same boundary as the physician role above, and the same open question: this
+is coordination and escalation judgment, not direct nursing care, and
+whether that scope clears each state's licensure and scope-of-practice
+rules for a remote, non-treating role needs a real legal read before this
+listing goes live.
+
+**Apply:** Careers → Nurse, in the app.
+
+---
+
+# 10. Wingman Club coordinator
+
+**Location:** Remote, with some local presence for event weekends
+**Pay:** $40.00 per hour
+**Hours:** 20 hours a week, part time
+**Type:** [TO CONFIRM: classification]
+**Starts:** Immediately — this role works *through* the pre-launch window
+
+## What the job is
+
+Personal assistant to the owner, dedicated to one thing: running the
+Wingman Club. Every month has a pick — a track day, a boat day, a steak and
+cigar night — and someone has to actually make it happen:
+
+- Source and negotiate each month's experience and its group rate
+- Own the venue relationships that make a negotiated rate possible at all
+- Run the reveal and the roster so members know what they signed up for
+  and who else is coming
+
+## What you get paid
+
+$40.00 an hour, 20 hours a week, paid from your start date — the club runs
+on a real monthly cadence starting now, not a one-time setup task. For
+context: 2026 executive/personal-assistant-to-a-founder rates cluster
+$35-44/hour (Glassdoor, Salary.com, Indeed); $40/hour sits inside that band.
+
+## What you need
+
+- Can actually close a negotiated group rate with a venue, not just ask for one
+- Organized enough to run a monthly reveal without it feeling last-minute
+- Discretion — you work directly for the owner and see the member roster
+
+## What we provide
+
+- **Liability insurance from day one**
+- **Published rate** — $40.00 is $40.00, before you apply and after
+- Direct access to the owner on what the club should become
+
+## The honest part
+
+This is the owner's own assistant role, not a desk job with a team around
+it — you will often be deciding things yourself and reporting back, not
+waiting on sign-off. If you want more structure and less autonomy, one of
+the other desk roles is a better fit.
+
+**Apply:** Careers → Wingman Club coordinator, in the app.
 
 ---
 

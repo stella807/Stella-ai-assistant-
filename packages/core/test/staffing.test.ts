@@ -8,10 +8,11 @@ import {
 import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "../src/promotions.ts";
 
 describe("the roles being hired", () => {
-  it("covers the seven roles the launch is staffing", () => {
-    expect(STAFF_ROLES.map((r) => r.id).sort()).toEqual(
-      ["driver", "errand-runner", "lawyer", "personal-assistant", "secretary", "social-media-manager", "web-developer"],
-    );
+  it("covers the ten roles the launch is staffing", () => {
+    expect(STAFF_ROLES.map((r) => r.id).sort()).toEqual([
+      "driver", "errand-runner", "lawyer", "nurse", "personal-assistant", "physician",
+      "secretary", "social-media-manager", "web-developer", "wingman-club-coordinator",
+    ]);
   });
 
   it("marks exactly the driving role as driving, since that is what costs more to insure", () => {
@@ -86,10 +87,14 @@ describe("the pre-launch budget", () => {
   it("pays the desk roles for the window, and nobody else — the field roles are paid per job", () => {
     // The omission this test exists to prevent: drivers and assistants earn
     // nothing during a window with no customers, which is exactly why they
-    // get the stipend. The secretary, the social media manager, the lawyer
-    // and the web developer all work those two months for real — there is
-    // no app for anyone else's work to run through without the last one.
-    const DESK = ["secretary", "social-media-manager", "lawyer", "web-developer"];
+    // get the stipend. Everyone else on this list works those two months
+    // for real — building the app, drafting contracts, vetting the Elite
+    // referral network and the club's venues — rather than waiting on a
+    // customer who cannot exist yet.
+    const DESK = [
+      "secretary", "social-media-manager", "lawyer", "web-developer",
+      "physician", "nurse", "wingman-club-coordinator",
+    ];
     for (const line of budget.lines) {
       if (DESK.includes(line.role)) expect(line.wagesCents, line.role).toBeGreaterThan(0);
       else expect(line.wagesCents, line.role).toBe(0);

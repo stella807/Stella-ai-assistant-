@@ -41,14 +41,17 @@ export interface DriverRate {
  * training, and ongoing certification are real overhead standard driving
  * doesn't carry, not a premium charged just because the job sounds riskier.
  *
- * secure-transport's per-mile and per-minute numbers are set inside Uber
- * Black's own published fare-component band ($2.50-$4.00/mi, $0.40-$0.65/min
- * — the closest real comparison, since it is the same chauffeured,
- * licensed-driver product). This rate card has no margin taken out of it
- * yet (see `driverEarningsCents` below), so the driver keeps every cent of
- * it — an Uber Black driver nets roughly 75-80% of those same raw numbers
- * after Uber's 20-25% commission, so landing inside the band rather than at
- * its very top is still generous, not stingy. Base is left above the
+ * secure-transport's per-mile rate now sits just above Uber Black's own
+ * published fare-component band ($2.50-$4.00/mi — the closest real
+ * comparison, since it is the same chauffeured, licensed-driver product):
+ * $4.50/mi, a deliberate above-market move rather than a lands-inside-the-
+ * band one. This rate card has no margin taken out of it (see
+ * `driverEarningsCents` below), so the driver keeps every cent of it — an
+ * Uber Black driver nets roughly 75-80% of the comparable raw number after
+ * Uber's 20-25% commission, so $4.50/mi here is a real premium over what an
+ * Uber Black driver actually takes home per mile, not just what the rider
+ * is quoted. Per-minute stays inside Uber Black's band ($0.40-$0.65/min);
+ * only the per-mile component was asked to move. Base is left above the
  * comparable range on purpose: it is what a driver is guaranteed for simply
  * showing up, and Uber Black's is bundled with a per-trip minimum a
  * standalone base number should not undercut.
@@ -61,7 +64,7 @@ export interface DriverRate {
  */
 export const DRIVER_RATE_CARD: Record<DriverTier, DriverRate> = {
   standard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-  "secure-transport": { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
+  "secure-transport": { baseCents: 1500, perMileCents: 450, perMinuteCents: 60 },
 };
 
 export function driverRateFor(tier: DriverTier): DriverRate {

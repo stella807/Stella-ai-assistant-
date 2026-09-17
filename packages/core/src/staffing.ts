@@ -37,7 +37,10 @@ export type StaffRole =
   | "secretary"
   | "social-media-manager"
   | "lawyer"
-  | "web-developer";
+  | "web-developer"
+  | "physician"
+  | "nurse"
+  | "wingman-club-coordinator";
 
 export interface RoleInfo {
   id: StaffRole;
@@ -142,6 +145,62 @@ export const STAFF_ROLES: RoleInfo[] = [
     // 15-20 hrs the desk roles get for paperwork and outreach alone.
     prelaunchHoursPerWeek: 25,
     hourlyCents: 7000,
+  },
+  {
+    id: "physician",
+    label: "Physician (Elite medical advisor)",
+    description: "Vet and oversee the concierge-doctor referral network for the Elite tier, and advise the concierge desk on what it can safely offer — an advisor to the desk, not a treating physician on Safehubby's own roster.",
+    drives: false,
+    // Reference: general physician consulting averages $121/hr nationally
+    // (ZipRecruiter, March 2026); specialty consulting runs materially
+    // higher ($215/hr family medicine, $340/hr neurology, 2023-2024
+    // figures). $150/hr sits above the flat average, reflecting genuine
+    // specialist-adjacent judgment work with real liability, without
+    // pricing at the top of a sub-specialty band this role doesn't need.
+    //
+    // Advisory only, and deliberately so: elite.ts already refuses any
+    // commission on the concierge-doctor referral specifically because a
+    // cut of a physician's fee for a patient referral is the shape of a
+    // kickback (federal Anti-Kickback Statute — see docs/billing.md).
+    // Directly employing a physician to *treat* Elite members, rather than
+    // to advise the desk and vet who it refers to, runs into corporate-
+    // practice-of-medicine restrictions that vary by state and are not
+    // resolved here. [TO CONFIRM: this role's scope, as described, clears
+    // that restriction in every launch state — get a lawyer's read before
+    // anyone is actually hired into it, the same as worker classification.]
+    prelaunchHoursPerWeek: 8,
+    hourlyCents: 15000,
+  },
+  {
+    id: "nurse",
+    label: "Nurse (Elite tier coordination)",
+    description: "Reviews Elite member requests before they reach the concierge desk, coordinates with the referral network, and helps judge when something belongs with a doctor or 911 instead — coordination, not bedside care.",
+    drives: false,
+    // Reference: BLS puts the 2026 median RN hourly wage at $48.76;
+    // Salary.com and ZipRecruiter report $42-48/hr. $45/hr sits in the
+    // middle of that band for coordination and triage-adjacent work.
+    //
+    // Same boundary as the physician role above, for the same reason: this
+    // is coordination and escalation judgment, not direct nursing care —
+    // `assess` and `doctorAvailableFor` (emergency.ts, elite.ts) already
+    // make the 911-first call in code, not left to a person on staff to
+    // override. [TO CONFIRM: scope and licensure requirements per launch
+    // state before hiring.]
+    prelaunchHoursPerWeek: 15,
+    hourlyCents: 4500,
+  },
+  {
+    id: "wingman-club-coordinator",
+    label: "Wingman Club coordinator",
+    description: "Personal assistant to the owner, dedicated to running the Wingman Club: picking and negotiating each month's experience, the venue relationships, and the reveal — see CLUB_EXPERIENCES in wingman-club.ts.",
+    drives: false,
+    // Reference: 2026 executive/personal-assistant-to-a-founder rates
+    // cluster $35-44/hr (Glassdoor, Salary.com, Indeed). $40/hr lands
+    // inside that band. 20 hrs/week matches the other desk roles'
+    // pre-launch allocation — the club runs on a real monthly cadence,
+    // not a one-time setup task.
+    prelaunchHoursPerWeek: 20,
+    hourlyCents: 4000,
   },
 ];
 
@@ -276,6 +335,9 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   "social-media-manager": 1,
   lawyer: 1,
   "web-developer": 1,
+  physician: 1,
+  nurse: 1,
+  "wingman-club-coordinator": 1,
 };
 
 export interface RoleBudgetLine {
