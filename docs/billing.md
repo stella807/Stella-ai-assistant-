@@ -371,12 +371,18 @@ full rationale in `packages/core/src/billing.ts`.
 | Family | $149.99 | $1,499.99 | 6 |
 | Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
 
-For reference, personal-safety and concierge-app comparables measured
-September 2026 (Life360 Platinum $24.99 for the whole circle, text-a-
-concierge apps $30-$70/month with no safety layer) sit well below this
-ladder now — the positioning is deliberately closer to premium
-home-security monitoring and dedicated concierge membership than to a
-safety app.
+Not a number picked in the air: Amalfi Jets' own Amalfi Reserve
+membership — the real luxury concierge desk Elite partners with, see
+`ELITE_DESK_MEMBERSHIP` in elite.ts — runs $99-$500/month depending on
+tier. $99 is Amalfi's own entry rate (concierge booking plus discounted
+charter access); $500 is its fuller tier, which is the one
+`ELITE_DESK_MEMBERSHIP` prices against for a different reason. Premium
+Plus at $99.99 lands right on Amalfi's own entry price, for a broader
+bundle than that price buys there: Amalfi's entry tier is concierge
+booking only, with no safety layer at all. Personal-safety comparables
+(Life360 Platinum $24.99 for the whole circle) sit well below this
+ladder now — the positioning is deliberately closer to a luxury
+concierge membership's own price than to a safety app's.
 
 **The subscription is still not the whole business.** The other margin is
 the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is

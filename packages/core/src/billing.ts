@@ -303,11 +303,20 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * Priced at ownership's explicit direction: Premium $89.99, Premium Plus
  * $99.99 — a deliberate move away from anchoring against personal-safety
  * apps (Life360, Noonlight) or even the mid-market concierge-app band
- * ($30-$70/month) this ladder used before. At these prices the everyday
- * tiers sit closer to premium home-security monitoring and dedicated
- * concierge-membership pricing than to a safety app, which is the
- * intended positioning, not a mistake to reconcile against the safety-app
- * comps below.
+ * ($30-$70/month) this ladder used before.
+ *
+ * Landing there is not a round number picked in the air: Amalfi Jets' own
+ * Amalfi Reserve membership — the real luxury concierge desk this app's
+ * own Elite tier partners with (see `ELITE_DESK_MEMBERSHIP` in elite.ts) —
+ * runs $99-$500/month depending on tier. $99 is Amalfi's own entry rate,
+ * for concierge booking (hotels, restaurants, events) plus discounted
+ * charter access; $500 is its fuller tier, which is what `ELITE_DESK_MEMBERSHIP`
+ * is priced against, a different question than this one. Premium Plus at
+ * $99.99 lands right on Amalfi's own entry price while bundling something
+ * Amalfi's entry tier does not touch at all: full safety tracking and
+ * secure transport, not just concierge booking. That is the actual
+ * positioning — priced at a real luxury-concierge membership's own floor,
+ * for a broader bundle than that membership sells at that price.
  *
  * Family has no dictated number, so it keeps the one rule that has held
  * across every round of this ladder: seats and price both climb together,
