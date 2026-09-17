@@ -23,7 +23,7 @@ import {
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
   isEnabled, flagNote, ridesFor, featureLabel,
-  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES,
+  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES, diffFlight, hasLanded,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
@@ -58,7 +58,7 @@ import type {
   ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DeskTask, DeskTaskKind, DriverTier, EliteBooking, EliteServiceId,
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
-  OrderProvider, Platform, PlanId, RedFlagId, Subscription, TriggerBand,
+  OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
   PaymentProcessor, WalletType,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
@@ -372,6 +372,78 @@ async function provisionAssistantCredentials(
 function assistantActor(ctx: Ctx): string {
   if (!ctx.assistantActorId) throw unauthorized();
   return ctx.assistantActorId;
+}
+
+/**
+ * Refreshes the tracked flight on every airport pickup still in progress, and
+ * tells the customer what actually changed.
+ *
+ * Why this is a server sweep rather than the client polling: the moment that
+ * matters most — the plane is on the ground and the person is walking out —
+ * is the moment nobody is looking at their phone. A refresh button (which the
+ * request detail screen still has) only works for someone already watching.
+ *
+ * The provider is asked only about flights there is still something to learn
+ * about. Once a flight has landed, been cancelled or been diverted, its story
+ * is over and re-asking spends quota to be told the same thing, so those are
+ * skipped. `diffFlight` reports transitions only, so a task whose flight has
+ * not moved produces no push at all, however often this runs.
+ *
+ * A provider miss never disturbs the task: the stored snapshot is simply left
+ * as the last thing known to be true, which is the same rule booking follows
+ * when the lookup fails outright.
+ */
+export async function runFlightSweep(ctx: Ctx): Promise<{ checked: number; changed: number; pushed: number }> {
+  if (!isAutomatic(flightTracking.status)) return { checked: 0, changed: 0, pushed: 0 };
+
+  const live = ctx.store.data.conciergeTasks.filter((t) =>
+    t.status === "in-progress"
+    && t.category === "airport-pickup"
+    && t.flightNumber && t.flightDate
+    // Nothing further to learn once the flight has resolved one way or another.
+    && !(t.flight && (hasLanded(t.flight) || t.flight.status === "cancelled" || t.flight.status === "diverted")));
+
+  let checked = 0;
+  let changed = 0;
+  const messages: PushMessage[] = [];
+
+  for (const task of live) {
+    const fresh = await flightTracking
+      .lookup({ flightNumber: task.flightNumber!, date: task.flightDate! })
+      .catch(() => null);
+    checked += 1;
+    if (!fresh) continue;
+
+    const previous = task.flight;
+    const updates = previous ? diffFlight(previous, fresh) : [];
+
+    ctx.store.update((db) => {
+      const row = db.conciergeTasks.find((t) => t.id === task.id);
+      if (row) row.flight = fresh;
+    });
+    if (updates.length === 0) continue;
+    changed += 1;
+
+    // Only the most urgent change per sweep. Three separate buzzes about one
+    // flight in one minute is how a useful channel becomes one people mute,
+    // and `diffFlight` already returns them worst-first.
+    const top = updates[0]!;
+    for (const device of devicesFor(ctx.store.data.pushDevices, task.travelerId)) {
+      messages.push({
+        token: device.token,
+        platform: device.platform,
+        title: `${fresh.airlineName} ${fresh.flightNumber}`,
+        body: top.message,
+        interruption: top.urgency,
+        alertId: `flight:${task.id}:${top.kind}`,
+        taskId: task.id,
+      });
+    }
+  }
+
+  const pushed = messages.length;
+  if (pushed > 0) await push.send(messages).catch((err) => console.error("[safehubby] Flight push failed:", err));
+  return { checked, changed, pushed };
 }
 
 /**

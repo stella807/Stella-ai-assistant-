@@ -158,6 +158,19 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     currentFix().then(setFix).catch(() => {});
   }, [locked]);
 
+  // A flight the server is re-checking every few minutes (see `runFlightSweep`)
+  // is only useful here if this screen actually re-reads it. Polled only while
+  // a pickup is genuinely in progress, so an idle dashboard sits silent rather
+  // than waking the radio every minute for tasks that cannot change.
+  const watchingFlight = tasks.some((t) => t.status === "in-progress" && t.flightNumber);
+  useEffect(() => {
+    if (locked || !watchingFlight) return;
+    const timer = setInterval(() => {
+      api.conciergeTasks().then((r) => setTasks(r.tasks)).catch(() => {});
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [locked, watchingFlight]);
+
   // Switching tabs must not leave the previous tab's category selected, which
   // would book a concierge job from the errands screen.
   useEffect(() => {

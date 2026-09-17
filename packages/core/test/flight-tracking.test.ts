@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  FLIGHT_TRACKING_DISCLOSURES, bestTimeFor, delayMinutesFor, describeFlightStatus, hasLanded, minutesSince,
+  FLIGHT_ESTIMATE_SHIFT_MINUTES, FLIGHT_TRACKING_DISCLOSURES, bestTimeFor, delayMinutesFor, describeFlightStatus,
+  diffFlight, hasLanded, minutesSince,
   type FlightAirportLeg, type FlightInfo,
 } from "../src/flight-tracking.ts";
 
@@ -108,5 +109,98 @@ describe("disclosures", () => {
 
   it("says to confirm with the airline directly", () => {
     expect(FLIGHT_TRACKING_DISCLOSURES.join(" ")).toMatch(/confirm.*airline/i);
+  });
+});
+
+describe("diffFlight", () => {
+  const kinds = (before: FlightInfo, after: FlightInfo) => diffFlight(before, after).map((u) => u.kind);
+
+  it("says nothing when nothing changed", () => {
+    expect(diffFlight(flight({ status: "active" }), flight({ status: "active" }))).toEqual([]);
+  });
+
+  it("reports a landing, once", () => {
+    const airborne = flight({ status: "active" });
+    const down = flight({ status: "landed", arrival: leg({ actualTime: "2026-09-17T19:32:00Z" }) });
+    expect(kinds(airborne, down)).toContain("landed");
+    // The sweep runs on a timer, so a flight that was already down last time
+    // must not re-announce itself every pass.
+    expect(kinds(down, down)).not.toContain("landed");
+  });
+
+  it("treats a landing as time-sensitive — it is the whole point of the sweep", () => {
+    const update = diffFlight(flight({ status: "active" }), flight({ status: "landed" }))
+      .find((u) => u.kind === "landed");
+    expect(update?.urgency).toBe("time-sensitive");
+  });
+
+  it("reports a cancellation and a diversion once each", () => {
+    const scheduled = flight({ status: "scheduled" });
+    expect(kinds(scheduled, flight({ status: "cancelled" }))).toContain("cancelled");
+    expect(kinds(flight({ status: "cancelled" }), flight({ status: "cancelled" }))).not.toContain("cancelled");
+    expect(kinds(scheduled, flight({ status: "diverted" }))).toContain("diverted");
+  });
+
+  it("ignores estimate jitter below the notify threshold", () => {
+    const before = flight({ status: "active", arrival: leg({ estimatedTime: "2026-09-17T19:30:00Z" }) });
+    const after = flight({ status: "active", arrival: leg({ estimatedTime: "2026-09-17T19:35:00Z" }) });
+    expect(kinds(before, after)).toEqual([]);
+  });
+
+  it("reports a delay once it clears the threshold", () => {
+    const before = flight({ status: "active", arrival: leg({ estimatedTime: "2026-09-17T19:30:00Z" }) });
+    const after = flight({ status: "active", arrival: leg({ estimatedTime: "2026-09-17T20:10:00Z" }) });
+    const update = diffFlight(before, after).find((u) => u.kind === "delayed");
+    expect(update?.message).toMatch(/40 min later/i);
+  });
+
+  it("reports an early arrival too — that is the one that strands someone", () => {
+    const before = flight({ status: "active", arrival: leg({ estimatedTime: "2026-09-17T19:30:00Z" }) });
+    const after = flight({ status: "active", arrival: leg({ estimatedTime: "2026-09-17T19:05:00Z" }) });
+    expect(kinds(before, after)).toContain("earlier");
+  });
+
+  it("uses exactly the published threshold as the boundary", () => {
+    const base = "2026-09-17T19:30:00Z";
+    const shifted = new Date(Date.parse(base) + FLIGHT_ESTIMATE_SHIFT_MINUTES * 60_000).toISOString();
+    const before = flight({ status: "active", arrival: leg({ estimatedTime: base }) });
+    const after = flight({ status: "active", arrival: leg({ estimatedTime: shifted }) });
+    expect(kinds(before, after)).toContain("delayed");
+  });
+
+  it("does not chase the estimate of a flight that already landed", () => {
+    const before = flight({ status: "landed", arrival: leg({ actualTime: "2026-09-17T19:30:00Z" }) });
+    const after = flight({ status: "landed", arrival: leg({ actualTime: "2026-09-17T20:30:00Z" }) });
+    expect(kinds(before, after)).toEqual([]);
+  });
+
+  it("reports a gate change, because it is where to stand", () => {
+    const before = flight({ status: "active", arrival: leg({ gate: "20B" }) });
+    const after = flight({ status: "active", arrival: leg({ gate: "31A" }) });
+    const update = diffFlight(before, after).find((u) => u.kind === "gate-changed");
+    expect(update?.message).toMatch(/31A/);
+  });
+
+  it("does not call a newly-filled-in gate a change of plan", () => {
+    const before = flight({ status: "active", arrival: leg({}) });
+    const after = flight({ status: "active", arrival: leg({ gate: "20B" }) });
+    expect(kinds(before, after)).not.toContain("gate-changed");
+  });
+
+  it("reports a terminal change", () => {
+    const before = flight({ status: "active", arrival: leg({ terminal: "2" }) });
+    const after = flight({ status: "active", arrival: leg({ terminal: "5" }) });
+    expect(kinds(before, after)).toContain("terminal-changed");
+  });
+
+  it("never puts a position in a message — a lock screen is the wrong place for one", () => {
+    const before = flight({ status: "active" });
+    const after = flight({
+      status: "landed",
+      position: { lat: 33.94, lng: -118.4, updatedAt: "2026-09-17T19:30:00Z" },
+    });
+    for (const u of diffFlight(before, after)) {
+      expect(u.message).not.toMatch(/-?\d+\.\d{3,}/);
+    }
   });
 });

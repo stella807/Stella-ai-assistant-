@@ -335,6 +335,57 @@ and shows how close the plane actually is the same honest way the ride
 pickup pin shows where a car is going, never a number this app invented on
 top of a raw lat/lng.
 
+### Keeping it fresh: the flight sweep
+
+A flight nobody re-reads is a snapshot from booking time, and the moment
+that matters most — wheels down, passenger walking out — is exactly the
+moment nobody is staring at their phone. So `runFlightSweep` (routes.ts,
+called on a **five-minute** timer in `main.ts`) re-reads every airport
+pickup still in progress and tells the customer what changed.
+
+Five minutes rather than the hourly cadence the retention and payroll
+sweeps use: "the plane landed" is worth nothing fifty minutes late. Not
+faster than five, because that is roughly the latency of the underlying
+ADS-B and provider data anyway — asking more often mostly re-reads the same
+fix while spending quota.
+
+What counts as worth an interruption is decided by `diffFlight`
+(`flight-tracking.ts`), which is pure and therefore tested against fixtures
+rather than against whatever a live provider happened to return:
+
+| Change | Urgency |
+|---|---|
+| Cancelled, diverted, **landed** | `time-sensitive` |
+| Arrival estimate moved ≥ `FLIGHT_ESTIMATE_SHIFT_MINUTES` (10), either way | `active` |
+| Gate or terminal changed | `active` |
+
+Three rules keep this from becoming a channel people mute:
+
+- **Transitions only, never standing state.** A flight that was already
+  landed last pass does not re-announce itself every five minutes. That is
+  what makes the sweep safe to run on a timer at all.
+- **A 10-minute floor on estimate moves.** A live estimate jitters by a
+  minute or two continuously as fixes arrive; pushing on each one would buzz
+  a phone for the length of a transcontinental flight, and the one
+  notification that mattered would arrive fortieth.
+- **One push per sweep per task**, the most urgent one — `diffFlight`
+  returns them worst-first.
+
+The sweep only calls out for flights there is still something to learn
+about: once a flight has landed, been cancelled or been diverted, its story
+is over and it is skipped. With no provider configured the whole thing
+returns `{ checked: 0, changed: 0, pushed: 0 }` without making a call, which
+is the case that runs most often today.
+
+A provider miss never downgrades what the customer is already looking at —
+the stored snapshot stays as the last thing known to be true.
+
+Delivery rides on the existing push path (`docs/push.md`), so it inherits
+that file's rules, including `redactLocation`: **no push body ever carries a
+position.** The buzz says go look; the map stays behind the lock screen.
+`PushMessage` carries a `taskId` instead of a `nightId` for these, so a tap
+opens the request rather than a night that does not exist.
+
 ## The pre-authorization hold, and why it didn't keep prices down
 
 `packages/core/src/payment.ts` adds a **pre-authorization hold** in front of

@@ -38,8 +38,14 @@ export function pushPayload(messages: PushMessage[]) {
       // APNs calls this interruption-level; FCM maps it onto priority. Both
       // understand "this one breaks through Focus" versus "this one waits".
       interruption_level: m.interruption,
-      // So a tap can open straight to the night rather than the app's front door.
-      data: { alertId: m.alertId, nightId: m.nightId },
+      // So a tap opens straight to whatever this is about rather than the
+      // app's front door. Only the reference this push actually has is sent;
+      // an undefined key would serialize to null and have the client chase it.
+      data: {
+        alertId: m.alertId,
+        ...(m.nightId ? { nightId: m.nightId } : {}),
+        ...(m.taskId ? { taskId: m.taskId } : {}),
+      },
     })),
   };
 }

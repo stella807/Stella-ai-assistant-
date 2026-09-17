@@ -48,9 +48,16 @@ export interface PushMessage {
   title: string;
   body: string;
   interruption: InterruptionLevel;
-  /** Carried so a client can open straight to the night, and so sends are traceable. */
+  /** Carried so a client can open straight to what caused this, and so sends
+   *  are traceable. */
   alertId: string;
-  nightId: string;
+  /** Set when the push came from a night being watched. Absent on pushes
+   *  that belong to something else — a concierge task's flight, say — rather
+   *  than being filled with a placeholder that would send the app opening a
+   *  night that does not exist. */
+  nightId?: string;
+  /** Set instead of `nightId` when the push belongs to a concierge task. */
+  taskId?: string;
 }
 
 export interface PushRecipient {

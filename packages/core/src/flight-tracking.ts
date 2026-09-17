@@ -1,4 +1,5 @@
 import type { ProviderStatus } from "./fulfillment.ts";
+import type { InterruptionLevel } from "./push.ts";
 
 /**
  * Tracking a commercial flight for an airport pickup.
@@ -149,6 +150,128 @@ export function describeFlightStatus(info: FlightInfo, now: Date): string {
     default:
       return "Status not available right now.";
   }
+}
+
+/**
+ * How far an arrival estimate has to move before it is worth interrupting
+ * somebody about.
+ *
+ * A live estimate jitters by a minute or two continuously as ADS-B fixes
+ * arrive and the provider re-runs its own arithmetic. Pushing on every
+ * change would buzz a customer's phone every few minutes for the length of
+ * a transcontinental flight, and the one notification that mattered — the
+ * one saying the plane is already on the ground — would arrive as the
+ * fortieth. This threshold is the difference between a useful channel and
+ * one people turn off.
+ */
+export const FLIGHT_ESTIMATE_SHIFT_MINUTES = 10;
+
+export type FlightUpdateKind =
+  | "cancelled"
+  | "diverted"
+  | "landed"
+  | "delayed"
+  | "earlier"
+  | "gate-changed"
+  | "terminal-changed";
+
+export interface FlightUpdate {
+  kind: FlightUpdateKind;
+  /** What the customer reads. Never carries a position — see
+   *  `redactLocation` in push.ts for why a lock screen is the wrong place
+   *  for one — and never states a number this module invented. */
+  message: string;
+  urgency: InterruptionLevel;
+}
+
+/**
+ * What changed between two snapshots of the same flight, in the order a
+ * person cares about it.
+ *
+ * Pure, so the escalation rules are tested against fixtures rather than
+ * emerging from whatever the provider happened to return during a live
+ * run — the same reasoning `deriveAlerts` follows in alerts.ts.
+ *
+ * Only transitions are reported, never standing state: a flight that was
+ * already landed the last time this ran does not produce a fresh "landed"
+ * every sweep. That is what makes it safe to call on a timer.
+ */
+export function diffFlight(before: FlightInfo, after: FlightInfo): FlightUpdate[] {
+  const updates: FlightUpdate[] = [];
+
+  if (after.status === "cancelled" && before.status !== "cancelled") {
+    updates.push({
+      kind: "cancelled",
+      message: `${after.flightNumber} is cancelled. Check with ${after.airlineName} before anyone heads to ${after.arrival.iata}.`,
+      urgency: "time-sensitive",
+    });
+  }
+
+  if (after.status === "diverted" && before.status !== "diverted") {
+    updates.push({
+      kind: "diverted",
+      message: `${after.flightNumber} has been diverted and is not landing at ${after.arrival.iata}.`,
+      urgency: "time-sensitive",
+    });
+  }
+
+  // The "did I already miss them" case, and the reason this whole sweep
+  // exists: an assistant still driving to the airport needs to know the
+  // moment the wheels are down, not at the next time someone opens the app.
+  if (hasLanded(after) && !hasLanded(before)) {
+    updates.push({
+      kind: "landed",
+      message: `${after.flightNumber} has landed at ${after.arrival.iata}`
+        + `${after.arrival.terminal ? ` — Terminal ${after.arrival.terminal}` : ""}.`,
+      urgency: "time-sensitive",
+    });
+  }
+
+  // Only meaningful while there is still a landing to wait for; a shift in
+  // the estimate of a flight that already landed is the provider tidying
+  // up its own record, not news.
+  if (!hasLanded(after) && after.status !== "cancelled" && after.status !== "diverted") {
+    const shift = Math.round(
+      (Date.parse(bestTimeFor(after.arrival)) - Date.parse(bestTimeFor(before.arrival))) / 60_000,
+    );
+    if (shift >= FLIGHT_ESTIMATE_SHIFT_MINUTES) {
+      updates.push({
+        kind: "delayed",
+        message: `${after.flightNumber} is running ${shift} min later — now landing around `
+          + `${new Date(bestTimeFor(after.arrival)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
+        urgency: "active",
+      });
+    } else if (shift <= -FLIGHT_ESTIMATE_SHIFT_MINUTES) {
+      updates.push({
+        kind: "earlier",
+        message: `${after.flightNumber} is arriving ${Math.abs(shift)} min early — now landing around `
+          + `${new Date(bestTimeFor(after.arrival)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
+        urgency: "active",
+      });
+    }
+  }
+
+  // A gate or terminal move is where to physically stand, so it matters
+  // even when the time did not change at all. Only reported once both
+  // snapshots actually name one — a provider filling in a blank for the
+  // first time is new information, not a change of plan.
+  if (before.arrival.gate && after.arrival.gate && before.arrival.gate !== after.arrival.gate) {
+    updates.push({
+      kind: "gate-changed",
+      message: `${after.flightNumber} has moved to gate ${after.arrival.gate} at ${after.arrival.iata}.`,
+      urgency: "active",
+    });
+  }
+
+  if (before.arrival.terminal && after.arrival.terminal && before.arrival.terminal !== after.arrival.terminal) {
+    updates.push({
+      kind: "terminal-changed",
+      message: `${after.flightNumber} has moved to Terminal ${after.arrival.terminal} at ${after.arrival.iata}.`,
+      urgency: "active",
+    });
+  }
+
+  return updates;
 }
 
 /**

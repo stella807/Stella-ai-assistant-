@@ -7,7 +7,7 @@ import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
-import { runPayroll, type Ctx } from "../src/routes.ts";
+import { runFlightSweep, runPayroll, type Ctx } from "../src/routes.ts";
 import { ELITE_LADDER, authorizeExactHold, assistantPayoutFor, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
@@ -1504,6 +1504,42 @@ describe("personal concierge", () => {
 
     it("requires the personal-concierge feature", async () => {
       expect((await call("GET", "/api/flights/lookup?flightNumber=DL204&date=2026-09-17", undefined, jordan)).status).toBe(402);
+    });
+  });
+
+  describe("the flight sweep", () => {
+    it("does nothing at all, quietly, with no provider configured", async () => {
+      // It runs on a five-minute timer in main.ts, so the unconfigured case is
+      // the one that executes most often in practice — it must not throw, and
+      // must not spend a call finding that out.
+      expect(await runFlightSweep(ctx)).toEqual({ checked: 0, changed: 0, pushed: 0 });
+    });
+
+    it("leaves a stored flight snapshot as the last thing known to be true", async () => {
+      // A provider it cannot reach must never downgrade what the customer is
+      // already being shown — the same rule booking follows when the lookup
+      // misses outright.
+      const snapshot = {
+        flightNumber: "DL204", airlineName: "Delta Air Lines", airlineIata: "DL",
+        status: "active" as const,
+        departure: { iata: "JFK", scheduledTime: "2026-09-17T13:00:00Z" },
+        arrival: { iata: "LAX", scheduledTime: "2026-09-17T16:20:00Z" },
+      };
+      store.update((db) => {
+        db.conciergeTasks.push({
+          id: "task_sweep_1", travelerId: "usr_x", category: "airport-pickup",
+          note: "Meet me at baggage claim",
+          location: { lat: 33.94, lng: -118.4 },
+          spendCapCents: 2500, serviceFeeCents: 7000, assistantPayoutCents: 4900,
+          peopleCount: 1, status: "in-progress", provider: "in-house",
+          chargeId: "chg_x", holdId: "hold_x", createdAt: "2026-09-17T12:00:00Z",
+          flightNumber: "DL204", flightDate: "2026-09-17", flight: snapshot,
+        });
+      });
+
+      await runFlightSweep(ctx);
+
+      expect(store.data.conciergeTasks.find((t) => t.id === "task_sweep_1")?.flight).toEqual(snapshot);
     });
   });
 

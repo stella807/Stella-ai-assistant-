@@ -1,7 +1,7 @@
 import { LOCATION_RETENTION_DAYS, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
 import { renewDueSubscriptions } from "./billing.ts";
 import { createApp, makeCtx } from "./server.ts";
-import { runPayroll } from "./routes.ts";
+import { runFlightSweep, runPayroll } from "./routes.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
 import { PostgresStore } from "./store-postgres.ts";
@@ -108,6 +108,31 @@ async function main(): Promise<void> {
   const payrollTimer = setInterval(sweepPayroll, 60 * 60_000);
   payrollTimer.unref?.();
 
+  /**
+   * Flights, unlike payroll and retention, do not keep for an hour.
+   *
+   * The update that matters is "the plane is on the ground" and it is worth
+   * nothing fifty minutes after the fact — someone is already standing in the
+   * wrong terminal. Five minutes is roughly the latency of the underlying
+   * ADS-B/provider data anyway, so asking faster would mostly re-read the
+   * same fix.
+   *
+   * This costs nothing when it has nothing to do: with no flight provider
+   * configured `runFlightSweep` returns immediately, and even configured it
+   * only calls out for airport pickups still in progress whose flight has
+   * not already resolved.
+   */
+  const sweepFlights = () => {
+    runFlightSweep(makeCtx(store)).then(({ checked, changed, pushed }) => {
+      if (changed > 0) {
+        console.log(`[safehubby] Flights: ${changed} of ${checked} flight(s) changed, ${pushed} push(es) sent`);
+      }
+    }).catch((err) => console.error("[safehubby] Flight sweep failed:", err));
+  };
+  sweepFlights();
+  const flightTimer = setInterval(sweepFlights, 5 * 60_000);
+  flightTimer.unref?.();
+
   const server = createApp(makeCtx(store));
   server.listen(port, () => console.log(`[safehubby] Listening on ${port}`));
 
@@ -116,6 +141,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     clearInterval(retentionTimer);
     clearInterval(payrollTimer);
+    clearInterval(flightTimer);
     server.close();
     if (store instanceof PostgresStore) await store.close();
     process.exit(0);
