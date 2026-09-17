@@ -8,7 +8,7 @@ import {
   totalChargeCents,
 } from "@safehubby/core";
 import type {
-  AssistantProfile, ConciergeCategory, ConciergeTask, NearbyStore, ProviderStatus, PlanId,
+  AssistantProfile, ConciergeCategory, ConciergeTask, FlightInfo, NearbyStore, ProviderStatus, PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { currentFix, type Fix } from "../native/location.ts";
@@ -16,6 +16,7 @@ import type { Account } from "../api.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
 import { AssistantModal } from "./AssistantModal.tsx";
 import { CategoryIcon } from "./CategoryIcons.tsx";
+import { FlightCard } from "./FlightCard.tsx";
 import { LiveMap } from "./LiveMap.tsx";
 import { RequestDetail } from "./RequestDetail.tsx";
 
@@ -132,10 +133,24 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const [placeSearchStatus, setPlaceSearchStatus] = useState<ProviderStatus | null>(null);
   const [placeBusy, setPlaceBusy] = useState(false);
 
+  // Which flight the assistant is meeting, for `airport-pickup` — looked up
+  // for real before booking (see FlightTrackingPort) rather than trusted as
+  // free text, so both sides see the same schedule the app will keep
+  // tracking once the task exists.
+  const [flightNumber, setFlightNumber] = useState("");
+  const [flightDate, setFlightDate] = useState("");
+  const [flightPreview, setFlightPreview] = useState<FlightInfo | null>(null);
+  const [flightTrackingStatus, setFlightTrackingStatus] = useState<ProviderStatus | null>(null);
+  const [flightBusy, setFlightBusy] = useState(false);
+  const [flightError, setFlightError] = useState<string | null>(null);
+
   useEffect(() => {
     if (locked) return;
     api.conciergeTasks().then((r) => setTasks(r.tasks)).catch(() => {});
-    api.fulfillmentStatus().then((r) => setPlaceSearchStatus(r.placeSearch)).catch(() => {});
+    api.fulfillmentStatus().then((r) => {
+      setPlaceSearchStatus(r.placeSearch);
+      setFlightTrackingStatus(r.flightTracking);
+    }).catch(() => {});
     // Asked for on mount, not at submit. Whether we cover where somebody is
     // standing is knowable before they describe a task, pick an assistant and
     // choose an amount — and finding out afterwards, in a red banner under a
@@ -213,6 +228,22 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       setError(e instanceof Error ? e.message : "Could not load the roster right now");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const isAirportPickup = category === "airport-pickup";
+
+  const lookupFlight = async () => {
+    setFlightBusy(true);
+    setFlightError(null);
+    setFlightPreview(null);
+    try {
+      const res = await api.flightLookup(flightNumber.trim(), flightDate);
+      setFlightPreview(res.flight);
+    } catch (e) {
+      setFlightError(e instanceof Error ? e.message : "Could not look up that flight");
+    } finally {
+      setFlightBusy(false);
     }
   };
 
@@ -361,6 +392,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               setCapEntry("");
               setRoster(null);
               if (!isQuickTaskEligible(c.id)) setQuickTask(false);
+              if (c.id !== "airport-pickup") {
+                setFlightNumber(""); setFlightDate(""); setFlightPreview(null); setFlightError(null);
+              }
             }}
             aria-pressed={c.id === category}>
             <span className="category-tile-icon"><CategoryIcon id={c.id} /></span>
@@ -379,6 +413,38 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         <p className="tiny muted" style={{ margin: 0 }}>
           {CONCIERGE_CATEGORIES.find((c) => c.id === category)!.description}
         </p>
+      )}
+
+      {isAirportPickup && (
+        <div className="field">
+          <label htmlFor="concierge-flight-number">Which flight?</label>
+          <div className="row" style={{ gap: 6 }}>
+            <input id="concierge-flight-number" type="text" value={flightNumber}
+              onChange={(e) => { setFlightNumber(e.target.value); setFlightPreview(null); }}
+              placeholder="DL204" style={{ flex: 1 }} />
+            <input id="concierge-flight-date" type="date" value={flightDate}
+              onChange={(e) => { setFlightDate(e.target.value); setFlightPreview(null); }}
+              aria-label="Flight date" />
+            {/* Tracking is an enhancement, not a precondition — a flight
+                number and date are all booking actually needs (see
+                validateConciergeRequest); the lookup below only adds a
+                preview when a real tracking key is configured. */}
+            {flightTrackingStatus?.mode === "automatic" && (
+              <button className="btn btn-sm" disabled={flightBusy || !flightNumber.trim() || !flightDate}
+                onClick={lookupFlight}>
+                {flightBusy ? "Looking up…" : "Look up"}
+              </button>
+            )}
+          </div>
+          {flightTrackingStatus && flightTrackingStatus.mode !== "automatic" && (
+            <p className="tiny muted" style={{ margin: 0 }}>
+              Flight tracking isn't set up on this server yet — your assistant will still be dispatched to meet
+              this flight, just without a live status preview.
+            </p>
+          )}
+          {flightError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{flightError}</p>}
+          {flightPreview && <FlightCard flight={flightPreview} />}
+        </div>
       )}
 
       <div className="field">
@@ -549,7 +615,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       </div>
 
       {roster === null && (
-        <button className="btn btn-block" disabled={busy || !note.trim() || covered === false} onClick={browse}>
+        <button className="btn btn-block"
+          disabled={busy || !note.trim() || covered === false || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
+          onClick={browse}>
           Browse assistants
         </button>
       )}
@@ -624,6 +692,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           hours={bookedHours}
           quickTask={effectiveQuickTask}
           location={taskLocation}
+          flight={isAirportPickup ? { flightNumber: flightNumber.trim(), date: flightDate } : undefined}
           onBooked={onBooked}
           onClose={closeSelected}
         />

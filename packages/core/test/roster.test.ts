@@ -145,4 +145,11 @@ describe("every task type has somebody who can be sent to it", () => {
     expect(roleCovers("errand-runner", "book-and-buy")).toBe(false);
     expect(roleCovers("personal-assistant", "book-and-buy")).toBe(true);
   });
+
+  it("never sends an errand runner to meet a flight", () => {
+    // Meeting a stranger's flight is the same duty of care as sitting with
+    // someone or checking on them in person — a personal assistant's job.
+    expect(roleCovers("errand-runner", "airport-pickup")).toBe(false);
+    expect(roleCovers("personal-assistant", "airport-pickup")).toBe(true);
+  });
 });

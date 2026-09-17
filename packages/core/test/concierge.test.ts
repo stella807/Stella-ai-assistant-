@@ -22,13 +22,20 @@ import {
 import { presetAmounts } from "../src/amount-steps.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
 
-const request = (over: Partial<ConciergeTaskInput> = {}): ConciergeTaskInput => ({
-  category: "grab-something",
-  note: "Grab a burger and fries from The Anchor Tavern",
-  location: { lat: 40.714, lng: -74.003, label: "The Anchor Tavern" },
-  spendCapCents: 2500,
-  ...over,
-});
+const request = (over: Partial<ConciergeTaskInput> = {}): ConciergeTaskInput => {
+  const category = over.category ?? "grab-something";
+  return {
+    category: "grab-something",
+    note: "Grab a burger and fries from The Anchor Tavern",
+    location: { lat: 40.714, lng: -74.003, label: "The Anchor Tavern" },
+    spendCapCents: 2500,
+    // airport-pickup requires a flight; every other category rejects one —
+    // filled in by default here so the "for every category" tests below
+    // don't each need to know that one category has an extra required field.
+    ...(category === "airport-pickup" ? { flight: { flightNumber: "DL204", date: "2026-09-17" } } : {}),
+    ...over,
+  };
+};
 
 describe("validateConciergeRequest", () => {
   it("accepts a well-formed request", () => {
@@ -642,6 +649,30 @@ describe("booking a budget of hours", () => {
   it("books in half hours, not in arbitrary fractions", () => {
     expect(() => validateConciergeRequest(request({ category: "book-and-buy", hours: 2.25 })))
       .toThrow(/half hours/i);
+  });
+
+  it("refuses an airport pickup with no flight named", () => {
+    expect(() => validateConciergeRequest(request({ category: "airport-pickup", flight: undefined })))
+      .toThrow(/which flight/i);
+    expect(() => validateConciergeRequest(request({ category: "airport-pickup", flight: { flightNumber: "", date: "2026-09-17" } })))
+      .toThrow(/which flight/i);
+    expect(() => validateConciergeRequest(request({ category: "airport-pickup", flight: { flightNumber: "DL204", date: "" } })))
+      .toThrow(/which flight/i);
+  });
+
+  it("accepts a well-formed airport pickup", () => {
+    expect(() => validateConciergeRequest(request({ category: "airport-pickup" }))).not.toThrow();
+  });
+
+  it("refuses a flight on a category that doesn't track one", () => {
+    expect(() => validateConciergeRequest(request({
+      category: "run-errand", flight: { flightNumber: "DL204", date: "2026-09-17" },
+    }))).toThrow(/does not track a flight/i);
+  });
+
+  it("is a personal-assistant duty, paid by the hour like the other in-person work", () => {
+    expect(isHourlyCategory("airport-pickup")).toBe(true);
+    expect(hourlyRateCentsFor("airport-pickup")).toBe(PA_HOURLY_RATE_CENTS);
   });
 
   it("charges the customer the booked hours grossed up, and pays the assistant all of them", () => {

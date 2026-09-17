@@ -1438,6 +1438,75 @@ describe("personal concierge", () => {
     expect(res.json.error).toMatch(/Nearby Aide|partner agreement/i);
   });
 
+  describe("airport pickup — a real flight, tracked through the task", () => {
+    const pickup = (over: Record<string, unknown> = {}) => task({
+      category: "airport-pickup", hours: 2,
+      flight: { flightNumber: "DL204", date: "2026-09-17" },
+      ...over,
+    });
+
+    it("refuses to book without naming a flight", async () => {
+      const noFlight = task({ category: "airport-pickup", hours: 2 });
+      const res = await call("POST", "/api/concierge/tasks", { ...noFlight, acknowledgedDisclosures: true }, sam);
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/which flight/i);
+    });
+
+    it("refuses a flight on a category that isn't airport pickup", async () => {
+      const res = await call("POST", "/api/concierge/tasks", {
+        ...task({ flight: { flightNumber: "DL204", date: "2026-09-17" } }), acknowledgedDisclosures: true,
+      }, sam);
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/does not track a flight/i);
+    });
+
+    it("validates the flight before checking the provider, same order as every other field", async () => {
+      // Reaches the same "no partner network configured" 503 the other
+      // categories hit — proving the flight requirement was satisfied and
+      // this got past validation rather than being rejected on it.
+      const res = await call("POST", "/api/concierge/tasks", { ...pickup(), acknowledgedDisclosures: true }, sam);
+      expect(res.status).toBe(503);
+      expect(res.json.error).toMatch(/Nearby Aide|partner agreement/i);
+    });
+
+    it("is priced by the hour, like the rest of the personal assistant's in-person work", async () => {
+      const quote = await call("POST", "/api/concierge/quote", pickup(), sam);
+      // Same 503 as any other category here (no partner network in tests),
+      // but only after accepting the hourly booking as valid — a per-task
+      // category rejects `hours` outright, so reaching the provider check
+      // at all confirms this one is priced by the hour.
+      expect(quote.status).toBe(503);
+    });
+
+    it("reports flight tracking status and its disclosures alongside the rest of fulfilment", async () => {
+      const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
+      expect(res.flightTracking.mode).toBe("handoff");
+      expect(res.flightTracking.name).toBe("AeroDataBox");
+      expect(res.flightTrackingDisclosures.join(" ")).toMatch(/lag reality/i);
+    });
+  });
+
+  describe("GET /api/flights/lookup", () => {
+    it("requires a session", async () => {
+      expect((await call("GET", "/api/flights/lookup?flightNumber=DL204&date=2026-09-17")).status).toBe(401);
+    });
+
+    it("requires both a flight number and a date", async () => {
+      expect((await call("GET", "/api/flights/lookup?flightNumber=DL204", undefined, sam)).status).toBe(400);
+      expect((await call("GET", "/api/flights/lookup?date=2026-09-17", undefined, sam)).status).toBe(400);
+    });
+
+    it("503s honestly with no provider key configured, rather than inventing a flight", async () => {
+      const res = await call("GET", "/api/flights/lookup?flightNumber=DL204&date=2026-09-17", undefined, sam);
+      expect(res.status).toBe(503);
+      expect(res.json.error).toMatch(/RapidAPI|AeroDataBox/i);
+    });
+
+    it("requires the personal-concierge feature", async () => {
+      expect((await call("GET", "/api/flights/lookup?flightNumber=DL204&date=2026-09-17", undefined, jordan)).status).toBe(402);
+    });
+  });
+
   it("keeps one traveler's tasks out of another's list", async () => {
     expect((await call("GET", "/api/concierge/tasks", undefined, jordan)).json.tasks).toEqual([]);
   });

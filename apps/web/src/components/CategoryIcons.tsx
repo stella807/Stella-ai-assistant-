@@ -132,6 +132,7 @@ const ICONS: Record<string, () => ReactElement> = {
   "check-in-person": PersonCheck,
   "run-errand": Errand,
   "book-and-buy": Cart,
+  "airport-pickup": Plane,
   "jet-travel": Plane,
   "yacht-charter": Boat,
   "luxury-property": House,

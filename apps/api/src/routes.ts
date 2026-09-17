@@ -23,7 +23,7 @@ import {
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
   isEnabled, flagNote, ridesFor, featureLabel,
-  isAutomatic, SECURE_TRANSPORT_DISCLOSURES,
+  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
@@ -67,6 +67,7 @@ import {
   concierge, deliveryDispatcher, fulfillmentStatus, secureTransport, uberCancel, uberEstimates,
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
+import { flightTracking } from "./adapters/flight-tracking.ts";
 import { revolutCards } from "./adapters/cards.ts";
 import { revolutPayouts } from "./adapters/payouts.ts";
 import { stripeProcessor } from "./adapters/stripe.ts";
@@ -143,7 +144,7 @@ export interface Ctx {
    *  another's, and tests need isolation between instances. */
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
-    applications: RateLimiter; codes: RateLimiter; places: RateLimiter;
+    applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -304,6 +305,9 @@ function conciergeInputFrom(body: any): ConciergeTaskInput {
     quickTask: body?.quickTask === true,
     ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
     ...(body?.hours === undefined ? {} : { hours: Number(body.hours) }),
+    ...(body?.flight === undefined
+      ? {}
+      : { flight: { flightNumber: String(body.flight?.flightNumber ?? ""), date: String(body.flight?.date ?? "") } }),
   };
 }
 
@@ -863,6 +867,9 @@ export function makeLimiters() {
      * between bars, tight enough that it cannot be farmed.
      */
     places: new RateLimiter(60, 60 * 60_000),
+    /** Flight lookups bill per call the same way places do. Generous enough
+     *  to check a delayed flight every few minutes while waiting on it. */
+    flights: new RateLimiter(30, 60 * 60_000),
   };
 }
 
@@ -1867,9 +1874,10 @@ export const routes: Record<string, Handler> = {
     const { rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing } = fulfillmentStatus();
     return {
       rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing, push: push.status,
-      placeSearch: placeSearch.status, payouts: revolutPayouts.status,
+      placeSearch: placeSearch.status, payouts: revolutPayouts.status, flightTracking: flightTracking.status,
       disclosures: SECURE_TRANSPORT_DISCLOSURES,
       conciergeDisclosures: CONCIERGE_DISCLOSURES,
+      flightTrackingDisclosures: FLIGHT_TRACKING_DISCLOSURES,
       launchMarkets: launchMarketNames(),
     };
   },
@@ -1934,6 +1942,27 @@ export const routes: Record<string, Handler> = {
     if (!isAutomatic(placeSearch.status)) throw new HttpError(503, placeSearch.status.requires);
     const places = await placeSearch.search(query, coordsFrom(p));
     return { places };
+  },
+
+  /**
+   * A flight's current schedule, status and (while airborne) position — the
+   * preview shown before booking an `airport-pickup`, and the same call a
+   * booked task's detail screen makes again to refresh. Rate limited the
+   * same as the place picker: a configured key is billed per call.
+   */
+  "GET /api/flights/lookup": async (ctx, p) => {
+    const me = actor(ctx);
+    requireFeature(ctx, me, "personal-concierge");
+    if (ctx.limiters.flights.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many flight lookups. Try again shortly.");
+    }
+    const flightNumber = String(p.flightNumber ?? "").trim();
+    const date = String(p.date ?? "").trim();
+    if (!flightNumber || !date) throw new HttpError(400, "Enter a flight number and date.");
+    if (!isAutomatic(flightTracking.status)) throw new HttpError(503, flightTracking.status.requires);
+    const flight = await flightTracking.lookup({ flightNumber, date });
+    if (!flight) throw new HttpError(404, "Could not find that flight — check the number and date.");
+    return { flight, disclosures: FLIGHT_TRACKING_DISCLOSURES };
   },
 
   /**
@@ -2045,6 +2074,13 @@ export const routes: Record<string, Handler> = {
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input);
     requireLaunchMarket(input.location);
+    // Looked up server-side, from the flight number and date alone — never
+    // trusting a client-supplied snapshot, the same rule this route already
+    // applies to money. A miss (no key configured, or the provider doesn't
+    // recognize the flight) never blocks dispatch: the assistant still goes,
+    // just without a tracked flight until a later refresh
+    // (GET /api/flights/lookup) succeeds.
+    const flightInfo = input.flight ? await flightTracking.lookup(input.flight).catch(() => null) : null;
     if (body?.acknowledgedDisclosures !== true) {
       throw new HttpError(400, "The disclosures have to be acknowledged before booking.");
     }
@@ -2159,6 +2195,8 @@ export const routes: Record<string, Handler> = {
         ...(issuedCard
           ? { card: { id: issuedCard.id, last4: issuedCard.last4, network: issuedCard.network, expMonth: issuedCard.expMonth, expYear: issuedCard.expYear } }
           : {}),
+        ...(input.flight ? { flightNumber: input.flight.flightNumber, flightDate: input.flight.date } : {}),
+        ...(flightInfo ? { flight: flightInfo } : {}),
       };
       ctx.store.update((db) => void db.conciergeTasks.push(task));
       ctx.store.update((db) => {

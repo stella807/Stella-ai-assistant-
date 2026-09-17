@@ -26,7 +26,7 @@ import { money } from "../money.ts";
  * talking to the person they just hired would be a strange place to make
  * them re-orient.
  */
-export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, hours, location, existingTask, onBooked, onClose }: {
+export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, hours, location, flight, existingTask, onBooked, onClose }: {
   assistant: AssistantProfile;
   category: ConciergeCategory;
   note: string;
@@ -36,6 +36,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   /** Whether the subscriber opted into the discounted quick-task fee. */
   quickTask?: boolean;
   location: { lat: number; lng: number; label?: string };
+  /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
+  flight?: { flightNumber: string; date: string };
   /** Reopening an already-booked task's thread, rather than requesting a new one. */
   existingTask?: ConciergeTask;
   onBooked: (task: ConciergeTask) => void;
@@ -108,7 +110,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     setError(null);
     try {
       const res = await api.bookConcierge({
-        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, peopleCount, hours,
+        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, peopleCount, hours, flight,
       });
       setTask(res.task);
       onBooked(res.task);

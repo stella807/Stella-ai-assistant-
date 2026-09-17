@@ -294,6 +294,47 @@ does not) plus a single-use, spend-capped virtual card handed to the assistant
 constraint that Revolut's card-issuing API is scoped to your own team members
 rather than arbitrary third parties, are in `docs/concierge.md`.
 
+## 5. Flight tracking — for `airport-pickup`
+
+A real one, unlike rides — see `packages/core/src/flight-tracking.ts`'s own
+doc comment for why. Uber and Lyft closed their location feed to third
+parties, but a commercial aircraft's position is genuinely
+third-party-accessible data: ADS-B receivers report it, and flight-data
+providers aggregate it alongside schedule, gate and aircraft information.
+
+```bash
+railway variables \\
+  --set "AERODATABOX_API_KEY=..."
+```
+
+Reached through RapidAPI (`aerodatabox.p.rapidapi.com` by default,
+overridable with `AERODATABOX_API_HOST`/`AERODATABOX_API_BASE`) rather than
+a partner agreement negotiated from scratch — subscribe to AeroDataBox
+there and the key works immediately.
+
+| Call | Expected | Returns |
+|---|---|---|
+| Lookup | `GET /flights/number/{number}/{date}` | An array of matching flights: `{ number, status, airline: { name, iata, logoUrl }, aircraft: { reg, model }, departure: { airport, terminal, gate, scheduledTime, revisedTime, actualTime }, arrival: { … same … }, location: { lat, lon, altitude, groundSpeed, heading, reportedAtUtc } }` |
+
+This has not been run against a live key here — the mapping is in one
+function (`mapFlight` in `apps/api/src/adapters/flight-tracking.ts`), the
+same "verify before going live, then it's a few lines" caveat every other
+adapter in this file carries.
+
+**Never blocks dispatch.** A miss — no key configured, or the provider
+doesn't recognize the flight — still lets the task book; the assistant is
+told which flight to meet either way, just without a tracked status until
+a later `GET /api/flights/lookup` succeeds. The same "an add-on, not a
+precondition" rule the card-issuing port already follows.
+
+**Every number is the provider's own.** No ETA is computed here, no delay
+is inferred beyond what the provider already reports as its own current
+estimate, and no distance to the airport is calculated — the map is fed the
+position and the arrival airport's own coordinates (also provider-supplied)
+and shows how close the plane actually is the same honest way the ride
+pickup pin shows where a car is going, never a number this app invented on
+top of a raw lat/lng.
+
 ## The pre-authorization hold, and why it didn't keep prices down
 
 `packages/core/src/payment.ts` adds a **pre-authorization hold** in front of

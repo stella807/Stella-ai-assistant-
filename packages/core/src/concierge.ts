@@ -45,6 +45,7 @@
 import type { AmountScale } from "./amount-steps.ts";
 import { approximateDecodedBytes } from "./voice-messages.ts";
 import type { StaffRole } from "./staffing.ts";
+import type { FlightInfo } from "./flight-tracking.ts";
 
 
 export type ConciergeCategory =
@@ -52,7 +53,8 @@ export type ConciergeCategory =
   | "wait-with-someone"
   | "check-in-person"
   | "run-errand"
-  | "book-and-buy";
+  | "book-and-buy"
+  | "airport-pickup";
 
 export interface ConciergeCategoryInfo {
   id: ConciergeCategory;
@@ -86,6 +88,12 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
     label: "Book or buy something",
     description:
       "Concert tickets, a hotel room, a table somewhere — researched, chosen and paid for on your behalf.",
+  },
+  {
+    id: "airport-pickup",
+    label: "Airport pickup",
+    description:
+      "A personal assistant meets someone off a flight and gets them from there — with real flight tracking, so nobody is waiting on a plane that already landed.",
   },
 ];
 
@@ -324,10 +332,10 @@ export function isQuickTaskEligible(category: ConciergeCategory): boolean {
  * pay — it is the balance on the card they carry, and it stays exactly as
  * independent for an hourly booking as for an errand.
  */
-export type HourlyCategory = "wait-with-someone" | "check-in-person" | "book-and-buy";
+export type HourlyCategory = "wait-with-someone" | "check-in-person" | "book-and-buy" | "airport-pickup";
 
 export const HOURLY_CATEGORIES: HourlyCategory[] = [
-  "wait-with-someone", "check-in-person", "book-and-buy",
+  "wait-with-someone", "check-in-person", "book-and-buy", "airport-pickup",
 ];
 
 /** A type predicate, not just a boolean: narrowing here is what makes the
@@ -361,6 +369,7 @@ const DEFAULT_HOURS: Record<HourlyCategory, number> = {
   "wait-with-someone": 2,   // you do not sit with someone for less
   "check-in-person": 1,     // getting there, seeing they are okay, and going
   "book-and-buy": 2,        // finding it, comparing it, committing to it
+  "airport-pickup": 2,      // drive there, the wait a delay can add, meet them, drive back
 };
 
 export function defaultHoursFor(category: ConciergeCategory): number {
@@ -538,6 +547,12 @@ export interface ConciergeTaskInput {
    *  to 1. The API clamps this to the seats on the subscriber's plan, so it
    *  is bounded by what they pay for, not by what they type. */
   peopleCount?: number;
+  /** Required for, and only for, `airport-pickup` — which flight the
+   *  assistant is meeting. The server looks this up itself at booking time
+   *  (see `FlightTrackingPort`) rather than trusting a client-supplied
+   *  snapshot, the same "never trust a client-computed price" rule this
+   *  module already applies to money. */
+  flight?: { flightNumber: string; date: string };
 }
 
 const MAX_NOTE_LENGTH = 280;
@@ -567,6 +582,16 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
     if (!Number.isInteger(input.peopleCount) || input.peopleCount < 1 || input.peopleCount > MAX_PEOPLE_PER_TASK) {
       throw new Error(`A task can cover between 1 and ${MAX_PEOPLE_PER_TASK} people.`);
     }
+  }
+  if (input.category === "airport-pickup") {
+    if (!input.flight?.flightNumber?.trim() || !input.flight?.date?.trim()) {
+      throw new Error("Say which flight your assistant is meeting.");
+    }
+  } else if (input.flight) {
+    // Silently dropping this would book a task nobody meant to leave
+    // untracked — same reasoning `validateConciergeRequest` already uses
+    // for hours on a per-task category.
+    throw new Error(`${conciergeCategoryLabel(input.category)} does not track a flight.`);
   }
   const maxCap = maxCapFor(input.category, input.quickTask);
   if (
@@ -705,6 +730,17 @@ export interface ConciergeTask {
    *  still owed to the assistant; this is what stops the same task from
    *  being paid out twice across two payroll runs. */
   payoutId?: string;
+  /** Present only on `airport-pickup` — the flight number and date this task
+   *  was booked against, so the app can look up its current status again
+   *  whenever the task is reopened. `flight` below is the last snapshot
+   *  actually fetched; this pair is what makes fetching a fresh one
+   *  possible without asking the customer to type it in again. */
+  flightNumber?: string;
+  flightDate?: string;
+  /** The most recent flight lookup for this task — see FlightTrackingPort.
+   *  Absent until the first successful lookup, and left as the last known
+   *  good snapshot if a later refresh fails, rather than blanked out. */
+  flight?: FlightInfo;
 }
 
 /**

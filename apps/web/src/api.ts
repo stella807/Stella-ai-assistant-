@@ -1,7 +1,7 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
-  EliteBooking, EliteService, EliteServiceId,
+  EliteBooking, EliteService, EliteServiceId, FlightInfo,
   IdentityPhoto, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, Plan, ProviderStatus,
   RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
@@ -346,8 +346,10 @@ export const api = {
   bookSecureRide: (pickup: any, dropoff: any) =>
     request<any>("POST", "/api/rides/secure", { pickup, dropoff, acknowledgedDisclosures: true }),
   fulfillmentStatus: () =>
-    request<{ concierge: ProviderStatus; conciergeDisclosures: string[]; placeSearch: ProviderStatus }>(
-      "GET", "/api/fulfillment/status"),
+    request<{
+      concierge: ProviderStatus; conciergeDisclosures: string[]; placeSearch: ProviderStatus;
+      flightTracking: ProviderStatus; flightTrackingDisclosures: string[];
+    }>("GET", "/api/fulfillment/status"),
   /**
    * Free-text place search backing the concierge task flow's place picker —
    * see `PlaceSearchPort` in packages/core. Deliberately returns no mock
@@ -376,10 +378,18 @@ export const api = {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
     spendCapCents: number; assistantId?: string; quickTask?: boolean; peopleCount?: number;
     hours?: number;
+    /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
+    flight?: { flightNumber: string; date: string };
   }) =>
     request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
       "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),
   conciergeTasks: () => request<{ tasks: ConciergeTask[] }>("GET", "/api/concierge/tasks"),
+  /** A flight's schedule, status and (while airborne) position — the
+   *  preview before booking an airport pickup, and the same call a booked
+   *  task's detail screen makes again to refresh. See FlightTrackingPort. */
+  flightLookup: (flightNumber: string, date: string) =>
+    request<{ flight: FlightInfo; disclosures: string[] }>(
+      "GET", `/api/flights/lookup?flightNumber=${encodeURIComponent(flightNumber)}&date=${encodeURIComponent(date)}`),
   deskTasks: () => request<{
     kinds: { id: string; label: string; description: string }[];
     accessRule: string;

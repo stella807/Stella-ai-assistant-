@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { conciergeCategoryLabel } from "@safehubby/core";
 import type { ConciergeTask } from "@safehubby/core";
+import { api } from "../api.ts";
 import { CategoryIcon } from "./CategoryIcons.tsx";
+import { FlightCard } from "./FlightCard.tsx";
 import { LiveMap } from "./LiveMap.tsx";
 import { TaskCardVisual } from "./TaskCardVisual.tsx";
 import { money } from "../money.ts";
@@ -38,8 +40,28 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
   const [reason, setReason] = useState("");
   const [disputeBusy, setDisputeBusy] = useState(false);
   const [disputeError, setDisputeError] = useState<string | null>(null);
+  // The task's own snapshot to start — refreshed on demand, since a flight
+  // in the air keeps moving and nobody wants to close and reopen the task
+  // just to see if it landed yet.
+  const [flight, setFlight] = useState(task.flight);
+  const [flightBusy, setFlightBusy] = useState(false);
+  const [flightError, setFlightError] = useState<string | null>(null);
 
   const totalHeld = task.spendCapCents + task.serviceFeeCents;
+
+  const refreshFlight = async () => {
+    if (!task.flightNumber || !task.flightDate) return;
+    setFlightBusy(true);
+    setFlightError(null);
+    try {
+      const res = await api.flightLookup(task.flightNumber, task.flightDate);
+      setFlight(res.flight);
+    } catch (e) {
+      setFlightError(e instanceof Error ? e.message : "Could not refresh that flight");
+    } finally {
+      setFlightBusy(false);
+    }
+  };
 
   const sendDispute = async () => {
     if (!onDispute) return;
@@ -80,6 +102,22 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
         </div>
 
         <p className="small">{task.note}</p>
+
+        {task.flightNumber && (
+          <div className="stack" style={{ gap: 6 }}>
+            {flight ? (
+              <FlightCard flight={flight} />
+            ) : (
+              <p className="small muted" style={{ margin: 0 }}>
+                Meeting flight {task.flightNumber} — no status preview yet.
+              </p>
+            )}
+            <button className="btn btn-sm btn-ghost" disabled={flightBusy} onClick={refreshFlight}>
+              {flightBusy ? "Refreshing…" : "Refresh flight status"}
+            </button>
+            {flightError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{flightError}</p>}
+          </div>
+        )}
 
         <LiveMap points={[{ lat: task.location.lat, lng: task.location.lng, label: task.location.label ?? "Task location" }]} />
 

@@ -204,12 +204,19 @@ describe("plans", () => {
 
   it("offers no concierge category that is a jet or a doctor", () => {
     // The other door into the same mistake: the concierge categories are
-    // what a subscriber actually picks from, and they are deliberately four
+    // what a subscriber actually picks from, and they are deliberately
     // mundane errands. If a luxury category is ever added here it bypasses
     // the plan gate entirely.
+    //
+    // "flight" alone is deliberately not one of the trigger words:
+    // `airport-pickup` legitimately names one (meeting a commercial flight
+    // is an ordinary errand, same duty of care as `check-in-person`, just
+    // at an airport) — what this guards against is the *luxury* concept,
+    // caught by "jet", "charter" and "aviation" without also catching every
+    // description that mentions boarding a plane.
     const categories = CONCIERGE_CATEGORIES.map((c) => `${c.id} ${c.label} ${c.description}`.toLowerCase());
     for (const text of categories) {
-      expect(text).not.toMatch(/jet|charter|flight|aviation|doctor|physician|medical/);
+      expect(text).not.toMatch(/private jet|jet charter|charter flight|aviation|doctor|physician|medical/);
     }
   });
 

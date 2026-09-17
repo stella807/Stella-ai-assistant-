@@ -41,10 +41,10 @@ bound what a subscriber can set in the first place, and
 number most bookings will keep, so it has to cover an ordinary errand
 outright.
 
-## The four task types
+## The task types
 
 Deliberately closed, not free text for the category (the note field is free
-text for *what*, within one of these four *kinds* of task):
+text for *what*, within one of these *kinds* of task):
 
 | Category | What it's for |
 |---|---|
@@ -52,6 +52,15 @@ text for *what*, within one of these four *kinds* of task):
 | `wait-with-someone` | Stay with a friend who should not be left alone |
 | `check-in-person` | Go see that someone is actually okay, in person |
 | `run-errand` | A specific, bounded task nearby |
+| `book-and-buy` | Research, choose and pay for something on the subscriber's behalf — concert tickets, a hotel room, a table |
+| `airport-pickup` | Meet someone off a commercial flight and get them from there, with real flight tracking — see `docs/fulfillment.md` |
+
+`grab-something` and `run-errand` are priced per task
+(`QUICK_TASK_CATEGORIES` further discounts them when they're short and
+single-purpose). The rest — `wait-with-someone`, `check-in-person`,
+`book-and-buy`, `airport-pickup` — are `HOURLY_CATEGORIES`, booked in a
+block of hours the subscriber sets, because none of them has a natural
+end built in the way collecting a burger does.
 
 ## Disclosures, shown every time
 
