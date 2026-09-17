@@ -606,15 +606,24 @@ export const api = {
    * with its own session cookie (`sh_master_session`). See master-access.ts
    * and the `/master` routes in routes.ts.
    *
-   * `masterCreateAccount` is the one call here that carries the shared
-   * `SAFEHUBBY_ADMIN_KEY` directly, as a header rather than a cookie —
-   * provisioning a brand-new account has no session to authenticate with
-   * yet. Every other call rides the master session cookie like the rest of
-   * this file rides the traveler one.
+   * `masterCreateAccount` and the `...WithAdminKey` pair carry the shared
+   * `SAFEHUBBY_ADMIN_KEY` directly, as a header rather than a cookie — there
+   * is no session to authenticate with yet when provisioning the very
+   * first account, or when the key for the only owner account has been
+   * lost and nobody can sign in to revoke it any other way. Every other
+   * call rides the master session cookie like the rest of this file rides
+   * the traveler one; an owner's own session can list and revoke accounts
+   * too (see `requireAdmin`'s dual gate), which is what the dashboard uses.
    */
   masterCreateAccount: (adminKey: string, input: { name: string; email: string; role: "owner" | "secretary" }) =>
     request<{ account: MasterAccount; key: string }>(
       "POST", "/api/admin/master-accounts", input, { "x-admin-key": adminKey }),
+  masterListAccountsWithAdminKey: (adminKey: string) =>
+    request<MasterAccountRow[]>("GET", "/api/admin/master-accounts", undefined, { "x-admin-key": adminKey }),
+  masterRevokeAccountWithAdminKey: (adminKey: string, id: string) =>
+    request<MasterAccount>("POST", `/api/admin/master-accounts/${id}/revoke`, {}, { "x-admin-key": adminKey }),
+  masterListAccounts: () => request<MasterAccountRow[]>("GET", "/api/admin/master-accounts"),
+  masterRevokeAccount: (id: string) => request<MasterAccount>("POST", `/api/admin/master-accounts/${id}/revoke`, {}),
   masterLogin: (key: string) =>
     request<{ accountId: string; name: string; role: "owner" | "secretary" }>(
       "POST", "/api/master/auth/login", { key }),
@@ -622,6 +631,8 @@ export const api = {
   masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
   masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
 };
+
+export type MasterAccountRow = MasterAccount & { scopes: string[]; active: boolean };
 
 /** Present only when the signed-in role's scopes include it — see
  *  `GET /api/master/overview` in routes.ts. A missing key means "you can't

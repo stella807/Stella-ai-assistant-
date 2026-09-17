@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MasterAuditEntry } from "@safehubby/core";
-import { api, type MasterOverview } from "../api.ts";
+import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars } from "../money.ts";
 
 /**
@@ -99,6 +99,66 @@ function MasterSignIn({ onSignedIn }: { onSignedIn: () => void }) {
 }
 
 /**
+ * The list of who has master access, with a revoke button per active
+ * account — the other half of "lost it? revoke it," which the sign-in
+ * screen and the issued-key screen both promise but which needs this
+ * component to actually be true. Used two ways: with the admin key (from
+ * the sign-in screen, for the case an owner's own key is the one that's
+ * lost) and with the signed-in owner's own session (from the dashboard) —
+ * `list`/`revoke` are passed in so this component doesn't need to know
+ * which.
+ */
+function AccountsManager({ list, revoke, currentAccountId }: {
+  list: () => Promise<MasterAccountRow[]>;
+  revoke: (id: string) => Promise<unknown>;
+  /** Disables revoking this one account — the one you're signed in as.
+   *  Revoking your own only-owner session would lock the dashboard with no
+   *  way back in short of the admin key again, so it's refused here rather
+   *  than after the fact. */
+  currentAccountId?: string;
+}) {
+  const [accounts, setAccounts] = useState<MasterAccountRow[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setError(null);
+    try { setAccounts(await list()); } catch (e) { setError(e instanceof Error ? e.message : "Could not load accounts"); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const doRevoke = async (id: string) => {
+    setBusyId(id);
+    setError(null);
+    try { await revoke(id); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Could not revoke that account"); }
+    finally { setBusyId(null); }
+  };
+
+  if (!accounts) return error ? <div className="banner banner-danger">{error}</div> : <p className="tiny muted">Loading…</p>;
+
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      {accounts.map((a) => (
+        <div key={a.id} className="row-between">
+          <div className="stack" style={{ gap: 2 }}>
+            <span className="small">{a.name} <span className="tiny muted">— {a.role}</span></span>
+            <span className="tiny muted">{a.email}{!a.active ? " · revoked" : ""}</span>
+          </div>
+          {a.active && (
+            <button className="btn btn-sm btn-ghost" disabled={busyId === a.id || a.id === currentAccountId}
+              title={a.id === currentAccountId ? "Sign in as a different owner to revoke this one" : undefined}
+              onClick={() => doRevoke(a.id)}>
+              {busyId === a.id ? "Revoking…" : "Revoke"}
+            </button>
+          )}
+        </div>
+      ))}
+      {error && <div className="banner banner-danger">{error}</div>}
+    </div>
+  );
+}
+
+/**
  * The one place `SAFEHUBBY_ADMIN_KEY` itself is typed into this app, rather
  * than a terminal — everything downstream of provisioning uses the master
  * key it hands back, never the admin key again. The returned key is shown
@@ -129,6 +189,8 @@ function BootstrapPanel() {
     }
   };
 
+  const [showManage, setShowManage] = useState(false);
+
   if (issued) {
     return (
       <div className="stack">
@@ -158,6 +220,23 @@ function BootstrapPanel() {
         <label htmlFor="mst-admin-key">Server admin key</label>
         <input id="mst-admin-key" type="password" autoComplete="off" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />
       </div>
+
+      {/* The scenario this exists for: the only owner's key is lost, so
+          there is no session to revoke and reissue it from — the admin key
+          is the one thing still standing between "locked out" and "back
+          in," which is why this lives right next to it rather than only on
+          the signed-in dashboard. */}
+      <button className="btn btn-sm btn-ghost" type="button" disabled={!adminKey.trim()}
+        aria-expanded={showManage} onClick={() => setShowManage((v) => !v)}>
+        {showManage ? "Hide existing accounts" : "Manage existing accounts"}
+      </button>
+      {showManage && adminKey.trim() && (
+        <AccountsManager
+          list={() => api.masterListAccountsWithAdminKey(adminKey.trim())}
+          revoke={(id) => api.masterRevokeAccountWithAdminKey(adminKey.trim(), id)}
+        />
+      )}
+
       <div className="field">
         <label htmlFor="mst-name">Name</label>
         <input id="mst-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -214,6 +293,8 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onRefresh}>Refresh</button>
       </div>
 
+      {overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
+
       {overview.customers && <CustomersSection customers={overview.customers} />}
       {overview.operations && <OperationsSection operations={overview.operations} />}
       {overview.money && <MoneySection money={overview.money} />}
@@ -240,6 +321,24 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         )}
       </section>
     </Shell>
+  );
+}
+
+/** Owner-only: who else has master access, and a way to revoke one without
+ *  ever needing the admin key again once you're signed in. */
+function TeamAccessSection({ currentAccountId }: { currentAccountId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <section className="card stack">
+      <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+        <h3 style={{ margin: 0 }}>Team access</h3>
+        <span className="chev">{expanded ? "︿" : "﹀"}</span>
+      </button>
+      {expanded && (
+        <AccountsManager list={api.masterListAccounts} revoke={api.masterRevokeAccount} currentAccountId={currentAccountId} />
+      )}
+    </section>
   );
 }
 
