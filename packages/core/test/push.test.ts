@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Alert, AlertKind, AlertSeverity } from "../src/types.ts";
 import {
-  devicesFor, isEntitled, messagesForAlert, redactLocation, registerDevice, upsertDevice,
+  devicesFor, isEntitled, messagesForAlert, messagesForAssistantTask, redactLocation, registerDevice, upsertDevice,
   type PushDevice, type PushRecipient,
 } from "../src/push.ts";
 
@@ -138,6 +138,39 @@ describe("building the messages", () => {
       recipients: [{ guardianId: "jordan", scopes: ["location"], devices: [] }],
     });
     expect(messages).toEqual([]);
+  });
+});
+
+describe("telling an assistant a task landed on them", () => {
+  it("sends one message per registered device", () => {
+    const messages = messagesForAssistantTask({
+      taskId: "ct_1", categoryLabel: "Grab something", note: "A burger from The Anchor Tavern",
+      devices: [device("phone-1", "asst_1"), device("tablet-1", "asst_1")],
+    });
+    expect(messages.map((m) => m.token).sort()).toEqual(["phone-1", "tablet-1"]);
+    expect(messages.every((m) => m.taskId === "ct_1")).toBe(true);
+  });
+
+  it("names the category in the title, and always pushes as time-sensitive", () => {
+    const [m] = messagesForAssistantTask({
+      taskId: "ct_2", categoryLabel: "Run an errand", note: "Pick up dry cleaning",
+      devices: [device("phone-2", "asst_2")],
+    });
+    expect(m!.title).toBe("New task: Run an errand");
+    expect(m!.interruption).toBe("time-sensitive");
+  });
+
+  it("redacts coordinates out of the note, same as any other push body", () => {
+    const [m] = messagesForAssistantTask({
+      taskId: "ct_3", categoryLabel: "Grab something", note: "Meet at 40.7148, -74.0018 by the entrance",
+      devices: [device("phone-3", "asst_3")],
+    });
+    expect(m!.body).not.toMatch(/40\.7148/);
+  });
+
+  it("sends nothing to an assistant with no registered device", () => {
+    expect(messagesForAssistantTask({ taskId: "ct_4", categoryLabel: "Grab something", note: "x", devices: [] }))
+      .toEqual([]);
   });
 });
 

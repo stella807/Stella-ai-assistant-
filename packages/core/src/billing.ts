@@ -29,6 +29,7 @@ export type Feature =
   | "bac-estimate"
   | "recovery-plan"
   | "ride-booking"
+  | "quick-tasks"
   | "supply-delivery"
   | "safe-routes"
   | "history-analytics"
@@ -73,6 +74,7 @@ const EVERY_FEATURE = {
   "bac-estimate": true,
   "recovery-plan": true,
   "ride-booking": true,
+  "quick-tasks": true,
   "supply-delivery": true,
   "safe-routes": true,
   "history-analytics": true,
@@ -110,6 +112,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   "bac-estimate": "Intoxication estimate",
   "recovery-plan": "Recovery plan",
   "ride-booking": "Ride booking",
+  "quick-tasks": "Quick errands (grab something)",
   "supply-delivery": "Supply delivery",
   "safe-routes": "Safe routes",
   "history-analytics": "Night history",
@@ -147,8 +150,18 @@ export interface Plan {
   includedConciergeHours?: number;
 }
 
-/** Safety basics are never paywalled. SOS and location sharing are free forever. Ride booking is included so users can get home safely. */
-const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos", "ride-booking"];
+/**
+ * Safety basics are never paywalled. SOS and location sharing are free
+ * forever. Ride booking is included so users can get home safely, and
+ * quick-tasks lets a free user send someone to grab a specific thing
+ * (`grab-something`, `run-errand`) at the same discounted, bounded rate the
+ * errand-runner roster is paid at — see `QUICK_TASK_CATEGORIES` in
+ * concierge.ts. The rest of the personal concierge (waiting with someone,
+ * checking on someone, booking and buying, airport pickups) stays behind
+ * `personal-concierge` on a paid tier: those are open-ended time with a
+ * person, not a bounded ten-minute pickup.
+ */
+const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos", "ride-booking", "quick-tasks"];
 
 const BASIC_FEATURES: Feature[] = [
   ...FREE_FEATURES,
@@ -323,7 +336,7 @@ export const PLANS: Plan[] = [
     annualCents: 0,
     seats: 1,
     features: FREE_FEATURES,
-    blurb: "For one person. Location sharing, check-ins, drink count, and SOS. Always free — safety basics are not a paywall.",
+    blurb: "For one person. Location sharing, check-ins, drink count, SOS, ride booking, and quick errands. Always free — safety basics are not a paywall.",
   },
   {
     id: "premium-basic",

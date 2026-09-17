@@ -18,9 +18,18 @@ describe("plans", () => {
   });
 
   it("gates premium features", () => {
-    expect(hasFeature("free", "ride-booking")).toBe(false);
-    expect(hasFeature("premium-basic", "ride-booking")).toBe(false);
+    expect(hasFeature("free", "venue-menus")).toBe(false);
+    expect(hasFeature("premium-basic", "venue-menus")).toBe(true);
+    expect(hasFeature("premium-plus", "venue-menus")).toBe(true);
+  });
+
+  it("puts ride booking and quick errands on every tier, including free", () => {
+    // Getting home, and getting one bounded thing grabbed for you, are
+    // treated as safety basics — see FREE_FEATURES in billing.ts.
+    expect(hasFeature("free", "ride-booking")).toBe(true);
+    expect(hasFeature("free", "quick-tasks")).toBe(true);
     expect(hasFeature("premium-plus", "ride-booking")).toBe(true);
+    expect(hasFeature("premium-plus", "quick-tasks")).toBe(true);
   });
 
   it("is strictly cumulative as tiers rise", () => {
@@ -68,7 +77,7 @@ describe("plans", () => {
     // `ALL_FEATURES` is exhaustive by construction — see its `satisfies
     // Record<Feature, true>` in billing.ts, which turns "someone added a
     // Feature and forgot to decide where it goes" into a compile error.
-    expect(ALL_FEATURES.length).toBe(28);
+    expect(ALL_FEATURES.length).toBe(29);
     for (const feature of ALL_FEATURES) {
       expect(hasFeature("premium-plus", feature)).toBe(!ELITE_ONLY.includes(feature));
     }

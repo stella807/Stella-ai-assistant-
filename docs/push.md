@@ -97,6 +97,33 @@ accumulating, because clients register on every launch and providers rotate
 tokens — otherwise a guardian who has opened the app fifty times gets fifty
 copies of every alert.
 
+## Push to the assistant
+
+The same problem, on the other side of a task: an assistant with the portal
+closed should not learn a task was dispatched to them only when they next
+open it. `messagesForAssistantTask` in `push.ts` builds the message, and
+`POST /api/concierge/tasks` sends it the moment an in-house hire
+(`ourAssistant` in `routes.ts`) is assigned — never for a partner-network
+booking, which is told through that partner's own dispatch system instead.
+
+It reuses the traveler-side machinery — the same `PushDevice` row,
+`registerDevice`, `upsertDevice`, `devicesFor` — keyed on the assistant's own
+id rather than a traveler's, through a parallel, separately authenticated
+route so a traveler's session can never register or clear an assistant's
+device, or the reverse:
+
+| Route | Does |
+|---|---|
+| `POST /api/assistant/push/devices` | Registers this device against the signed-in assistant |
+| `POST /api/assistant/push/devices/remove` | Unregisters it |
+| `GET /api/assistant/push/status` | Whether this assistant would actually be reached |
+
+Always sent `time-sensitive`: a dispatched errand has someone waiting on it,
+not a status update to read whenever the phone next comes out of a pocket.
+There is no scope table here the way there is for a guardian's alerts — an
+assistant's own device list needs no consent check, since the task was
+already assigned to them.
+
 ## What is still missing
 
 - **The native side needs the accounts.** Real tokens need APNs (Apple

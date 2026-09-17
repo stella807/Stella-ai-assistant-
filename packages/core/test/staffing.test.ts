@@ -8,9 +8,9 @@ import {
 import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "../src/promotions.ts";
 
 describe("the roles being hired", () => {
-  it("covers the five roles the launch is staffing", () => {
+  it("covers the six roles the launch is staffing", () => {
     expect(STAFF_ROLES.map((r) => r.id).sort()).toEqual(
-      ["driver", "errand-runner", "personal-assistant", "secretary", "social-media-manager"],
+      ["driver", "errand-runner", "lawyer", "personal-assistant", "secretary", "social-media-manager"],
     );
   });
 
@@ -86,9 +86,10 @@ describe("the pre-launch budget", () => {
   it("pays the desk roles for the window, and nobody else — the field roles are paid per job", () => {
     // The omission this test exists to prevent: drivers and assistants earn
     // nothing during a window with no customers, which is exactly why they
-    // get the stipend. The secretary and the social media manager work those
-    // two months for real, and the launch depends on the second one.
-    const DESK = ["secretary", "social-media-manager"];
+    // get the stipend. The secretary, the social media manager and the
+    // lawyer work those two months for real — the lawyer's contracts have to
+    // exist before there is anyone to hand them to.
+    const DESK = ["secretary", "social-media-manager", "lawyer"];
     for (const line of budget.lines) {
       if (DESK.includes(line.role)) expect(line.wagesCents, line.role).toBeGreaterThan(0);
       else expect(line.wagesCents, line.role).toBe(0);

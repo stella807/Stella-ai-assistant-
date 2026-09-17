@@ -13,6 +13,7 @@ import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { isNative, platform } from "../native/platform.ts";
 import { readFileAsBase64 } from "../native/camera.ts";
 import { TaskCardVisual } from "./TaskCardVisual.tsx";
+import { PushArmPanel } from "./PushArmPanel.tsx";
 
 import { dollars as moneyRound, money } from "../money.ts";
 
@@ -448,6 +449,13 @@ function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
             <button className="btn btn-sm" onClick={() => setShowPay(true)}>See pay rates</button>
             <button className="btn btn-sm" onClick={() => setShowPayouts(true)}>Get paid</button>
           </div>
+
+          <PushArmPanel
+            statusApi={api.assistantPushStatus}
+            registerApi={api.assistantRegisterPushDevice}
+            title="Get notified for new tasks"
+            armedCopy="This phone will buzz the moment a task is assigned to you — even with the app closed."
+          />
 
           {active.length === 0 && past.length === 0 && (
             <p className="small muted">Nothing assigned to you right now.</p>

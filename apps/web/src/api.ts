@@ -555,6 +555,16 @@ export const api = {
       "GET", "/api/push/status"),
   registerPushDevice: (token: string, platform: string) =>
     request<{ registered: boolean; delivery: { mode: string } }>("POST", "/api/push/devices", { token, platform }),
+  /** So an assistant's phone buzzes the moment a task lands on them, instead
+   *  of only when they next open the portal. Same device row as the
+   *  traveler-side call above, registered against the assistant's own
+   *  session — see requireConciergeAccess's neighbor route in routes.ts. */
+  assistantRegisterPushDevice: (token: string, platform: string) =>
+    request<{ registered: boolean; delivery: { mode: string } }>(
+      "POST", "/api/assistant/push/devices", { token, platform }),
+  assistantPushStatus: () =>
+    request<{ devices: number; delivery: { id: string; name: string; mode: string; requires: string } }>(
+      "GET", "/api/assistant/push/status"),
 
   redeem: (rewardId: string) => request<any>("POST", "/api/points/redeem", { rewardId }),
 

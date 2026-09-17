@@ -50,7 +50,7 @@ import {
   kindLabel, railsUsed,
   cancelSubscription, changePlan, describeSubscription, effectivePlan, startSubscription,
   requiresHelpDeskToDowngrade,
-  devicesFor, registerDevice, upsertDevice,
+  devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, type CurrentPricing, type PriceOverride,
 } from "@safehubby/core";
@@ -963,6 +963,27 @@ function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
   if (!hasFeature(traveler.planId, feature)) {
     throw new HttpError(402, `Your plan does not include "${featureLabel(feature)}". Upgrade to unlock it.`);
   }
+}
+
+/**
+ * The concierge gate, split in two.
+ *
+ * `personal-concierge` covers the whole catalogue and is a paid-tier feature.
+ * `quick-tasks` is free-tier and covers only the bounded, ten-minute pickups
+ * — `grab-something` and `run-errand` — booked with `quickTask: true`, at the
+ * discounted rate `QUICK_TASK_ASSISTANT_PAYOUT_CENTS` pays for. Anything else
+ * (waiting with someone, checking on someone, book-and-buy, airport pickup,
+ * or a standard-rate grab/errand) still needs the paid feature: those are
+ * open-ended time with a person, not a quick pickup, and giving that away
+ * free would just be `personal-concierge` under a different name.
+ */
+function requireConciergeAccess(
+  ctx: Ctx, travelerId: string, category: ConciergeCategory, quickTask: boolean | undefined,
+): void {
+  const traveler = ctx.store.data.travelers.find((t) => t.id === travelerId);
+  if (!traveler) throw notFound("Traveler");
+  if (quickTask && isQuickTaskEligible(category) && hasFeature(traveler.planId, "quick-tasks")) return;
+  requireFeature(ctx, travelerId, "personal-concierge");
 }
 
 /** The wider pharmacy-run menu comes with Premium Plus and Family, not with
@@ -2047,9 +2068,9 @@ export const routes: Record<string, Handler> = {
    */
   "GET /api/concierge/assistants": async (ctx, p) => {
     const me = actor(ctx);
-    requireFeature(ctx, me, "personal-concierge");
     const category = p.category ?? "";
     if (!CONCIERGE_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Unknown task type.");
+    requireConciergeAccess(ctx, me, category as ConciergeCategory, p.quickTask === "true");
     const location = coordsFrom(p);
     requireLaunchMarket(location);
 
@@ -2109,9 +2130,9 @@ export const routes: Record<string, Handler> = {
    */
   "POST /api/concierge/quote": async (ctx, _p, body) => {
     const me = actor(ctx);
-    requireFeature(ctx, me, "personal-concierge");
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input);
+    requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
 
@@ -2143,9 +2164,9 @@ export const routes: Record<string, Handler> = {
   "POST /api/concierge/tasks": async (ctx, _p, body) => {
     const me = actor(ctx);
     requireServiceLive(ctx);
-    requireFeature(ctx, me, "personal-concierge");
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input);
+    requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
     // Looked up server-side, from the flight number and date alone — never
     // trusting a client-supplied snapshot, the same rule this route already
@@ -2275,6 +2296,18 @@ export const routes: Record<string, Handler> = {
       ctx.store.update((db) => {
         (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Sent a concierge instead of going alone"));
       });
+      // Only our own roster carries a portal device to reach — a partner
+      // network's assistant is told through their own dispatch system, in
+      // `concierge.book` above, not this app's push devices.
+      if (ourAssistant) {
+        const devices = devicesFor(ctx.store.data.pushDevices, ourAssistant.id);
+        if (devices.length > 0) {
+          const messages = messagesForAssistantTask({
+            taskId: task.id, categoryLabel: conciergeCategoryLabel(task.category), note: task.note, devices,
+          });
+          void push.send(messages).catch((err) => console.error("[safehubby] Assistant task push failed:", err));
+        }
+      }
       return { task, booked };
     } catch (err) {
       // A card issued for a task that never actually got booked is a live,
@@ -2754,6 +2787,43 @@ export const routes: Record<string, Handler> = {
       // they always could.
       aiAssist: aiAssist.status,
     };
+  },
+
+  /**
+   * The assistant-portal analogue of `POST /api/push/devices`: same
+   * `PushDevice` row, same registration function, keyed on the assistant's
+   * own id instead of a traveler's. Kept as its own route rather than
+   * reusing the traveler one because the two are authenticated from
+   * different sessions (`assistantActor` vs `actor`) — a customer's session
+   * must never be able to register a device against an assistant's id, or
+   * vice versa.
+   */
+  "POST /api/assistant/push/devices": (ctx, _p, body) => {
+    const assistantId = assistantActor(ctx);
+    const device = registerDevice({
+      token: String(body?.token ?? ""),
+      platform: String(body?.platform ?? ""),
+      userId: assistantId,
+      now: ctx.now(),
+    });
+    ctx.store.update((db) => { db.pushDevices = upsertDevice(db.pushDevices, device); });
+    return { registered: true, platform: device.platform, delivery: push.status };
+  },
+
+  "POST /api/assistant/push/devices/remove": (ctx, _p, body) => {
+    const assistantId = assistantActor(ctx);
+    const token = String(body?.token ?? "");
+    ctx.store.update((db) => {
+      db.pushDevices = db.pushDevices.filter((d) => !(d.token === token && d.userId === assistantId));
+    });
+    return { removed: true };
+  },
+
+  /** Whether this assistant would actually be reached — the portal's version
+   *  of `GET /api/push/status`. */
+  "GET /api/assistant/push/status": (ctx) => {
+    const assistantId = assistantActor(ctx);
+    return { devices: devicesFor(ctx.store.data.pushDevices, assistantId).length, delivery: push.status };
   },
 
   /**
@@ -4140,7 +4210,6 @@ export const routes: Record<string, Handler> = {
   /** Master: get payroll summary for assistants and staff. */
   "GET /api/master/payroll": (ctx) => {
     requireAdmin(ctx, "operations");
-    const now = ctx.now();
 
     // Get completed concierge tasks and their payouts
     const completedTasks = ctx.store.data.conciergeTasks.filter((t) => t.status === "completed");

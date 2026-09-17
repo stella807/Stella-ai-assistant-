@@ -392,14 +392,15 @@ describe("plan gating", () => {
     const jordanNight = (await call("POST", "/api/nights", { weightKg: 70 }, jordan)).json.night;
 
     expect((await call("GET", `/api/nights/${jordanNight.id}/recovery`, undefined, jordan)).status).toBe(402);
-    expect((await call("POST", "/api/rides/quote", {
-      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
-    }, jordan)).status).toBe(402);
 
-    // Safety basics stay free.
+    // Safety basics stay free — ride booking and quick errands included; see
+    // FREE_FEATURES in billing.ts.
     expect((await call("POST", `/api/nights/${jordanNight.id}/sos`, {}, jordan)).status).toBe(200);
     expect((await call("POST", `/api/nights/${jordanNight.id}/drinks`, { drinkId: "beer-light" }, jordan)).status).toBe(200);
     expect((await call("POST", "/api/grants", { scopes: ["location"] }, jordan)).status).toBe(200);
+    expect((await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
+    }, jordan)).status).toBe(200);
   });
 
   it("allows the same features on a paid plan", async () => {
@@ -695,17 +696,14 @@ describe("pharmacy run", () => {
 
 describe("subscription", () => {
   it("switches the plan and unlocks its features", async () => {
-    expect((await call("POST", "/api/rides/quote", {
-      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
-    }, jordan)).status).toBe(402);
+    const jordanNight = (await call("POST", "/api/nights", { weightKg: 70 }, jordan)).json.night;
+    expect((await call("GET", `/api/nights/${jordanNight.id}/recovery`, undefined, jordan)).status).toBe(402);
 
     const res = await call("POST", "/api/subscription", { planId: "premium-plus", cadence: "annual" }, jordan);
     expect(res.status).toBe(200);
     expect(res.json.plan.id).toBe("premium-plus");
 
-    expect((await call("POST", "/api/rides/quote", {
-      pickup: { lat: 40.71, lng: -74 }, dropoff: { lat: 40.72, lng: -74.01 },
-    }, jordan)).status).toBe(200);
+    expect((await call("GET", `/api/nights/${jordanNight.id}/recovery`, undefined, jordan)).status).toBe(200);
   });
 
   it("starts a trial rather than charging on the way in", async () => {
@@ -1088,10 +1086,14 @@ describe("ride hand-off", () => {
     expect(after - before).toBe(100);
   });
 
-  it("is still gated on the paid plan", async () => {
-    expect((await call("POST", "/api/rides/quote", {
+  it("is on the free plan too — hand-off links, not automatic booking", async () => {
+    // Ride booking itself is a free-tier safety basic (FREE_FEATURES in
+    // billing.ts); what still needs a paid plan is Safehubby booking and
+    // paying for the ride automatically — see "automatic-rides" gating.
+    const res = (await call("POST", "/api/rides/quote", {
       pickup: { lat: 1, lng: 1 }, dropoff: { lat: 2, lng: 2 },
-    }, jordan)).status).toBe(402);
+    }, jordan)).json;
+    expect(res.mode).toBe("handoff");
   });
 });
 
@@ -1369,6 +1371,33 @@ describe("personal concierge", () => {
     await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
     const basic = await call("POST", "/api/concierge/quote", task(), jordan);
     expect(basic.status).toBe(503);
+  });
+
+  it("waives the gate on the free tier for a quick errand — grab-something or run-errand, booked as quickTask", async () => {
+    // Jordan stays free. Past the 402 this time — 503 because no partner
+    // network is configured in tests, same handoff every paid tier gets.
+    const grab = await call("POST", "/api/concierge/quote", task({ quickTask: true }), jordan);
+    expect(grab.status).toBe(503);
+
+    const errand = await call(
+      "POST", "/api/concierge/quote", task({ category: "run-errand", quickTask: true }), jordan,
+    );
+    expect(errand.status).toBe(503);
+  });
+
+  it("still gates the free tier without the quick-task flag, or for open-ended categories", async () => {
+    // Same category the quick-task test just waived the gate for — without
+    // `quickTask: true` this is the full-price personal-assistant booking,
+    // which stays behind `personal-concierge`.
+    const standardRate = await call("POST", "/api/concierge/quote", task(), jordan);
+    expect(standardRate.status).toBe(402);
+
+    // Waiting with someone is open-ended time with a person, not a bounded
+    // pickup — never eligible for the quick-task discount at all.
+    const wait = await call(
+      "POST", "/api/concierge/quote", task({ category: "wait-with-someone" }), jordan,
+    );
+    expect(wait.status).toBe(402);
   });
 
   it("refuses when no partner network is configured, rather than pretending", async () => {
@@ -3117,6 +3146,70 @@ describe("push to the guardian", () => {
   });
 });
 
+describe("push to the assistant", () => {
+  useAdminKey();
+
+  /** Hires an errand runner and signs them into the portal, the same shape
+   *  as `bookedTask` in "texting the assistant on your task" below. */
+  const hiredErrandRunner = async () => {
+    const app = await call("POST", "/api/staff/apply", {
+      role: "errand-runner", fullName: "Nia Osei", email: "nia@example.com",
+      phone: "2125550148", city: "Houston", state: "TX", hoursPerWeek: 15,
+      backgroundCheckConsent: true,
+      experience: "Two years of bike courier work across downtown.",
+    });
+    await callAdmin("POST", `/api/staff/applications/${app.json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${app.json.id}/review`, { status: "approved" });
+    const hired = await callAdmin("POST", `/api/staff/applications/${app.json.id}/hire`, { market: "texas" });
+    return hired.json.assistant.id as string;
+  };
+
+  it("registers a device from the portal session, separate from a traveler's", async () => {
+    const assistantId = await hiredErrandRunner();
+    const { cookie } = await assistantLogin(assistantId);
+
+    const res = await call("POST", "/api/assistant/push/devices", { token: "assistant-device-token", platform: "ios" }, null, cookie);
+    expect(res.status).toBe(200);
+    expect(res.json.registered).toBe(true);
+
+    const status = (await call("GET", "/api/assistant/push/status", undefined, null, cookie)).json;
+    expect(status.devices).toBe(1);
+
+    // A traveler's session cannot see or clear an assistant's device.
+    expect((await call("GET", "/api/push/status", undefined, jordan)).json.devices).toBe(0);
+  });
+
+  it("rejects a token that is not one, and requires the assistant's own session", async () => {
+    const assistantId = await hiredErrandRunner();
+    const { cookie } = await assistantLogin(assistantId);
+    expect((await call("POST", "/api/assistant/push/devices", { token: "x", platform: "ios" }, null, cookie)).status).toBe(400);
+    expect((await call("POST", "/api/assistant/push/devices", { token: "a-real-looking-token", platform: "ios" })).status).toBe(401);
+  });
+
+  it("does not fail booking a free-tier quick errand when the assistant has no push provider configured", async () => {
+    const assistantId = await hiredErrandRunner();
+    const { cookie } = await assistantLogin(assistantId);
+    await call("POST", "/api/assistant/push/devices", { token: "assistant-device-token", platform: "ios" }, null, cookie);
+
+    // Jordan stays on the free plan — this is exactly the quick-task gate
+    // waived above, now carried through to an actual booking.
+    await call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, jordan);
+    const booked = await call("POST", "/api/concierge/tasks", {
+      category: "grab-something", note: "A burger and fries from The Anchor Tavern",
+      location: { lat: 30.2672, lng: -97.7431, label: "The Anchor Tavern" },
+      spendCapCents: 2500, quickTask: true, acknowledgedDisclosures: true,
+      assistantId,
+    }, jordan);
+    expect(booked.status).toBe(200);
+    expect(booked.json.task.assistantId).toBe(assistantId);
+
+    // The assistant's own portal shows the task landed on them, whether or
+    // not the push actually reached the (unconfigured, in tests) device.
+    const portal = (await call("GET", "/api/assistant/portal", undefined, null, cookie)).json;
+    expect(portal.tasks.some((t: { id: string }) => t.id === booked.json.task.id)).toBe(true);
+  });
+});
+
 describe("codes cannot be brute forced", () => {
   it("rate limits invite-code attempts", async () => {
     // A six-character code is the only thing between a stranger and a named
@@ -3275,7 +3368,7 @@ describe("hiring for the roles that do not drive", () => {
     const res = await call("GET", "/api/staff/roles");
     expect(res.status).toBe(200);
     expect(res.json.roles.map((r: { id: string }) => r.id).sort())
-      .toEqual(["errand-runner", "personal-assistant", "secretary", "social-media-manager"]);
+      .toEqual(["errand-runner", "lawyer", "personal-assistant", "secretary", "social-media-manager"]);
     // Drivers apply through their own form, which asks about a vehicle.
     expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
 

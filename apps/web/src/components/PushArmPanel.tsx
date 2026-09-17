@@ -17,18 +17,37 @@ import { registerForPush, type PushState } from "../native/push.ts";
  * The middle case is the one worth being loud about. Someone who believes
  * their phone will wake them and is wrong has been given false confidence by
  * a safety app, which is worse than being told plainly to keep the app open.
+ *
+ * Reused as-is for the assistant portal (`EmployeePortal.tsx`), which needs
+ * the exact same three-state logic for "a task just landed on you" instead
+ * of "someone you're watching needs you" — only which endpoints it calls and
+ * what the armed copy says differ, so those are the only two things made
+ * into props rather than duplicating the whole panel.
  */
-export function PushArmPanel() {
+export interface PushArmPanelProps {
+  statusApi?: () => Promise<{ devices: number; delivery: { mode: string } }>;
+  registerApi?: (token: string, platform: string) => Promise<{ delivery: { mode: string } }>;
+  title?: string;
+  armedCopy?: string;
+}
+
+export function PushArmPanel({
+  statusApi = api.pushStatus,
+  registerApi = api.registerPushDevice,
+  title = "Alerts on your phone",
+  armedCopy = "This phone will buzz for a missed check-in, a fast pace, or an SOS — even with the app closed. "
+    + "It stops the moment they stop sharing.",
+}: PushArmPanelProps) {
   const [state, setState] = useState<PushState | "idle">("idle");
   const [devices, setDevices] = useState<number | null>(null);
   const [deliveryMode, setDeliveryMode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.pushStatus()
+    statusApi()
       .then((s) => { setDevices(s.devices); setDeliveryMode(s.delivery.mode); })
       .catch(() => {});
-  }, []);
+  }, [statusApi]);
 
   const arm = async () => {
     setBusy(true);
@@ -36,7 +55,7 @@ export function PushArmPanel() {
       const result = await registerForPush();
       setState(result.state);
       if (result.state === "registered" && result.token && result.platform) {
-        const res = await api.registerPushDevice(result.token, result.platform);
+        const res = await registerApi(result.token, result.platform);
         setDeliveryMode(res.delivery.mode);
         setDevices((n) => (n ?? 0) + 1);
       }
@@ -51,19 +70,16 @@ export function PushArmPanel() {
   const senderLive = deliveryMode === "automatic";
 
   return (
-    <section className="card stack" aria-label="Alerts on your phone">
+    <section className="card stack" aria-label={title}>
       <div className="row-between">
-        <h3>Alerts on your phone</h3>
+        <h3>{title}</h3>
         {armed && <span className={senderLive ? "pill pill-safe" : "pill pill-warn"}>
           {senderLive ? "On" : "Not sending"}
         </span>}
       </div>
 
       {armed && senderLive && (
-        <p className="small muted">
-          This phone will buzz for a missed check-in, a fast pace, or an SOS — even with the app closed.
-          It stops the moment they stop sharing.
-        </p>
+        <p className="small muted">{armedCopy}</p>
       )}
 
       {armed && !senderLive && (

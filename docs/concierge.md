@@ -605,6 +605,19 @@ before — that part didn't change. What moved is two standing costs that exist
 whether or not a given subscriber ever books a task that month, the same
 category of reasoning as secure transport's insurance contract:
 
+**One slice of the catalogue is free even without `personal-concierge`.**
+`quick-tasks` (`billing.ts`, on `FREE_FEATURES`) waives the gate for exactly
+`grab-something` and `run-errand` booked with `quickTask: true` — the
+bounded, ten-minute pickups the quick-task discount below already prices
+separately. Waiting with someone, checking on someone, booking and buying,
+and airport pickups all stay behind `personal-concierge` on a paid tier,
+and so does a standard-rate (non-`quickTask`) grab or errand: those are
+open-ended time with a person or a bigger-ticket booking, not a quick grab,
+and giving them away free would just be `personal-concierge` under a
+different name. `requireConciergeAccess` in `apps/api/src/routes.ts` is the
+one place that decides, so the two features can never drift out of sync
+across the quote, roster and booking routes.
+
 - The partner-network retainer itself.
 - Keeping the Revolut Business balance funded that issues each task's card —
   Safehubby is fronting real money for the window between issuing a card and

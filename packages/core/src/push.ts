@@ -140,6 +140,37 @@ export function messagesForAlert({ alert, travelerName, recipients }: BuildPushI
     );
 }
 
+/**
+ * Tells an assistant a task just landed on them.
+ *
+ * Separate from `messagesForAlert` because there is no `Alert` here and no
+ * guardian consent boundary to check — an assistant's own device list is not
+ * gated by anything, the same way `devicesFor` needs no scope check for it.
+ * `time-sensitive` throughout: a dispatched errand has someone waiting on
+ * it, not a status update to read whenever the phone is next picked up.
+ */
+export interface AssistantTaskPushInput {
+  taskId: string;
+  /** The task's category, already turned into words — `conciergeCategoryLabel`,
+   *  never the raw id, for the same reason an alert never shows one. */
+  categoryLabel: string;
+  note: string;
+  devices: PushDevice[];
+}
+
+export function messagesForAssistantTask(input: AssistantTaskPushInput): PushMessage[] {
+  const body = redactLocation(input.note.trim() || "Details are in the portal.");
+  return input.devices.map((d): PushMessage => ({
+    token: d.token,
+    platform: d.platform,
+    title: `New task: ${input.categoryLabel}`,
+    body,
+    interruption: "time-sensitive",
+    alertId: `assistant-task:${input.taskId}`,
+    taskId: input.taskId,
+  }));
+}
+
 export interface RegisterDeviceInput {
   token: string;
   platform: string;
