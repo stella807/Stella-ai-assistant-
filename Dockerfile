@@ -2,6 +2,9 @@
 FROM node:22-slim AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+# Without a TTY, pnpm refuses to prune node_modules for the --prod
+# re-install below unless it knows it's running unattended in CI.
+ENV CI=true
 RUN corepack enable
 
 WORKDIR /app
