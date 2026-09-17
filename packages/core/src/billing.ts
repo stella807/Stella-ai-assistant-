@@ -147,8 +147,8 @@ export interface Plan {
   includedConciergeHours?: number;
 }
 
-/** Safety basics are never paywalled. SOS and location sharing are free forever. */
-const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos"];
+/** Safety basics are never paywalled. SOS and location sharing are free forever. Ride booking is included so users can get home safely. */
+const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos", "ride-booking"];
 
 const BASIC_FEATURES: Feature[] = [
   ...FREE_FEATURES,
