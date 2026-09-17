@@ -370,64 +370,74 @@ export const PLANS: Plan[] = [
   {
     id: "elite",
     name: "Elite",
-    monthlyCents: 50000,
-    annualCents: 499999,
-    seats: 6,
+    monthlyCents: 150000,
+    annualCents: 1499999,
+    seats: 1,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 10,
-    blurb: "Everything in Family, plus the luxury desk — jet charter arranged, a concierge physician practice introduced, villas, yachts and events — and ten hours of a personal assistant's time every month.",
+    blurb: "For one person. The luxury desk — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately, and ten hours of a personal assistant's time every month.",
   },
   {
     id: "elite-signature",
     name: "Elite Signature",
-    monthlyCents: 250000,
-    annualCents: 2499999,
-    seats: 6,
+    monthlyCents: 750000,
+    annualCents: 7499999,
+    seats: 2,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 50,
-    blurb: "The same desk with fifty hours a month behind it — enough that the assistant knows your household rather than your last request.",
+    blurb: "For two. The same desk and the same included physician's retainer, with fifty hours a month behind it — enough that the assistant knows your household rather than your last request.",
   },
   {
     id: "elite-private",
     name: "Elite Private",
-    monthlyCents: 2000000,
-    annualCents: 19999999,
+    monthlyCents: 6000000,
+    annualCents: 59999999,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 200,
-    blurb: "Two hundred hours a month: a named team rather than whoever is free, with the desk and the physician introduction behind them.",
+    blurb: "For up to six. Two hundred hours a month with a named team, the physician's retainer included, and at-home doctor visits and evaluation arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
   },
 ];
 
 /**
- * Why Elite is a ladder from $500 to $20,000 rather than one price.
+ * Why Elite is a ladder from $1,500 to $60,000 rather than one price, and
+ * why the rungs go 1/2/6 seats instead of the flat 6 they used to.
  *
- * The earlier single-price Elite was set against the wrong competitor. It was
- * $119 because the partner whose network the desk borrows sells its own
- * membership at $99, so anything above "Family plus that" was unbuyable. That
- * reasoning holds for a *card-access* membership — a number to call, a desk
- * that books things — and Quintessentially's $12,000-$44,000 a year is the
- * ceiling on that whole category.
+ * These tiers sell two things now, not one: somebody's time (the hours), and
+ * the concierge physician's own retainer, paid by Safehubby rather than
+ * billed to the member separately. That second piece is real money —
+ * concierge-medicine retainers commonly run $2,000-$5,000 a year — and it is
+ * why the entry rung moved from $500 to $1,500: a member who never books a
+ * single hour of concierge time is still getting a covered medical retainer
+ * worth more than the old dues.
  *
- * It does not hold for what these tiers actually sell, which is somebody's
- * time. The hours are the price and the desk rides along: at the published
- * rate an included hour costs what an extra hour costs, so a member is
- * prepaying rather than buying a discount, and the tier is really a retainer
- * with a concierge desk attached. Priced that way it is not competing with a
- * membership card at all — it is competing with employing a house manager,
- * which is $80,000-$150,000 a year before employer costs.
+ * Seats now track who the retainer actually covers, the same reason the
+ * everyday ladder (`free`/`premium-basic`/`premium-plus`/`family`) scales
+ * seats with price — except backwards from that ladder's shape: Elite's
+ * entry rung is *one* person specifically, not the whole household, because
+ * a covered physician's retainer is priced per person covered by it, not
+ * per household. Going from 1 to 2 to 6 seats is what makes "the retainer is
+ * included" a coherent promise at every rung rather than a giveaway at the
+ * top one. `releasedPlans` and its seat-ordering test are scoped to the
+ * everyday ladder for exactly this reason — Elite is allowed to cost more
+ * and cover fewer people, because it is not selling seats, it is selling a
+ * covered person's whole benefit.
  *
- * That is also the honest reading of the top of the band. $20,000 a month is
- * far above any card membership on the market and nowhere near the cost of
- * staffing two hundred hours privately. Judge each rung by its hours, not
- * against Quintessentially: the hours are what make the number defensible,
- * and a rung that lost them would just be an expensive phone number.
+ * The top rung's hours are still what makes the top price defensible against
+ * the alternative of actually staffing this privately: $80,000-$150,000 a
+ * year for one house manager, before employer costs. $60,000 a month for a
+ * named team, six covered retainers, and two hundred hours is priced against
+ * that, not against a card membership — see `docs/billing.md` for the
+ * numbers this reasoning updates from.
  *
  * The desk itself still earns supplier-side — see elite.ts. Two of its
  * services carry legal duties that no pricing decision may soften: charter is
  * brokered under 14 CFR Part 295 with the operator named before a member
- * agrees, and the concierge physician pays Safehubby nothing, ever, because a
- * cut of a medical fee for a referral is a kickback.
+ * agrees, and the concierge physician still pays Safehubby nothing, ever,
+ * even though Safehubby now pays the physician's retainer on the member's
+ * behalf — paying for a service and taking a cut of one are not the same
+ * thing, and only the second is the kickback. See `MEDICAL_FEE_RULE` in
+ * elite.ts.
  */
 export const ELITE_LADDER: PlanId[] = ["elite", "elite-signature", "elite-private"];
 

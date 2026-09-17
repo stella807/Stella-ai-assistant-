@@ -100,7 +100,7 @@ export const ELITE_SERVICES: EliteService[] = [
   {
     id: "concierge-doctor",
     label: "Concierge doctor",
-    description: "Access arranged to a licensed concierge physician practice — house calls, same-day appointments, and 24/7 reach.",
+    description: "A licensed concierge physician practice, retainer included — house calls and at-home evaluation, same-day appointments, and 24/7 reach.",
     feature: "concierge-doctor",
     // Zero on purpose. See MEDICAL_FEE_RULE.
     commissionRate: 0,
@@ -108,25 +108,46 @@ export const ELITE_SERVICES: EliteService[] = [
 ];
 
 /**
- * Why the concierge doctor pays Safehubby nothing.
+ * The concierge-physician retainer Safehubby now pays on the member's
+ * behalf, folded into every Elite rung's price rather than billed to the
+ * member separately.
+ *
+ * Concierge-medicine retainers run $1,500-$25,000 a year, commonly
+ * $2,000-$5,000 — this is the middle of that common range, not the top of
+ * the full one, since Elite is buying access for a member who is otherwise
+ * healthy, not a complex standing case. It is a real, ongoing cost against
+ * Elite's revenue (the entry rung's $18,000/year clears it with room for
+ * the desk and the hours behind it) and belongs here, priced and cited,
+ * rather than left as an assumption behind "included."
+ */
+export const CONCIERGE_DOCTOR_RETAINER_ANNUAL_CENTS = 350_000;
+
+/**
+ * Why the concierge doctor still pays Safehubby nothing, even though
+ * Safehubby now pays the doctor.
  *
  * Taking a percentage of a physician's fee for sending them a patient is the
  * shape of a referral kickback, and it runs into the federal Anti-Kickback
  * Statute as well as state fee-splitting and corporate-practice-of-medicine
  * rules — which vary by state and are not something this codebase should
- * guess at. So the rate is zero and stays zero: Safehubby arranges access as
- * part of what the Elite membership already buys, the member pays the
- * practice its own retainer or visit fee directly, and no money flows from a
- * doctor to Safehubby for the introduction.
+ * guess at. That rule does not change just because the money now flows the
+ * other way: Safehubby paying the practice's retainer *for* the member is
+ * Safehubby spending its own revenue on a benefit, the same as covering any
+ * other included service — it is not a cut of the physician's fee, because
+ * there is no fee flowing back to Safehubby to take a cut of. The rate stays
+ * zero and stays zero for that reason, not because the retainer is
+ * unaffordable to cover: it is now covered, by `CONCIERGE_DOCTOR_RETAINER_ANNUAL_CENTS`
+ * above, and no money still flows from the doctor to Safehubby for the
+ * introduction.
  *
- * This is also why a concierge doctor cannot be "included" in the
- * membership. Concierge medicine retainers run $1,500-$25,000 a year, and
- * commonly $2,000-$5,000 — more than Elite costs in total. Elite buys the
- * arranging, the vetting, and the coordination; it does not and cannot buy
- * the physician's retainer.
+ * What does not change: Safehubby still arranges access and vets the
+ * practice rather than employing or treating anyone directly — see the
+ * physician and nurse `StaffRole` entries in staffing.ts for why direct
+ * employment to *treat* members, instead of paying for their care and
+ * advising the desk, is a different, unresolved question.
  */
 export const MEDICAL_FEE_RULE =
-  "Safehubby takes no commission on medical care and is never paid for a referral." as const;
+  "Safehubby pays your concierge-physician retainer as part of your membership, and takes no commission on your medical care — never paid for a referral, either direction." as const;
 
 /**
  * Shown before any jet booking. `14 CFR Part 295` requires an air charter
@@ -156,7 +177,8 @@ export const CONCIERGE_DOCTOR_DISCLOSURES = [
   "This is not emergency care. For anything life-threatening, call your local emergency number first — always.",
   "The physician is licensed and independent. Safehubby is not a medical provider, employs no clinicians, and gives no medical advice.",
   "Care is subject to the physician's own licensing: a doctor licensed in one state generally cannot treat you in another.",
-  "You pay the practice directly, at its own rates. Safehubby takes no share of any medical fee.",
+  "Your retainer with the practice is paid by Safehubby, included in your membership — you are not billed for it separately.",
+  "Anything beyond the retainer — a procedure, a test, medication — is still between you and the practice, at its own rates. Safehubby takes no share of any medical fee, from you or from the practice.",
   "What you tell the practice is between you and them. Safehubby passes on only what you ask it to.",
 ];
 
@@ -250,8 +272,9 @@ export function disclosuresFor(id: EliteServiceId): string[] {
  * intended first one (see `adapters/elite-desk.ts`, which stays
  * provider-agnostic). **Safehubby holds one house membership and brokers on
  * it**; members do not each buy their own. That is the only structure in
- * which $149 a month is a real price rather than a loss, and it is the
- * assumption every number below rests on.
+ * which Elite's own dues are a real price rather than a loss — one shared
+ * membership behind however many Elite members there are, not one bought
+ * per member — and it is the assumption every number below rests on.
  *
  * It is also a contract term, not a technical choice. Brokering on a house
  * membership has to be permitted by the partner agreement, and the air-charter

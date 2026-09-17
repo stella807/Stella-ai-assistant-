@@ -147,11 +147,12 @@ describe("validateEliteRequest", () => {
 describe("whether the Elite desk pays for itself", () => {
   const dues = findPlan("elite").monthlyCents; // $500, the entry rung
 
-  it("needs two members in year one, one after, to carry the house membership", () => {
+  it("needs just one member, in year one and after, to carry the house membership", () => {
     // Moves with the dues, and the ladder moved them a long way: entry dues
-    // now equal the desk's own monthly cost outright, so a single member
-    // carries it in steady state and two cover the initiation year.
-    expect(eliteBreakEvenMembers(dues, true)).toBe(2);
+    // ($1,500/mo) now comfortably clear the desk's own annual cost even
+    // with the one-off initiation counted, so a single member carries it
+    // in both the founding year and every year after.
+    expect(eliteBreakEvenMembers(dues, true)).toBe(1);
     expect(eliteBreakEvenMembers(dues, false)).toBe(1);
   });
 
@@ -171,18 +172,22 @@ describe("whether the Elite desk pays for itself", () => {
   });
 
   it("says not to buy the desk before it can be carried", () => {
-    // The rule this exists for: a desk bought for two members is the most
-    // expensive possible way to learn the tier has not sold yet.
-    expect(eliteDeskIsViable(1, dues)).toBe(false);
-    expect(eliteDeskIsViable(2, dues)).toBe(true);
+    // The rule this exists for: a desk bought for zero members is the most
+    // expensive possible way to learn the tier has not sold yet. At $1,500
+    // entry dues the break-even is one member, not two, so that is the line
+    // now — not because the rule softened, but because the dues did their
+    // job.
+    expect(eliteDeskIsViable(0, dues)).toBe(false);
+    expect(eliteDeskIsViable(1, dues)).toBe(true);
     expect(eliteDeskIsViable(50, dues)).toBe(true);
   });
 
   it("is not sold as the cheap way into the desk, because it is not one", () => {
-    // Entry dues now sit exactly at the desk's own membership, so Elite buys
-    // nothing on jet access alone. What it buys is the included hours, which
-    // are worth more than the whole desk membership by themselves — that is
-    // the claim the tier has to stand on, and the one this pins.
+    // Entry dues now run three times the desk's own membership on their
+    // own, so Elite buys nothing on jet access alone. What it buys is the
+    // included hours and the covered physician's retainer, either of which
+    // is worth more than the whole desk membership by itself — that is the
+    // claim the tier has to stand on, and the one this pins.
     const direct = ELITE_DESK_MEMBERSHIP.monthlyCents * 12;
     expect(dues * 12).toBeGreaterThanOrEqual(direct);
   });

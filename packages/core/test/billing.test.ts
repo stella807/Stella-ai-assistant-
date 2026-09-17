@@ -140,9 +140,9 @@ describe("plans", () => {
       // Still a step up from the household tier, or the ladder makes no sense.
       expect(plan.monthlyCents, id).toBeGreaterThan(findPlan("family").monthlyCents);
     }
-    // And the band is the one that was asked for: $500 to $20,000 a month.
-    expect(findPlan("elite").monthlyCents).toBe(50_000);
-    expect(findPlan("elite-private").monthlyCents).toBe(2_000_000);
+    // And the band is the one that was asked for: $1,500 to $60,000 a month.
+    expect(findPlan("elite").monthlyCents).toBe(150_000);
+    expect(findPlan("elite-private").monthlyCents).toBe(6_000_000);
   });
 
   it("makes Family the same features as Premium Plus, differing only in seats", () => {
@@ -240,13 +240,27 @@ describe("plans", () => {
     expect(findPlan("family").seats).toBe(6);
   });
 
-  it("never lets seats go down as the price goes up", () => {
-    const paid = releasedPlans().filter((p) => p.monthlyCents > 0)
+  it("never lets seats go down as the price goes up, on the everyday ladder", () => {
+    // Scoped to the everyday ladder on purpose. Elite is excluded: it does
+    // not sell seats at all, it sells a covered person's whole retainer
+    // (see billing.ts's "Why Elite is a ladder" comment) — its entry rung is
+    // deliberately one person at a higher price than six-seat Family, and
+    // that is the tier working as designed, not a pricing mistake this test
+    // should catch.
+    const paid = releasedPlans().filter((p) => p.monthlyCents > 0 && !isElitePlan(p.id))
       .sort((a, b) => a.monthlyCents - b.monthlyCents);
     for (let i = 1; i < paid.length; i++) {
       expect(paid[i]!.seats, `${paid[i]!.id} vs ${paid[i - 1]!.id}`)
         .toBeGreaterThanOrEqual(paid[i - 1]!.seats);
     }
+  });
+
+  it("scales Elite's own seats with its own ladder instead — 1, then 2, then 6", () => {
+    // Backwards from the everyday ladder's shape on purpose: Elite's entry
+    // rung covers one person's retainer specifically, not a household.
+    expect(findPlan("elite").seats).toBe(1);
+    expect(findPlan("elite-signature").seats).toBe(2);
+    expect(findPlan("elite-private").seats).toBe(6);
   });
 
   it("rejects an unknown plan", () => {

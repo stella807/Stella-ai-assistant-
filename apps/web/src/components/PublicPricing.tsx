@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, PA_HOURLY_RATE_CENTS, QUICK_TASK_CATEGORIES, assistantPayoutFor,
-  defaultHoursFor, driverEarningsCents, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
-  type PlanId,
+  CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, ELITE_ONLY, PA_HOURLY_RATE_CENTS,
+  QUICK_TASK_CATEGORIES, assistantPayoutFor, defaultHoursFor, driverEarningsCents, featureLabel,
+  includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
+  type Plan, type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -48,7 +49,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
             <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th></tr>
           </thead>
           <tbody>
-            {plans.map((p) => {
+            {plans.filter((p) => !isElitePlan(p.id as PlanId)).map((p) => {
               const offer = p.monthlyOffer;
               const discounted = Boolean(offer?.discounted) && p.monthlyCents > 0;
               return (
@@ -78,6 +79,8 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
 
       <PlanComparison plans={plans.filter((p) => !isElitePlan(p.id as PlanId))} />
 
+      <EliteShowcase plans={plans.filter((p) => isElitePlan(p.id as PlanId))} />
+
       {/* The two services, priced and kept apart. */}
       <section className="card stack">
         <h2>{t("pricing.sendSomeone")}</h2>
@@ -101,6 +104,63 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
         {t("landing.getStarted")}
       </button>
     </>
+  );
+}
+
+/**
+ * Elite's own "what's included" — kept out of `PlanComparison` on purpose.
+ * That table compares the four everyday tiers on the handful of features
+ * that actually *differ* between them; Elite already has every one of
+ * those (`features: [...PLUS_FEATURES, ...ELITE_ONLY]`), so dropping it in
+ * there would just paint a row of checkmarks that says nothing about what
+ * Elite is actually for. What's worth showing instead is `ELITE_ONLY` —
+ * the catalogue no everyday tier reaches at any price — and the ladder's
+ * own shape: price and included hours scale with how many people the
+ * membership covers, 1 → 2 → 6, not the everyday ladder's household size.
+ */
+function EliteShowcase({ plans }: { plans: Plan[] }) {
+  const { t } = useLanguage();
+  const [open, setOpen] = useState(true);
+  if (plans.length === 0) return null;
+  const rungs = [...plans].sort((a, b) => a.seats - b.seats);
+
+  return (
+    <section className="card stack" aria-label="Elite">
+      <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <h3 style={{ margin: 0 }}>Elite: what's included</h3>
+        <span className="chev">{open ? "︿" : "﹀"}</span>
+      </button>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Every Elite rung gets the same desk, including a concierge physician's own retainer — paid by
+        Safehubby, not billed to you separately. What changes rung to rung is how many people the
+        membership covers and how many hours of a personal assistant's time come with it.
+      </p>
+
+      {open && (
+        <>
+          <table className="pay-table">
+            <thead>
+              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>Concierge hours/mo</th></tr>
+            </thead>
+            <tbody>
+              {rungs.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.name}</td>
+                  <td>{money(p.monthlyCents)}</td>
+                  <td>{p.seats}</td>
+                  <td>{includedConciergeHours(p.id)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <ul className="tiny" style={{ margin: 0, paddingLeft: 18 }}>
+            {ELITE_ONLY.map((f) => <li key={f}>{featureLabel(f)}</li>)}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 

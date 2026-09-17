@@ -49,16 +49,30 @@ actually used more than one.
 `wallet.ts` and `subscription.ts` are pure and fully tested; nothing in either
 talks to a processor.
 
-## The Elite tier — built, and held for a later release
+## The Elite tier — live, and priced around a covered physician's retainer
 
-`isEnabled("elite-tier")` is **off** (features.ts), so Elite is absent from
-`GET /api/catalog` and `POST /api/subscription` refuses it with the flag's own
-note. It lives in `PLANS` rather than a branch so it stays compiled, typed and
-tested meanwhile — the same "ships dark rather than being deleted and
-rewritten" reasoning party supply already follows.
+`isEnabled("elite-tier")` is **on** (features.ts) — Elite is a real,
+purchasable ladder, not a dark-shipped one. It went through three pricing
+rounds to get here ($119, then $500, then the current one), each one caught
+by a test going red rather than by someone remembering to update this page,
+which is exactly why the numbers below are read from `billing.ts` rather
+than retyped from memory.
 
-**$149/month, or $1,499/year.** Priced against what the market actually
-charges (figures below are from market research, not assumptions):
+**$1,500/$7,500/$60,000 a month, for 1/2/6 people.** The ladder sells two
+things now, not one: a personal assistant's time (the included concierge
+hours — 10/50/200), and a concierge physician's own retainer, paid by
+Safehubby and included in the price rather than billed to the member
+separately (`CONCIERGE_DOCTOR_RETAINER_ANNUAL_CENTS` in `elite.ts`,
+$3,500/year — the middle of the $2,000-5,000/year common range for
+concierge medicine, borne by Safehubby's own revenue).
+
+That second piece is why seats scale the *opposite* way from the everyday
+ladder. Free through Family scale seats **up** with price because they're
+selling household size. Elite scales seats up with price too, but starting
+from **one**, not six — because a covered retainer is priced per person it
+covers, and "1,500 for one person, 60,000 for six" is a coherent per-person
+promise at every rung, where "500 for six people including a retainer for
+all of them" was not.
 
 | Model | Rate |
 |---|---|
@@ -67,32 +81,20 @@ charges (figures below are from market research, not assumptions):
 | Monthly retainer | $1,000–$5,000+/mo, for a dedicated 10–40+ hrs |
 | Annual membership | $5,000–$100,000+/yr |
 | Quintessentially specifically | **$12,000–$44,000/yr** |
-| Concierge medicine | $2,000–$5,000/yr; $5,000–$10,000+ boutique |
+| Concierge medicine retainer | $2,000–$5,000/yr commonly; up to $25,000/yr |
 | Amex-style card concierge | **Free** — you pay only the retail cost of what they buy |
-| **Amalfi Jets "Reserve"** | **$99/mo** — jets plus hotels, dining, ground transport |
-| **Safehubby Elite** | **$1,499/yr ($149/mo)** |
+| Amalfi Jets "Reserve" | **$99/mo** — jets plus hotels, dining, ground transport |
+| **Safehubby Elite (entry)** | **$1,500/mo, one person, retainer included** |
 
-Two of those rows decide the price:
-
-**The card-concierge row is the model, confirmed.** Amex Platinum's desk
-charges nothing for the service and the member pays only the retail cost of
-what is bought on their behalf. That is exactly the commission-only design
-below — it is how the biggest concierge desk in the world already works, not
-an invention.
-
-**The Amalfi row is the constraint.** A member can buy Amalfi's own Reserve
-membership for $99/month and get jets, hotels, dining and ground transport
-directly. So Elite cannot be priced as though it were the only way in. It is
-priced instead against buying the two separately — Family at $69.99 plus
-Amalfi Reserve at $99 is $169/month — so **$149/month undercuts assembling it
-yourself**, and the safety product is what Amalfi does not have.
-
-At $1,499/year Elite is an order of magnitude under Quintessentially's
-$12,000–$44,000, and under a single month of a $1,000–$5,000 retainer
-multiplied out. That is only sustainable because **the desk earns on the
-supplier side, not from the membership**: an 8% commission on one $50,000 jet
-charter is $4,000, nearly three years of membership. The subscription buys
-access; the bookings pay for the desk.
+The comparison that actually holds now is against *employing* the
+equivalent, not against a card membership: a house manager alone runs
+$80,000-$150,000/year before employer costs, and that buys neither a covered
+physician's retainer nor the desk's other services. Elite's entry rung is
+$18,000/year for one person, with the retainer ($2,000-5,000 of that alone)
+included. **The desk still earns supplier-side, not from the retainer or the
+membership dues** — an 8% commission on one $50,000 jet charter is $4,000 —
+so the membership price is what buys the hours and the covered retainer;
+the bookings pay for the desk itself.
 
 **What Elite is not.** A $1,000–$5,000/month retainer buys a dedicated 10–40+
 hours. Elite's `lifestyle-manager` is access to a desk, not a reserved block
@@ -110,7 +112,7 @@ a $69.99 Family plan is never silently handed a private jet desk:
 | Villas and property | 10% | Same retainer shape as yachts |
 | Event production | 10% | Planners charge 10–20% of budget |
 | Hotels and hospitality | 10% | Advisors earn 5–10% (Virtuoso 20–25%) |
-| **Concierge doctor** | **0%** | Retainers run $1,500–$25,000/yr, commonly $2,000–$5,000 |
+| **Concierge doctor** | **0%** | Retainer ($2,000-5,000/yr) now paid by Safehubby, not the member |
 | `lifestyle-manager` | n/a — included | Luxury specialists bill $200–$500+/hour |
 
 `ELITE_SERVICES` in `packages/core/src/elite.ts` carries these, and
@@ -135,7 +137,7 @@ That alignment is deliberate: Safehubby earns the same percentage on a
 $40,000 charter as a $60,000 one, so hunting the better deal costs it
 nothing.
 
-### Why the concierge doctor pays Safehubby zero
+### Why the concierge doctor still pays Safehubby zero, even though the retainer is now covered
 
 Taking a percentage of a physician's fee for sending them a patient is the
 shape of a referral kickback — it runs into the federal Anti-Kickback Statute
@@ -143,9 +145,18 @@ plus state fee-splitting and corporate-practice-of-medicine rules, which vary
 by state and are not something this codebase should guess at. The rate is
 `0` and a test exists specifically to stop someone "fixing" it.
 
-It also cannot be *included*. Concierge medicine retainers commonly run
-$2,000–$5,000/year — more than all of Elite. Elite buys the arranging, the
-vetting and the coordination; the member pays the practice its own retainer.
+That rule survives the retainer becoming included, because it is about which
+direction the money moves, not how much of it there is. Safehubby paying the
+practice's retainer *for* the member is Safehubby spending its own revenue on
+a benefit it is billing for honestly — the same as covering any other
+included service — not a cut of the physician's own fee, because no fee
+flows back to Safehubby to take a cut of. `CONCIERGE_DOCTOR_RETAINER_ANNUAL_CENTS`
+in `elite.ts` is that real cost, cited and priced against the entry rung's
+revenue rather than left as an assumption behind "included." What doesn't
+change: Safehubby still arranges access and vets the practice rather than
+employing or treating anyone itself — see the physician and nurse roles in
+`docs/job-listings.md` for the still-open question of what direct clinical
+employment, instead of paying for care and advising the desk, would run into.
 
 ### A concierge doctor is never an alternative to an ambulance
 
@@ -351,7 +362,7 @@ which is **personal-safety apps** rather than concierge services.
 | Premium | $9.99 | $99.99 | 2 |
 | Premium Plus | $19.99 | $199.99 | 2 |
 | Family | $29.99 | $299.99 | 6 |
-| *Elite (held)* | *$119.00* | *$1,199.99* | *6* |
+| Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
 
 Measured September 2026:
 
@@ -389,24 +400,37 @@ plan that was a hard bet; at $19.99 it is a reachable one.
 
 Annual is ~17% off, up from ~15%.
 
-### Elite moved because the tiers below it did
+### Elite moved again, and the seats moved with it
 
-Elite's binding competitor is not a London concierge house — it is the
-partner's own ~$99/month membership, which any member can simply buy. Family
-plus that is **$128.99**, so Elite has to sit under it or assembling the same
-thing yourself is strictly cheaper. Dropping Family to $29.99 made the old
-$149 untenable, and `billing.test.ts` is what caught it. Elite is $119.
+Elite is no longer priced against the partner desk's own ~$99/month
+membership at all — that comparison held while Elite sold "a number to
+call," and it stopped being the binding constraint once the tier started
+selling a covered physician's retainer instead (see above). The dues that
+matter now are $18,000-720,000/year, which comfortably clears every
+card-membership comparison; the constraint worth stating is that the entry
+rung ($18,000/year) still has to clear the retainer it covers ($2,000-5,000)
+plus a real share of the desk and the hours, which it does with room left.
 
-Lower dues also mean the desk needs **six members in year one** to carry
-itself rather than five (`eliteBreakEvenMembers`), and the point above which
-a member should join the partner desk directly rises to about **$57,100** of
-charter a year — the right direction, since cheaper dues keep Elite the
-better deal further up the spend curve.
+Higher dues also mean the desk needs **just one member**, in the founding
+year and every year after, to carry the house membership
+(`eliteBreakEvenMembers`) — down from two, because the dues did the work a
+lower-priced ladder needed member count to do instead.
+
+Seats went from a flat six at every rung to **1/2/6**, and that is not
+incidental to the repricing — it is what makes "the retainer is included"
+a coherent promise. A retainer is bought per person it covers, not per
+household, so the entry rung covering one person at $1,500 and the top rung
+covering six at $60,000 is the ladder pricing the same thing consistently at
+every step; six people sharing one covered retainer at any price would not
+be. `billing.test.ts`'s seat-ordering test is scoped to exclude the Elite
+ladder for exactly this reason: Elite is allowed to cost more than Family
+while covering fewer people, because it is not selling seats.
 
 ## What is not in the concierge
 
 The personal concierge ships on every paid tier. **Private aviation and the
-concierge doctor do not**, and they stay out while `elite-tier` is held.
+concierge doctor do not** — they stay Elite-only, gated the same way
+whether or not `elite-tier` happens to be on.
 
 They are also the two entries in the catalogue that carry legal duties of
 their own — 14 CFR Part 295 broker disclosures for charter, and the federal
