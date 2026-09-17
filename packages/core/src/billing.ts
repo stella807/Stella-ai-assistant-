@@ -169,7 +169,17 @@ export interface Plan {
  * that outright, at the same real pay the errand runner earns for a $1,000
  * one.
  */
-const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos", "ride-booking", "quick-tasks"];
+/**
+ * `secure-transport` is on Free too, at ownership's direction — a Free
+ * subscriber can book one exactly the way a paid subscriber does, at the
+ * real, passed-through rate a licensed protective-services provider quotes
+ * (`SECURE_TRANSPORT_BILLING`), never bundled into the subscription price.
+ * There is no discount here to hand out: the fare is the provider's, not
+ * Safehubby's, on every plan alike — access is what differs, not price.
+ */
+const FREE_FEATURES: Feature[] = [
+  "location-sharing", "check-ins", "drink-count", "sos", "ride-booking", "quick-tasks", "secure-transport",
+];
 
 /**
  * The luxury-lifestyle catalogue, held off every everyday tier.
@@ -335,7 +345,7 @@ export const PLANS: Plan[] = [
     annualCents: 0,
     seats: 1,
     features: FREE_FEATURES,
-    blurb: "For one person. Location sharing, check-ins, drink count, SOS, ride booking, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.",
+    blurb: "For one person. Location sharing, check-ins, drink count, SOS, ride booking, secure transport at the provider's real rate, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.",
   },
   {
     id: "premium-basic",

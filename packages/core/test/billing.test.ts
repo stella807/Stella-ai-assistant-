@@ -69,8 +69,11 @@ describe("plans", () => {
     expect(hasFeature("premium-plus", "automatic-delivery")).toBe(true);
   });
 
-  it("keeps secure transport off the free tier, but on every paid one", () => {
-    expect(hasFeature("free", "secure-transport")).toBe(false);
+  it("puts secure transport on every tier, Free included — access differs, price never does", () => {
+    // Ownership's direction: a Free subscriber can book the same real,
+    // passed-through-priced ride a paid one does. No discount to hand
+    // out, since the fare is the provider's, not Safehubby's.
+    expect(hasFeature("free", "secure-transport")).toBe(true);
     expect(hasFeature("premium-basic", "secure-transport")).toBe(true);
     expect(hasFeature("premium-plus", "secure-transport")).toBe(true);
     expect(hasFeature("family", "secure-transport")).toBe(true);

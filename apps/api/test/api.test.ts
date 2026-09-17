@@ -1324,19 +1324,21 @@ describe("automatic fulfilment", () => {
 });
 
 describe("secure transport", () => {
-  it("is gated on the plan that includes it", async () => {
-    // Jordan stays free (see beforeEach). Premium Plus now includes secure
-    // transport, so the gate has to be checked from below it.
+  it("is on every plan now, Free included — no plan gate left to fail on", async () => {
+    // Jordan stays free (see beforeEach). Ownership's direction: Free can
+    // book the same real, passed-through-priced ride a paid plan can. Past
+    // the (now-nonexistent) plan gate, so the only thing left to refuse on
+    // is the missing provider — a 503, not a 402.
     const res = await call("POST", "/api/rides/secure", {
       acknowledgedDisclosures: true,
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
     }, jordan);
-    expect(res.status).toBe(402);
+    expect(res.status).toBe(503);
   });
 
   it("is included on Premium Plus, with no upgrade to Family needed", async () => {
-    // Sam is premium-plus (see beforeEach). Past the plan gate, so the only
-    // thing left to refuse on is the missing provider — a 503, not a 402.
+    // Sam is premium-plus (see beforeEach). Same 503 as Free, for the same
+    // reason: no plan gate left, only the missing provider.
     const res = await call("POST", "/api/rides/secure", {
       acknowledgedDisclosures: true,
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
