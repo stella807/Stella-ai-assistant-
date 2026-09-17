@@ -7,8 +7,13 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 // Leaflet's default marker points at relative image paths that only resolve
 // when its CSS is served from leaflet's own directory, which a bundler
-// never does. Repointed at the bundled asset URLs instead of shipping a
-// blank square where the pin should be.
+// never does. `mergeOptions` alone doesn't fix this: `Icon.Default` has its
+// own `_getIconUrl` override that unconditionally prepends an
+// auto-detected `imagePath` onto whatever URL is configured, so even an
+// absolute bundled URL gets a second copy of the path glued in front of it
+// and 404s. Deleting that override drops back to `Icon.prototype`'s
+// version, which just returns the configured URL as-is.
+delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 /**
