@@ -47,3 +47,4 @@ export * from "./desk-tasks.ts";
 export * from "./wingman-club.ts";
 export * from "./ai-assist.ts";
 export * from "./flight-tracking.ts";
+export * from "./pricing-overrides.ts";

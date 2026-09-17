@@ -640,6 +640,12 @@ export const api = {
   masterLogout: () => request<{ ok: true }>("POST", "/api/master/auth/logout", {}),
   masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
   masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
+  masterGetPricing: () => request<any>("GET", "/api/master/pricing"),
+  masterSetPrice: (roleOrService: string, priceCents: number, reason?: string) =>
+    request<any>("POST", "/api/master/pricing/override", { roleOrService, priceCents, reason }),
+  masterGetPayroll: () => request<any>("GET", "/api/master/payroll"),
+  masterProcessPayroll: (period: string) =>
+    request<any>("POST", "/api/master/payroll/process", { period }),
 };
 
 export type MasterAccountRow = MasterAccount & { scopes: string[]; active: boolean };

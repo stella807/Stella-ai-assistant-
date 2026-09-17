@@ -52,6 +52,7 @@ import {
   requiresHelpDeskToDowngrade,
   devicesFor, registerDevice, upsertDevice,
   submitApplication, reviewApplication, withdrawApplication,
+  compilePricing, type CurrentPricing, type PriceOverride,
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
@@ -4063,6 +4064,115 @@ export const routes: Record<string, Handler> = {
       active: activeSubscribers(all).length,
       delivery: email.status,
       subscribers: all,
+    };
+  },
+
+  /** Master: get current pricing including any overrides. */
+  "GET /api/master/pricing": (ctx) => {
+    requireAdmin(ctx, "operations");
+    const defaults: CurrentPricing = {
+      paHourlyCents: 3500,
+      errandRunnerTaskCents: 600,
+      driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
+      driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
+      secretaryHourlyCents: 2200,
+      socialMediaManagerHourlyCents: 2200,
+      ownerMonthlyCents: 0,
+    };
+    const current = compilePricing(ctx.store.data.priceOverrides, defaults);
+    return {
+      current,
+      overrides: ctx.store.data.priceOverrides.sort((a, b) =>
+        new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),
+      ),
+    };
+  },
+
+  /** Master: create or update a price override. */
+  "POST /api/master/pricing/override": (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    const account = masterAccountOf(ctx);
+    if (!account) throw new HttpError(401, "Not authenticated as master");
+
+    const roleOrService = String(body?.roleOrService ?? "");
+    const priceCents = Number(body?.priceCents ?? 0);
+    const reason = String(body?.reason ?? "");
+
+    if (!roleOrService || priceCents <= 0) {
+      throw new HttpError(400, "Invalid roleOrService or priceCents");
+    }
+
+    const override = {
+      id: newId("ovr"),
+      roleOrService,
+      priceCents,
+      changedBy: account.id,
+      changedAt: ctx.now().toISOString(),
+      reason: reason || undefined,
+    } as PriceOverride;
+
+    ctx.store.update((db) => {
+      db.priceOverrides.push(override);
+      // Record audit log with recordAccess format
+      db.masterAuditLog.push({
+        id: newId("audit"),
+        accountId: account.id,
+        scope: "operations",
+        subject: `price override for ${roleOrService}`,
+        at: ctx.now().toISOString(),
+      });
+    });
+
+    const defaults: CurrentPricing = {
+      paHourlyCents: 3500,
+      errandRunnerTaskCents: 600,
+      driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
+      driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
+      secretaryHourlyCents: 2200,
+      socialMediaManagerHourlyCents: 2200,
+      ownerMonthlyCents: 0,
+    };
+    const current = compilePricing(ctx.store.data.priceOverrides, defaults);
+
+    return { override, current };
+  },
+
+  /** Master: get payroll summary for assistants and staff. */
+  "GET /api/master/payroll": (ctx) => {
+    requireAdmin(ctx, "operations");
+    const now = ctx.now();
+
+    // Get completed concierge tasks and their payouts
+    const completedTasks = ctx.store.data.conciergeTasks.filter((t) => t.status === "completed");
+    const paidTasks = ctx.store.data.payouts.length > 0
+      ? ctx.store.data.payouts.flatMap((p) => p.taskIds || [])
+      : [];
+
+    const unpaidTasks = completedTasks.filter((t) => !paidTasks.includes(t.id));
+
+    const staffSummary = STAFF_ROLES.map((role) => {
+      const staff = ctx.store.data.assistants.filter((a) => a.role === role.id);
+      return {
+        role: role.id,
+        label: role.label,
+        headcount: staff.length,
+        hourlyCents: role.hourlyCents,
+        hoursPerWeek: role.prelaunchHoursPerWeek,
+        monthlyCost: Math.round((role.hourlyCents * role.prelaunchHoursPerWeek * 52) / 12),
+      };
+    });
+
+    return {
+      unpaidTaskCount: unpaidTasks.length,
+      unpaidTasksCents: unpaidTasks.reduce((sum, t) => sum + t.assistantPayoutCents, 0),
+      completedTaskCount: completedTasks.length,
+      staffSummary,
+      recentPayouts: ctx.store.data.payouts.slice(-5).map((p) => ({
+        id: p.id,
+        createdAt: p.createdAt,
+        taskCount: (p.taskIds || []).length,
+        totalCents: p.totalCents,
+      })),
     };
   },
 };

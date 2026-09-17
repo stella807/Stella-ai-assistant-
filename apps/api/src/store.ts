@@ -5,7 +5,7 @@ import type {
   DeskTask, DriverApplication, GameRound, MasterAccount, MasterAuditEntry, NewsletterSubscriber, NightOut,
   PaymentMethodOnFile, PendingOrder,
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
-  ShareGrant, Subscription, VoiceMessage,
+  ShareGrant, Subscription, VoiceMessage, PriceOverride,
 } from "@safehubby/core";
 import type { EliteBooking, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
@@ -171,6 +171,9 @@ export interface Db {
    *  indistinguishable from a breach — see `recordAccess` in
    *  master-access.ts and its own doc comment on why this exists. */
   masterAuditLog: MasterAuditEntry[];
+  /** Dynamic price overrides for all roles, allowing owner to adjust rates
+   *  and maintain audit trail of pricing changes. */
+  priceOverrides: PriceOverride[];
 }
 
 const EMPTY: Db = {
@@ -180,6 +183,7 @@ const EMPTY: Db = {
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
+  priceOverrides: [],
 };
 
 /** What routes need from a store, so the file and Postgres backings are

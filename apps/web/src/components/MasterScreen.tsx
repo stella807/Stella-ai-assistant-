@@ -299,6 +299,8 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.operations && <OperationsSection operations={overview.operations} />}
       {overview.money && <MoneySection money={overview.money} />}
 
+      {overview.account.role === "owner" && <PricingSection />}
+
       <section className="card stack">
         <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
           aria-expanded={showAudit} onClick={toggleAudit}>
@@ -427,6 +429,161 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
         The hiring-budget breakdown (headcount, plan vs. actual) lives at its own resolution — see
         GET /api/admin/budget, reachable with this same key.
       </p>
+    </section>
+  );
+}
+
+function PricingSection() {
+  const [expanded, setExpanded] = useState(false);
+  const [pricing, setPricing] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>("personal-assistant");
+  const [newPrice, setNewPrice] = useState<string>("");
+  const [reason, setReason] = useState<string>("");
+
+  const loadPricing = async () => {
+    setLoading(true);
+    try {
+      const data = await api.masterGetPricing();
+      setPricing(data);
+    } catch (err) {
+      console.error("Failed to load pricing:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePrice = async () => {
+    if (!newPrice || isNaN(Number(newPrice))) {
+      alert("Enter a valid price in cents");
+      return;
+    }
+    try {
+      setLoading(true);
+      await api.masterSetPrice(selectedRole, Number(newPrice), reason);
+      setNewPrice("");
+      setReason("");
+      await loadPricing();
+    } catch (err) {
+      console.error("Failed to update price:", err);
+      alert("Failed to update price");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const roles = [
+    { id: "personal-assistant", label: "Personal Assistant ($/hr)", multiplier: 100 },
+    { id: "errand-runner", label: "Errand Runner ($ per task)", multiplier: 1 },
+    { id: "secretary", label: "Secretary ($/hr)", multiplier: 100 },
+    { id: "social-media-manager", label: "Social Media Manager ($/hr)", multiplier: 100 },
+    { id: "owner", label: "Owner Monthly Salary ($)", multiplier: 100 },
+  ];
+
+  return (
+    <section className="card stack">
+      <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        aria-expanded={expanded} onClick={() => { setExpanded((v) => !v); if (!expanded && !pricing) loadPricing(); }}>
+        <h3 style={{ margin: 0 }}>Pricing Controls</h3>
+        <span className="chev">{expanded ? "︿" : "﹀"}</span>
+      </button>
+      <p className="tiny muted" style={{ margin: 0 }}>Adjust rates for all roles and maintain audit trail of changes</p>
+
+      {expanded && (
+        <div className="stack" style={{ gap: 16 }}>
+          {!pricing && <p className="tiny muted">{loading ? "Loading..." : "Click a role to update pricing"}</p>}
+
+          {pricing && (
+            <>
+              <div className="stack" style={{ gap: 8 }}>
+                <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Current Rates</strong>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div className="row-between">
+                    <span className="tiny">Personal Assistant</span>
+                    <span className="tiny">${(pricing.current.paHourlyCents / 100).toFixed(2)}/hr</span>
+                  </div>
+                  <div className="row-between">
+                    <span className="tiny">Errand Runner</span>
+                    <span className="tiny">${(pricing.current.errandRunnerTaskCents / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="row-between">
+                    <span className="tiny">Secretary</span>
+                    <span className="tiny">${(pricing.current.secretaryHourlyCents / 100).toFixed(2)}/hr</span>
+                  </div>
+                  <div className="row-between">
+                    <span className="tiny">Social Media Manager</span>
+                    <span className="tiny">${(pricing.current.socialMediaManagerHourlyCents / 100).toFixed(2)}/hr</span>
+                  </div>
+                  <div className="row-between">
+                    <span className="tiny">Driver (Standard)</span>
+                    <span className="tiny">${(pricing.current.driverStandard.baseCents / 100).toFixed(2)} base</span>
+                  </div>
+                  {pricing.current.ownerMonthlyCents > 0 && (
+                    <div className="row-between">
+                      <span className="tiny">Owner Monthly</span>
+                      <span className="tiny">${(pricing.current.ownerMonthlyCents / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="stack" style={{ gap: 8, padding: "12px", background: "rgba(0,0,0,0.02)", borderRadius: 4 }}>
+                <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Update a Price</strong>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  style={{ padding: 8, borderRadius: 4 }}
+                  disabled={loading}
+                >
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>{role.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  placeholder="Price in cents (e.g., 3500 for $35)"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  style={{ padding: 8, borderRadius: 4 }}
+                  disabled={loading}
+                />
+                <input
+                  type="text"
+                  placeholder="Reason for change (optional)"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  style={{ padding: 8, borderRadius: 4 }}
+                  disabled={loading}
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={handleUpdatePrice}
+                  disabled={loading || !newPrice}
+                >
+                  {loading ? "Updating..." : "Update Price"}
+                </button>
+              </div>
+
+              {pricing.overrides && pricing.overrides.length > 0 && (
+                <div className="stack" style={{ gap: 8 }}>
+                  <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Recent Changes</strong>
+                  <ul className="timeline">
+                    {pricing.overrides.slice(0, 10).map((override: any) => (
+                      <li key={override.id} className="row-between" style={{ fontSize: "0.8rem" }}>
+                        <div className="stack" style={{ gap: 2 }}>
+                          <span className="tiny">{override.roleOrService}: ${(override.priceCents / 100).toFixed(2)}</span>
+                          {override.reason && <span className="tiny muted">{override.reason}</span>}
+                        </div>
+                        <span className="tiny muted">{new Date(override.changedAt).toLocaleString()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
