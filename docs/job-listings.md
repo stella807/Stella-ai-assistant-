@@ -9,6 +9,7 @@ code that pays it, not written fresh for a job post:
 | $6.00 per quick task | `QUICK_TASK_ASSISTANT_PAYOUT_CENTS`, `concierge.ts` |
 | Driver per-trip rates | `DRIVER_RATE_CARD`, `driver-pay.ts` |
 | $22.00/hr desk roles, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
+| $125.00/hr lawyer, 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | Insurance, gas stipend, published rates | `HIRING_BENEFITS`, `staffing.ts` |
 | Puerto Rico, Texas, Los Angeles | `LAUNCH_MARKETS`, `service-area.ts` |
 | Service starts 1 December 2026 | `SERVICE_LIVE_AT`, `promotions.ts` |
@@ -327,6 +328,70 @@ emergency service, and marketing must never imply otherwise. Both have
 regulatory teeth, not just taste.
 
 **Apply:** Careers → Social media manager, in the app.
+
+---
+
+# 6. Lawyer
+
+**Location:** Remote (work from anywhere)
+**Pay:** $125.00 per hour
+**Hours:** 15 hours a week, part time
+**Type:** [TO CONFIRM: classification]
+**Starts:** Immediately — this role works *through* the pre-launch window
+
+## What the job is
+
+Draft and review all legal documentation the business needs to operate safely:
+
+- **Employment agreements** for field staff (drivers, assistants, errand runners)
+- **Contractor agreements** for the partner network providing concierge services
+- **Terms of service** and privacy policy (the customer-facing contracts)
+- **Driver agreements** outlining safety, insurance, and liability boundaries
+- **Independent contractor agreements** for secretary, social media manager, and
+  other administrative roles
+- **Compliance review** in each launch state (employment law, insurance
+  requirements, worker classification, liability structures)
+
+This is the legal infrastructure the business runs on. None of it is optional.
+
+## What you get paid
+
+$125.00 an hour, 15 hours a week, paid from your start date — not from launch
+day. Unlike the field roles, the pre-launch work *is* the job.
+
+For context: startup legal work typically ranges $150–300/hour depending on
+market and experience. This is a fixed rate in a specific scope, so the pricing
+is transparent from the start.
+
+## What you need
+
+- Licensed to practice law in at least one U.S. state
+- Experience with startup documentation and employment law
+- Comfortable working in the safety/liability space (this is a product that
+  operates in a regulated area)
+- Able to deliver without overthinking — perfection is the enemy of launch
+
+## What we provide
+
+- **Liability insurance from day one** (this is desk work, but coverage is
+  included across everyone hired)
+- **Published rate** — $125.00 is $125.00, before you apply and after
+- **Clear scope** — you know what contracts need writing before you start
+
+## The honest part
+
+This is not a full-time role, and the workload is front-loaded. The heaviest
+lift is the two months before launch (employee agreements, terms, privacy
+policy, compliance checks). Post-launch, the scope drops to review and
+amendments as the business evolves — if it stays in-house at all, it may become
+as-needed consulting.
+
+The work is straightforward but not trivial: this is a business with real
+liability exposure (people in customers' homes, drivers on roads, money flowing
+through cards). The agreements have to be both protective and honest — no
+burying liability in footnotes, and no overpromising on safety.
+
+**Apply:** Careers → Lawyer, in the app.
 
 ---
 

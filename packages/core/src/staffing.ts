@@ -35,7 +35,8 @@ export type StaffRole =
   | "personal-assistant"
   | "errand-runner"
   | "secretary"
-  | "social-media-manager";
+  | "social-media-manager"
+  | "lawyer";
 
 export interface RoleInfo {
   id: StaffRole;
@@ -113,6 +114,19 @@ export const STAFF_ROLES: RoleInfo[] = [
     // launch spends its runway on overhead.
     prelaunchHoursPerWeek: 20,
     hourlyCents: 2200,
+  },
+  {
+    id: "lawyer",
+    label: "Lawyer",
+    description: "Draft and review contracts: employment agreements, terms of service, privacy policies, driver agreements, and compliance documentation.",
+    drives: false,
+    // Pre-launch work: draft all required contracts before launch. $125/hr is
+    // market rate for startup legal work. 15 hrs/week during pre-launch window
+    // covers contract drafting, employment law review, and regulatory compliance.
+    // Post-launch, this could become as-needed consulting or transition to
+    // outside counsel.
+    prelaunchHoursPerWeek: 15,
+    hourlyCents: 12500,
   },
 ];
 
@@ -245,6 +259,7 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   "errand-runner": 4,
   secretary: 1,
   "social-media-manager": 1,
+  lawyer: 1,
 };
 
 export interface RoleBudgetLine {
