@@ -166,6 +166,9 @@ const EN = {
   "press.contactLabel": "Press contact:",
   "press.boilerplate": "About Safehubby: Safehubby is a safety-first app for nights out, combining automated check-ins, a sober way home, emergency escalation, and a vetted personal concierge in one product. Safehubby is not an emergency service and never tells anyone they are safe to drive.",
   "press.kit": "For interviews, logos, or screenshots, write to press@safehubby.app.",
+
+  "footer.paymentsAccepted": "Payments accepted",
+  "footer.paymentsSecured": "Card details are handled by Stripe; PayPal payments by PayPal. Safehubby never sees or stores a full card number.",
 } as const;
 
 export type TranslationKey = keyof typeof EN;
@@ -322,6 +325,9 @@ const ES: Record<TranslationKey, string> = {
   "press.contactLabel": "Contacto de prensa:",
   "press.boilerplate": "Acerca de Safehubby: Safehubby es una app centrada en la seguridad para salidas nocturnas, que combina chequeos automáticos, una forma sobria de llegar a casa, escalamiento de emergencia y un conserje personal verificado en un solo producto. Safehubby no es un servicio de emergencia y nunca le dice a nadie que está en condiciones de conducir.",
   "press.kit": "Para entrevistas, logotipos o capturas de pantalla, escribe a press@safehubby.app.",
+
+  "footer.paymentsAccepted": "Formas de pago aceptadas",
+  "footer.paymentsSecured": "Los datos de la tarjeta los procesa Stripe; los pagos de PayPal, PayPal. Safehubby nunca ve ni almacena un número de tarjeta completo.",
 };
 
 const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES };

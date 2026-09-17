@@ -48,3 +48,4 @@ export * from "./wingman-club.ts";
 export * from "./ai-assist.ts";
 export * from "./flight-tracking.ts";
 export * from "./pricing-overrides.ts";
+export * from "./ride-coordination.ts";

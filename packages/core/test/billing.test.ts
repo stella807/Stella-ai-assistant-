@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  ALL_FEATURES, ELITE_LADDER, ELITE_ONLY, PLANS, annualSavingsPercent, findPlan, formatPrice,
+  ALL_FEATURES, ELITE_LADDER, ELITE_ONLY, ELITE_UNLOCK_SAFETY_MULTIPLE, ELITE_UNLOCK_TARGET_CLIENTS_HIGH,
+  PLANS, annualSavingsPercent, eliteSpendingAllowanceCents, eliteUnlockedByRevenue,
+  eliteUnlockProgressPercent, eliteUnlockThresholdCents, findPlan, formatPrice,
   hasFeature, includedConciergeHours, isElitePlan, isPlanReleased, releasedPlans,
 } from "../src/billing.ts";
 import { disclosuresFor, doctorAvailableFor, findEliteService } from "../src/elite.ts";
@@ -295,5 +297,30 @@ describe("recovery plan", () => {
 
   it("switches advice for the morning after", () => {
     expect(buildRecoveryPlan("next-morning", bac).tips.map((t) => t.id)).toContain("rehydrate");
+  });
+});
+
+describe("Elite's revenue-covered unlock — the cushion before the tier opens", () => {
+  it("requires 3x the ladder's full allowance at the high end of the target client range", () => {
+    const expected = ELITE_LADDER.reduce(
+      (sum, id) => sum + eliteSpendingAllowanceCents(id) * ELITE_UNLOCK_TARGET_CLIENTS_HIGH, 0,
+    ) * ELITE_UNLOCK_SAFETY_MULTIPLE;
+    expect(eliteUnlockThresholdCents()).toBe(expected);
+    expect(eliteUnlockThresholdCents()).toBeGreaterThan(0);
+  });
+
+  it("is locked at zero revenue and unlocks once the threshold is met or passed", () => {
+    const threshold = eliteUnlockThresholdCents();
+    expect(eliteUnlockedByRevenue(0)).toBe(false);
+    expect(eliteUnlockedByRevenue(threshold - 1)).toBe(false);
+    expect(eliteUnlockedByRevenue(threshold)).toBe(true);
+    expect(eliteUnlockedByRevenue(threshold * 2)).toBe(true);
+  });
+
+  it("reports progress as a percent that never exceeds 100", () => {
+    const threshold = eliteUnlockThresholdCents();
+    expect(eliteUnlockProgressPercent(0)).toBe(0);
+    expect(eliteUnlockProgressPercent(Math.round(threshold / 2))).toBe(50);
+    expect(eliteUnlockProgressPercent(threshold * 10)).toBe(100);
   });
 });

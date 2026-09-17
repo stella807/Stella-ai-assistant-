@@ -8,7 +8,10 @@ import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runFlightSweep, runPayroll, type Ctx } from "../src/routes.ts";
-import { ELITE_LADDER, authorizeExactHold, assistantPayoutFor, previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag } from "@safehubby/core";
+import {
+  ELITE_LADDER, authorizeExactHold, assistantPayoutFor, eliteUnlockThresholdCents, previousPayoutPeriod,
+  recordCharge, resetFlags, settleCharge, setFlag,
+} from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
 } from "@safehubby/core";
@@ -122,6 +125,22 @@ afterEach(async () => {
   await new Promise((r) => server.close(r));
   rmSync(dir, { recursive: true, force: true });
 });
+
+/** Elite now stays locked behind a real revenue cushion, not just the
+ *  `elite-tier` flag (see `eliteUnlockThresholdCents` in billing.ts) — tests
+ *  that need to actually subscribe past the flag seed that trailing revenue
+ *  directly, the same way they seed any other store state, rather than
+ *  routing a settlement through every payment adapter just to get past a
+ *  gate the flag alone used to be. */
+const unlockElite = () => {
+  store.update((db) => {
+    db.charges.push({
+      id: "chg_test_elite_unlock", travelerId: samId, kind: "subscription", rail: "card",
+      description: "test revenue seed for the Elite unlock gate", amountCents: eliteUnlockThresholdCents(),
+      currency: "USD", status: "settled", createdAt: clock.toISOString(), settledAt: clock.toISOString(),
+    });
+  });
+};
 
 const startNight = (token = sam) =>
   call("POST", "/api/nights", { weightKg: 82, drinkLimit: 4, homeAddressLabel: "142 Rowan St" }, token);
@@ -2605,7 +2624,32 @@ describe("the Elite ladder", () => {
     expect(ids).toContain("family");
   });
 
+  it("stays visible but locked — coming soon — before there is revenue to cover the allowance", async () => {
+    const res = await call("GET", "/api/catalog");
+    const elitePlans = res.json.plans.filter((p: any) => ELITE_LADDER.includes(p.id));
+    expect(elitePlans.length).toBe(ELITE_LADDER.length);
+    for (const p of elitePlans) expect(p.locked, p.id).toBe(true);
+    expect(res.json.eliteUnlock.unlocked).toBe(false);
+    expect(res.json.eliteUnlock.percent).toBe(0);
+
+    for (const id of ELITE_LADDER) {
+      const sub = await call("POST", "/api/subscription", { planId: id }, sam);
+      expect(sub.status, id).toBe(404);
+      expect(sub.json.error, id).toMatch(/coming soon/i);
+    }
+  });
+
+  it("unlocks — and becomes subscribable — once trailing revenue covers the cushion", async () => {
+    unlockElite();
+    const res = await call("GET", "/api/catalog");
+    const elitePlans = res.json.plans.filter((p: any) => ELITE_LADDER.includes(p.id));
+    for (const p of elitePlans) expect(p.locked, p.id).toBe(false);
+    expect(res.json.eliteUnlock.unlocked).toBe(true);
+    expect(res.json.eliteUnlock.percent).toBe(100);
+  });
+
   it("can be subscribed to, on every rung", async () => {
+    unlockElite();
     for (const id of ELITE_LADDER) {
       const res = await call("POST", "/api/subscription", { planId: id }, sam);
       expect(res.status, id).toBe(200);
@@ -2631,6 +2675,7 @@ describe("the Elite ladder", () => {
 
   it("appears and becomes subscribable once the flag is on", async () => {
     setFlag("elite-tier", true);
+    unlockElite();
     try {
       const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
       expect(ids).toContain("elite");
@@ -2645,6 +2690,7 @@ describe("the Elite ladder", () => {
 
   it("unlocks the luxury desk only on Elite", async () => {
     setFlag("elite-tier", true);
+    unlockElite();
     try {
       // Sam is premium-plus by default — the everything-for-everyday tier,
       // which deliberately stops short of private aviation.
@@ -2665,6 +2711,7 @@ describe("the Elite ladder", () => {
 describe("the Elite luxury desk", () => {
   const elite = async () => {
     setFlag("elite-tier", true);
+    unlockElite();
     await call("POST", "/api/subscription", { planId: "elite" }, sam);
   };
 
@@ -2857,6 +2904,31 @@ describe("the Elite luxury desk", () => {
     } finally {
       resetFlags();
     }
+  });
+});
+
+describe("a saved home address — the missing piece before anyone real can be sent there", () => {
+  it("starts with none", async () => {
+    expect((await call("GET", "/api/account/address", undefined, sam)).json.address).toBeNull();
+  });
+
+  it("saves and returns a real, coordinate-backed address", async () => {
+    const saved = await call("POST", "/api/account/address", { lat: 40.75, lng: -73.98, label: "Home" }, sam);
+    expect(saved.status).toBe(200);
+    expect(saved.json.address).toEqual({ lat: 40.75, lng: -73.98, label: "Home" });
+    expect((await call("GET", "/api/account/address", undefined, sam)).json.address.label).toBe("Home");
+  });
+
+  it("refuses a missing coordinate or a blank label", async () => {
+    // NaN itself cannot cross JSON (it serializes as null), so a missing
+    // field is what actually exercises the non-finite guard end to end.
+    expect((await call("POST", "/api/account/address", { lng: -73.98, label: "Home" }, sam)).status).toBe(400);
+    expect((await call("POST", "/api/account/address", { lat: 40.75, lng: -73.98, label: "" }, sam)).status).toBe(400);
+  });
+
+  it("keeps one member's address out of another's", async () => {
+    await call("POST", "/api/account/address", { lat: 40.75, lng: -73.98, label: "Sam's place" }, sam);
+    expect((await call("GET", "/api/account/address", undefined, jordan)).json.address).toBeNull();
   });
 });
 
@@ -4090,6 +4162,49 @@ describe("master access — a per-account role instead of one shared secret", ()
     // read (money-scoped) and a mutating action both stay out of reach.
     expect((await call("GET", "/api/admin/budget", undefined, null, secCookie)).status).toBe(401);
     expect((await call("POST", "/api/staff/roster/nope/stand-down", {}, null, secCookie)).status).toBe(401);
+  });
+
+  it("lets a secretary coordinate a pickup with an approved driver — dispatch, not money or a plan", async () => {
+    const applied = await call("POST", "/api/drivers/apply", {
+      tier: "standard", fullName: "Pat Rivera", email: "driver-pat@example.com", phone: "404-555-0199",
+      city: "Atlanta", state: "GA", licenseNumber: "GA999999", licenseExpiry: "2030-01-01T00:00:00Z",
+      yearsDriving: 5, vehicle: { make: "Honda", model: "Accord", year: 2022, licensePlate: "XYZ9876" },
+      backgroundCheckConsent: true,
+    });
+    await callAdmin("POST", `/api/drivers/applications/${applied.json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/drivers/applications/${applied.json.id}/review`, { status: "approved" });
+
+    const requested = await call("POST", "/api/rides/coordinate", {
+      pickup: { lat: 40.71, lng: -74.0, label: "Pickup" },
+      dropoff: { lat: 40.75, lng: -73.98, label: "Home" },
+    }, sam);
+    expect(requested.status).toBe(200);
+    expect(requested.json.request.status).toBe("requested");
+
+    const { cookie: secCookie } = await masterLogin("secretary", "Sec Three", "sec3@example.com");
+    const coordinated = await call(
+      "POST", `/api/master/pickup-requests/${requested.json.request.id}/coordinate`,
+      { driverId: applied.json.id }, null, secCookie,
+    );
+    expect(coordinated.status).toBe(200);
+    expect(coordinated.json.request.status).toBe("coordinated");
+    expect(coordinated.json.request.driverName).toBe("Pat Rivera");
+
+    const mine = await call("GET", "/api/rides/coordinate", undefined, sam);
+    expect(mine.json.requests[0].status).toBe("coordinated");
+    expect(mine.json.requests[0].driverPhone).toBe("4045550199");
+  });
+
+  it("refuses to coordinate onto a driver who was never approved", async () => {
+    const requested = await call("POST", "/api/rides/coordinate", {
+      pickup: { lat: 40.71, lng: -74.0 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    const { cookie: ownerCookie } = await masterLogin("owner", "Owner Two", "owner2@example.com");
+    const res = await call(
+      "POST", `/api/master/pickup-requests/${requested.json.request.id}/coordinate`,
+      { driverId: "asst_not_a_driver" }, null, ownerCookie,
+    );
+    expect(res.status).toBe(400);
   });
 });
 

@@ -1,46 +1,40 @@
 import { useEffect, useState } from "react";
-import type { NearbyStore } from "@safehubby/core";
+import { defaultCapFor } from "@safehubby/core";
+import type { PickupRequest } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 import { LiveMap } from "./LiveMap.tsx";
 
-const HOME = { lat: 40.7488, lng: -73.9857 };
-
-interface HandOff {
-  provider: string;
-  url: string;
-  description: string;
-}
+const FALLBACK_HOME_LABEL = "Home";
 
 /**
- * Getting home.
+ * Getting home — coordinated with a driver Safehubby actually hired, not a
+ * hand-off to Uber or Lyft.
  *
- * This used to show fares and a Book button. It does not any more, because it
- * could not honestly: Uber and Lyft both closed their public ride APIs to
- * third-party developers, so nothing outside a formal partnership can quote a
- * fare or book a trip. A made-up price on the screen where someone is deciding
- * whether they can afford to not drive is the worst possible place to be wrong.
- *
- * So the app does the honest version of the same job: opens the real app with
- * the destination already filled in, and records that they took a ride.
+ * This used to open the Uber or Lyft app with the destination filled in,
+ * because nothing outside a formal partnership could quote a fare or book a
+ * trip through either of their closed ride APIs. That is no longer the
+ * product: Safehubby hires and pays its own drivers (see driver-pay.ts and
+ * the driver application flow), so a request here is coordinated with one
+ * of them instead. There is still no live-matching engine — an operator on
+ * the master dashboard matches the request to an approved driver by hand,
+ * the same honest "request and coordinate" shape the Elite desk already
+ * uses for a jet charter — so this says exactly that rather than implying a
+ * car is already on its way the instant the button is tapped.
  */
 export function GetHomePanel({ pickup, homeLabel }: {
   pickup: { lat: number; lng: number } | null;
   homeLabel: string;
 }) {
-  const [handoffs, setHandoffs] = useState<HandOff[] | null>(null);
-  const [automatic, setAutomatic] = useState<string | null>(null);
-  const [estimates, setEstimates] = useState<{ productId: string | null; productName: string | null; fareCents: number | null; etaMinutes: number | null }[]>([]);
-  const [chosen, setChosen] = useState<string | null>(null);
-  const [booked, setBooked] = useState<any>(null);
+  const [homeAddress, setHomeAddress] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const [addressLabel, setAddressLabel] = useState(FALLBACK_HOME_LABEL);
+  const [request, setRequest] = useState<PickupRequest | null>(null);
   const [secure, setSecure] = useState<SecureQuote | null>(null);
   const [secureOpen, setSecureOpen] = useState(false);
-  const [note, setNote] = useState<string>("");
-  const [supplies, setSupplies] = useState<{ text: string; url?: string | null; cta?: string } | null>(null);
-  const [tookRide, setTookRide] = useState(false);
+  const [note, setNote] = useState("");
+  const [supplies, setSupplies] = useState<string | null>(null);
+  const [suppliesError, setSuppliesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [stores, setStores] = useState<NearbyStore[]>([]);
-  const [storeId, setStoreId] = useState<string | null>(null);
 
   const gpsFix = pickup ?? { lat: 40.714, lng: -74.003 };
   // The exact spot a driver is sent to, not just wherever the phone's GPS
@@ -52,7 +46,23 @@ export function GetHomePanel({ pickup, homeLabel }: {
   useEffect(() => { setPin(gpsFix); }, [gpsFix.lat, gpsFix.lng]);
   const at = pin;
 
-  useEffect(() => { api.nearbyStores(at).then(setStores).catch(() => {}); }, [at.lat, at.lng]);
+  const dropoff = homeAddress ?? { lat: 40.7488, lng: -73.9857, label: homeLabel };
+
+  useEffect(() => {
+    api.homeAddress().then((r) => setHomeAddress(r.address)).catch(() => {});
+    api.myPickupRequests().then((r) => {
+      const active = r.requests.find((req) => req.status === "requested" || req.status === "coordinated");
+      setRequest(active ?? null);
+    }).catch(() => {});
+  }, []);
+  // Secure transport is a real, separately vetted protective-service
+  // provider, not Uber or Lyft — kept, unlike the ordinary ride quote this
+  // used to also come from. `rideQuotes` is still the endpoint that computes
+  // it (see POST /api/rides/quote in routes.ts), so this reads only that
+  // one field off it and ignores the handoffs/estimates it also returns.
+  useEffect(() => {
+    api.rideQuotes(at, dropoff).then((r) => setSecure(r.secure ?? null)).catch(() => setSecure(null));
+  }, [at.lat, at.lng, dropoff.lat, dropoff.lng]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -61,6 +71,26 @@ export function GetHomePanel({ pickup, homeLabel }: {
     finally { setBusy(false); }
   };
 
+  const saveAddress = () => run(async () => {
+    const saved = await api.saveHomeAddress(at.lat, at.lng, addressLabel.trim() || FALLBACK_HOME_LABEL);
+    setHomeAddress(saved.address);
+  });
+
+  const coordinatePickup = () => run(async () => {
+    const res = await api.coordinatePickup(
+      { lat: at.lat, lng: at.lng, label: "Pickup" },
+      { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label },
+      note || undefined,
+    );
+    setRequest(res.request);
+  });
+
+  const cancelPickup = () => run(async () => {
+    if (!request) return;
+    const res = await api.cancelPickupRequest(request.id);
+    setRequest(res.request);
+  });
+
   return (
     <section className="card" aria-label="Get home">
       <h3>Get home</h3>
@@ -68,89 +98,57 @@ export function GetHomePanel({ pickup, homeLabel }: {
       <LiveMap
         points={[
           { lat: at.lat, lng: at.lng, label: "Pickup — drag or tap to move" },
-          { lat: HOME.lat, lng: HOME.lng, label: homeLabel },
+          { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel },
         ]}
-        onPick={!handoffs ? setPin : undefined}
+        onPick={!request ? setPin : undefined}
       />
-      {!handoffs && (
+      {!request && (
         <p className="tiny muted" style={{ margin: 0 }}>
           Drag the pin, or tap anywhere on the map, to set exactly where the driver should pick you up — your
           device's location is only a starting guess.
         </p>
       )}
 
-      {!handoffs && (
-        <button className="btn btn-primary btn-block" disabled={busy}
-          onClick={() => run(async () => {
-            const res = await api.rideQuotes(at, { ...HOME, label: homeLabel });
-            setAutomatic(res.mode === "automatic" ? (res.provider ?? "your ride") : null);
-            setEstimates(res.estimates ?? []);
-            setChosen(res.estimates?.[0]?.productId ?? null);
-            setHandoffs(res.handoffs ?? []);
-            setSecure(res.secure ?? null);
-            setNote(res.note ?? "");
-          })}>
-          Get me home to {homeLabel}
-        </button>
-      )}
-
-      {automatic && !booked && (
+      {!request && (
         <>
-          {estimates.length > 0 && (
-            <ul className="rides">
-              {estimates.map((e) => (
-                <li key={e.productId ?? e.productName}>
-                  <button type="button"
-                    className={`ride${chosen === e.productId ? " ride-on" : ""}`}
-                    aria-pressed={chosen === e.productId}
-                    onClick={() => setChosen(e.productId)}>
-                    <span className="ride-name">
-                      {e.productName ?? "Ride"}
-                      <span className="ride-eta">
-                        {e.etaMinutes !== null ? `${e.etaMinutes} min away` : "Checking availability"}
-                      </span>
-                    </span>
-                    {/* Uber's own quote. Safehubby never computes a fare. */}
-                    <span className="ride-fare">
-                      {e.fareCents !== null ? `$${(e.fareCents / 100).toFixed(2)}` : "—"}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <button className="btn btn-primary btn-block" disabled={busy}
-            onClick={() => run(async () => {
-              const res = await api.bookRide(chosen ?? automatic.toLowerCase(), at, { ...HOME, label: homeLabel });
-              setBooked(res);
-              setTookRide(true);
-            })}>
-            Book it — {automatic} comes to you
+          <div className="field">
+            <label htmlFor="pickup-note" className="tiny muted">Anything the driver should know? (optional)</label>
+            <input id="pickup-note" type="text" value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="Side entrance, silver door" />
+          </div>
+          <button className="btn btn-primary btn-block" disabled={busy} onClick={coordinatePickup}>
+            Coordinate pickup
           </button>
-
-          {estimates.length > 0 && (
-            <p className="tiny muted">Fares are Uber's estimate and are charged by them, not by Safehubby.</p>
-          )}
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Matched with one of Safehubby's own drivers — not Uber, not Lyft. Someone on our end confirms who's
+            coming and texts you; this isn't an instant, live-tracked booking.
+          </p>
         </>
       )}
 
-      {booked && (
+      {request && request.status === "requested" && (
+        <div className="banner">
+          <strong>Coordinating your pickup.</strong> We're matching you with one of our drivers and will text you
+          who's coming.
+          <div style={{ marginTop: 8 }}>
+            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel request</button>
+          </div>
+        </div>
+      )}
+
+      {request && request.status === "coordinated" && (
         <div className="banner banner-safe">
-          <strong>{booked.provider} booked.</strong>{" "}
-          {booked.etaMinutes ? `About ${booked.etaMinutes} min away. ` : ""}
-          {booked.driver?.plate ? `Look for ${booked.driver.plate}. ` : ""}
-          <b>+100 points</b> for not driving.
-          {booked.trackingUrl && (
+          <strong>{request.driverName} is coming to get you.</strong>{" "}
+          {request.driverPhone && (
             <>
-              {" "}
-              {/* {booked.provider}'s own live trip page — the actual moving car,
-                  which only the provider can show, since only they have it. */}
-              <a href={booked.trackingUrl} target="_blank" rel="noreferrer" className="inline-link">
-                Watch it get closer on {booked.provider}
-              </a>
+              <a href={`tel:${request.driverPhone}`} className="inline-link">Call {request.driverPhone}</a>
+              {" · "}
+              <a href={`sms:${request.driverPhone}`} className="inline-link">Text</a>
             </>
           )}
+          <div style={{ marginTop: 8 }}>
+            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -175,9 +173,7 @@ export function GetHomePanel({ pickup, homeLabel }: {
               </ul>
               <button className="btn btn-primary btn-block" disabled={busy}
                 onClick={() => run(async () => {
-                  const res = await api.bookSecureRide(at, { ...HOME, label: homeLabel });
-                  setBooked(res);
-                  setTookRide(true);
+                  await api.bookSecureRide(at, dropoff);
                 })}>
                 I understand — book it (~${(secure.fareEstimateCents / 100).toFixed(0)}, {secure.etaMinutes} min)
               </button>
@@ -186,78 +182,43 @@ export function GetHomePanel({ pickup, homeLabel }: {
         </section>
       )}
 
-      {!automatic && handoffs?.map((h) => (
-        <a key={h.provider} className="btn btn-block ride-link" href={h.url}
-          target="_blank" rel="noreferrer"
-          onClick={() => {
-            // Recorded on the way out: the booking finishes in their app, and
-            // choosing not to drive is the thing worth rewarding either way.
-            if (!tookRide) {
-              setTookRide(true);
-              api.bookRide(h.provider.toLowerCase(), at, HOME).catch(() => {});
-            }
-          }}>
-          <span>
-            <strong>Open {h.provider}</strong>
-            <span className="tiny muted">{h.description}</span>
-          </span>
-        </a>
-      ))}
-
-      {handoffs && note && <p className="tiny muted">{note}</p>}
-      {tookRide && <div className="banner banner-safe">Ride home logged. <b>+100 points</b> for not driving.</div>}
-
-      {stores.length > 0 && !supplies && (
+      {!homeAddress ? (
         <div className="field">
-          <label htmlFor="store-pick" className="tiny muted">Prefer a store, if it's open</label>
-          <select id="store-pick" value={storeId ?? ""} onChange={(e) => setStoreId(e.target.value || null)}>
-            <option value="">No preference — whatever Instacart has nearby</option>
-            {stores.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ""}</option>
-            ))}
-          </select>
+          <label htmlFor="address-label" className="tiny muted">
+            Save a delivery address so an errand runner can bring you things later
+          </label>
+          <div className="row" style={{ gap: 6 }}>
+            <input id="address-label" type="text" value={addressLabel}
+              onChange={(e) => setAddressLabel(e.target.value)} placeholder="Home" style={{ flex: 1 }} />
+            <button className="btn btn-sm" disabled={busy} onClick={saveAddress}>Save this pin as my address</button>
+          </div>
         </div>
+      ) : (
+        <>
+          <p className="tiny muted" style={{ margin: 0 }}>Delivering to {homeAddress.label}.</p>
+          <button className="btn btn-block" disabled={busy}
+            onClick={() => run(async () => {
+              setSuppliesError(null);
+              try {
+                const { task } = await api.bookConcierge({
+                  category: "grab-something",
+                  note: "Water, Liquid I.V. or Pedialyte, and a snack",
+                  location: homeAddress,
+                  spendCapCents: defaultCapFor("grab-something"),
+                  quickTask: true,
+                });
+                setSupplies(`On the way from ${task.assistantName ?? "an errand runner"} to ${homeAddress.label}.`);
+              } catch (e) {
+                setSuppliesError(e instanceof Error ? e.message : "Could not send that right now");
+              }
+            })}>
+            Have an errand runner bring water &amp; a snack
+          </button>
+        </>
       )}
 
-      <button className="btn btn-block" disabled={busy}
-        onClick={() => run(async () => {
-          const store = stores.find((s) => s.id === storeId) ?? null;
-          const res = await api.orderSupplies([
-            { id: "liquid-iv", name: "Liquid I.V. hydration packs", qty: 1, priceCents: 999 },
-            { id: "gatorade", name: "Gatorade", qty: 2, priceCents: 349 },
-            { id: "crackers", name: "Saltine crackers", qty: 1, priceCents: 299 },
-          ], homeLabel, store);
-
-          if (res.mode === "cart-ready") {
-            setSupplies({
-              text: `Basket built and waiting at ${res.provider}${store ? ` — asked for ${store.name}` : ""}. One tap to check out — it goes to ${homeLabel}.`,
-              url: res.trackingUrl,
-              cta: `Check out at ${res.provider}`,
-            });
-          } else {
-            setSupplies({
-              text: res.error
-                ? `${res.provider} didn't answer, so here's the basket at ${res.handoff?.provider} instead.`
-                : `Basket ready. You place the order at ${res.handoff?.provider}.`,
-              url: res.handoff?.url,
-              cta: `Open ${res.handoff?.provider}`,
-            });
-          }
-        })}>
-        Send water &amp; a snack home
-      </button>
-
-      {supplies && (
-        <div className="banner banner-safe">
-          {supplies.text}
-          {supplies.url && (
-            <>
-              {" "}
-              <a href={supplies.url} target="_blank" rel="noreferrer" className="inline-link">{supplies.cta}</a>
-            </>
-          )}
-        </div>
-      )}
+      {supplies && <div className="banner banner-safe">{supplies}</div>}
+      {suppliesError && <div className="banner banner-danger">{suppliesError}</div>}
       {error && <div className="banner banner-danger">{error}</div>}
     </section>
   );

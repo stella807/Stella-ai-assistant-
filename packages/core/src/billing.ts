@@ -252,7 +252,7 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  *
  * What this leaves Family to justify its price with is seats, and seats
  * alone: six against Premium Plus's two, which is a real per-person
- * discount ($5.00/seat against $10.00) and the same shape every household
+ * discount ($10.00/seat against $20.00) and the same shape every household
  * plan uses.
  *
  * The ladder is 1, 1, 2, 6. Free and Premium are **one person** — the
@@ -300,33 +300,37 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * "send a stranger to help" worse.
  */
 /**
- * Priced against the market Safehubby actually competes with for a
- * subscription dollar, which is personal-safety apps rather than concierge
- * services.
+ * Priced against what these tiers actually bundle, not against safety apps
+ * alone — the previous card ($9.99 / $19.99 / $29.99) benchmarked purely
+ * against Life360/Noonlight/Citizen Protect and landed below what a
+ * standalone concierge subscription charges for *just* the concierge half
+ * of what Premium Plus and Family already include.
  *
- * Measured (September 2026): Life360 Silver $7.99, Gold $14.99, Platinum
- * $24.99 — and **each of those covers the whole circle, not one person**.
- * Noonlight is $9.99. Citizen Protect is $20. The previous card asked
- * $33.99 for two seats and $69.99 for six, which was 2.8x Life360's family
- * tier and above every safety app on the market, for a subscription that
- * does not include a single concierge task — tasks are billed on top. That
- * is a hard thing to sell next to an app most families already have.
+ * Measured (September 2026): Life360 Platinum $24.99 (whole circle, not one
+ * person). Concierge-membership comparables run well above that on their
+ * own — Ask Sunday and similar text-a-concierge apps commonly land
+ * $30-$70/month for on-demand task requests with no safety layer at all;
+ * Amalfi-tier luxury concierge desks (see elite.ts's `ELITE_DESK_MEMBERSHIP`)
+ * run into four figures a year. Premium Plus and Family bundle a real
+ * personal concierge (bounded, spend-capped, dispatched to an actual
+ * roster — concierge.ts) with safety tracking and secure transport in one
+ * price, which is worth more than either category alone, not less.
  *
- * So: Premium undercuts Life360 Gold, Premium Plus lands just under Citizen
- * Protect and Platinum, and Family is a small premium over Platinum for six
- * seats plus concierge access nobody else offers.
+ * So: Premium ($19.99) sits above the pure-safety comps but well under a
+ * standalone concierge subscription, for a household of one. Premium Plus
+ * ($39.99, two seats) lands inside the concierge-app band while adding the
+ * whole safety layer for free. Family ($59.99, six seats) keeps the same
+ * per-seat discount shape Premium Plus uses ($20.00/seat against
+ * $10.00/seat) rather than pricing seats independently of that ratio.
  *
- * **The subscription is the door, not the business.** Every tier's real
+ * **The subscription is still not the whole business.** Every tier's other
  * margin is the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same
- * way Elite's is commission rather than dues. Pricing the door low is what
- * gets enough people through it for that margin to exist at all — the
- * trade-off is real and is written down in docs/billing.md: break-even on
- * the recurring roster roughly doubles at these prices, and only pays off if
- * the lower price brings proportionally more subscribers than it gives up in
- * revenue per subscriber.
+ * way Elite's is commission rather than dues — this repricing raises the
+ * door's own price without touching that margin, rather than trading one
+ * for the other.
  *
- * Annual is ~17% off, up from ~15%: a rounder, more legible saving, and the
- * cadence worth pushing when the monthly price is this low.
+ * Annual stays ~17% off: a rounder, more legible saving, unchanged by this
+ * round — only the number the percentage applies to moved.
  */
 export const PLANS: Plan[] = [
   {
@@ -341,8 +345,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 999,
-    annualCents: 9999,
+    monthlyCents: 1999,
+    annualCents: 19999,
     seats: 1,
     features: BASIC_FEATURES,
     blurb: "For one person. Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
@@ -350,8 +354,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 1999,
-    annualCents: 19999,
+    monthlyCents: 3999,
+    annualCents: 39999,
     seats: 2,
     features: PLUS_FEATURES,
     blurb: "For two. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
@@ -359,8 +363,8 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 2999,
-    annualCents: 29999,
+    monthlyCents: 5999,
+    annualCents: 59999,
     seats: 6,
     // Identical features to Premium Plus, by design — Family is the same
     // product for more people, not a longer feature list.
@@ -497,6 +501,57 @@ export const ELITE_SPENDING_ALLOWANCE_RATE = 0.10;
 export function eliteSpendingAllowanceCents(id: PlanId): number {
   if (!isElitePlan(id)) return 0;
   return Math.round(findPlan(id).monthlyCents * ELITE_SPENDING_ALLOWANCE_RATE);
+}
+
+/**
+ * Elite launches locked — "coming soon" — until the business has a real cash
+ * cushion behind the spending allowance above, not just the flag that used to
+ * be the only gate. The allowance is money Safehubby hands out every month
+ * whether or not the member ever needed it; unlocking the tier before there
+ * is revenue to absorb that is the fastest way to turn a perk into a hole.
+ *
+ * The target client count is a range (5-10) because nobody can name the
+ * exact number Elite will actually sign in its first months — this uses the
+ * high end, 10, for the exposure calculation on purpose: sizing the cushion
+ * to the smaller, friendlier number would mean the tier unlocks and then
+ * gets caught short the moment it succeeds past 5 members, which is exactly
+ * backwards for a safety margin. Three times that monthly exposure, held in
+ * trailing revenue, is the buffer before the commitment is judged safe to
+ * turn on — see `eliteUnlockThresholdCents`.
+ */
+export const ELITE_UNLOCK_TARGET_CLIENTS_LOW = 5;
+export const ELITE_UNLOCK_TARGET_CLIENTS_HIGH = 10;
+export const ELITE_UNLOCK_SAFETY_MULTIPLE = 3;
+
+/**
+ * The monthly revenue cushion required before Elite unlocks: 3x the worst
+ * case where every rung has already signed its high-end target of 10
+ * members, all drawing their full spending allowance in the same month.
+ * Real trailing revenue (settled charges, not a promise) is what gets
+ * compared against this — see `GET /api/master/overview` in the API, which
+ * is the layer that actually knows what has been charged.
+ */
+export function eliteUnlockThresholdCents(): number {
+  return ELITE_LADDER.reduce(
+    (sum, id) => sum + eliteSpendingAllowanceCents(id) * ELITE_UNLOCK_TARGET_CLIENTS_HIGH,
+    0,
+  ) * ELITE_UNLOCK_SAFETY_MULTIPLE;
+}
+
+/** Whether a measured trailing-revenue figure clears the cushion above. Takes
+ *  the number rather than computing it, because only the API layer — with
+ *  the charges ledger in hand — can say what revenue actually is; this stays
+ *  a pure function of that one number so it is trivially testable. */
+export function eliteUnlockedByRevenue(trailingRevenueCents: number): boolean {
+  return trailingRevenueCents >= eliteUnlockThresholdCents();
+}
+
+/** How close the business is to unlocking Elite, for a progress bar rather
+ *  than a bare yes/no — 100 once unlocked, never over. */
+export function eliteUnlockProgressPercent(trailingRevenueCents: number): number {
+  const threshold = eliteUnlockThresholdCents();
+  if (threshold <= 0) return 100;
+  return Math.min(100, Math.round((trailingRevenueCents / threshold) * 100));
 }
 
 export function isPlanReleased(id: PlanId): boolean {

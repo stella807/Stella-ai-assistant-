@@ -32,8 +32,11 @@ import { money } from "../money.ts";
 export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
   const { t } = useLanguage();
   const [plans, setPlans] = useState<any[]>([]);
+  const [eliteUnlock, setEliteUnlock] = useState<Awaited<ReturnType<typeof api.catalog>>["eliteUnlock"] | null>(null);
 
-  useEffect(() => { api.catalog().then((c) => setPlans(c.plans)).catch(() => {}); }, []);
+  useEffect(() => {
+    api.catalog().then((c) => { setPlans(c.plans); setEliteUnlock(c.eliteUnlock); }).catch(() => {});
+  }, []);
 
   const errands = CONCIERGE_CATEGORIES.filter((c) => QUICK_TASK_CATEGORIES.includes(c.id));
   const concierge = CONCIERGE_CATEGORIES.filter((c) => !QUICK_TASK_CATEGORIES.includes(c.id));
@@ -79,7 +82,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
 
       <PlanComparison plans={plans.filter((p) => !isElitePlan(p.id as PlanId))} />
 
-      <EliteShowcase plans={plans.filter((p) => isElitePlan(p.id as PlanId))} />
+      <EliteShowcase plans={plans.filter((p) => isElitePlan(p.id as PlanId))} eliteUnlock={eliteUnlock} />
 
       {/* The two services, priced and kept apart. */}
       <section className="card stack">
@@ -118,17 +121,27 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
  * own shape: price and included hours scale with how many people the
  * membership covers, 1 → 2 → 6, not the everyday ladder's household size.
  */
-function EliteShowcase({ plans }: { plans: Plan[] }) {
+function EliteShowcase({ plans, eliteUnlock }: {
+  plans: Plan[];
+  eliteUnlock: {
+    thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
+    targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
+  } | null;
+}) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(true);
   if (plans.length === 0) return null;
   const rungs = [...plans].sort((a, b) => a.seats - b.seats);
+  const locked = rungs.some((p) => (p as unknown as { locked?: boolean }).locked);
 
   return (
     <section className="card stack" aria-label="Elite">
       <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
         aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        <h3 style={{ margin: 0 }}>Elite: what's included</h3>
+        <h3 style={{ margin: 0 }}>
+          Elite: what's included
+          {locked && <span className="plan-tag" style={{ marginLeft: 8 }}>Coming soon</span>}
+        </h3>
         <span className="chev">{open ? "︿" : "﹀"}</span>
       </button>
       <p className="tiny muted" style={{ margin: 0 }}>
@@ -139,6 +152,25 @@ function EliteShowcase({ plans }: { plans: Plan[] }) {
 
       {open && (
         <>
+          {locked && eliteUnlock && (
+            <div className="card card-quiet stack" style={{ gap: 6 }}>
+              <strong className="small">Not open yet — here's why, and what unlocks it</strong>
+              <p className="tiny muted" style={{ margin: 0 }}>
+                Elite includes a monthly spending allowance Safehubby funds itself (see below), so we're
+                holding the tier until the business has revenue covering {eliteUnlock.safetyMultiple}× what that
+                would cost if our first {eliteUnlock.targetClientsLow}-{eliteUnlock.targetClientsHigh} members per
+                rung all drew their full allowance in the same month. That's the honest order: cover the
+                commitment first, sell the tier second.
+              </p>
+              <div className="progress-track" role="progressbar" aria-valuenow={eliteUnlock.percent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="progress-fill" style={{ width: `${eliteUnlock.percent}%` }} />
+              </div>
+              <p className="tiny muted" style={{ margin: 0 }}>
+                {money(eliteUnlock.trailingRevenueCents)} of {money(eliteUnlock.thresholdCents)} needed ({eliteUnlock.percent}%).
+              </p>
+            </div>
+          )}
+
           <table className="pay-table">
             <thead>
               <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>Concierge hours/mo</th></tr>

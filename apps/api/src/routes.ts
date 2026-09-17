@@ -36,7 +36,9 @@ import {
   remainingDeskTasks, validateDeskTask,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
-  eliteSpendingAllowanceCents,
+  eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
+  ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
+  validatePickupRequest,
   validateAiDraftInstruction,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
@@ -59,6 +61,7 @@ import {
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
   ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DeskTask, DeskTaskKind, DriverTier, EliteBooking, EliteServiceId,
+  PickupRequest,
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
@@ -175,6 +178,29 @@ function noteFor(sub: Subscription, rail: string | null, dueCents: number): stri
   if (dueCents === 0) return "Plan changed. Nothing owed — the part of this period you already paid for covers it.";
   if (rail === "card") return `Plan changed. $${(dueCents / 100).toFixed(2)} charged to your card, with any unused part of the old period credited.`;
   return `Plan changed. $${(dueCents / 100).toFixed(2)} is due through the store's billing; confirm the purchase to finish.`;
+}
+
+/** Settled revenue in the trailing 30 days — a rolling window rather than a
+ *  calendar month, so the Elite unlock gate (see billing.ts) doesn't fall
+ *  back to zero for a few days every month and misrepresent progress. */
+function trailingRevenueCents(ctx: Ctx): number {
+  const cutoff = ctx.now().getTime() - 30 * 86_400_000;
+  return ctx.store.data.charges
+    .filter((c) => c.status === "settled" && c.settledAt && Date.parse(c.settledAt) >= cutoff)
+    .reduce((sum, c) => sum + c.amountCents, 0);
+}
+
+function eliteUnlockStatus(ctx: Ctx) {
+  const trailing = trailingRevenueCents(ctx);
+  return {
+    thresholdCents: eliteUnlockThresholdCents(),
+    trailingRevenueCents: trailing,
+    unlocked: eliteUnlockedByRevenue(trailing),
+    percent: eliteUnlockProgressPercent(trailing),
+    targetClientsLow: ELITE_UNLOCK_TARGET_CLIENTS_LOW,
+    targetClientsHigh: ELITE_UNLOCK_TARGET_CLIENTS_HIGH,
+    safetyMultiple: ELITE_UNLOCK_SAFETY_MULTIPLE,
+  };
 }
 
 /** Plan and display name for the signed-in actor, used by the fulfilment paths. */
@@ -1367,6 +1393,36 @@ export const routes: Record<string, Handler> = {
   },
 
   /**
+   * A real, coordinate-backed home address, saved once and reused — the
+   * missing piece behind sending a real person somewhere. `homeLabel` (set
+   * at signup) was always just a name on a screen; nothing before this
+   * turned it into a place a driver or an errand runner could actually be
+   * sent to.
+   */
+  "GET /api/account/address": (ctx) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    return { address: traveler?.homeAddress ?? null };
+  },
+
+  "POST /api/account/address": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const lat = Number(body?.lat);
+    const lng = Number(body?.lng);
+    const label = String(body?.label ?? "").trim();
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new HttpError(400, "Pick a real location — drag the pin, or search for the address.");
+    }
+    if (!label) throw new HttpError(400, "Give this address a name, so it reads clearly wherever it's used.");
+    const address = { lat, lng, label };
+    ctx.store.update((db) => {
+      const traveler = db.travelers.find((t) => t.id === me);
+      if (traveler) traveler.homeAddress = address;
+    });
+    return { address };
+  },
+
+  /**
    * What to share, and the code that makes it count. The message text comes
    * from core (`shareMessage`) so the wording is identical wherever it is
    * sent from, and the code is minted at signup rather than on demand so the
@@ -1406,27 +1462,36 @@ export const routes: Record<string, Handler> = {
     return { traveler: t ? publicTraveler(t) : null };
   },
 
-  "GET /api/catalog": (ctx) => ({
-    drinks: DRINK_CATALOG,
-    // Only what has actually shipped: the Elite tier is built and held
-    // behind `elite-tier` (see features.ts), so it is absent here rather
-    // than listed as something a subscriber can't have.
-    //
-    // Each plan carries what it would actually cost to join today, discount
-    // included. Computed here rather than in the browser so the price on the
-    // card is the price the server will charge — a plan card showing full
-    // price under a banner promising a discount is the two disagreeing.
-    plans: releasedPlans().map((plan) => ({
-      ...plan,
-      monthlyOffer: launchOfferFor(plan.monthlyCents, ctx.now()),
-      annualOffer: launchOfferFor(plan.annualCents, ctx.now()),
-    })),
-    rewards: REWARD_CATALOG,
-    // The one launch-party fact a signed-out visitor needs, on a request the
-    // landing page already makes. A separate public endpoint for it would be
-    // a second round trip to say one boolean.
-    launch: launchStatus(ctx.now()),
-  }),
+  "GET /api/catalog": (ctx) => {
+    const eliteUnlock = eliteUnlockStatus(ctx);
+    return {
+      drinks: DRINK_CATALOG,
+      // Only what has actually shipped: the Elite tier is built and held
+      // behind `elite-tier` (see features.ts), so it is absent here rather
+      // than listed as something a subscriber can't have. Elite plans that
+      // do ship stay visible even while `locked` — shown as "coming soon"
+      // with what's included, per `eliteUnlock` below, rather than hidden;
+      // see billing.ts's `eliteUnlockThresholdCents` for why a real cash
+      // cushion, not just this flag, decides whether they can be joined yet.
+      //
+      // Each plan carries what it would actually cost to join today, discount
+      // included. Computed here rather than in the browser so the price on the
+      // card is the price the server will charge — a plan card showing full
+      // price under a banner promising a discount is the two disagreeing.
+      plans: releasedPlans().map((plan) => ({
+        ...plan,
+        monthlyOffer: launchOfferFor(plan.monthlyCents, ctx.now()),
+        annualOffer: launchOfferFor(plan.annualCents, ctx.now()),
+        ...(isElitePlan(plan.id) ? { locked: !eliteUnlock.unlocked } : {}),
+      })),
+      rewards: REWARD_CATALOG,
+      // The one launch-party fact a signed-out visitor needs, on a request the
+      // landing page already makes. A separate public endpoint for it would be
+      // a second round trip to say one boolean.
+      launch: launchStatus(ctx.now()),
+      eliteUnlock,
+    };
+  },
 
   "GET /api/travelers/:travelerId": (ctx, p) => {
     const travelerId = req(p, "travelerId");
@@ -1842,6 +1907,12 @@ export const routes: Record<string, Handler> = {
     const platform = platformFrom(body?.platform);
     const plan = findPlan(planId);
     if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
+    if (isElitePlan(plan.id) && !eliteUnlockedByRevenue(trailingRevenueCents(ctx))) {
+      throw new HttpError(
+        404,
+        "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members. See progress on the pricing page.",
+      );
+    }
     catchUpBilling(ctx);
     const existing = subscriptionOf(ctx, me);
 
@@ -2004,6 +2075,53 @@ export const routes: Record<string, Handler> = {
     actor(ctx);
     await uberCancel(req(p, "tripId"));
     return { cancelled: true };
+  },
+
+  /* ---------------------------------------------------------------
+     Coordinated pickup — Safehubby's own hired drivers, not a
+     hand-off to Uber or Lyft. See ride-coordination.ts for why this
+     is a request-and-coordinate flow rather than a live match.
+     --------------------------------------------------------------- */
+
+  "POST /api/rides/coordinate": (ctx, _p, body) => {
+    const me = actor(ctx);
+    requireServiceLive(ctx);
+    requireFeature(ctx, me, "ride-booking");
+    const pickup = { lat: Number(body?.pickup?.lat), lng: Number(body?.pickup?.lng), label: body?.pickup?.label };
+    const dropoff = { lat: Number(body?.dropoff?.lat), lng: Number(body?.dropoff?.lng), label: body?.dropoff?.label };
+    validatePickupRequest({ pickup, dropoff });
+
+    const request: PickupRequest = {
+      id: newId("pickup"), travelerId: me, pickup, dropoff,
+      ...(body?.note ? { note: String(body.note) } : {}),
+      status: "requested", createdAt: ctx.now().toISOString(),
+    };
+    ctx.store.update((db) => void db.pickupRequests.push(request));
+    return { request };
+  },
+
+  /** A rider's own pickup requests, most recent first — so "did anyone see
+   *  this yet" has an answer without waiting on a text back. */
+  "GET /api/rides/coordinate": (ctx) => {
+    const me = actor(ctx);
+    const requests = ctx.store.data.pickupRequests
+      .filter((r) => r.travelerId === me)
+      .slice()
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return { requests };
+  },
+
+  "POST /api/rides/coordinate/:id/cancel": (ctx, p) => {
+    const me = actor(ctx);
+    const id = req(p, "id");
+    const request = ctx.store.data.pickupRequests.find((r) => r.id === id && r.travelerId === me);
+    if (!request) throw notFound("Pickup request");
+    if (request.status === "completed") throw new HttpError(400, "This ride already happened.");
+    ctx.store.update((db) => {
+      const r = db.pickupRequests.find((x) => x.id === id)!;
+      r.status = "cancelled";
+    });
+    return { request: { ...request, status: "cancelled" as const } };
   },
 
   /** What is switched on, and what each missing piece needs. */
@@ -2756,16 +2874,59 @@ export const routes: Record<string, Handler> = {
     }
 
     if (canAccess(account, "operations", now)) {
+      const pendingStaffApplications = ctx.store.data.staffApplications
+        .filter((a) => a.status === "submitted" || a.status === "under-review");
+      const pendingDriverApplications = ctx.store.data.driverApplications
+        .filter((a) => a.status === "submitted" || a.status === "under-review");
+      // Hired so far, by role — the same headcount `GET /api/admin/budget`
+      // reads, but a secretary has master-account access, not the shared
+      // admin key that route is gated on, and this is the one dashboard
+      // that already reaches both roles.
+      const hiredByRole = Object.fromEntries(STAFF_ROLES.map((role) => [
+        role.id,
+        role.id === "driver"
+          ? ctx.store.data.driverApplications.filter((a) => a.status === "approved").length
+          : ctx.store.data.assistants.filter((a) => a.role === role.id && isOnRoster(a, now)).length,
+      ])) as Record<StaffRole, number>;
       overview.operations = {
         activeConciergeTasks: ctx.store.data.conciergeTasks.filter((t) => t.status === "in-progress").length,
         openDeskTasks: ctx.store.data.deskTasks.filter((t) => t.status === "open").length,
         rosterActive: ctx.store.data.assistants.filter((a) => isOnRoster(a, now)).length,
         rosterTotal: ctx.store.data.assistants.length,
-        pendingDriverApplications: ctx.store.data.driverApplications
-          .filter((a) => a.status === "submitted" || a.status === "under-review").length,
-        pendingStaffApplications: ctx.store.data.staffApplications
-          .filter((a) => a.status === "submitted" || a.status === "under-review").length,
+        pendingDriverApplications: pendingDriverApplications.length,
+        pendingStaffApplications: pendingStaffApplications.length,
+        // The applications themselves, not just the count — so a review
+        // queue can be worked from this one screen rather than a second
+        // trip to GET /api/staff/applications for the same pending set.
+        applications: {
+          staff: pendingStaffApplications.map((a) => ({
+            id: a.id, role: a.role, fullName: a.fullName, city: a.city, state: a.state,
+            hoursPerWeek: a.hoursPerWeek, status: a.status, submittedAt: a.submittedAt,
+          })),
+          drivers: pendingDriverApplications.map((a) => ({
+            id: a.id, fullName: a.fullName, city: a.city, state: a.state,
+            status: a.status, submittedAt: a.submittedAt,
+          })),
+        },
+        // The recommended headcount is the pre-launch staffing plan
+        // (staffing.ts) — the same number the hiring budget is built
+        // against — set alongside who's actually hired, so "how many more
+        // should I bring on" reads directly off the dashboard.
+        recommendedHeadcount: PRELAUNCH_HEADCOUNT,
+        hiredByRole,
         wingmanClubMembers: ctx.store.data.travelers.filter((t) => t.clubMember).length,
+        // Pickups nobody has coordinated a driver for yet — the queue
+        // "coordinate pickup" actually creates work in, since there is no
+        // live-matching engine behind it. See ride-coordination.ts.
+        pendingPickupRequests: ctx.store.data.pickupRequests
+          .filter((r) => r.status === "requested")
+          .map((r) => ({
+            id: r.id, travelerId: r.travelerId, requesterName: nameOf(ctx, r.travelerId),
+            pickup: r.pickup, dropoff: r.dropoff, note: r.note, createdAt: r.createdAt,
+          })),
+        approvedDrivers: ctx.store.data.driverApplications
+          .filter((a) => a.status === "approved")
+          .map((a) => ({ id: a.id, fullName: a.fullName, phone: a.phone, tier: a.tier })),
       };
       record("operations", "operations overview");
     }
@@ -2793,6 +2954,7 @@ export const routes: Record<string, Handler> = {
         // The hiring-budget breakdown lives at its own resolution, not
         // duplicated here — see GET /api/admin/budget, now reachable with
         // the same master key rather than only the shared admin one.
+        eliteUnlock: eliteUnlockStatus(ctx),
       };
       record("money", "ledger summary");
     }
@@ -2811,6 +2973,58 @@ export const routes: Record<string, Handler> = {
       throw unauthorized();
     }
     return ctx.store.data.masterAuditLog.slice().sort((a, b) => b.at.localeCompare(a.at));
+  },
+
+  /**
+   * Matches a pickup request to an approved driver — the human step behind
+   * "coordinate pickup" (see ride-coordination.ts), gated at "write" since
+   * it commits a real person to show up, the same authority level
+   * approving a staff application already needs.
+   */
+  "POST /api/master/pickup-requests/:id/coordinate": (ctx, p, body) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    // "operations" rather than "write" — this is dispatch, the same work a
+    // secretary already does approving a shift, not money or a plan change.
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "operations", now)) {
+      throw unauthorized();
+    }
+    const id = req(p, "id");
+    const request = ctx.store.data.pickupRequests.find((r) => r.id === id);
+    if (!request) throw notFound("Pickup request");
+    const driverId = String(body?.driverId ?? "");
+    const driver = ctx.store.data.driverApplications.find((d) => d.id === driverId && d.status === "approved");
+    if (!driver) throw new HttpError(400, "Pick an approved driver.");
+
+    ctx.store.update((db) => {
+      const r = db.pickupRequests.find((x) => x.id === id)!;
+      r.status = "coordinated";
+      r.driverId = driver.id;
+      r.driverName = driver.fullName;
+      r.driverPhone = driver.phone;
+      r.coordinatedAt = now.toISOString();
+      db.masterAuditLog.push(recordAccess({
+        id: newId("aud"), account, scope: "operations", subject: `coordinated pickup ${id} → ${driver.fullName}`, now,
+      }));
+    });
+    return { request: ctx.store.data.pickupRequests.find((r) => r.id === id) };
+  },
+
+  "POST /api/master/pickup-requests/:id/complete": (ctx, p) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "operations", now)) {
+      throw unauthorized();
+    }
+    const id = req(p, "id");
+    const request = ctx.store.data.pickupRequests.find((r) => r.id === id);
+    if (!request) throw notFound("Pickup request");
+    ctx.store.update((db) => {
+      const r = db.pickupRequests.find((x) => x.id === id)!;
+      r.status = "completed";
+      r.completedAt = now.toISOString();
+    });
+    return { request: ctx.store.data.pickupRequests.find((r) => r.id === id) };
   },
 
   /**

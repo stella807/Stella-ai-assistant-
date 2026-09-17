@@ -353,15 +353,18 @@ Two things renew, and they agree:
 
 ## What the plans cost, and why
 
-Priced against the market Safehubby competes with for a subscription dollar,
-which is **personal-safety apps** rather than concierge services.
+Priced against what each tier actually bundles, not against personal-safety
+apps alone. Premium is one person; Premium Plus and Family bundle a real,
+dispatched personal concierge and secure transport with the safety layer,
+which is worth more than either category by itself — see the pricing
+rationale in `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
-| Free | $0 | $0 | 2 |
-| Premium | $9.99 | $99.99 | 2 |
-| Premium Plus | $19.99 | $199.99 | 2 |
-| Family | $29.99 | $299.99 | 6 |
+| Free | $0 | $0 | 1 |
+| Premium | $19.99 | $199.99 | 1 |
+| Premium Plus | $39.99 | $399.99 | 2 |
+| Family | $59.99 | $599.99 | 6 |
 | Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
 
 Measured September 2026:
@@ -373,32 +376,37 @@ Measured September 2026:
 | Life360 Gold | $14.99 | the whole circle |
 | Citizen Protect | $20.00 | one person |
 | Life360 Platinum | $24.99 | the whole circle |
+| Text-a-concierge apps (Ask Sunday and similar) | $30-$70 | one person, no safety layer |
+| Amalfi-tier luxury concierge desk | $500+ | one person, no safety layer |
 
-The previous card asked **$33.99 for two seats and $69.99 for six** — 2.8x
-Life360's family tier, and above every safety app on the market, for a
-subscription that includes no concierge tasks at all. Tasks are billed on
-top. That is a hard thing to sell beside an app most families already have.
+Premium sits just above the pure-safety comps, for a bundle none of them
+offer. Premium Plus and Family land inside the standalone-concierge band
+while adding the whole safety layer on top for free — undercutting a
+dedicated concierge subscription by a wide margin, not matching it.
 
-**The subscription is the door, not the business.** The margin is the 20% on
-concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is commission
-rather than dues.
+**The subscription is still not the whole business.** The other margin is
+the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is
+commission rather than dues — this round raised the door's own price without
+touching that margin.
 
 ### The trade-off, stated
 
-Cutting the price roughly doubles how many subscribers it takes to cover the
-recurring roster (`docs/budget.md`: **$4,256.67/month**):
+Raising the price roughly halves how many subscribers it takes to cover the
+recurring roster (`docs/budget.md`: **$4,256.67/month**) relative to the
+previous $9.99/$19.99/$29.99 card:
 
 | Plan | Break-even subscribers | Was |
 |---|---:|---:|
-| Premium | 427 | 237 |
-| Premium Plus | 213 | 126 |
-| Family | 142 | 61 |
+| Premium | 213 | 427 |
+| Premium Plus | 107 | 213 |
+| Family | 71 | 142 |
 
-This only pays off if the lower price brings proportionally more subscribers
-than it gives up per subscriber. At $33.99 against Life360's $24.99 family
-plan that was a hard bet; at $19.99 it is a reachable one.
+This only pays off if the higher price does not give up proportionally more
+subscribers than it gains per subscriber — the same trade-off as the
+previous round, run in the other direction because the previous card priced
+below what the concierge bundle is actually worth.
 
-Annual is ~17% off, up from ~15%.
+Annual stays ~17% off.
 
 ### Elite moved again, and the seats moved with it
 

@@ -52,6 +52,11 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
     // pricing is actually built around. A list of four equal options
     // makes the reader do the comparing.
     const featured = p.id === "premium-plus" && !current;
+    // Elite plans stay visible with everything they include even before the
+    // revenue cushion behind the spending allowance clears — see billing.ts's
+    // eliteUnlockThresholdCents. Locked just means the button can't be
+    // pressed yet, never that the tier disappears.
+    const locked = Boolean(p.locked);
     // What joining today actually costs, computed by the server (see the
     // catalog route). The launch discount has to be visible on the price
     // somebody is agreeing to, not just on a banner above it.
@@ -61,6 +66,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
     return (
       <section key={p.id} className={`card plan${current ? " plan-on" : ""}${featured ? " plan-featured" : ""}`}>
         {featured && <span className="plan-tag">Most people pick this</span>}
+        {locked && <span className="plan-tag">Coming soon</span>}
         <div className="row-between">
           <h3>{p.name}</h3>
           {current && <span className="pill pill-safe">Your plan</span>}
@@ -90,7 +96,11 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
         <p className="small muted">{p.blurb}</p>
 
-        {isDowngrade ? (
+        {locked ? (
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Not open yet — see the pricing page for how close we are to turning this on.
+          </p>
+        ) : isDowngrade ? (
           <HelpDeskDowngradeButton fromName={currentPlan?.name ?? ""} toPlanId={p.id} toName={p.name} />
         ) : (
           <button className={`btn btn-block${current ? "" : " btn-primary"}`} disabled={busy || current}

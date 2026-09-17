@@ -379,6 +379,12 @@ function OperationsSection({ operations }: { operations: NonNullable<MasterOverv
     ["Staff applications pending", operations.pendingStaffApplications],
     ["Wingman Club members", operations.wingmanClubMembers],
   ];
+  const roles = Object.keys(operations.recommendedHeadcount);
+  const applications = [
+    ...operations.applications.staff.map((a) => ({ ...a, kind: "staff" as const })),
+    ...operations.applications.drivers.map((a) => ({ ...a, role: "driver", hoursPerWeek: undefined, kind: "driver" as const })),
+  ].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+
   return (
     <section className="card stack">
       <h3>Operations</h3>
@@ -390,6 +396,43 @@ function OperationsSection({ operations }: { operations: NonNullable<MasterOverv
           </li>
         ))}
       </ul>
+
+      <div className="stack" style={{ gap: 4 }}>
+        <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.02em" }}>
+          Hiring — recommended vs. on the roster
+        </strong>
+        {/* "Recommended" is the pre-launch staffing plan (staffing.ts), the
+            same headcount the hiring budget is built against — not a live
+            demand model, since there is no traffic yet to model demand
+            from. It is the number to hire toward until real usage says
+            otherwise. */}
+        {roles.map((role) => (
+          <div key={role} className="row-between">
+            <span className="tiny muted">{role}</span>
+            <span className="tiny">
+              {operations.hiredByRole[role] ?? 0} hired / {operations.recommendedHeadcount[role]} recommended
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {applications.length > 0 && (
+        <div className="stack" style={{ gap: 4 }}>
+          <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.02em" }}>
+            Applications awaiting review ({applications.length})
+          </strong>
+          <ul className="timeline">
+            {applications.map((a) => (
+              <li key={a.id} className="row-between">
+                <span className="tiny muted">
+                  {a.fullName} — {a.role}{a.hoursPerWeek ? `, ${a.hoursPerWeek}h/wk` : ""}
+                </span>
+                <span className="tiny">{a.city}, {a.state}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -425,6 +468,24 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
           ))}
         </div>
       )}
+
+      <div className="stack" style={{ gap: 4 }}>
+        <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.02em" }}>
+          Elite unlock — the spending-allowance cushion
+        </strong>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          {money.eliteUnlock.unlocked
+            ? "Unlocked — trailing revenue clears the cushion."
+            : `Locked — needs ${money.eliteUnlock.safetyMultiple}× the allowance for ${money.eliteUnlock.targetClientsLow}-${money.eliteUnlock.targetClientsHigh} members per rung before it opens.`}
+        </p>
+        <div className="progress-track" role="progressbar" aria-valuenow={money.eliteUnlock.percent} aria-valuemin={0} aria-valuemax={100}>
+          <div className="progress-fill" style={{ width: `${money.eliteUnlock.percent}%` }} />
+        </div>
+        <p className="tiny muted" style={{ margin: 0 }}>
+          {dollars(money.eliteUnlock.trailingRevenueCents)} of {dollars(money.eliteUnlock.thresholdCents)} ({money.eliteUnlock.percent}%), trailing 30 days.
+        </p>
+      </div>
+
       <p className="tiny muted" style={{ margin: 0 }}>
         The hiring-budget breakdown (headcount, plan vs. actual) lives at its own resolution — see
         GET /api/admin/budget, reachable with this same key.

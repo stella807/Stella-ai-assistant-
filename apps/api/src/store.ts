@@ -7,7 +7,7 @@ import type {
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage, PriceOverride,
 } from "@safehubby/core";
-import type { EliteBooking, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
+import type { EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
  *  than nested under the event, the same shape `Referral` and the other
@@ -53,6 +53,13 @@ export interface Traveler {
   // silently goes stale the moment a tier is added.
   planId: PlanId;
   homeLabel: string;
+  /** Where "home" actually is, in coordinates — `homeLabel` alone is a name
+   *  on a screen, not a place a driver or an errand runner can be sent to.
+   *  Optional because plenty of features (check-ins, drink logging) never
+   *  need it; set once via `POST /api/account/address` and reused by
+   *  anything that has to send a real person somewhere, rather than asking
+   *  again on every request. */
+  homeAddress?: { lat: number; lng: number; label: string };
   emergencyContacts: { name: string; phone: string }[];
   /** Their own code to share. Minted at signup — see promotions.ts. */
   referralCode?: string;
@@ -171,6 +178,9 @@ export interface Db {
   eliteEventRsvps: EliteEventRsvp[];
   /** One issued card per Elite member per month — see `EliteSpendingCard`. */
   eliteSpendingCards: EliteSpendingCard[];
+  /** Requests to be picked up by a driver Safehubby actually hired — see
+   *  ride-coordination.ts. Replaces the old Uber/Lyft hand-off entirely. */
+  pickupRequests: PickupRequest[];
   referrals: Referral[];
   voiceMessages: VoiceMessage[];
   /** Typed messages on a task's thread. Sealed at rest alongside the voice
@@ -217,7 +227,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

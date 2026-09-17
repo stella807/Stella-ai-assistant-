@@ -58,10 +58,37 @@ export function Footer() {
         </p>
       )}
 
+      <PaymentBadges />
+
       <p className="tiny muted" style={{ textAlign: "center" }}>
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}
       </p>
     </footer>
+  );
+}
+
+/**
+ * The trust-badge row most sites put at the bottom — real methods this app
+ * actually takes a card, a wallet, or a PayPal token through (see
+ * PaymentMethodCard.tsx and adapters/stripe.ts, adapters/paypal.ts), not
+ * logos borrowed for the look of legitimacy. Plain text rather than brand
+ * marks: the actual Visa/Mastercard/Apple/PayPal logos are trademarked
+ * assets this app has no license to reproduce, and a lookalike icon reads
+ * worse than an honest label once anyone looks closely.
+ */
+function PaymentBadges() {
+  const { t } = useLanguage();
+  const methods = ["Visa", "Mastercard", "Amex", "Apple Pay", "Google Pay", "PayPal"];
+  return (
+    <div className="stack" style={{ gap: 6, alignItems: "center" }}>
+      <p className="tiny muted" style={{ margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+        {t("footer.paymentsAccepted")}
+      </p>
+      <div className="row" style={{ gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+        {methods.map((m) => <span key={m} className="pill payment-badge">{m}</span>)}
+      </div>
+      <p className="tiny muted" style={{ margin: 0 }}>{t("footer.paymentsSecured")}</p>
+    </div>
   );
 }
 

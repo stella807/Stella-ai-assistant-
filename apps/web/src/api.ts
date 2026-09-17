@@ -2,7 +2,7 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, FlightInfo,
-  IdentityPhoto, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, Plan, ProviderStatus,
+  IdentityPhoto, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus,
   RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
@@ -270,7 +270,13 @@ export interface ShareInvite {
 }
 
 export const api = {
-  catalog: () => request<{ drinks: any[]; plans: any[]; rewards: any[]; launch: LaunchStatus }>("GET", "/api/catalog"),
+  catalog: () => request<{
+    drinks: any[]; plans: any[]; rewards: any[]; launch: LaunchStatus;
+    eliteUnlock: {
+      thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
+      targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
+    };
+  }>("GET", "/api/catalog"),
 
   me: () => request<{ traveler: Account | null }>("GET", "/api/auth/me"),
   signup: (input: {
@@ -345,6 +351,20 @@ export const api = {
     }>("POST", "/api/rides/quote", { pickup, dropoff }),
   bookSecureRide: (pickup: any, dropoff: any) =>
     request<any>("POST", "/api/rides/secure", { pickup, dropoff, acknowledgedDisclosures: true }),
+  /** "Coordinate pickup" — Safehubby's own hired drivers, not Uber or Lyft.
+   *  See ride-coordination.ts for why this is a request a person on
+   *  operations matches to a driver, rather than an instant booking. */
+  coordinatePickup: (
+    pickup: { lat: number; lng: number; label?: string },
+    dropoff: { lat: number; lng: number; label?: string },
+    note?: string,
+  ) => request<{ request: PickupRequest }>("POST", "/api/rides/coordinate", { pickup, dropoff, note }),
+  myPickupRequests: () => request<{ requests: PickupRequest[] }>("GET", "/api/rides/coordinate"),
+  cancelPickupRequest: (id: string) =>
+    request<{ request: PickupRequest }>("POST", `/api/rides/coordinate/${id}/cancel`, {}),
+  homeAddress: () => request<{ address: { lat: number; lng: number; label: string } | null }>("GET", "/api/account/address"),
+  saveHomeAddress: (lat: number, lng: number, label: string) =>
+    request<{ address: { lat: number; lng: number; label: string } }>("POST", "/api/account/address", { lat, lng, label }),
   fulfillmentStatus: () =>
     request<{
       concierge: ProviderStatus; conciergeDisclosures: string[]; placeSearch: ProviderStatus;
@@ -695,6 +715,12 @@ export interface MasterOverview {
     rosterTotal: number;
     pendingDriverApplications: number;
     pendingStaffApplications: number;
+    applications: {
+      staff: { id: string; role: string; fullName: string; city: string; state: string; hoursPerWeek: number; status: string; submittedAt: string }[];
+      drivers: { id: string; fullName: string; city: string; state: string; status: string; submittedAt: string }[];
+    };
+    recommendedHeadcount: Record<string, number>;
+    hiredByRole: Record<string, number>;
     wingmanClubMembers: number;
   };
   money?: {
@@ -704,6 +730,10 @@ export interface MasterOverview {
     pendingChargeCount: number;
     byKind: Record<string, number>;
     unpaidPayoutsCents: number;
+    eliteUnlock: {
+      thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
+      targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
+    };
   };
 }
 
