@@ -3368,7 +3368,7 @@ describe("hiring for the roles that do not drive", () => {
     const res = await call("GET", "/api/staff/roles");
     expect(res.status).toBe(200);
     expect(res.json.roles.map((r: { id: string }) => r.id).sort())
-      .toEqual(["errand-runner", "lawyer", "personal-assistant", "secretary", "social-media-manager"]);
+      .toEqual(["errand-runner", "lawyer", "personal-assistant", "secretary", "social-media-manager", "web-developer"]);
     // Drivers apply through their own form, which asks about a vehicle.
     expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
 

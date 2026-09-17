@@ -10,6 +10,7 @@ code that pays it, not written fresh for a job post:
 | Driver per-trip rates | `DRIVER_RATE_CARD`, `driver-pay.ts` |
 | $22.00/hr desk roles, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $125.00/hr lawyer, 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
+| $70.00/hr web developer, 25 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | Insurance, gas stipend, published rates | `HIRING_BENEFITS`, `staffing.ts` |
 | Puerto Rico, Texas, Los Angeles | `LAUNCH_MARKETS`, `service-area.ts` |
 | Service starts 1 December 2026 | `SERVICE_LIVE_AT`, `promotions.ts` |
@@ -392,6 +393,72 @@ through cards). The agreements have to be both protective and honest — no
 burying liability in footnotes, and no overpromising on safety.
 
 **Apply:** Careers → Lawyer, in the app.
+
+---
+
+# 7. Web developer
+
+**Location:** Remote (work from anywhere)
+**Pay:** $70.00 per hour
+**Hours:** 25 hours a week, part time
+**Type:** [TO CONFIRM: classification]
+**Starts:** Immediately — this role works *through* the pre-launch window
+
+## What the job is
+
+Build and maintain the product itself:
+
+- The customer app (`apps/web`) — booking flows, the plans screen, the master
+  dashboard, everything a subscriber or an assistant touches
+- The API and dispatch runtime (`apps/api`) — the server the app runs on,
+  and the integrations (payments, rides, delivery, push) that make it real
+- Fixes and features as the pre-launch roster and the launch plan change —
+  a lawyer's contract or a pricing decision often means a code change to
+  match, and that is this job
+
+There is no product to launch on 1 December 2026 without this role — the app
+is the thing every other hire depends on being able to use.
+
+## What you get paid
+
+$70.00 an hour, 25 hours a week, paid from your start date — not from launch
+day. The work is real starting now: the app has to exist and keep working
+through the entire run-up, not just on the day service goes live.
+
+For context: 2026 US freelance/contract web developer rates cluster
+$45-95/hour, with the median around $73/hour. $70/hour is a mid-level
+contract rate — solid, not the top of the band, and not junior either.
+
+## What you need
+
+- Comfortable across a modern TypeScript stack — this app is React on the
+  front end, Node on the API, shared domain logic in between
+- Can read and extend an existing, opinionated codebase rather than
+  rewriting it your own way
+- Understands why a safety product cannot ship a plausible-looking button
+  that does not actually work — see "What every role gets" and the app's own
+  disclosures for the standard this is held to
+- Comfortable owning a fix or a feature end to end: the change, the tests
+  that prove it, and the doc that keeps the next person from re-litigating it
+
+## What we provide
+
+- **Liability insurance from day one** (desk work, but coverage is included
+  across everyone hired)
+- **Published rate** — $70.00 is $70.00, before you apply and after
+- Direct access to why every number and rule in this app is what it is — the
+  codebase's own comments are the design history, not just the code
+
+## The honest part
+
+This is not a full-time role today, and the backlog is real: a pre-launch
+product with this many moving pieces (payments, rides, delivery, a master
+dashboard, an assistant portal) always has more to build than 25 hours a
+week covers. Priorities get set by what the launch actually needs next, not
+by whichever ticket is most interesting. Post-launch, scope and hours are
+expected to grow with the roster, not shrink.
+
+**Apply:** Careers → Web developer, in the app.
 
 ---
 

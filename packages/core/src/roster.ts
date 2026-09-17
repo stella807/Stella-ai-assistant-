@@ -53,6 +53,7 @@ export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   driver: [],
   "social-media-manager": [],
   lawyer: [],
+  "web-developer": [],
 };
 
 export function categoriesForRole(role: StaffRole): ConciergeCategory[] {

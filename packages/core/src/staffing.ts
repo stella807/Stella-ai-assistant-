@@ -36,7 +36,8 @@ export type StaffRole =
   | "errand-runner"
   | "secretary"
   | "social-media-manager"
-  | "lawyer";
+  | "lawyer"
+  | "web-developer";
 
 export interface RoleInfo {
   id: StaffRole;
@@ -127,6 +128,20 @@ export const STAFF_ROLES: RoleInfo[] = [
     // outside counsel.
     prelaunchHoursPerWeek: 15,
     hourlyCents: 12500,
+  },
+  {
+    id: "web-developer",
+    label: "Web developer",
+    description: "Build and maintain the customer app, the assistant portal, and the API they both run on.",
+    drives: false,
+    // Reference: 2026 freelance/contract web developer rates cluster
+    // $45-95/hr in the US, median around $73/hr (goLance, Upwork, Arc).
+    // $70/hr lands just under that median — a mid-level contract rate, not a
+    // senior/specialist one. 25 hrs/week during pre-launch is real product
+    // work (the app has to exist before there is anyone to serve), not the
+    // 15-20 hrs the desk roles get for paperwork and outreach alone.
+    prelaunchHoursPerWeek: 25,
+    hourlyCents: 7000,
   },
 ];
 
@@ -260,6 +275,7 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   secretary: 1,
   "social-media-manager": 1,
   lawyer: 1,
+  "web-developer": 1,
 };
 
 export interface RoleBudgetLine {
