@@ -73,13 +73,13 @@ describe("what comes off the price", () => {
   const now = new Date("2026-11-01T00:00:00.000Z");
 
   it("takes the stated rate off a real plan price", () => {
-    const premium = findPlan("premium-basic").monthlyCents; // 1999
+    const premium = findPlan("premium-basic").monthlyCents; // 8999
     expect(launchDiscountCentsFor(premium, sub(inWindow), now)).toBe(Math.floor(premium * LAUNCH_DISCOUNT_RATE));
-    // 3% of $19.99 is 59 cents. The point still stands: the copy shows the
+    // 3% of $89.99 is 269 cents. The point still stands: the copy shows the
     // amount, not the percentage, so nobody oversells a fraction of a
     // dollar. See the module doc.
-    expect(launchDiscountCentsFor(premium, sub(inWindow), now)).toBe(59);
-    expect(discountedPriceCents(premium, sub(inWindow), now)).toBe(1940);
+    expect(launchDiscountCentsFor(premium, sub(inWindow), now)).toBe(269);
+    expect(discountedPriceCents(premium, sub(inWindow), now)).toBe(8730);
   });
 
   it("rounds down, so the discount is never a fraction more than promised", () => {
@@ -187,14 +187,14 @@ describe("the offer a shopper is shown, before they are a subscriber", () => {
   const duringWindow = new Date(inWindow);
   const beforeWindow = new Date("2026-09-12T00:00:00.000Z");
   const afterWindow = new Date("2027-03-01T00:00:00.000Z");
-  const premium = findPlan("premium-basic").monthlyCents; // 1999
+  const premium = findPlan("premium-basic").monthlyCents; // 8999
 
   it("takes the rate OFF the price — it is not a charge of 3%", () => {
-    // The whole bug this exists for: "3% off $19.99" is $19.40, not $0.60.
+    // The whole bug this exists for: "3% off $89.99" is $87.30, not $2.70.
     const offer = launchOfferFor(premium, duringWindow);
-    expect(offer.fullCents).toBe(1999);
-    expect(offer.discountCents).toBe(59);
-    expect(offer.payCents).toBe(1940);
+    expect(offer.fullCents).toBe(8999);
+    expect(offer.discountCents).toBe(269);
+    expect(offer.payCents).toBe(8730);
     expect(offer.discounted).toBe(true);
     // The number a customer is charged must be the big one, not the small one.
     expect(offer.payCents).toBeGreaterThan(offer.fullCents * 0.9);

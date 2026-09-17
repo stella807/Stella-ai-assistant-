@@ -194,6 +194,8 @@ export interface DriverApplicationInput {
   protectiveLicenseNumber?: string;
   protectiveLicenseState?: string;
   yearsProtectiveExperience?: number;
+  /** Optional — see resume.ts in core for the size/type ceiling. */
+  resume?: { base64: string; mimeType: string; fileName: string };
   backgroundCheckConsent: boolean;
 }
 
@@ -247,6 +249,7 @@ export interface StaffApplicationInput {
   city: string;
   state: string;
   experience: string;
+  resume?: { base64: string; mimeType: string; fileName: string };
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
 }
@@ -716,8 +719,8 @@ export interface MasterOverview {
     pendingDriverApplications: number;
     pendingStaffApplications: number;
     applications: {
-      staff: { id: string; role: string; fullName: string; city: string; state: string; hoursPerWeek: number; status: string; submittedAt: string }[];
-      drivers: { id: string; fullName: string; city: string; state: string; status: string; submittedAt: string }[];
+      staff: { id: string; role: string; fullName: string; city: string; state: string; hoursPerWeek: number; status: string; submittedAt: string; hasResume: boolean }[];
+      drivers: { id: string; fullName: string; city: string; state: string; status: string; submittedAt: string; hasResume: boolean }[];
     };
     recommendedHeadcount: Record<string, number>;
     hiredByRole: Record<string, number>;

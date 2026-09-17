@@ -49,3 +49,4 @@ export * from "./ai-assist.ts";
 export * from "./flight-tracking.ts";
 export * from "./pricing-overrides.ts";
 export * from "./ride-coordination.ts";
+export * from "./resume.ts";

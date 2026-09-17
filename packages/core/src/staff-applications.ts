@@ -3,6 +3,7 @@ import { findRole, type StaffRole } from "./staffing.ts";
 import {
   assertWithdrawable, nextReviewStatus, type ApplicationStatus,
 } from "./application-review.ts";
+import { validateResume, type Resume } from "./resume.ts";
 
 /**
  * Applications for the roles that do not drive: personal assistant, errand
@@ -30,11 +31,17 @@ export interface StaffApplication {
   phone: string;
   city: string;
   state: string;
-  /** Free text. Deliberately not a structured CV: the useful signal for this
-   *  work is "have you looked after people before", which does not fit a
-   *  dropdown, and a required résumé upload would screen out exactly the
-   *  people who are good at it. */
+  /** Free text, and still the primary signal on purpose: the useful thing
+   *  to know for this work is "have you looked after people before", which
+   *  does not fit a dropdown, and a *required* résumé would screen out
+   *  exactly the people who are good at it. `resume` below is the same
+   *  application with an optional attachment, not a replacement for this
+   *  field. */
   experience: string;
+  /** Optional — see the doc comment on `experience` above for why this can
+   *  never become required. Whoever has one can attach it; whoever doesn't
+   *  is judged on `experience` the same as always. */
+  resume?: Resume;
   /** Rough weekly availability, so the roster can be planned before anyone
    *  is interviewed. */
   hoursPerWeek: number;
@@ -57,6 +64,7 @@ export interface SubmitStaffApplicationInput {
   city: string;
   state: string;
   experience: string;
+  resume?: Resume;
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
   now: Date;
@@ -108,6 +116,8 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
     throw new Error("You must consent to a background check to apply.");
   }
 
+  if (input.resume) validateResume(input.resume);
+
   return {
     id: input.id,
     role: input.role,
@@ -117,6 +127,7 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
     city: input.city.trim(),
     state: input.state.trim().toUpperCase(),
     experience,
+    ...(input.resume ? { resume: input.resume } : {}),
     hoursPerWeek: input.hoursPerWeek,
     backgroundCheckConsent: true,
     submittedAt: input.now.toISOString(),

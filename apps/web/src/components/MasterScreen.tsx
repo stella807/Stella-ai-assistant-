@@ -426,6 +426,7 @@ function OperationsSection({ operations }: { operations: NonNullable<MasterOverv
               <li key={a.id} className="row-between">
                 <span className="tiny muted">
                   {a.fullName} — {a.role}{a.hoursPerWeek ? `, ${a.hoursPerWeek}h/wk` : ""}
+                  {a.hasResume && <span className="pill" style={{ marginLeft: 6 }}>Résumé attached</span>}
                 </span>
                 <span className="tiny">{a.city}, {a.state}</span>
               </li>

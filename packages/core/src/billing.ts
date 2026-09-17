@@ -252,7 +252,7 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  *
  * What this leaves Family to justify its price with is seats, and seats
  * alone: six against Premium Plus's two, which is a real per-person
- * discount ($10.00/seat against $20.00) and the same shape every household
+ * discount ($24.998/seat against $49.995) and the same shape every household
  * plan uses.
  *
  * The ladder is 1, 1, 2, 6. Free and Premium are **one person** — the
@@ -300,37 +300,29 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * "send a stranger to help" worse.
  */
 /**
- * Priced against what these tiers actually bundle, not against safety apps
- * alone — the previous card ($9.99 / $19.99 / $29.99) benchmarked purely
- * against Life360/Noonlight/Citizen Protect and landed below what a
- * standalone concierge subscription charges for *just* the concierge half
- * of what Premium Plus and Family already include.
+ * Priced at ownership's explicit direction: Premium $89.99, Premium Plus
+ * $99.99 — a deliberate move away from anchoring against personal-safety
+ * apps (Life360, Noonlight) or even the mid-market concierge-app band
+ * ($30-$70/month) this ladder used before. At these prices the everyday
+ * tiers sit closer to premium home-security monitoring and dedicated
+ * concierge-membership pricing than to a safety app, which is the
+ * intended positioning, not a mistake to reconcile against the safety-app
+ * comps below.
  *
- * Measured (September 2026): Life360 Platinum $24.99 (whole circle, not one
- * person). Concierge-membership comparables run well above that on their
- * own — Ask Sunday and similar text-a-concierge apps commonly land
- * $30-$70/month for on-demand task requests with no safety layer at all;
- * Amalfi-tier luxury concierge desks (see elite.ts's `ELITE_DESK_MEMBERSHIP`)
- * run into four figures a year. Premium Plus and Family bundle a real
- * personal concierge (bounded, spend-capped, dispatched to an actual
- * roster — concierge.ts) with safety tracking and secure transport in one
- * price, which is worth more than either category alone, not less.
- *
- * So: Premium ($19.99) sits above the pure-safety comps but well under a
- * standalone concierge subscription, for a household of one. Premium Plus
- * ($39.99, two seats) lands inside the concierge-app band while adding the
- * whole safety layer for free. Family ($59.99, six seats) keeps the same
- * per-seat discount shape Premium Plus uses ($20.00/seat against
- * $10.00/seat) rather than pricing seats independently of that ratio.
+ * Family has no dictated number, so it keeps the one rule that has held
+ * across every round of this ladder: seats and price both climb together,
+ * never seats-up-price-down (see the ordering test in billing.test.ts,
+ * which excludes only Elite). Priced at $149.99 for six seats — a real
+ * per-person discount against Premium Plus's $49.995/seat, the same shape
+ * every round of this ladder has kept, rather than a number picked to look
+ * round on its own.
  *
  * **The subscription is still not the whole business.** Every tier's other
  * margin is the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same
- * way Elite's is commission rather than dues — this repricing raises the
- * door's own price without touching that margin, rather than trading one
- * for the other.
+ * way Elite's is commission rather than dues.
  *
- * Annual stays ~17% off: a rounder, more legible saving, unchanged by this
- * round — only the number the percentage applies to moved.
+ * Annual stays ~17% off, the same discount shape every round of this ladder
+ * has used.
  */
 export const PLANS: Plan[] = [
   {
@@ -345,8 +337,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 1999,
-    annualCents: 19999,
+    monthlyCents: 8999,
+    annualCents: 89999,
     seats: 1,
     features: BASIC_FEATURES,
     blurb: "For one person. Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
@@ -354,8 +346,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 3999,
-    annualCents: 39999,
+    monthlyCents: 9999,
+    annualCents: 99999,
     seats: 2,
     features: PLUS_FEATURES,
     blurb: "For two. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
@@ -363,8 +355,8 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 5999,
-    annualCents: 59999,
+    monthlyCents: 14999,
+    annualCents: 149999,
     seats: 6,
     // Identical features to Premium Plus, by design — Family is the same
     // product for more people, not a longer feature list.

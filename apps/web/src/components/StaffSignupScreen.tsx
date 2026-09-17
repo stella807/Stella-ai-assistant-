@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
+import { readFileAsBase64 } from "../files.ts";
+import { MAX_RESUME_BYTES } from "@safehubby/core";
 
 /**
  * The public application for the roles that do not drive — personal
@@ -27,9 +29,26 @@ export function StaffSignupScreen({ onBack }: { onBack: () => void }) {
   const [experience, setExperience] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState("20");
   const [consent, setConsent] = useState(false);
+  const [resume, setResume] = useState<{ base64: string; mimeType: string; fileName: string } | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<{ id: string } | null>(null);
+
+  const onResumeChosen = async (file: File | undefined) => {
+    setResumeError(null);
+    if (!file) { setResume(null); return; }
+    if (file.size > MAX_RESUME_BYTES) {
+      setResumeError("That file is too large — try a smaller PDF or a more compressed photo.");
+      return;
+    }
+    try {
+      const { base64, mimeType } = await readFileAsBase64(file);
+      setResume({ base64, mimeType, fileName: file.name });
+    } catch {
+      setResumeError("Could not read that file — try again.");
+    }
+  };
 
   useEffect(() => {
     api.staffRoles()
@@ -45,6 +64,7 @@ export function StaffSignupScreen({ onBack }: { onBack: () => void }) {
         role, fullName, email, phone, city, state, experience,
         hoursPerWeek: Number(hoursPerWeek),
         backgroundCheckConsent: consent,
+        ...(resume ? { resume } : {}),
       });
       setSubmitted({ id: res.id });
     } catch (e) {
@@ -86,7 +106,8 @@ export function StaffSignupScreen({ onBack }: { onBack: () => void }) {
         <h2>Work with Safehubby</h2>
         <p className="small muted" style={{ margin: 0 }}>
           We're hiring ahead of launch. Pick the role that fits and tell us a little about yourself — the
-          rate is published before you apply, and there is no résumé upload.
+          rate is published before you apply. A résumé is welcome but optional: the sentence or two about
+          your experience below is what actually gets read either way.
         </p>
       </section>
 
@@ -145,6 +166,14 @@ export function StaffSignupScreen({ onBack }: { onBack: () => void }) {
           <textarea id="s-exp" rows={3} maxLength={600} value={experience}
             onChange={(e) => setExperience(e.target.value)}
             placeholder="A sentence or two. Looking after people counts, whether or not it was a job." />
+        </div>
+
+        <div className="field">
+          <label htmlFor="s-resume">Résumé (optional)</label>
+          <input id="s-resume" type="file" accept="application/pdf,image/png,image/jpeg"
+            onChange={(e) => onResumeChosen(e.target.files?.[0])} />
+          {resume && <p className="tiny muted" style={{ margin: 0 }}>Attached: {resume.fileName}</p>}
+          {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
         <div className="field">

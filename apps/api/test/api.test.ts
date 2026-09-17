@@ -3056,6 +3056,16 @@ describe("driver applications", () => {
     ...over,
   });
 
+  it("takes an optional résumé", async () => {
+    const res = await call("POST", "/api/drivers/apply", applicant({
+      email: "driver-with-resume@example.com",
+      resume: { base64: "JVBERi0xLjQK", mimeType: "application/pdf", fileName: "jordan-resume.pdf" },
+    }));
+    expect(res.status).toBe(200);
+    const stored = store.data.driverApplications.find((a) => a.email === "driver-with-resume@example.com");
+    expect(stored?.resume?.fileName).toBe("jordan-resume.pdf");
+  });
+
   it("is public — needs no account", async () => {
     const res = await call("POST", "/api/drivers/apply", applicant());
     expect(res.status).toBe(200);
@@ -3458,6 +3468,31 @@ describe("hiring for the roles that do not drive", () => {
     expect(res.json.status).toBe("submitted");
     expect(res.json.role).toBe("personal-assistant");
     expect(store.data.staffApplications).toHaveLength(1);
+  });
+
+  it("takes an optional résumé, without ever requiring one", async () => {
+    const withResume = await call("POST", "/api/staff/apply", application({
+      email: "with-resume@example.com",
+      resume: { base64: "JVBERi0xLjQK", mimeType: "application/pdf", fileName: "rosa-resume.pdf" },
+    }));
+    expect(withResume.status).toBe(200);
+    const stored = store.data.staffApplications.find((a) => a.email === "with-resume@example.com");
+    expect(stored?.resume?.fileName).toBe("rosa-resume.pdf");
+    // The full application response never echoes the file back to the
+    // submitter's own browser — see the doc comment on POST /api/staff/apply.
+    expect(withResume.json.resume).toBeUndefined();
+
+    const withoutResume = await call("POST", "/api/staff/apply", application({ email: "no-resume@example.com" }));
+    expect(withoutResume.status).toBe(200);
+    expect(store.data.staffApplications.find((a) => a.email === "no-resume@example.com")?.resume).toBeUndefined();
+  });
+
+  it("refuses a résumé of a type that isn't a PDF or a photo", async () => {
+    const res = await call("POST", "/api/staff/apply", application({
+      email: "bad-resume@example.com",
+      resume: { base64: "JVBERi0xLjQK", mimeType: "application/msword", fileName: "resume.doc" },
+    }));
+    expect(res.status).toBe(400);
   });
 
   it("accepts each role being hired, and sends drivers to their own form", async () => {

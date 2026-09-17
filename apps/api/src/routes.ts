@@ -61,7 +61,7 @@ import {
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
   ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DeskTask, DeskTaskKind, DriverTier, EliteBooking, EliteServiceId,
-  PickupRequest,
+  PickupRequest, Resume,
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
@@ -200,6 +200,19 @@ function eliteUnlockStatus(ctx: Ctx) {
     targetClientsLow: ELITE_UNLOCK_TARGET_CLIENTS_LOW,
     targetClientsHigh: ELITE_UNLOCK_TARGET_CLIENTS_HIGH,
     safetyMultiple: ELITE_UNLOCK_SAFETY_MULTIPLE,
+  };
+}
+
+/** An optional résumé attached to a job application — see resume.ts for why
+ *  this is the one place either apply route accepts a file at all. Absent
+ *  entirely rather than a half-filled object when the applicant skipped it. */
+function resumeFrom(body: any, now: Date): Resume | undefined {
+  if (!body?.resume) return undefined;
+  return {
+    base64: String(body.resume.base64 ?? ""),
+    mimeType: String(body.resume.mimeType ?? ""),
+    fileName: String(body.resume.fileName ?? ""),
+    uploadedAt: now.toISOString(),
   };
 }
 
@@ -2902,10 +2915,16 @@ export const routes: Record<string, Handler> = {
           staff: pendingStaffApplications.map((a) => ({
             id: a.id, role: a.role, fullName: a.fullName, city: a.city, state: a.state,
             hoursPerWeek: a.hoursPerWeek, status: a.status, submittedAt: a.submittedAt,
+            // The flag only, never the file itself — a résumé's own base64
+            // can run into the hundreds of KB, which does not belong in a
+            // dashboard summary that already lists everyone pending review.
+            // The full application, résumé included, is one call away at
+            // GET /api/staff/applications (admin key) for whoever needs it.
+            hasResume: Boolean(a.resume),
           })),
           drivers: pendingDriverApplications.map((a) => ({
             id: a.id, fullName: a.fullName, city: a.city, state: a.state,
-            status: a.status, submittedAt: a.submittedAt,
+            status: a.status, submittedAt: a.submittedAt, hasResume: Boolean(a.resume),
           })),
         },
         // The recommended headcount is the pre-launch staffing plan
@@ -4311,6 +4330,7 @@ export const routes: Record<string, Handler> = {
       protectiveLicenseState: body?.protectiveLicenseState ? String(body.protectiveLicenseState) : undefined,
       yearsProtectiveExperience:
         body?.yearsProtectiveExperience !== undefined ? Number(body.yearsProtectiveExperience) : undefined,
+      resume: resumeFrom(body, ctx.now()),
       backgroundCheckConsent: body?.backgroundCheckConsent === true,
       now: ctx.now(),
     });
@@ -4393,6 +4413,7 @@ export const routes: Record<string, Handler> = {
       city: String(body?.city ?? ""),
       state: String(body?.state ?? ""),
       experience: String(body?.experience ?? ""),
+      resume: resumeFrom(body, ctx.now()),
       hoursPerWeek: Number(body?.hoursPerWeek),
       backgroundCheckConsent: body?.backgroundCheckConsent === true,
       now: ctx.now(),

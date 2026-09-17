@@ -353,53 +353,50 @@ Two things renew, and they agree:
 
 ## What the plans cost, and why
 
-Priced against what each tier actually bundles, not against personal-safety
-apps alone. Premium is one person; Premium Plus and Family bundle a real,
-dispatched personal concierge and secure transport with the safety layer,
-which is worth more than either category by itself — see the pricing
-rationale in `packages/core/src/billing.ts`.
+Premium ($89.99) and Premium Plus ($99.99) are priced at ownership's
+explicit direction, a deliberate move away from anchoring against
+personal-safety apps (Life360, Noonlight) or the mid-market concierge-app
+band this ladder used before. Family has no dictated number, so it keeps
+the one rule every round of this ladder has held: seats and price climb
+together, never seats-up-price-down (see the seat-ordering test in
+`billing.test.ts`, scoped to exclude only Elite) — priced at $149.99 for a
+real per-person discount against Premium Plus's own per-seat rate. See the
+full rationale in `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
-| Premium | $19.99 | $199.99 | 1 |
-| Premium Plus | $39.99 | $399.99 | 2 |
-| Family | $59.99 | $599.99 | 6 |
+| Premium | $89.99 | $899.99 | 1 |
+| Premium Plus | $99.99 | $999.99 | 2 |
+| Family | $149.99 | $1,499.99 | 6 |
 | Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
 
-Measured September 2026:
-
-| Competitor | Monthly | Covers |
-|---|---:|---|
-| Life360 Silver | $7.99 | the whole circle |
-| Noonlight | $9.99 | one person |
-| Life360 Gold | $14.99 | the whole circle |
-| Citizen Protect | $20.00 | one person |
-| Life360 Platinum | $24.99 | the whole circle |
-| Text-a-concierge apps (Ask Sunday and similar) | $30-$70 | one person, no safety layer |
-| Amalfi-tier luxury concierge desk | $500+ | one person, no safety layer |
-
-Premium sits just above the pure-safety comps, for a bundle none of them
-offer. Premium Plus and Family land inside the standalone-concierge band
-while adding the whole safety layer on top for free — undercutting a
-dedicated concierge subscription by a wide margin, not matching it.
+For reference, personal-safety and concierge-app comparables measured
+September 2026 (Life360 Platinum $24.99 for the whole circle, text-a-
+concierge apps $30-$70/month with no safety layer) sit well below this
+ladder now — the positioning is deliberately closer to premium
+home-security monitoring and dedicated concierge membership than to a
+safety app.
 
 **The subscription is still not the whole business.** The other margin is
 the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is
-commission rather than dues — this round raised the door's own price without
-touching that margin.
+commission rather than dues.
 
 ### The trade-off, stated
 
-Raising the price roughly halves how many subscribers it takes to cover the
-recurring roster (`docs/budget.md`: **$4,256.67/month**) relative to the
-previous $9.99/$19.99/$29.99 card:
+Raising the price sharply lowers how many subscribers it takes to cover the
+recurring roster (`docs/budget.md`: **$4,256.67/month**):
 
-| Plan | Break-even subscribers | Was |
-|---|---:|---:|
-| Premium | 213 | 427 |
-| Premium Plus | 107 | 213 |
-| Family | 71 | 142 |
+| Plan | Break-even subscribers |
+|---|---:|
+| Premium | 48 |
+| Premium Plus | 43 |
+| Family | 29 |
+
+This only pays off if the higher price does not give up proportionally more
+subscribers than it gains per subscriber — worth watching once real signup
+data exists, since there is no comparable app at this price point to
+benchmark conversion against.
 
 This only pays off if the higher price does not give up proportionally more
 subscribers than it gains per subscriber — the same trade-off as the

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { DRIVER_RATE_CARD, benefitsFor, driverEarningsCents } from "@safehubby/core";
+import { DRIVER_RATE_CARD, MAX_RESUME_BYTES, benefitsFor, driverEarningsCents } from "@safehubby/core";
 import { api, type DriverApplicationInput } from "../api.ts";
+import { readFileAsBase64 } from "../files.ts";
 
 /**
  * The public application form to drive for Safehubby.
@@ -33,9 +34,26 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
   const [protectiveLicenseState, setProtectiveLicenseState] = useState("");
   const [yearsProtective, setYearsProtective] = useState("");
   const [consent, setConsent] = useState(false);
+  const [resume, setResume] = useState<{ base64: string; mimeType: string; fileName: string } | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<{ id: string } | null>(null);
+
+  const onResumeChosen = async (file: File | undefined) => {
+    setResumeError(null);
+    if (!file) { setResume(null); return; }
+    if (file.size > MAX_RESUME_BYTES) {
+      setResumeError("That file is too large — try a smaller PDF or a more compressed photo.");
+      return;
+    }
+    try {
+      const { base64, mimeType } = await readFileAsBase64(file);
+      setResume({ base64, mimeType, fileName: file.name });
+    } catch {
+      setResumeError("Could not read that file — try again.");
+    }
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -55,6 +73,7 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
               yearsProtectiveExperience: Number(yearsProtective),
             }
           : {}),
+        ...(resume ? { resume } : {}),
         backgroundCheckConsent: consent,
       });
       setSubmitted(res);
@@ -233,6 +252,18 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
           </div>
         </section>
       )}
+
+      <section className="card">
+        <h3>Résumé (optional)</h3>
+        <p className="tiny muted">A valid licence and a roadworthy vehicle are what the job needs — this is optional.</p>
+        <div className="field">
+          <label htmlFor="resume">Attach a file</label>
+          <input id="resume" type="file" accept="application/pdf,image/png,image/jpeg"
+            onChange={(e) => onResumeChosen(e.target.files?.[0])} />
+          {resume && <p className="tiny muted" style={{ margin: 0 }}>Attached: {resume.fileName}</p>}
+          {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
+        </div>
+      </section>
 
       <section className="card">
         <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>

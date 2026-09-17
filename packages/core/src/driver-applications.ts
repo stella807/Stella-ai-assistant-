@@ -2,6 +2,7 @@ import type { Iso8601 } from "./types.ts";
 import {
   assertWithdrawable, nextReviewStatus, type ApplicationStatus,
 } from "./application-review.ts";
+import { validateResume, type Resume } from "./resume.ts";
 
 /**
  * Driver applications — a place for real people to sign up to drive.
@@ -50,6 +51,11 @@ export interface DriverApplication {
   protectiveLicenseNumber?: string;
   protectiveLicenseState?: string;
   yearsProtectiveExperience?: number;
+  /** Optional. Not required for either tier — a valid licence and a
+   *  roadworthy vehicle are what the job actually needs; a résumé adds
+   *  nothing a reviewer checks against, but some applicants want to attach
+   *  one anyway. */
+  resume?: Resume;
   backgroundCheckConsent: boolean;
   submittedAt: Iso8601;
   status: ApplicationStatus;
@@ -72,6 +78,7 @@ export interface SubmitApplicationInput {
   protectiveLicenseNumber?: string;
   protectiveLicenseState?: string;
   yearsProtectiveExperience?: number;
+  resume?: Resume;
   backgroundCheckConsent: boolean;
   now: Date;
 }
@@ -113,6 +120,8 @@ export function submitApplication(input: SubmitApplicationInput): DriverApplicat
     throw new Error("You must consent to a background check to apply.");
   }
 
+  if (input.resume) validateResume(input.resume);
+
   const base: DriverApplication = {
     id: input.id,
     tier: input.tier,
@@ -125,6 +134,7 @@ export function submitApplication(input: SubmitApplicationInput): DriverApplicat
     licenseExpiry: expiry.toISOString(),
     yearsDriving: input.yearsDriving,
     vehicle,
+    ...(input.resume ? { resume: input.resume } : {}),
     backgroundCheckConsent: true,
     submittedAt: input.now.toISOString(),
     status: "submitted",
