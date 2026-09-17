@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isElitePlan, requiresHelpDeskToDowngrade, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
+import { useLanguage } from "../i18n.tsx";
 import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { PlanComparison } from "./PlanComparison.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
@@ -19,6 +20,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
   busy: boolean;
   onChoose: (planId: string, cadence: "monthly" | "annual") => void;
 }) {
+  const { t } = useLanguage();
   const [plans, setPlans] = useState<any[]>([]);
   const [cadence, setCadence] = useState<"monthly" | "annual">("annual");
 
@@ -65,31 +67,33 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
     return (
       <section key={p.id} className={`card plan${current ? " plan-on" : ""}${featured ? " plan-featured" : ""}`}>
-        {featured && <span className="plan-tag">Most people pick this</span>}
-        {locked && <span className="plan-tag">Coming soon</span>}
+        {featured && <span className="plan-tag">{t("plans.mostPicked")}</span>}
+        {locked && <span className="plan-tag">{t("plans.comingSoon")}</span>}
         <div className="row-between">
           <h3>{p.name}</h3>
-          {current && <span className="pill pill-safe">Your plan</span>}
+          {current && <span className="pill pill-safe">{t("plans.yourPlan")}</span>}
         </div>
 
         <div className="plan-price">
-          {price === 0 ? "Free" : (
+          {price === 0 ? t("pricing.free") : (
             <>
               {discounted && <s className="plan-was">{money(price)}</s>}
               {money(discounted ? offer.payCents : price)}
             </>
           )}
-          {price > 0 && <span className="plan-per">/{cadence === "annual" ? "year" : "month"}</span>}
+          {price > 0 && <span className="plan-per">{t(cadence === "annual" ? "plans.perYearSuffix" : "plans.perMonthSuffix")}</span>}
         </div>
 
         <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-          {cadence === "annual" && saving > 0 && <span className="pill pill-safe">Save {saving}%</span>}
+          {cadence === "annual" && saving > 0 && (
+            <span className="pill pill-safe">{t("plans.save").replace("{pct}", String(saving))}</span>
+          )}
           {/* The amount, not just the percentage: 3% is a number nobody can
               price in their head, and this is small enough that hiding it
               behind a percentage would be the flattering version. */}
           {discounted && (
             <span className="pill pill-safe">
-              Launch party — {money(offer.discountCents)} off your first year
+              {t("plans.launchParty").replace("{amount}", money(offer.discountCents))}
             </span>
           )}
         </div>
@@ -98,14 +102,14 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
         {locked ? (
           <p className="tiny muted" style={{ margin: 0 }}>
-            Not open yet — see the pricing page for how close we are to turning this on.
+            {t("plans.notOpenYet")}
           </p>
         ) : isDowngrade ? (
           <HelpDeskDowngradeButton fromName={currentPlan?.name ?? ""} toPlanId={p.id} toName={p.name} />
         ) : (
           <button className={`btn btn-block${current ? "" : " btn-primary"}`} disabled={busy || current}
             onClick={() => onChoose(p.id, cadence)}>
-            {current ? "Current plan" : p.monthlyCents === 0 ? "Switch to Free" : `Choose ${p.name}`}
+            {current ? t("plans.currentPlan") : p.monthlyCents === 0 ? t("plans.switchToFree") : t("plans.choose").replace("{name}", p.name)}
           </button>
         )}
       </section>
@@ -124,15 +128,15 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
   return (
     <>
       <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={cadence === "monthly"} onClick={() => setCadence("monthly")}>Monthly</button>
-        <button role="tab" aria-selected={cadence === "annual"} onClick={() => setCadence("annual")}>Annual</button>
+        <button role="tab" aria-selected={cadence === "monthly"} onClick={() => setCadence("monthly")}>{t("plans.monthlyTab")}</button>
+        <button role="tab" aria-selected={cadence === "annual"} onClick={() => setCadence("annual")}>{t("plans.annualTab")}</button>
       </div>
 
       {/* The actual answer to "what's the difference" — every plan's price
           in one row, so it doesn't depend on remembering the last one you
           swiped past. Tapping one jumps the carousel straight to it. */}
       {everyday.length > 1 && (
-        <div className="plan-ladder" role="list" aria-label="Compare plan prices">
+        <div className="plan-ladder" role="list" aria-label={t("plans.comparePrices")}>
           {everyday.map((p, i) => {
             const price = cadence === "annual" ? p.annualCents : p.monthlyCents;
             return (
@@ -140,7 +144,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
                 className={`plan-ladder-item${i === activeIndex ? " plan-ladder-active" : ""}`}
                 aria-current={i === activeIndex} onClick={() => carousel.current?.goTo(i)}>
                 <span className="plan-ladder-name">{p.name}</span>
-                <span className="plan-ladder-price">{price === 0 ? "Free" : dollars(price)}</span>
+                <span className="plan-ladder-price">{price === 0 ? t("pricing.free") : dollars(price)}</span>
               </button>
             );
           })}
@@ -158,9 +162,9 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         <Carousel
           ref={carousel}
           labels={everyday.map((p) => p.name)}
-          ariaLabel="Plans"
-          prevLabel="Previous plan"
-          nextLabel="Next plan"
+          ariaLabel={t("plans.plansAriaLabel")}
+          prevLabel={t("plans.previousPlan")}
+          nextLabel={t("plans.nextPlan")}
           onIndexChange={setActiveIndex}
         >
           {everyday.map((p) => <div key={p.id} className="slide">{card(p)}</div>)}
@@ -176,15 +180,15 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         <section className="card stack">
           <div className="row-between">
             <div className="stack" style={{ gap: 2 }}>
-              <h3>Concierge memberships</h3>
+              <h3>{t("plans.conciergeMemberships")}</h3>
               <p className="tiny muted" style={{ margin: 0 }}>
-                Hours of a personal assistant every month, plus the luxury desk. From {dollars(elite[0].monthlyCents)} a month.
+                {t("plans.eliteBlurb").replace("{amount}", dollars(elite[0].monthlyCents))}
               </p>
             </div>
             {!onElite && (
               <button className="btn btn-sm btn-ghost" aria-expanded={showElite}
                 onClick={() => setShowElite((v) => !v)}>
-                {showElite ? "Hide" : "See them"}
+                {showElite ? t("plans.hide") : t("plans.seeThem")}
               </button>
             )}
           </div>
@@ -196,11 +200,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           whatever plan is chosen above rather than replacing it. */}
       <WingmanClub />
 
-      <p className="tiny muted">
-        SOS, location sharing, check-ins and drink count are free forever. Switching mid-month only bills the
-        difference — the part of the period you already paid for is credited, never charged twice. Moving to
-        a cheaper paid plan goes through the help desk rather than this screen; cancelling to Free never does.
-      </p>
+      <p className="tiny muted">{t("plans.footerNote")}</p>
     </>
   );
 }
@@ -214,6 +214,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
  * already pick up "cancel this for me" today.
  */
 function HelpDeskDowngradeButton({ fromName, toPlanId, toName }: { fromName: string; toPlanId: string; toName: string }) {
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,26 +223,30 @@ function HelpDeskDowngradeButton({ fromName, toPlanId, toName }: { fromName: str
     setBusy(true);
     setError(null);
     try {
+      // Always written in English regardless of the subscriber's own
+      // language — this note is read by Safehubby's own help desk staff,
+      // not shown back to the customer, so it follows the ops team's
+      // working language rather than the UI's.
       await api.createDeskTask({
         kind: "message",
         note: `Please move my subscription from ${fromName} to ${toName} (plan id: ${toPlanId}).`,
       });
       setSent(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not reach the help desk.");
+      setError(e instanceof Error ? e.message : t("plans.helpDeskError"));
     } finally {
       setBusy(false);
     }
   };
 
   if (sent) {
-    return <div className="banner banner-safe">Sent — the help desk will make the switch.</div>;
+    return <div className="banner banner-safe">{t("plans.helpDeskSent")}</div>;
   }
 
   return (
     <div className="stack" style={{ gap: 6 }}>
       <button className="btn btn-block btn-ghost" disabled={busy} onClick={send}>
-        {busy ? "Sending…" : `Contact the help desk to switch to ${toName}`}
+        {busy ? t("plans.helpDeskSending") : t("plans.helpDeskContact").replace("{name}", toName)}
       </button>
       {error && <div className="banner banner-danger">{error}</div>}
     </div>

@@ -252,10 +252,10 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * out to be the line item that decides whether this is profitable, the
  * honest lever is a tier's own price, not re-fencing the feature.
  *
- * What this leaves Premium Plus and Family to justify their price with is
- * seats, and seats alone: two and six against Premium's one, which is a real
- * per-person discount at each step and the same shape every household plan
- * uses.
+ * What this leaves Premium Plus to justify its price with is seats, and
+ * seats alone: two against Premium's one, a real per-person discount
+ * ($49.995/seat against $89.99). Family no longer follows that shape — see
+ * its own price note below.
  *
  * The ladder is 1, 1, 2, 6. Free and Premium are **one person** — the
  * entry tiers are for somebody looking after themselves, and a second seat
@@ -322,13 +322,16 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * $89.99 gets the identical bundle — every feature Premium Plus has — for
  * one seat instead of two, a dollar under Amalfi's own floor.
  *
- * Family has no dictated number, so it keeps the one rule that has held
- * across every round of this ladder: seats and price both climb together,
- * never seats-up-price-down (see the ordering test in billing.test.ts,
- * which excludes only Elite). Priced at $149.99 for six seats — a real
- * per-person discount against Premium Plus's $49.995/seat, the same shape
- * every round of this ladder has kept, rather than a number picked to look
- * round on its own.
+ * **Family is priced at $539.94, at ownership's explicit direction — a
+ * break from the per-seat-discount shape this tier used to have.** At
+ * $89.99/seat it costs exactly what one Premium seat costs, not less: the
+ * old framing ("a real per-person discount against Premium Plus's
+ * $49.995/seat") is no longer true and this file should not pretend
+ * otherwise. What six seats still buys is one household on one bill rather
+ * than six separate subscriptions — a convenience, not a discount — and
+ * the one rule every round of this ladder has kept still holds: seats and
+ * price climb together, never seats-up-price-down (see the ordering test
+ * in billing.test.ts, which excludes only Elite).
  *
  * **The subscription is still not the whole business.** Every tier's other
  * margin is the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same
@@ -372,13 +375,13 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 14999,
-    annualCents: 149999,
+    monthlyCents: 53994,
+    annualCents: 539999,
     seats: 6,
     // Identical features to Premium and Premium Plus, by design — Family is
     // the same product for more people, not a longer feature list.
     features: PLUS_FEATURES,
-    blurb: "The same everything as Premium Plus, for up to six people instead of two — one household, one bill, and a lower price per person.",
+    blurb: "The same everything as Premium Plus, for up to six people instead of two — one household on one bill, at ownership's set price.",
   },
   {
     id: "elite",

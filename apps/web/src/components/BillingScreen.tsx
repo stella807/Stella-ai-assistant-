@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Billing } from "../api.ts";
+import { useLanguage } from "../i18n.tsx";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { PlanPicker } from "./PlanPicker.tsx";
 
@@ -21,6 +22,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   currentPlanId: string;
   onPlanChanged: (planId: string) => void;
 }) {
+  const { t } = useLanguage();
   const [billing, setBilling] = useState<Billing | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +36,8 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   }, [onPlanChanged]);
 
   useEffect(() => {
-    load().catch((e) => setError(e instanceof Error ? e.message : "Could not load billing"));
-  }, [load]);
+    load().catch((e) => setError(e instanceof Error ? e.message : t("billing.couldNotLoad")));
+  }, [load, t]);
 
   const run = async (fn: () => Promise<{ note: string }>) => {
     setBusy(true);
@@ -46,7 +48,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
       await load();
       setShowPlans(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      setError(e instanceof Error ? e.message : t("billing.somethingWrong"));
     } finally {
       setBusy(false);
     }
@@ -55,8 +57,8 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   if (!billing) {
     return (
       <div className="stack">
-        <h2>Payments</h2>
-        {error ? <div className="banner banner-danger">{error}</div> : <p className="small muted">Loading…</p>}
+        <h2>{t("billing.heading")}</h2>
+        {error ? <div className="banner banner-danger">{error}</div> : <p className="small muted">{t("billing.loading")}</p>}
       </div>
     );
   }
@@ -67,28 +69,25 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   return (
     <div className="stack">
       <div>
-        <h2>Payments</h2>
-        <p className="small muted">
-          Your plan, your rides, your deliveries — one account, one card, one total.
-        </p>
+        <h2>{t("billing.heading")}</h2>
+        <p className="small muted">{t("billing.subtitle")}</p>
       </div>
 
       {/* The single number the screen exists to answer. */}
       <section className="card stack">
         <div className="row-between">
-          <span className="small muted">Last 30 days</span>
+          <span className="small muted">{t("billing.last30Days")}</span>
           <span className="pill">{billing.plan.name}</span>
         </div>
         <div className="plan-price">{money(dueTotal)}</div>
         {statement.pendingCents > 0 && (
           <p className="tiny muted">
-            {money(statement.pendingCents)} of that is still held and not yet taken — a trip that has not
-            finished settling.
+            {t("billing.pendingNote").replace("{amount}", money(statement.pendingCents))}
           </p>
         )}
 
         {statement.lines.length === 0 ? (
-          <p className="small muted">Nothing charged yet.</p>
+          <p className="small muted">{t("billing.nothingCharged")}</p>
         ) : (
           <ul className="timeline">
             {statement.lines.map((l) => (
@@ -96,7 +95,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
                 <div className="row-between">
                   <div>
                     <strong className="small">{l.label}</strong>
-                    <div className="tiny muted">{l.count} {l.count === 1 ? "charge" : "charges"}</div>
+                    <div className="tiny muted">{l.count} {t(l.count === 1 ? "billing.chargeSingular" : "billing.chargePlural")}</div>
                   </div>
                   <span className="small charge-amount">{money(l.cents)}</span>
                 </div>
@@ -108,20 +107,20 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
 
       <section className="card stack">
         <div className="row-between">
-          <h3>Your plan</h3>
-          {subscription?.status === "trialing" && <span className="pill pill-safe">Free trial</span>}
-          {subscription?.status === "past-due" && <span className="pill">Payment failed</span>}
+          <h3>{t("billing.yourPlan")}</h3>
+          {subscription?.status === "trialing" && <span className="pill pill-safe">{t("billing.freeTrial")}</span>}
+          {subscription?.status === "past-due" && <span className="pill">{t("billing.paymentFailed")}</span>}
         </div>
         <p className="small">{billing.planNote}</p>
 
         <div className="row">
           <button className="btn grow" disabled={busy} onClick={() => setShowPlans((v) => !v)}>
-            {showPlans ? "Close" : billing.plan.id === "free" ? "See plans" : "Change plan"}
+            {showPlans ? t("billing.close") : billing.plan.id === "free" ? t("billing.seePlans") : t("billing.changePlan")}
           </button>
           {subscription && subscription.status !== "canceled" && billing.plan.id !== "free" && (
             <button className="btn btn-ghost grow" disabled={busy}
               onClick={() => run(() => api.cancelSubscription())}>
-              Cancel
+              {t("billing.cancel")}
             </button>
           )}
         </div>
@@ -135,11 +134,9 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
       <PaymentMethodCard />
 
       <section className="card stack">
-        <h3>Everything charged</h3>
+        <h3>{t("billing.everythingCharged")}</h3>
         {billing.charges.length === 0 ? (
-          <p className="small muted">
-            Nothing yet. Rides and deliveries are only charged when one actually happens.
-          </p>
+          <p className="small muted">{t("billing.nothingYet")}</p>
         ) : (
           <ul className="timeline">
             {billing.charges.map((c) => (
@@ -149,9 +146,9 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
                     <strong className="small">{c.description}</strong>
                     <div className="tiny muted">
                       {c.kindLabel} · {dayOf(c.createdAt)}
-                      {c.status === "pending" && " · held, not yet taken"}
-                      {c.status === "failed" && ` · did not go through${c.failureReason ? `: ${c.failureReason}` : ""}`}
-                      {c.status === "refunded" && " · refunded"}
+                      {c.status === "pending" && ` · ${t("billing.heldNotYetTaken")}`}
+                      {c.status === "failed" && ` · ${t("billing.didNotGoThrough")}${c.failureReason ? `: ${c.failureReason}` : ""}`}
+                      {c.status === "refunded" && ` · ${t("billing.refunded")}`}
                     </div>
                   </div>
                   <span className={`small charge-amount${c.status === "failed" || c.status === "refunded" ? " charge-void" : ""}`}>
@@ -166,13 +163,10 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
 
       {billing.rails.length > 1 && (
         <section className="card stack">
-          <h3>Where each charge goes</h3>
+          <h3>{t("billing.whereEachChargeGoes")}</h3>
           {/* Said out loud rather than hidden: if two statements will show
               these charges, the user should hear it from us first. */}
-          <p className="small muted">
-            Your subscription and your trips settle through different companies, because the app stores
-            require it. It is one account here either way.
-          </p>
+          <p className="small muted">{t("billing.railsNote")}</p>
           <ul className="timeline">
             {billing.rails.map((r) => <li key={r.rail}><span className="tiny muted">{r.note}</span></li>)}
           </ul>

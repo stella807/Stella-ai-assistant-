@@ -353,22 +353,23 @@ Two things renew, and they agree:
 
 ## What the plans cost, and why
 
-Premium ($89.99) and Premium Plus ($99.99) are priced at ownership's
-explicit direction, a deliberate move away from anchoring against
-personal-safety apps (Life360, Noonlight) or the mid-market concierge-app
-band this ladder used before. Family has no dictated number, so it keeps
-the one rule every round of this ladder has held: seats and price climb
-together, never seats-up-price-down (see the seat-ordering test in
-`billing.test.ts`, scoped to exclude only Elite) — priced at $149.99 for a
-real per-person discount against Premium Plus's own per-seat rate. See the
-full rationale in `packages/core/src/billing.ts`.
+Premium ($89.99), Premium Plus ($99.99), and Family ($539.94) are all
+priced at ownership's explicit direction, a deliberate move away from
+anchoring against personal-safety apps (Life360, Noonlight) or the
+mid-market concierge-app band this ladder used before. The one rule every
+round of this ladder has still held: seats and price climb together, never
+seats-up-price-down (see the seat-ordering test in `billing.test.ts`,
+scoped to exclude only Elite) — but Family's own per-seat number is no
+longer a discount against Premium Plus's ($89.99/seat against Premium
+Plus's $49.995/seat). See the full rationale in
+`packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
 | Premium | $89.99 | $899.99 | 1 |
 | Premium Plus | $99.99 | $999.99 | 2 |
-| Family | $149.99 | $1,499.99 | 6 |
+| Family | $539.94 | $5,399.99 | 6 |
 | Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
 
 Premium, Premium Plus and Family carry the identical feature set
@@ -405,7 +406,7 @@ recurring roster (`docs/budget.md`: **$4,256.67/month**):
 |---|---:|
 | Premium | 48 |
 | Premium Plus | 43 |
-| Family | 29 |
+| Family | 8 |
 
 This only pays off if the higher price does not give up proportionally more
 subscribers than it gains per subscriber — worth watching once real signup

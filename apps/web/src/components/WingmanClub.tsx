@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
+import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
 
 /**
@@ -15,6 +16,7 @@ import { money } from "../money.ts";
  * count this screen shows honestly; it does not move any money.
  */
 export function WingmanClub() {
+  const { t } = useLanguage();
   const [status, setStatus] = useState<Awaited<ReturnType<typeof api.clubStatus>> | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -33,7 +35,7 @@ export function WingmanClub() {
       else await api.joinClub();
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update your membership.");
+      setError(e instanceof Error ? e.message : t("wingman.error"));
     } finally {
       setBusy(false);
     }
@@ -45,15 +47,16 @@ export function WingmanClub() {
     <section className="card stack">
       <div className="row-between">
         <div className="stack" style={{ gap: 2 }}>
-          <h3>Wingman Club</h3>
+          <h3>{t("wingman.title")}</h3>
           <p className="tiny muted" style={{ margin: 0 }}>
-            One membership, one group experience a month — revealed, not chosen by any one member. The due moves
-            with the pick: {money(thisMonth.duesCents)} this month for {thisMonth.experience.label.toLowerCase()}.
+            {t("wingman.blurb")
+              .replace("{amount}", money(thisMonth.duesCents))
+              .replace("{experience}", thisMonth.experience.label.toLowerCase())}
           </p>
         </div>
         {!status.isMember && (
           <button className="btn btn-sm btn-ghost" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
-            {expanded ? "Hide" : "See it"}
+            {expanded ? t("wingman.hide") : t("wingman.seeIt")}
           </button>
         )}
       </div>
@@ -63,27 +66,26 @@ export function WingmanClub() {
           <div className="card card-quiet stack" style={{ gap: 6 }}>
             <div className="row-between">
               <strong className="small">
-                {thisMonth.experience.emoji} This month: {thisMonth.experience.label}
+                {thisMonth.experience.emoji} {t("wingman.thisMonth").replace("{label}", thisMonth.experience.label)}
               </strong>
               <span className="charge-amount">{money(thisMonth.duesCents)}</span>
             </div>
             <p className="tiny muted" style={{ margin: 0 }}>
-              Negotiated group rate {money(thisMonth.experience.negotiatedPerPersonCents)}/person — retail alone
-              runs {money(thisMonth.experience.retailPerPersonCents)}. The rest of this month's due is the club's
-              flat desk fee.
+              {t("wingman.negotiatedRate")
+                .replace("{rate}", money(thisMonth.experience.negotiatedPerPersonCents))
+                .replace("{retail}", money(thisMonth.experience.retailPerPersonCents))}
             </p>
           </div>
 
           {status.duesCoveredBySafehubby && (
             <p className="tiny" style={{ margin: 0, color: "var(--accent-bright)" }}>
-              Included with your Elite membership — Safehubby covers this due, the same way it covers your
-              concierge physician's retainer. You are not billed for it separately.
+              {t("wingman.includedElite")}
             </p>
           )}
 
           <div className="stack" style={{ gap: 4 }}>
             <strong className="tiny" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--accent-bright)" }}>
-              Every event includes
+              {t("wingman.everyEventIncludes")}
             </strong>
             {status.perks.map((p) => (
               <p key={p} className="tiny muted" style={{ margin: 0 }}>🥃 {p}</p>
@@ -91,10 +93,11 @@ export function WingmanClub() {
           </div>
 
           <p className="tiny muted" style={{ margin: 0 }}>
-            {status.memberCount} member{status.memberCount === 1 ? "" : "s"} today
+            {t(status.memberCount === 1 ? "wingman.memberCountOne" : "wingman.memberCountMany").replace("{count}", String(status.memberCount))}
+            {" — "}
             {status.overheadCovered
-              ? " — enough for the club's flat desk fee to clear what it costs to run, every month."
-              : ` — the desk fee needs ${status.breakEvenMembers} members to clear what it costs to run; below that, the club still runs, on less margin.`}
+              ? t("wingman.overheadCovered")
+              : t("wingman.overheadNotCovered").replace("{n}", String(status.breakEvenMembers))}
           </p>
 
           <ul className="timeline">
@@ -104,7 +107,7 @@ export function WingmanClub() {
           </ul>
 
           <button className={`btn btn-block${status.isMember ? "" : " btn-primary"}`} disabled={busy} onClick={toggle}>
-            {status.isMember ? "Leave the club" : "Join the club"}
+            {status.isMember ? t("wingman.leave") : t("wingman.join")}
           </button>
 
           {error && <div className="banner banner-danger">{error}</div>}
