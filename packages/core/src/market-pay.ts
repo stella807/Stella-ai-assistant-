@@ -63,8 +63,11 @@ export function impliedHourlyCents(payoutCents: number, minutes: number): number
 
 /**
  * The rate this whole card is anchored on: the floor of the reference
- * market's high-end band. Every task rate is set so it lands at or above
- * this, whatever its length.
+ * market's high-end band. Every personal-assistant-rate task lands at or
+ * above this, whatever its length — except the errand-runner role's quick
+ * tasks, which are deliberately priced against their own, separate labor
+ * market instead. See `QUICK_TASK_ASSISTANT_PAYOUT_CENTS` in concierge.ts
+ * and the test this exception is recorded against in market-pay.test.ts.
  */
 export const ANCHOR_HOURLY_CENTS = MARKET_PAY[REFERENCE_MARKET].highBandCents[0];
 

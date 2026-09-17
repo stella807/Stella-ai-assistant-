@@ -272,9 +272,20 @@ export const CONCIERGE_FEE_MARGIN = 0.2;
  */
 export const QUICK_TASK_CATEGORIES: ConciergeCategory[] = ["grab-something", "run-errand"];
 
+/**
+ * $3.00 per quick task, at `QUICK_TASK_MINUTES`'s 10-minute typical length,
+ * is $18/hr — priced against the real errand-runner labor market rather
+ * than picked to sound generous: Glassdoor puts dedicated errand-runner
+ * pay at ~$20/hr and Salary.com at ~$19/hr (both September 2026), and
+ * Instacart/DoorDash shoppers, the closest gig-economy comparison, run
+ * $15-26/hr net. $18/hr sits inside that band. It replaced a flat $6/task
+ * ($36/hr equivalent) that was never benchmarked against anything —
+ * comfortably above every one of those real rates, which is generous to
+ * a fault rather than competitive.
+ */
 export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory, number>> = {
-  "grab-something": 600,
-  "run-errand": 600,
+  "grab-something": 300,
+  "run-errand": 300,
 };
 
 /**

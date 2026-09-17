@@ -73,9 +73,17 @@ describe("one rate, and it is a good rate everywhere", () => {
     expect(ANCHOR_HOURLY_CENTS).toBeGreaterThan(pr.highBandCents[1]);
   });
 
-  it("holds a quick task to the same bar — shorter job, same rate", () => {
+  it("deliberately exempts the quick-task tier from the anchor — it's a different role's rate, not a discount on this one", () => {
+    // This used to require the anchor here too, on the theory that a quick
+    // task is the *same* job done faster. It isn't: `ROLE_CATEGORIES` in
+    // roster.ts sends every quick task to the errand-runner role, which
+    // never does the work this anchor prices (going to a stranger at night,
+    // sitting with them, judging whether they're okay) — and never earns
+    // the standard rate for it either. QUICK_TASK_ASSISTANT_PAYOUT_CENTS's
+    // own comment has the real errand-runner market data ($18/hr) this is
+    // priced against instead.
     for (const category of QUICK_TASK_CATEGORIES) {
-      expect(hourly(category, true), category).toBeGreaterThanOrEqual(ANCHOR_HOURLY_CENTS);
+      expect(hourly(category, true), category).toBeLessThan(ANCHOR_HOURLY_CENTS);
       expect(assistantPayoutFor(category, true)).toBeLessThan(assistantPayoutFor(category, false));
       expect(minutesFor(category, true)).toBeLessThan(minutesFor(category, false));
     }

@@ -303,8 +303,8 @@ describe("household scaling — a bigger family is more work, but not linearly",
   });
 
   it("scales the quick-task rate the same way", () => {
-    expect(assistantPayoutFor("grab-something", true, 1)).toBe(600);
-    expect(assistantPayoutFor("grab-something", true, 6)).toBe(1350);
+    expect(assistantPayoutFor("grab-something", true, 1)).toBe(300);
+    expect(assistantPayoutFor("grab-something", true, 6)).toBe(675);
   });
 
   it("adds the scaled fee to the spend cap, leaving the cap itself untouched", () => {
@@ -464,15 +464,20 @@ describe("pay-rate calculator — reference info, not a contract", () => {
     }
   });
 
-  it("pays a quick task less per task without paying a worse hourly rate", () => {
-    // This used to assert the opposite, and the opposite was the bug: the
-    // reduced tier was measured against the standard task's minutes, so a
-    // shorter job read as a lower rate for the same work. A quick task is
-    // less money because it is less time, not because the hour is worth less.
+  it("pays a quick task less per task and at a deliberately different hourly rate — a different role, not a shorter version of this one", () => {
+    // This test used to require the quick-task rate to clear ~95% of the
+    // standard rate's hourly-equivalent, on the theory that a quick task is
+    // the same work done faster. That held while "quick task" was a
+    // discount tier inside the personal-assistant's own rate card. It no
+    // longer is: `ROLE_CATEGORIES` sends every quick task to the
+    // errand-runner role exclusively, a genuinely different, lower-skill
+    // job the standard categories are never dispatched to — so it is priced
+    // against the errand-runner labor market instead (see
+    // QUICK_TASK_ASSISTANT_PAYOUT_CENTS's own comment for the real
+    // Glassdoor/Salary.com/Instacart/DoorDash figures behind $18/hr).
     expect(assistantPayoutFor("grab-something", true))
       .toBeLessThan(assistantPayoutFor("grab-something", false));
-    expect(hourlyRateCentsFor("grab-something", true))
-      .toBeGreaterThanOrEqual(hourlyRateCentsFor("grab-something", false) * 0.95);
+    expect(hourlyRateCentsFor("grab-something", true)).toBe(1800);
   });
 
   it("multiplies the per-task fee by a weekly cadence and 52 weeks", () => {

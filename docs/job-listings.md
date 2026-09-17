@@ -6,7 +6,7 @@ code that pays it, not written fresh for a job post:
 | What the post says | Where it comes from |
 |---|---|
 | $35.00/hr, personal assistant | `PA_HOURLY_RATE_CENTS`, `concierge.ts` |
-| $6.00 per quick task | `QUICK_TASK_ASSISTANT_PAYOUT_CENTS`, `concierge.ts` |
+| $3.00 per quick task ($18/hr) | `QUICK_TASK_ASSISTANT_PAYOUT_CENTS`, `concierge.ts` |
 | Driver per-trip rates | `DRIVER_RATE_CARD`, `driver-pay.ts` |
 | $22.00/hr desk roles, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $125.00/hr lawyer, 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
@@ -113,7 +113,7 @@ to call 911, and you will never be second-guessed for doing it.
 # 2. Errand runner
 
 **Location:** Puerto Rico · Texas · Los Angeles
-**Pay:** $6.00 per task (roughly 10 minutes of work)
+**Pay:** $3.00 per task (roughly 10 minutes of work — $18.00/hr back to back)
 **Type:** Per-job, flexible hours · [TO CONFIRM: classification]
 **Starts:** 1 December 2026
 
@@ -127,9 +127,13 @@ offer — you take what you want, when you are around.
 
 ## What you get paid
 
-$6.00 per completed task. These are built to take about ten minutes; if a job
-turns out to be bigger than that, it should have been booked as a personal
-assistant job at $35.00/hr, and you can say so.
+$3.00 per completed task. These are built to take about ten minutes, which is
+$18.00/hr if the jobs come back to back — priced against real errand-running
+pay, not picked to sound good: Glassdoor puts the job at ~$20/hr and
+Salary.com at ~$19/hr; Instacart and DoorDash, the closest gig-economy
+comparison, run $15-26/hr net. If a job turns out to be bigger than a quick
+pickup, it should have been booked as a personal assistant job at $35.00/hr,
+and you can say so.
 
 The customer's purchase goes on a card we fund, capped at what they set. Your
 own money is never involved.
@@ -146,16 +150,17 @@ Pay runs every two weeks.
 ## What we provide
 
 - **Liability insurance from day one**, at no cost to you
-- **Published rates** — $6.00 is $6.00, before you apply and after
+- **Published rates** — $3.00 is $3.00, before you apply and after
 - A funded card per task, so you never front cash
 
 ## The honest part
 
-Six dollars for ten minutes only works out if the jobs are close together and
-you are already out. Nobody should take this expecting a full income from it —
-it is designed as flexible top-up work, and pretending otherwise would waste
-your time and ours. If you want hours you can plan a week around, apply for
-personal assistant or one of the desk roles instead.
+$18.00/hr only holds if the jobs come back to back — a quiet stretch between
+them brings the real average down. Nobody should take this expecting a full
+income from it; it is designed as flexible work you fit around what you are
+already doing, and pretending otherwise would waste your time and ours. If
+you want hours you can plan a week around, apply for personal assistant or
+one of the desk roles instead.
 
 **Apply:** Careers → Errand runner, in the app.
 

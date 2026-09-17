@@ -805,15 +805,17 @@ function masterAccountOf(ctx: Ctx): MasterAccount | null {
 /**
  * Where the master pricing dashboard starts before any override — mirrors
  * the real rates in concierge.ts, driver-pay.ts and staffing.ts (PA
- * $35/hr, a $6 quick task, drivers' rate card, the desk roles' $22/hr).
- * Kept as one constant, rather than typed out at each pricing route, so
- * "someone edits one copy and the dashboard now disagrees with itself
- * about a starting rate" cannot happen.
+ * $35/hr, a $3 quick task — $18/hr at the ten-minute typical length,
+ * see QUICK_TASK_ASSISTANT_PAYOUT_CENTS's own comment — drivers' rate
+ * card, the desk roles' $22/hr). Kept as one constant, rather than typed
+ * out at each pricing route, so "someone edits one copy and the
+ * dashboard now disagrees with itself about a starting rate" cannot
+ * happen.
  */
 function defaultPricing(): CurrentPricing {
   return {
     paHourlyCents: 3500,
-    errandRunnerTaskCents: 600,
+    errandRunnerTaskCents: 300,
     driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
     driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
     secretaryHourlyCents: 2200,
