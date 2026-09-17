@@ -132,6 +132,41 @@ fallback here, unlike traveler sessions — see `docs/concierge.md` for why.
 | `POST` | `/api/games/worried-text/:roundId/report` | — |
 | `GET` | `/api/games/leaderboard` | — |
 
+### Master access — a fourth identity space, for the owner and secretary
+
+Also its own session, its own cookie (`sh_master_session`), never a
+traveler's or an assistant's. See `packages/core/src/master-access.ts` for
+the roles (`owner`, `secretary`) and what each can reach — the short
+version: the secretary sees everything operational but nothing about money
+and can never change anything; the owner can. Neither role can ever read
+the plaintext of a task's message thread (`message-contents` is listed in
+`NEVER_GRANTED` rather than simply omitted, so granting it later would be a
+deliberate, visible change to that file, not something a route quietly
+started doing).
+
+There is no self-service sign-up. An account is provisioned by whoever
+already holds `SAFEHUBBY_ADMIN_KEY`, which is also still accepted directly
+(as the `x-admin-key` header) on every route below for scripts and for
+issuing the very first account, before any master session exists to hold
+`write`.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/api/admin/master-accounts` | Admin key or an owner session. `{ name, email, role }` → `{ account, key }`. The key is returned once, in the clear, and is never recoverable after — only hashed thereafter |
+| `GET` | `/api/admin/master-accounts` | Admin key or an owner session. The roster of who has access and what their role reaches — never the keys |
+| `POST` | `/api/admin/master-accounts/:id/revoke` | Admin key or an owner session. The record stays (the audit log still points at it); only `revokedAt` is set |
+| `POST` | `/api/master/auth/login` | `{ key }` → `{ accountId, name, role }`. Sets `sh_master_session`. Rate-limited tighter than either other login, since this is the highest-value credential in the system |
+| `POST` | `/api/master/auth/logout` | Clears the session |
+| `GET` | `/api/master/overview` | Everything the signed-in role's scopes cover, in one call: `customers`, `operations`, `money` — each key present only when `canAccess` allows it, so a secretary's response has no `money` key at all rather than an empty one. Every section read is written to the audit log |
+| `GET` | `/api/master/audit-log` | Every master-access read ever recorded — who, what scope, what subject, when. Available to both roles; editable by neither |
+
+Every other admin route in this reference (driver and staff applications,
+the roster, `/api/admin/budget`, `/api/admin/payroll/run`,
+`/api/admin/newsletter`) also accepts a master session in place of the
+shared admin key now, scoped to whichever of `customers` / `operations` /
+`money` / `write` that route actually needs — see `requireAdmin` in
+routes.ts.
+
 ## Medical escalation
 
 Never plan-gated. Safehubby cannot dispatch an ambulance and says so in the

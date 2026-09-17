@@ -302,6 +302,12 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
           <span className="tiny muted">Settled charges</span>
           <span className="small charge-amount">{dollars(money.settledChargesCents)} ({money.chargeCount})</span>
         </li>
+        {money.pendingChargeCount > 0 && (
+          <li className="row-between">
+            <span className="tiny muted">Pending — awaiting a store receipt</span>
+            <span className="small">{dollars(money.pendingChargesCents)} ({money.pendingChargeCount})</span>
+          </li>
+        )}
         <li className="row-between">
           <span className="tiny muted">Owed to assistants, unpaid</span>
           <span className="small charge-amount">{dollars(money.unpaidPayoutsCents)}</span>

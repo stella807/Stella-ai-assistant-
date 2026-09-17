@@ -2577,11 +2577,20 @@ export const routes: Record<string, Handler> = {
 
     if (canAccess(account, "money", now)) {
       const settled = ctx.store.data.charges.filter((c) => c.status === "settled");
+      // Store-billed subscriptions sit here until the app-store receipt
+      // confirms them (see POST /api/billing/charges/:id/confirm) — real
+      // money the business is owed, just not yet in hand. Kept apart from
+      // `settledChargesCents` rather than summed into it, the same
+      // "never claim a provider we cannot verify" discipline the fulfillment
+      // ports use for a fare: this is a pending amount, not a settled one.
+      const pending = ctx.store.data.charges.filter((c) => c.status === "pending");
       const byKind: Record<string, number> = {};
       for (const c of settled) byKind[c.kind] = (byKind[c.kind] ?? 0) + c.amountCents;
       overview.money = {
         settledChargesCents: settled.reduce((sum, c) => sum + c.amountCents, 0),
         chargeCount: settled.length,
+        pendingChargesCents: pending.reduce((sum, c) => sum + c.amountCents, 0),
+        pendingChargeCount: pending.length,
         byKind,
         unpaidPayoutsCents: ctx.store.data.assistants.reduce(
           (sum, a) => sum + unpaidEarningsCents(ctx.store.data.conciergeTasks, a.id), 0,

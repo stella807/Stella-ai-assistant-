@@ -67,6 +67,23 @@ a fare or a driver payout.
 plus chargeback exposure and a support cost on every trip that goes wrong — is
 the reason Premium Plus costs what it does.
 
+**Pickup is a pin the rider can move, not just a raw GPS fix.**
+`GetHomePanel.tsx` shows the pickup point on the map (`LiveMap`'s `onPick`)
+and lets the rider drag it or tap elsewhere before requesting a quote — a
+device's location is routinely off by a building's width in a venue or a
+parking structure, and that adjusted point, not the raw fix, is what goes
+into `POST /api/rides/quote` and `POST /api/rides/book`.
+
+**There is no live-tracking dot on Safehubby's own map, and there should
+never be one** — this app has no location feed to draw it from; Uber's ride
+APIs are closed to third parties for exactly that data. What the booking
+response already carries is `BookedRide.trackingUrl` (Uber's `trip_url` /
+`share_url`), which is Uber's own real trip page with the actual moving car
+on it. `GetHomePanel.tsx` links out to it once a ride is booked ("Watch it
+get closer on Uber") instead of faking a version of it — see the same
+pattern for secure transport below, whose adapter already returns a
+`tracking_url` too.
+
 ### If the request body differs from what we mapped
 
 The docs site renders its schema in JavaScript and the exact field names for

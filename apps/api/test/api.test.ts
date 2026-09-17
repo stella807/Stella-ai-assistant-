@@ -3804,6 +3804,26 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect(res.json.customers).toBeTruthy();
     expect(res.json.operations).toBeTruthy();
     expect(res.json.money).toBeTruthy();
+    expect(res.json.money.pendingChargesCents).toBe(0);
+    expect(res.json.money.pendingChargeCount).toBe(0);
+  });
+
+  it("counts a store-billed charge still awaiting its receipt as pending, separate from settled", async () => {
+    await call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, sam);
+    // Starts on the card rail (the default) so it actually renews once past
+    // the trial — a subscription started on the app-store rail never
+    // auto-renews here (renewDueSubscriptions skips anything not "card"),
+    // so it would stay "trialing" and the next plan change would charge
+    // nothing at all, same as changePlan's own documented trial behavior.
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, sam);
+    advancePastTrial();
+    const ios = await call("POST", "/api/subscription", { planId: "premium-plus", platform: "ios" }, sam);
+    expect(ios.json.charged.status).toBe("pending");
+
+    const { cookie } = await masterLogin("owner");
+    const res = await call("GET", "/api/master/overview", undefined, null, cookie);
+    expect(res.json.money.pendingChargeCount).toBeGreaterThan(0);
+    expect(res.json.money.pendingChargesCents).toBeGreaterThan(0);
   });
 
   it("gives the secretary customers and operations, but not money", async () => {

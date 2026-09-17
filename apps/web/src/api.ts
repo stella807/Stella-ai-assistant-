@@ -643,6 +643,8 @@ export interface MasterOverview {
   money?: {
     settledChargesCents: number;
     chargeCount: number;
+    pendingChargesCents: number;
+    pendingChargeCount: number;
     byKind: Record<string, number>;
     unpaidPayoutsCents: number;
   };
