@@ -163,22 +163,6 @@ export interface Plan {
  */
 const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos", "ride-booking", "quick-tasks"];
 
-const BASIC_FEATURES: Feature[] = [
-  ...FREE_FEATURES,
-  "drink-details",
-  "venue-menus",
-  "bac-estimate",
-  "recovery-plan",
-  // On every paid tier, not just Family — see the pricing comment below for
-  // why the standing costs behind it are spread the same way.
-  "personal-concierge",
-  // The desk half of the same job: appointments, reminders, the email nobody
-  // wants to write. Included rather than billed — see desk-tasks.ts — and on
-  // the entry tier for the same reason the concierge is, since a feature
-  // withheld from the cheapest paid plan is the one people judge it on.
-  "desk-tasks",
-];
-
 /**
  * The luxury-lifestyle catalogue, held off every everyday tier.
  *
@@ -199,15 +183,14 @@ export const ELITE_ONLY: Feature[] = [
 ];
 
 /**
- * Premium Plus is the everything tier for everyday use — every feature
- * except the Elite-only catalogue, derived from `ALL_FEATURES` rather than
- * hand-maintained. On top of what Premium has, that means: automatic
- * fulfilment (Safehubby books and pays on the user's behalf through the
- * business APIs, then bills it on — that float is a real part of what this
- * tier costs), ride booking, supply delivery, safe routes, history, group
- * games, and the four that used to be withheld for Family —
- * `secure-transport`, `extended-menu`, `extended-sos-contacts` and
- * `multi-profile`.
+ * The everything set for everyday use — every feature except the
+ * Elite-only catalogue, derived from `ALL_FEATURES` rather than
+ * hand-maintained. Every paid everyday tier (Premium, Premium Plus, Family)
+ * gets exactly this list: automatic fulfilment (Safehubby books and pays on
+ * the user's behalf through the business APIs, then bills it on — that
+ * float is a real part of what these tiers cost), ride booking, supply
+ * delivery, safe routes, history, group games, secure transport, the
+ * extended pharmacy-run menu, extended SOS contacts, and multi-profile.
  *
  * Deriving it this way keeps the guarantee that matters: adding a `Feature`
  * is still a compile error until it is listed in `EVERY_FEATURE`, and the
@@ -234,26 +217,27 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * margin instead of pricing at cost, across the paid tiers is why Premium
  * and Premium Plus went back up too, not just Family.
  *
- * **Premium Plus is now the everything tier, and Family differs only by
- * seats.** `secure-transport` and `extended-menu` used to be withheld from
- * Premium Plus specifically so their standing costs could be priced into
- * Family alone — the security firm's monthly contract above, and the wider
- * pharmacy-run menu (see care-package.ts), which is real takeout-grade food
- * and costs more per basket than a snack basket does. Those costs did not go
- * away when the features moved down; they are now spread across Premium Plus
- * subscribers too. That is a deliberate margin
- * trade, not an oversight: a tier that visibly holds back the safest way
- * home is a worse product than one that doesn't, and a simpler ladder
- * ("everything, for one or two people" vs "everything, for six") converts
- * better than one that asks a subscriber to audit a feature matrix. If the
- * secure-transport retainer turns out to be the line item that decides
- * whether this is profitable, the honest lever is Premium Plus's own price,
- * not re-fencing the feature.
+ * **Every everyday paid tier is now the everything tier, and Premium Plus
+ * and Family differ from Premium only by seats.** `secure-transport` and
+ * `extended-menu` used to be withheld from Premium and Premium Plus
+ * specifically so their standing costs could be priced into Family alone —
+ * the security firm's monthly contract above, and the wider pharmacy-run
+ * menu (see care-package.ts), which is real takeout-grade food and costs
+ * more per basket than a snack basket does. Those costs did not go away
+ * when the features moved down; they are now spread across every paid
+ * subscriber, Premium included. That is a deliberate margin trade, not an
+ * oversight: a tier that visibly holds back the safest way home is a worse
+ * product than one that doesn't, and a ladder that only ever climbs by
+ * seats ("everything, for one, two, or six people") converts better than
+ * one that asks a subscriber to audit a feature matrix to find out what a
+ * higher tier actually buys them. If the secure-transport retainer turns
+ * out to be the line item that decides whether this is profitable, the
+ * honest lever is a tier's own price, not re-fencing the feature.
  *
- * What this leaves Family to justify its price with is seats, and seats
- * alone: six against Premium Plus's two, which is a real per-person
- * discount ($24.998/seat against $49.995) and the same shape every household
- * plan uses.
+ * What this leaves Premium Plus and Family to justify their price with is
+ * seats, and seats alone: two and six against Premium's one, which is a real
+ * per-person discount at each step and the same shape every household plan
+ * uses.
  *
  * The ladder is 1, 1, 2, 6. Free and Premium are **one person** — the
  * entry tiers are for somebody looking after themselves, and a second seat
@@ -316,7 +300,9 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
  * Amalfi's entry tier does not touch at all: full safety tracking and
  * secure transport, not just concierge booking. That is the actual
  * positioning — priced at a real luxury-concierge membership's own floor,
- * for a broader bundle than that membership sells at that price.
+ * for a broader bundle than that membership sells at that price. Premium at
+ * $89.99 gets the identical bundle — every feature Premium Plus has — for
+ * one seat instead of two, a dollar under Amalfi's own floor.
  *
  * Family has no dictated number, so it keeps the one rule that has held
  * across every round of this ladder: seats and price both climb together,
@@ -349,8 +335,11 @@ export const PLANS: Plan[] = [
     monthlyCents: 8999,
     annualCents: 89999,
     seats: 1,
-    features: BASIC_FEATURES,
-    blurb: "For one person. Venue menus, detailed logging, intoxication estimates, the recovery plan, and a personal concierge for one bounded, capped-spend task at a time.",
+    // Identical features to Premium Plus and Family, by design — every
+    // paid tier is the same product; only the seats change. See the
+    // pricing rationale above.
+    features: PLUS_FEATURES,
+    blurb: "For one person. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
     id: "premium-plus",
@@ -358,8 +347,9 @@ export const PLANS: Plan[] = [
     monthlyCents: 9999,
     annualCents: 99999,
     seats: 2,
+    // Identical features to Premium and Family, by design.
     features: PLUS_FEATURES,
-    blurb: "For two. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
+    blurb: "The same everything as Premium, for two people instead of one — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
     id: "family",
@@ -367,8 +357,8 @@ export const PLANS: Plan[] = [
     monthlyCents: 14999,
     annualCents: 149999,
     seats: 6,
-    // Identical features to Premium Plus, by design — Family is the same
-    // product for more people, not a longer feature list.
+    // Identical features to Premium and Premium Plus, by design — Family is
+    // the same product for more people, not a longer feature list.
     features: PLUS_FEATURES,
     blurb: "The same everything as Premium Plus, for up to six people instead of two — one household, one bill, and a lower price per person.",
   },

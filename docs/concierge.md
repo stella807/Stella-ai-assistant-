@@ -597,8 +597,9 @@ they spent instead, rather than showing a button that cannot work.
 
 ## Where it's gated, and what it costs
 
-`personal-concierge` is on `BASIC_FEATURES` (`billing.ts`) — every paid tier,
-Premium included, not a Family-only perk. It started Family-only; that gate
+`personal-concierge` is on `PLUS_FEATURES` (`billing.ts`), the feature set
+every paid everyday tier now shares — every paid tier, Premium included, not
+a Family-only perk. It started Family-only; that gate
 was removed, and every paid tier's price now absorbs a share of what it
 costs. A task's own cost is still capped by the subscriber per task, same as
 before — that part didn't change. What moved is two standing costs that exist

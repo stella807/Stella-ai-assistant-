@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
   BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
-  assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, defaultCapFor,
-  defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor, isAssistantAvailable,
-  isHourlyCategory, isInLaunchMarket, isQuickTaskEligible, launchMarketNames, minutesFor, serviceFeeFor,
-  totalChargeCents,
+  assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, conciergeCategoryLabel,
+  defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
+  isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
+  launchMarketNames, minutesFor, serviceFeeFor, totalChargeCents,
 } from "@safehubby/core";
 import type {
   AssistantProfile, ConciergeCategory, ConciergeTask, FlightInfo, NearbyStore, ProviderStatus, PlanId,
@@ -123,6 +123,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether this booking is one tap-through-a-notification away from being
+  // sent, rather than a full "browse and pick someone" flow — see
+  // `useConfirmFlow` below for who gets which.
+  const [confirming, setConfirming] = useState(false);
+  // Who a confirmed quick task actually goes to — picked automatically by
+  // `startConfirm` below, never shown to the customer by name.
+  const [autoAssistant, setAutoAssistant] = useState<AssistantProfile | null>(null);
 
   // Naming a real place for the task — see PlaceSearchPort in packages/core.
   // Picking one here sets the task's actual location, rather than leaving it
@@ -180,6 +187,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       return next;
     });
     setRoster(null);
+    setConfirming(false);
+    setAutoAssistant(null);
   }, [kind]);
 
   if (locked) {
@@ -198,6 +207,16 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const quickEligible = isQuickTaskEligible(category);
   const effectiveQuickTask = quickTask && quickEligible;
+  // A quick task ("grab something", "run an errand") is meant to be
+  // low-friction: type what you need, confirm it with a tap, done — the
+  // roster-browsing screen below is the wrong amount of ceremony for a
+  // water bottle and some Advil. Elite members skip the tap-to-confirm
+  // step instead and go straight into the full chat with their own PA,
+  // voice messages, photos and all, the same screen every other concierge
+  // category already opens into — a named team is the thing Elite is
+  // actually paying for, so routing them around it here would be odd.
+  const eliteMember = isElitePlan(account.planId as PlanId);
+  const useConfirmFlow = QUICK_TASK_CATEGORIES.includes(category) && !eliteMember;
   // Ceiling, step and presets all come from core: a booking that buys concert
   // tickets is funded differently from one that fetches a burger, and that is
   // a pricing rule, not a form detail.
@@ -239,6 +258,52 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       setRoster(res.assistants);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the roster right now");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Looks up who is actually available before showing anything to confirm —
+  // the same roster `browse` fetches, just not rendered as a rail of tiles.
+  // If nobody is available, that has to surface honestly rather than
+  // pretend a tap-to-confirm dispatches anyone.
+  const startConfirm = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const at = await currentFix();
+      if (!at) throw new Error("Turn on location to send this — the assistant needs to know where to go.");
+      setFix(at);
+      const res = await api.conciergeAssistants(category, selectedPlace ?? at);
+      const available = res.assistants.find((a) => isAssistantAvailable(a));
+      if (!available) throw new Error("No one is available for this right now — try again shortly.");
+      setAutoAssistant(available);
+      setConfirming(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that request");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmAndSend = async () => {
+    if (!taskLocation || !autoAssistant) { setError("Turn on location to send this."); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.bookConcierge({
+        category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask,
+        assistantId: autoAssistant.id,
+      });
+      onBooked(res.task);
+      setConfirming(false);
+      setAutoAssistant(null);
+      setNote("");
+      setSelectedPlace(null);
+      setPlaceResults(null);
+      setPlaceQuery("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send that request");
     } finally {
       setBusy(false);
     }
@@ -404,6 +469,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               setHours(defaultHoursFor(c.id));
               setCapEntry("");
               setRoster(null);
+              setConfirming(false);
+              setAutoAssistant(null);
               if (!isQuickTaskEligible(c.id)) setQuickTask(false);
               if (c.id !== "airport-pickup") {
                 setFlightNumber(""); setFlightDate(""); setFlightPreview(null); setFlightError(null);
@@ -463,7 +530,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       <div className="field">
         <label htmlFor="concierge-note">What do you need?</label>
         <textarea id="concierge-note" maxLength={280} rows={2} value={note}
-          onChange={(e) => { setNote(e.target.value); setRoster(null); }}
+          onChange={(e) => { setNote(e.target.value); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
           placeholder="Grab a burger and fries from The Anchor Tavern" />
       </div>
 
@@ -552,7 +619,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         valueCents={spendCapCents}
         scale={capScale}
         presetsCents={capPresetsFor(category)}
-        onChange={(cents) => { setCapCents(cents); setRoster(null); }}
+        onChange={(cents) => { setCapCents(cents); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
       />
 
       {/* Where Safehubby sets no ceiling, the ladder cannot be the only way
@@ -627,7 +694,33 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         </p>
       </div>
 
-      {roster === null && (
+      {/* The low-friction path: type it, confirm it, done. No roster to
+          browse — the same shape as tapping "Yes" on a push notification,
+          just without waiting for the notification to actually land since
+          the customer is already looking at the screen that would send it. */}
+      {useConfirmFlow && !confirming && (
+        <button className="btn btn-block" disabled={busy || !note.trim() || covered === false} onClick={startConfirm}>
+          Send request
+        </button>
+      )}
+
+      {useConfirmFlow && confirming && (
+        <div className="card card-quiet stack" style={{ gap: 8 }}>
+          <strong className="small">Confirm this request?</strong>
+          <p className="small" style={{ margin: 0 }}>
+            {conciergeCategoryLabel(category)}: "{note}" — up to {money(spendCapCents)} loaded on their card,
+            {" "}{money(totalHeld)} held on yours now.
+          </p>
+          <div className="row">
+            <button className="btn grow" disabled={busy} onClick={() => { setConfirming(false); setAutoAssistant(null); }}>
+              No, edit it
+            </button>
+            <button className="btn btn-primary grow" disabled={busy} onClick={confirmAndSend}>Yes, send it</button>
+          </div>
+        </div>
+      )}
+
+      {!useConfirmFlow && roster === null && (
         <button className="btn btn-block"
           disabled={busy || !note.trim() || covered === false || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
           onClick={browse}>
@@ -635,7 +728,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         </button>
       )}
 
-      {roster !== null && roster.length === 0 && (
+      {!useConfirmFlow && roster !== null && roster.length === 0 && (
         <p className="small muted">
           No assistants to show right now. Try a different task type, or check back shortly.
         </p>

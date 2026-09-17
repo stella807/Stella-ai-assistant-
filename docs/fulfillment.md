@@ -276,8 +276,8 @@ the subscriber, and padding it would break that promise by design.
 
 **Every paid tier can reach it — Premium included, not just Family — and
 every paid tier's price absorbs a share of what that costs.** It started as a
-Family-only perk, priced in only there; it's now on `BASIC_FEATURES`, so
-Premium and Premium Plus both went up too. A task's own cost is still capped
+Family-only perk, priced in only there; it's now on `PLUS_FEATURES`, which
+every paid everyday tier shares, so Premium and Premium Plus both went up too. A task's own cost is still capped
 per task, not open-ended like a ride fare — that part hasn't changed. What
 moved is the partner-network retainer and keeping the Revolut balance funded
 that issues each task's card (below), both standing costs in the same

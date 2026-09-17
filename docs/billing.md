@@ -371,6 +371,14 @@ full rationale in `packages/core/src/billing.ts`.
 | Family | $149.99 | $1,499.99 | 6 |
 | Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
 
+Premium, Premium Plus and Family carry the identical feature set
+(`PLUS_FEATURES` in `billing.ts`) — automatic ride/delivery booking, secure
+transport, the full pharmacy-run menu, safe routes, history, group games,
+extended SOS contacts, and personal concierge, all included on every paid
+tier. The only thing that climbs with price is seats. See the "every paid
+tier is now the everything tier" rationale in `billing.ts` for why Premium
+no longer gets a lighter version of the bundle.
+
 Not a number picked in the air: Amalfi Jets' own Amalfi Reserve
 membership — the real luxury concierge desk Elite partners with, see
 `ELITE_DESK_MEMBERSHIP` in elite.ts — runs $99-$500/month depending on

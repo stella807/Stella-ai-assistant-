@@ -656,14 +656,14 @@ describe("pharmacy run", () => {
   });
 
   describe("extended menu (premium baskets)", () => {
-    // Sam is premium-plus by default (see beforeEach), which now includes
-    // `extended-menu` — Premium Plus is the everything tier. Premium
-    // ("premium-basic") is the cheapest paid plan that still doesn't have it,
-    // so it's what these gate tests downgrade to.
-    const downgradeToBasic = () => call("POST", "/api/subscription", { planId: "premium-basic" }, sam);
+    // Sam is premium-plus by default (see beforeEach). `extended-menu` is
+    // now on every paid plan — Premium, Premium Plus and Family are all the
+    // everything tier, differing only by seats — so Free is the only plan
+    // left that these gate tests can downgrade to.
+    const downgradeToFree = () => call("POST", "/api/subscription", { planId: "free" }, sam);
 
     it("marks premium baskets locked below the top tiers, unlocked baskets for everyone", async () => {
-      await downgradeToBasic();
+      await downgradeToFree();
       const { baskets } = (await call("GET", "/api/care-package/baskets", undefined, sam)).json;
       const pizza = baskets.find((b: any) => b.id === "pizza-night");
       const hydration = baskets.find((b: any) => b.id === "hydration");
@@ -672,7 +672,7 @@ describe("pharmacy run", () => {
     });
 
     it("refuses to authorize a premium basket on a plan that can't run one at all", async () => {
-      await downgradeToBasic();
+      await downgradeToFree();
       const nightId = (await startNight()).json.night.id;
       const res = await call("POST", `/api/nights/${nightId}/care-package/authorize`, {
         basketId: "pizza-night", capCents: 3000, triggerBand: "high", deliverTo: "Home",
@@ -689,7 +689,7 @@ describe("pharmacy run", () => {
       // The hand-send path doesn't require `supply-delivery` (a partner is
       // paying, out of their own pocket), so this is where the basket-tier
       // gate is actually still reachable.
-      await downgradeToBasic();
+      await downgradeToFree();
       const nightId = (await startNight()).json.night.id;
       const res = await call("POST", `/api/nights/${nightId}/care-package/send`, { basketId: "burger-and-fries" }, sam);
       expect(res.status).toBe(402);

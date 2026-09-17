@@ -60,17 +60,18 @@ describe("plans", () => {
     for (const plan of PLANS) expect(formatPrice(plan.annualCents)).not.toMatch(/\d{5}/);
   });
 
-  it("gates automatic fulfilment above the entry tier", () => {
-    // Booking on someone's behalf means fronting the money, which is what the
-    // higher tiers actually pay for.
-    expect(hasFeature("premium-basic", "automatic-rides")).toBe(false);
+  it("gates automatic fulfilment above the free tier, on every paid one", () => {
+    // Booking on someone's behalf means fronting the money, which every paid
+    // tier now pays for equally — Premium included, not just the higher ones.
+    expect(hasFeature("free", "automatic-rides")).toBe(false);
+    expect(hasFeature("premium-basic", "automatic-rides")).toBe(true);
     expect(hasFeature("premium-plus", "automatic-rides")).toBe(true);
     expect(hasFeature("premium-plus", "automatic-delivery")).toBe(true);
   });
 
   it("keeps secure transport off the free tier, but on every paid one", () => {
     expect(hasFeature("free", "secure-transport")).toBe(false);
-    expect(hasFeature("premium-basic", "secure-transport")).toBe(false);
+    expect(hasFeature("premium-basic", "secure-transport")).toBe(true);
     expect(hasFeature("premium-plus", "secure-transport")).toBe(true);
     expect(hasFeature("family", "secure-transport")).toBe(true);
   });
@@ -147,10 +148,13 @@ describe("plans", () => {
     expect(findPlan("elite-private").monthlyCents).toBe(6_000_000);
   });
 
-  it("makes Family the same features as Premium Plus, differing only in seats", () => {
-    // Family is the household tier, not a longer feature list. If these ever
-    // diverge again, the blurbs and docs/billing.md are wrong too.
+  it("makes every everyday paid tier the same features, differing only in seats", () => {
+    // Premium, Premium Plus and Family are the same product at three seat
+    // counts, not three different feature lists. If these ever diverge
+    // again, the blurbs and docs/billing.md are wrong too.
+    expect([...findPlan("premium-basic").features].sort()).toEqual([...findPlan("premium-plus").features].sort());
     expect([...findPlan("family").features].sort()).toEqual([...findPlan("premium-plus").features].sort());
+    expect(findPlan("premium-plus").seats).toBeGreaterThan(findPlan("premium-basic").seats);
     expect(findPlan("family").seats).toBeGreaterThan(findPlan("premium-plus").seats);
   });
 
