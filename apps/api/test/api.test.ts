@@ -4089,3 +4089,71 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect((await call("POST", "/api/staff/roster/nope/stand-down", {}, null, secCookie)).status).toBe(401);
   });
 });
+
+describe("master pricing controls", () => {
+  useAdminKey();
+
+  const masterLogin = async (role: "owner" | "secretary", name = "Luis Garcia", email = "luis@example.com") => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", { name, email, role });
+    const key = created.json.key as string;
+    const signedIn = await call("POST", "/api/master/auth/login", { key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    return { cookie: { Cookie: `sh_master_session=${token}` } };
+  };
+
+  it("requires an admin session, master or shared-key", async () => {
+    expect((await call("GET", "/api/master/pricing")).status).toBe(401);
+    expect((await call("POST", "/api/master/pricing/override", { roleOrService: "owner", priceCents: 100 })).status)
+      .toBe(401);
+  });
+
+  it("starts at the published defaults, with nothing accrued for an unset owner rate", async () => {
+    const res = await callAdmin("GET", "/api/master/pricing");
+    expect(res.status).toBe(200);
+    expect(res.json.current.paHourlyCents).toBe(3500);
+    expect(res.json.current.ownerMonthlyCents).toBe(0);
+    expect(res.json.ownerAccrual).toEqual({ accruedCents: 0, dayOfMonth: 1, daysInMonth: 31 });
+  });
+
+  it("accrues the owner's own rate day by day, and the audit trail records who set it", async () => {
+    const { cookie } = await masterLogin("owner");
+
+    // The seeded clock starts 2027-01-01T20:00:00Z — day 1 of a 31-day month.
+    const set = await call(
+      "POST", "/api/master/pricing/override",
+      { roleOrService: "owner", priceCents: 310000, reason: "Founder's draw for January" }, null, cookie,
+    );
+    expect(set.status).toBe(200);
+    expect(set.json.current.ownerMonthlyCents).toBe(310000);
+    expect(set.json.ownerAccrual).toEqual({ accruedCents: 10000, dayOfMonth: 1, daysInMonth: 31 });
+
+    // Checked here, before the session below ages out — the audit-log
+    // route takes only a real master account, with no shared-key fallback.
+    const log = await call("GET", "/api/master/audit-log", undefined, null, cookie);
+    expect(log.json.some((e: { subject: string }) => e.subject.includes("owner"))).toBe(true);
+
+    // Two weeks later, the same rate has accrued proportionally more —
+    // still nothing paid out, just a bigger fraction of the month elapsed.
+    // The admin key, not the by-now-expired master session (12-hour TTL),
+    // is what still works for this one.
+    advance(14 * 24 * 60);
+    const later = await callAdmin("GET", "/api/master/pricing");
+    expect(later.json.ownerAccrual).toEqual({ accruedCents: 150000, dayOfMonth: 15, daysInMonth: 31 });
+  });
+
+  it("accrues the full monthly rate by the last day of the month", async () => {
+    const { cookie } = await masterLogin("owner");
+    await call("POST", "/api/master/pricing/override", { roleOrService: "owner", priceCents: 310000 }, null, cookie);
+    advance(30 * 24 * 60); // day 1 -> day 31, the last day of January
+    const res = await callAdmin("GET", "/api/master/pricing");
+    expect(res.json.ownerAccrual).toEqual({ accruedCents: 310000, dayOfMonth: 31, daysInMonth: 31 });
+  });
+
+  it("resets to the new month's own fraction once the month turns over", async () => {
+    const { cookie } = await masterLogin("owner");
+    await call("POST", "/api/master/pricing/override", { roleOrService: "owner", priceCents: 310000 }, null, cookie);
+    advance(45 * 24 * 60); // day 1 of January -> day 15 of February (28 days)
+    const res = await callAdmin("GET", "/api/master/pricing");
+    expect(res.json.ownerAccrual).toEqual({ accruedCents: Math.round((310000 * 15) / 28), dayOfMonth: 15, daysInMonth: 28 });
+  });
+});

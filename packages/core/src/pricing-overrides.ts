@@ -116,3 +116,23 @@ export function compilePricing(overrides: PriceOverride[], defaults: CurrentPric
 
   return result;
 }
+
+/**
+ * How much of this month's owner salary has accrued so far — prorated by
+ * calendar days elapsed against the days in the month, the same way a
+ * salaried role earns its pay daily even though it is disbursed monthly.
+ *
+ * There is no owner payout pipeline in this app (see payroll.ts, which pays
+ * gig-task assistants, not a salary) — this is a planning number for the
+ * master dashboard, not something that moves money. It answers "what have I
+ * earned so far this month at the rate I set myself", nothing more.
+ */
+export function ownerAccruedCentsFor(ownerMonthlyCents: number, now: Date): number {
+  if (ownerMonthlyCents <= 0) return 0;
+  // UTC throughout, deliberately — a calendar day computed from the
+  // server's local time zone would put the accrual a day off for a
+  // customer or master account in a different one.
+  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  const daysElapsed = Math.min(now.getUTCDate(), daysInMonth);
+  return Math.round((ownerMonthlyCents * daysElapsed) / daysInMonth);
+}

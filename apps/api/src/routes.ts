@@ -52,7 +52,7 @@ import {
   requiresHelpDeskToDowngrade,
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
-  compilePricing, type CurrentPricing, type PriceOverride,
+  compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
@@ -802,6 +802,39 @@ function masterAccountOf(ctx: Ctx): MasterAccount | null {
  * shared-key path stays unattributed on purpose — it always was — which is
  * exactly the gap a real master account closes.
  */
+/**
+ * Where the master pricing dashboard starts before any override — mirrors
+ * the real rates in concierge.ts, driver-pay.ts and staffing.ts (PA
+ * $35/hr, a $6 quick task, drivers' rate card, the desk roles' $22/hr).
+ * Kept as one constant, rather than typed out at each pricing route, so
+ * "someone edits one copy and the dashboard now disagrees with itself
+ * about a starting rate" cannot happen.
+ */
+function defaultPricing(): CurrentPricing {
+  return {
+    paHourlyCents: 3500,
+    errandRunnerTaskCents: 600,
+    driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
+    driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
+    secretaryHourlyCents: 2200,
+    socialMediaManagerHourlyCents: 2200,
+    ownerMonthlyCents: 0,
+  };
+}
+
+/** Owner accrual plus the day-count context the dashboard needs to show it
+ *  as "$X so far (day N of M)" rather than a bare, unexplained number. */
+function ownerAccrualFor(
+  ownerMonthlyCents: number, now: Date,
+): { accruedCents: number; dayOfMonth: number; daysInMonth: number } {
+  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  return {
+    accruedCents: ownerAccruedCentsFor(ownerMonthlyCents, now),
+    dayOfMonth: Math.min(now.getUTCDate(), daysInMonth),
+    daysInMonth,
+  };
+}
+
 function requireAdmin(ctx: Ctx, scope: MasterScope = "operations"): void {
   const expected = process.env.SAFEHUBBY_ADMIN_KEY;
   if (expected && ctx.adminKey === expected) return;
@@ -4140,18 +4173,13 @@ export const routes: Record<string, Handler> = {
   /** Master: get current pricing including any overrides. */
   "GET /api/master/pricing": (ctx) => {
     requireAdmin(ctx, "operations");
-    const defaults: CurrentPricing = {
-      paHourlyCents: 3500,
-      errandRunnerTaskCents: 600,
-      driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-      driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
-      secretaryHourlyCents: 2200,
-      socialMediaManagerHourlyCents: 2200,
-      ownerMonthlyCents: 0,
-    };
-    const current = compilePricing(ctx.store.data.priceOverrides, defaults);
+    const current = compilePricing(ctx.store.data.priceOverrides, defaultPricing());
     return {
       current,
+      // What the owner's own rate adds up to so far this month — a planning
+      // number for the dashboard, not a payout. See ownerAccruedCentsFor's
+      // own comment for why there is nothing here that moves money.
+      ownerAccrual: ownerAccrualFor(current.ownerMonthlyCents, ctx.now()),
       overrides: ctx.store.data.priceOverrides.sort((a, b) =>
         new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime(),
       ),
@@ -4193,18 +4221,9 @@ export const routes: Record<string, Handler> = {
       });
     });
 
-    const defaults: CurrentPricing = {
-      paHourlyCents: 3500,
-      errandRunnerTaskCents: 600,
-      driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-      driverSecureTransport: { baseCents: 1500, perMileCents: 300, perMinuteCents: 60 },
-      secretaryHourlyCents: 2200,
-      socialMediaManagerHourlyCents: 2200,
-      ownerMonthlyCents: 0,
-    };
-    const current = compilePricing(ctx.store.data.priceOverrides, defaults);
+    const current = compilePricing(ctx.store.data.priceOverrides, defaultPricing());
 
-    return { override, current };
+    return { override, current, ownerAccrual: ownerAccrualFor(current.ownerMonthlyCents, ctx.now()) };
   },
 
   /** Master: get payroll summary for assistants and staff. */

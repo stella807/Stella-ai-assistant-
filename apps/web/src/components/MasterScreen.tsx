@@ -527,6 +527,24 @@ function PricingSection() {
                 </div>
               </div>
 
+              {/* A planning number, not a payout — there is no owner payout
+                  pipeline in this app (payroll.ts pays gig-task assistants,
+                  not a salary). This just answers "what have I earned so far
+                  this month at the rate I set myself", prorated by day. */}
+              {pricing.ownerAccrual && pricing.current.ownerMonthlyCents > 0 && (
+                <div className="stack" style={{ gap: 4, padding: "10px 12px", background: "rgba(0,0,0,0.02)", borderRadius: 4 }}>
+                  <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Your Accrued Pay This Month</strong>
+                  <div className="row-between">
+                    <span className="small">${(pricing.ownerAccrual.accruedCents / 100).toFixed(2)} so far</span>
+                    <span className="tiny muted">day {pricing.ownerAccrual.dayOfMonth} of {pricing.ownerAccrual.daysInMonth}</span>
+                  </div>
+                  <p className="tiny muted" style={{ margin: 0 }}>
+                    Not a payout — nothing here moves money. Pay yourself the way you always would, from the
+                    business's own bank account.
+                  </p>
+                </div>
+              )}
+
               <div className="stack" style={{ gap: 8, padding: "12px", background: "rgba(0,0,0,0.02)", borderRadius: 4 }}>
                 <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Update a Price</strong>
                 <select
