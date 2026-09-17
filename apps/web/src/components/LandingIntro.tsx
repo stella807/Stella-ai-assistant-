@@ -4,6 +4,7 @@ import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScree
 import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
 import { PublicPricing, PublicWorkerPay } from "./PublicPricing.tsx";
+import { Footer } from "./Footer.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
@@ -178,6 +179,8 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           </section>
         </section>
       </Carousel>
+
+      <Footer />
     </div>
   );
 }

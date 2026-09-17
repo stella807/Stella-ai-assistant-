@@ -144,6 +144,18 @@ const EN = {
   "pay.driverRow": "Drive someone home",
   "pay.driverNote": "Driving pays {base} a trip plus {mile} a mile and {minute} a minute — a base, plus what the trip actually costs in distance and time.",
   "pay.note": "The same rate in every market we work. Safehubby's margin is added on top of these numbers, never taken out of them.",
+
+  "invest.heading": "Invest in Safehubby",
+  "invest.body": "We're building the safety net for a night out — real dispatch, real drivers and assistants, not just a button that says SOS. If you'd like to back that, we'd like to hear from you.",
+  "invest.cta": "Get in touch about investing →",
+
+  "footer.contact": "Contact",
+  "footer.press": "Press",
+  "footer.terms": "Terms of Service",
+  "footer.privacy": "Privacy Policy",
+  "footer.termsPending": "Our Terms of Service are being finalized before launch. Questions in the meantime: hello@safehubby.app.",
+  "footer.privacyPending": "Our Privacy Policy is being finalized before launch. Questions in the meantime: hello@safehubby.app.",
+  "footer.copyright": "© {year} Safehubby. All rights reserved.",
 } as const;
 
 export type TranslationKey = keyof typeof EN;
@@ -278,6 +290,18 @@ const ES: Record<TranslationKey, string> = {
   "pay.driverRow": "Llevar a alguien a casa",
   "pay.driverNote": "Manejar paga {base} por viaje más {mile} por milla y {minute} por minuto — una base, más lo que el viaje realmente cuesta en distancia y tiempo.",
   "pay.note": "La misma tarifa en cada mercado donde trabajamos. El margen de Safehubby se suma encima de estos números, nunca se resta de ellos.",
+
+  "invest.heading": "Invierte en Safehubby",
+  "invest.body": "Estamos construyendo la red de seguridad para una noche de fiesta — despacho real, conductores y asistentes reales, no solo un botón que dice SOS. Si quieres respaldar eso, nos gustaría saber de ti.",
+  "invest.cta": "Contáctanos sobre invertir →",
+
+  "footer.contact": "Contacto",
+  "footer.press": "Prensa",
+  "footer.terms": "Términos de servicio",
+  "footer.privacy": "Política de privacidad",
+  "footer.termsPending": "Nuestros Términos de servicio se están finalizando antes del lanzamiento. Preguntas mientras tanto: hello@safehubby.app.",
+  "footer.privacyPending": "Nuestra Política de privacidad se está finalizando antes del lanzamiento. Preguntas mientras tanto: hello@safehubby.app.",
+  "footer.copyright": "© {year} Safehubby. Todos los derechos reservados.",
 };
 
 const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES };
