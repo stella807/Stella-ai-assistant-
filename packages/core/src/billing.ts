@@ -477,6 +477,28 @@ export function includedConciergeHours(id: PlanId): number {
   return findPlan(id).includedConciergeHours ?? 0;
 }
 
+/**
+ * Elite's monthly spending allowance: real money loaded onto a member's own
+ * spending card (see `adapters/cards.ts`'s `revolutCards`), funded by
+ * Safehubby out of its own account rather than held against the member's —
+ * the "free bee" the tier promises, in the same "paid for, not billed to
+ * you" shape the concierge-physician retainer already uses.
+ *
+ * Priced as a fraction of the rung's own dues rather than a flat number for
+ * every rung: a flat allowance either overpays the entry rung relative to
+ * what it charges or underpays the top one, and it would not move if dues
+ * ever did. Ten percent keeps the allowance a real perk — $150, $750, and
+ * $6,000 a month across the ladder — without turning into a rung where the
+ * "free" money approaches what the member actually pays; that ratio, not
+ * the dollar figure, is the number to revisit if dues change.
+ */
+export const ELITE_SPENDING_ALLOWANCE_RATE = 0.10;
+
+export function eliteSpendingAllowanceCents(id: PlanId): number {
+  if (!isElitePlan(id)) return 0;
+  return Math.round(findPlan(id).monthlyCents * ELITE_SPENDING_ALLOWANCE_RATE);
+}
+
 export function isPlanReleased(id: PlanId): boolean {
   return isElitePlan(id) ? isEnabled("elite-tier") : true;
 }

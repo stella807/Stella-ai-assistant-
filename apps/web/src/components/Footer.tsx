@@ -18,7 +18,7 @@ import { useLanguage } from "../i18n.tsx";
  */
 export function Footer() {
   const { t } = useLanguage();
-  const [open, setOpen] = useState<"terms" | "privacy" | null>(null);
+  const [open, setOpen] = useState<"terms" | "privacy" | "press" | null>(null);
 
   return (
     <footer className="stack" style={{ marginTop: 24 }}>
@@ -30,7 +30,12 @@ export function Footer() {
 
       <nav className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "center" }} aria-label={t("footer.contact")}>
         <a className="btn btn-sm btn-ghost" href="mailto:hello@safehubby.app">{t("footer.contact")}</a>
-        <a className="btn btn-sm btn-ghost" href="mailto:press@safehubby.app">{t("footer.press")}</a>
+        <button
+          className="btn btn-sm btn-ghost" aria-expanded={open === "press"}
+          onClick={() => setOpen((o) => (o === "press" ? null : "press"))}
+        >
+          {t("footer.press")}
+        </button>
         <button
           className="btn btn-sm btn-ghost" aria-expanded={open === "terms"}
           onClick={() => setOpen((o) => (o === "terms" ? null : "terms"))}
@@ -45,7 +50,9 @@ export function Footer() {
         </button>
       </nav>
 
-      {open && (
+      {open === "press" && <PressRelease />}
+
+      {(open === "terms" || open === "privacy") && (
         <p className="tiny muted" style={{ textAlign: "center" }}>
           {t(open === "terms" ? "footer.termsPending" : "footer.privacyPending")}
         </p>
@@ -55,5 +62,30 @@ export function Footer() {
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}
       </p>
     </footer>
+  );
+}
+
+/**
+ * The press tab's actual content — a real release, not a placeholder, since
+ * unlike Terms/Privacy this needs no lawyer's sign-off to publish. Kept in
+ * its own component so `Footer` stays a footer rather than a place prose
+ * accumulates.
+ */
+function PressRelease() {
+  const { t } = useLanguage();
+  return (
+    <article className="card stack" aria-label={t("footer.press")}>
+      <p className="tiny muted" style={{ margin: 0, letterSpacing: "0.05em" }}>{t("press.tag")}</p>
+      <h3 style={{ margin: 0 }}>{t("press.headline")}</h3>
+      <p className="small">{t("press.body1")}</p>
+      <p className="small">{t("press.body2")}</p>
+      <p className="small">{t("press.quote")}</p>
+      <p className="small">{t("press.body3")}</p>
+      <p className="tiny muted" style={{ margin: 0 }}>{t("press.boilerplate")}</p>
+      <p className="tiny" style={{ margin: 0 }}>
+        <strong>{t("press.contactLabel")}</strong> <a href="mailto:press@safehubby.app">press@safehubby.app</a>
+      </p>
+      <p className="tiny muted" style={{ margin: 0 }}>{t("press.kit")}</p>
+    </article>
   );
 }

@@ -1,5 +1,6 @@
 import type { Escalation } from "./emergency.ts";
 import type { Feature } from "./billing.ts";
+import type { FlightInfo } from "./flight-tracking.ts";
 import type { Iso8601 } from "./types.ts";
 
 /**
@@ -239,6 +240,14 @@ export interface EliteBooking {
   /** The operating carrier, for jet travel — required by 14 CFR Part 295
    *  before the member agrees to anything. */
   operatorName?: string;
+  /** Entered by the desk's own personal assistant once the flight is
+   *  actually booked with the operator or airline — see
+   *  `buildManualFlightInfo` in flight-tracking.ts. A charter has no public
+   *  schedule to look up, so this is the assistant's own account of the
+   *  booking, not a third-party feed; it is what the member's flight
+   *  dashboard renders via `FlightCard`, the same component an airport
+   *  pickup's looked-up flight uses. */
+  flight?: FlightInfo;
   createdAt: Iso8601;
   quotedAt?: Iso8601;
   confirmedAt?: Iso8601;
@@ -352,4 +361,83 @@ export function directMembershipCrossoverCents(
   if (eliteDues >= directAnnualCents) return null;
   // dues + rate * spend = direct  =>  spend = (direct - dues) / rate
   return Math.round((directAnnualCents - eliteDues) / commissionRate);
+}
+
+/* ---------------------------------------------------------------------------
+   Elite member events — invitations, not a booking
+   ------------------------------------------------------------------------ */
+
+/**
+ * A short calendar of events for every Elite member, not just the top rung —
+ * distinct from the Wingman Club's monthly reveal (wingman-club.ts), which
+ * Elite now gets automatically included but which is its own product with
+ * its own mechanic (one pick a month, dues that move with it). These are
+ * hosted by Safehubby itself, capacity-limited, and free to RSVP to — the
+ * cost of running them lives in the desk's own overhead the same way the
+ * concierge-physician retainer does, not as a per-event charge to whoever
+ * shows up.
+ */
+export interface EliteEvent {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  /** Where it happens — real cities, not "TBA," so a member can tell before
+   *  RSVPing whether it is one they could actually get to. */
+  city: string;
+  /** ISO date. Single day; a multi-day one still gets one entry, with the
+   *  date its start. */
+  date: Iso8601;
+  /** Seats for the whole Elite roster, not per member — a real ceiling this
+   *  catalogue enforces rather than promising a seat to everyone who asks. */
+  capacity: number;
+}
+
+export const ELITE_EVENTS: EliteEvent[] = [
+  {
+    id: "owners-dinner-miami",
+    label: "Owners' dinner",
+    emoji: "🍷",
+    description: "A seated dinner with Safehubby's founding team and a small group of other Elite members.",
+    city: "Miami",
+    date: "2026-11-14",
+    capacity: 24,
+  },
+  {
+    id: "new-years-yacht-san-juan",
+    label: "New Year's yacht night",
+    emoji: "🎆",
+    description: "A chartered yacht for the countdown, crewed and provisioned — nothing to arrange yourself.",
+    city: "San Juan",
+    date: "2026-12-31",
+    capacity: 30,
+  },
+  {
+    id: "grand-prix-suite-austin",
+    label: "Grand Prix suite",
+    emoji: "🏁",
+    description: "A private suite for race weekend, catered, with paddock passes for the group.",
+    city: "Austin",
+    date: "2027-10-24",
+    capacity: 16,
+  },
+];
+
+export function findEliteEvent(id: string): EliteEvent {
+  const found = ELITE_EVENTS.find((e) => e.id === id);
+  if (!found) throw new Error(`Unknown Elite event: ${id}`);
+  return found;
+}
+
+/** Everything not already past, soonest first — the only ordering an
+ *  invitation list should ever need. */
+export function upcomingEliteEvents(now: Date): EliteEvent[] {
+  return ELITE_EVENTS
+    .filter((e) => new Date(e.date).getTime() >= now.getTime())
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Whether the event still has a seat for one more RSVP. */
+export function eliteEventHasRoom(event: EliteEvent, rsvpCount: number): boolean {
+  return rsvpCount < event.capacity;
 }

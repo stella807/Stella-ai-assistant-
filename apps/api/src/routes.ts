@@ -9,7 +9,7 @@ import {
   addSubscriber, activeSubscribers, newUnsubscribeToken, unsubscribe,
   type NewsletterSource, type StaffRole,
   ELITE_SERVICES, commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService,
-  validateEliteRequest,
+  validateEliteRequest, findEliteEvent, upcomingEliteEvents, eliteEventHasRoom,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
   createGrant, deriveAlerts, estimateBac, hasFeature, isElitePlan, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
@@ -24,6 +24,7 @@ import {
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
   isEnabled, flagNote, ridesFor, featureLabel,
   isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES, diffFlight, hasLanded,
+  buildManualFlightInfo,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
@@ -34,7 +35,8 @@ import {
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
-  minMembersForOverhead, overheadCovered, pickMonthlyExperience,
+  minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
+  eliteSpendingAllowanceCents,
   validateAiDraftInstruction,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
@@ -1872,6 +1874,13 @@ export const routes: Record<string, Handler> = {
       db.subscriptions[me] = change.subscription;
       const traveler = db.travelers.find((t) => t.id === me)!;
       traveler.planId = effectivePlan(change.subscription, ctx.now());
+      // Elite already includes a concierge physician's retainer, paid for
+      // rather than billed — see billing.ts. Wingman Club membership is the
+      // same shape: Elite carries it too, so joining Elite is joining the
+      // club, not a second signup. Never turned back off on a downgrade —
+      // whether they keep it once real club billing lands is that day's
+      // question, not this one's.
+      if (isElitePlan(traveler.planId as PlanId)) traveler.clubMember = true;
     });
 
     // A card charge settles inline here because there is no processor wired in
@@ -2318,6 +2327,7 @@ export const routes: Record<string, Handler> = {
         assistantPayoutCents, peopleCount,
         ...(hoursBooked === undefined ? {} : { hoursBooked }),
         quickTask: input.quickTask, status: "in-progress",
+        ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),
         provider: booked.provider, providerTaskId: booked.taskId, assistantId,
         assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,
         createdAt: ctx.now().toISOString(),
@@ -2447,6 +2457,12 @@ export const routes: Record<string, Handler> = {
       perks: CLUB_PERKS,
       disclosures: CLUB_DISCLOSURES,
       catalog: CLUB_EXPERIENCES,
+      // Elite already carries this membership, the same "Safehubby pays it,
+      // not you" shape the concierge-physician retainer uses — see
+      // POST /api/subscription. Dues have no real billing wired to them yet
+      // (see the block comment above), so there is nothing to waive today,
+      // but the flag says plainly who the day that lands actually charges.
+      duesCoveredBySafehubby: isElitePlan(traveler.planId as PlanId),
       thisMonth: {
         experience: pick,
         duesCents: duesForCents(pick),
@@ -2808,7 +2824,11 @@ export const routes: Record<string, Handler> = {
     const tasks = ctx.store.data.conciergeTasks
       .filter((t) => t.assistantId === assistantId)
       .slice()
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      // Priority first — "priority everything" for an Elite member, in the
+      // one place two open requests actually compete for the same
+      // assistant's attention — then most recent within each group.
+      .sort((a, b) => Number(b.priority ?? false) - Number(a.priority ?? false)
+        || b.createdAt.localeCompare(a.createdAt))
       .map((t) => ({ ...t, requesterName: nameOf(ctx, t.travelerId) }));
     return {
       assistantId, mustChangePassword, tasks,
@@ -2822,6 +2842,91 @@ export const routes: Record<string, Handler> = {
       // they always could.
       aiAssist: aiAssist.status,
     };
+  },
+
+  /**
+   * A personal assistant records the flight they just booked with a private
+   * jet operator or an airline, for a task they are dispatched to (an
+   * airport pickup, most often) — the flight number and date if the lookup
+   * provider already found it, or the assistant's own account of it
+   * (`buildManualFlightInfo`) when there is nothing public to look up, which
+   * is always true for a charter. Either way this is what the customer's
+   * flight dashboard renders (`RequestDetail`'s `FlightCard`) — the same
+   * component whether the flight was looked up automatically at booking or
+   * entered here after the fact.
+   */
+  "POST /api/assistant/tasks/:taskId/flight": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const id = req(p, "taskId");
+    const task = ctx.store.data.conciergeTasks.find((t) => t.id === id);
+    if (!task || task.assistantId !== assistantId) throw notFound("Task");
+
+    const flight = buildManualFlightInfo({
+      flightNumber: String(body?.flightNumber ?? ""),
+      airlineName: String(body?.airlineName ?? ""),
+      airlineIata: body?.airlineIata ? String(body.airlineIata) : undefined,
+      aircraftTailNumber: body?.aircraftTailNumber ? String(body.aircraftTailNumber) : undefined,
+      aircraftType: body?.aircraftType ? String(body.aircraftType) : undefined,
+      departure: {
+        iata: String(body?.departure?.iata ?? ""),
+        name: body?.departure?.name ? String(body.departure.name) : undefined,
+        terminal: body?.departure?.terminal ? String(body.departure.terminal) : undefined,
+        scheduledTime: String(body?.departure?.scheduledTime ?? ""),
+      },
+      arrival: {
+        iata: String(body?.arrival?.iata ?? ""),
+        name: body?.arrival?.name ? String(body.arrival.name) : undefined,
+        terminal: body?.arrival?.terminal ? String(body.arrival.terminal) : undefined,
+        scheduledTime: String(body?.arrival?.scheduledTime ?? ""),
+      },
+    });
+
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === id)!;
+      t.flight = flight;
+      t.flightNumber = flight.flightNumber;
+    });
+    return { flight };
+  },
+
+  /**
+   * The desk's own analogue for a jet-travel booking: entered by an operator
+   * with the admin key, the same authority `.../quote` already has over this
+   * booking — there is no assistant session on the Elite desk yet, only the
+   * admin one. See the route above for why this is a manual entry rather
+   * than a lookup.
+   */
+  "POST /api/admin/elite/bookings/:bookingId/flight": (ctx, p, body) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "bookingId");
+    const booking = ctx.store.data.eliteBookings.find((b) => b.id === id);
+    if (!booking) throw notFound("Booking");
+
+    const flight = buildManualFlightInfo({
+      flightNumber: String(body?.flightNumber ?? ""),
+      airlineName: String(body?.airlineName ?? ""),
+      airlineIata: body?.airlineIata ? String(body.airlineIata) : undefined,
+      aircraftTailNumber: body?.aircraftTailNumber ? String(body.aircraftTailNumber) : undefined,
+      aircraftType: body?.aircraftType ? String(body.aircraftType) : undefined,
+      departure: {
+        iata: String(body?.departure?.iata ?? ""),
+        name: body?.departure?.name ? String(body.departure.name) : undefined,
+        terminal: body?.departure?.terminal ? String(body.departure.terminal) : undefined,
+        scheduledTime: String(body?.departure?.scheduledTime ?? ""),
+      },
+      arrival: {
+        iata: String(body?.arrival?.iata ?? ""),
+        name: body?.arrival?.name ? String(body.arrival.name) : undefined,
+        terminal: body?.arrival?.terminal ? String(body.arrival.terminal) : undefined,
+        scheduledTime: String(body?.arrival?.scheduledTime ?? ""),
+      },
+    });
+
+    ctx.store.update((db) => {
+      const b = db.eliteBookings.find((x) => x.id === id)!;
+      b.flight = flight;
+    });
+    return { booking: ctx.store.data.eliteBookings.find((b) => b.id === id) };
   },
 
   /**
@@ -3822,6 +3927,110 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     requireElite(ctx);
     return { bookings: ctx.store.data.eliteBookings.filter((b) => b.travelerId === me) };
+  },
+
+  /* ---------------------------------------------------------------
+     Elite member events — an invitation list, not a booking. See
+     `ELITE_EVENTS` in elite.ts for why these are separate from the
+     Wingman Club's monthly pick, which Elite already gets included.
+     --------------------------------------------------------------- */
+
+  "GET /api/elite/events": (ctx) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const now = ctx.now();
+    const events = upcomingEliteEvents(now).map((e) => {
+      const rsvps = ctx.store.data.eliteEventRsvps.filter((r) => r.eventId === e.id);
+      return {
+        ...e,
+        rsvpCount: rsvps.length,
+        hasRoom: eliteEventHasRoom(e, rsvps.length),
+        isGoing: rsvps.some((r) => r.travelerId === me),
+      };
+    });
+    return { events };
+  },
+
+  "POST /api/elite/events/:eventId/rsvp": (ctx, p) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const id = req(p, "eventId");
+    const event = findEliteEvent(id);
+    const rsvps = ctx.store.data.eliteEventRsvps.filter((r) => r.eventId === id);
+    const already = rsvps.find((r) => r.travelerId === me);
+    if (already) return { isGoing: true, rsvpCount: rsvps.length };
+    if (!eliteEventHasRoom(event, rsvps.length)) {
+      throw new HttpError(409, `${event.label} is full — every seat is already RSVP'd.`);
+    }
+    ctx.store.update((db) => {
+      db.eliteEventRsvps.push({ id: newId("rsvp"), eventId: id, travelerId: me, createdAt: ctx.now().toISOString() });
+    });
+    return { isGoing: true, rsvpCount: rsvps.length + 1 };
+  },
+
+  "POST /api/elite/events/:eventId/cancel": (ctx, p) => {
+    const me = actor(ctx);
+    const id = req(p, "eventId");
+    ctx.store.update((db) => {
+      db.eliteEventRsvps = db.eliteEventRsvps.filter((r) => !(r.eventId === id && r.travelerId === me));
+    });
+    const rsvpCount = ctx.store.data.eliteEventRsvps.filter((r) => r.eventId === id).length;
+    return { isGoing: false, rsvpCount };
+  },
+
+  /* ---------------------------------------------------------------
+     Elite's monthly spending allowance — a real card, funded by
+     Safehubby, never held against the member's own. See
+     `eliteSpendingAllowanceCents` in billing.ts for the amount and why
+     it is a percentage of dues rather than a flat number.
+     --------------------------------------------------------------- */
+
+  "GET /api/elite/spending-card": (ctx) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const capCents = eliteSpendingAllowanceCents(planOf(ctx, me));
+    const monthKey = clubMonthKey(ctx.now());
+    const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey) ?? null;
+    return { capCents, monthKey, card, automatic: isAutomatic(revolutCards.status) };
+  },
+
+  "POST /api/elite/spending-card": async (ctx) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const capCents = eliteSpendingAllowanceCents(planOf(ctx, me));
+    const monthKey = clubMonthKey(ctx.now());
+    const existing = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
+    if (existing) return { card: existing };
+    if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
+
+    const now = ctx.now();
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const issued = await revolutCards.issueCard({
+      capCents, currency: "USD",
+      label: `Elite spending allowance — ${monthKey}`,
+      expiresAt: nextMonth.toISOString(),
+    });
+    const card = {
+      id: newId("esc"), travelerId: me, monthKey, capCents,
+      cardId: issued.id, last4: issued.last4, network: issued.network,
+      expMonth: issued.expMonth, expYear: issued.expYear, issuedAt: now.toISOString(),
+    };
+    ctx.store.update((db) => void db.eliteSpendingCards.push(card));
+    return { card };
+  },
+
+  /** The one-time reveal link, fetched fresh each time — never stored. Same
+   *  discipline as the assistant task card's own reveal route. */
+  "POST /api/elite/spending-card/reveal": async (ctx) => {
+    const me = actor(ctx);
+    requireElite(ctx);
+    const monthKey = clubMonthKey(ctx.now());
+    const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
+    if (!card) throw notFound("Spending card");
+    if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
+    const revealUrl = await revolutCards.revealCard(card.cardId);
+    if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask support to reissue it.");
+    return { revealUrl, card };
   },
 
   /**

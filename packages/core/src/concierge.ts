@@ -690,6 +690,14 @@ export interface ConciergeTask {
    *  itself (not re-derived from category) so history stays accurate even if
    *  the eligible-category list changes later. */
   quickTask?: boolean;
+  /** Stamped from the traveler's plan at booking, not re-derived later — an
+   *  Elite member who downgrades mid-task should not have an already-placed
+   *  request quietly lose the priority it was booked under. "Priority
+   *  everything," in what a queue can actually do about it: this task sorts
+   *  ahead of a non-priority one in the assistant's own task list (see
+   *  `GET /api/assistant/portal`), the one place two open requests actually
+   *  compete for attention. */
+  priority?: boolean;
   status: ConciergeTaskStatus;
   provider: string;
   /** The partner network's own id for this task, for a later cancel/status call. */

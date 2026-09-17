@@ -118,7 +118,7 @@ describe("the pre-launch budget", () => {
   });
 
   it("costs nothing at zero headcount, rather than a floor nobody asked for", () => {
-    const empty = prelaunchBudget({ driver: 0, "personal-assistant": 0, "errand-runner": 0, secretary: 0, "social-media-manager": 0 });
+    const empty = prelaunchBudget({ driver: 0, "personal-assistant": 0, "errand-runner": 0, secretary: 0, "social-media-manager": 0, lawyer: 0, "web-developer": 0, physician: 0, nurse: 0, "wingman-club-coordinator": 0 });
     expect(empty.totalCents).toBe(0);
   });
 
@@ -161,6 +161,6 @@ describe("what the roster costs after launch", () => {
     // into each job, against the same revenue — counting it here too would
     // charge it twice.
     expect(monthlyRosterCents()).toBe(monthlyInsuranceCents() + monthlyPayrollCents());
-    expect(monthlyRosterCents({ driver: 0, "personal-assistant": 0, "errand-runner": 0, secretary: 0, "social-media-manager": 0 })).toBe(0);
+    expect(monthlyRosterCents({ driver: 0, "personal-assistant": 0, "errand-runner": 0, secretary: 0, "social-media-manager": 0, lawyer: 0, "web-developer": 0, physician: 0, nurse: 0, "wingman-club-coordinator": 0 })).toBe(0);
   });
 });

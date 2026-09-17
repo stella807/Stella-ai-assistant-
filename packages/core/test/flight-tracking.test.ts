@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  FLIGHT_ESTIMATE_SHIFT_MINUTES, FLIGHT_TRACKING_DISCLOSURES, bestTimeFor, delayMinutesFor, describeFlightStatus,
-  diffFlight, hasLanded, minutesSince,
-  type FlightAirportLeg, type FlightInfo,
+  FLIGHT_ESTIMATE_SHIFT_MINUTES, FLIGHT_TRACKING_DISCLOSURES, bestTimeFor, buildManualFlightInfo,
+  delayMinutesFor, describeFlightStatus, diffFlight, hasLanded, minutesSince,
+  type FlightAirportLeg, type FlightInfo, type ManualFlightInput,
 } from "../src/flight-tracking.ts";
 
 const now = new Date("2026-09-17T20:00:00Z");
@@ -202,5 +202,46 @@ describe("diffFlight", () => {
     for (const u of diffFlight(before, after)) {
       expect(u.message).not.toMatch(/-?\d+\.\d{3,}/);
     }
+  });
+});
+
+describe("buildManualFlightInfo — a personal assistant's own account of a booking", () => {
+  const validInput: ManualFlightInput = {
+    flightNumber: "N123SH",
+    airlineName: "Skyline Charter",
+    aircraftTailNumber: "N123SH",
+    aircraftType: "Citation X",
+    departure: { iata: "teb", name: "Teterboro", terminal: "FBO", scheduledTime: "2026-09-17T18:00:00Z" },
+    arrival: { iata: "aspen", name: "Aspen/Pitkin County", scheduledTime: "2026-09-17T20:30:00Z" },
+  };
+
+  it("builds a scheduled FlightInfo from a PA's own entry, uppercasing airport codes", () => {
+    const flight = buildManualFlightInfo(validInput);
+    expect(flight.status).toBe("scheduled");
+    expect(flight.departure.iata).toBe("TEB");
+    expect(flight.arrival.iata).toBe("ASPEN");
+    expect(flight.aircraftTailNumber).toBe("N123SH");
+    expect(flight.aircraftType).toBe("Citation X");
+    expect(flight.airlineIata).toBe("");
+  });
+
+  it("never carries a position — a charter has no ADS-B feed behind this entry", () => {
+    expect(buildManualFlightInfo(validInput).position).toBeUndefined();
+  });
+
+  it("refuses a missing flight or tail number", () => {
+    expect(() => buildManualFlightInfo({ ...validInput, flightNumber: "  " }))
+      .toThrow(/flight number or the aircraft's tail number/i);
+  });
+
+  it("refuses a missing airline or operator name", () => {
+    expect(() => buildManualFlightInfo({ ...validInput, airlineName: "" })).toThrow(/name the airline/i);
+  });
+
+  it("refuses a departure or arrival with no airport or no time", () => {
+    expect(() => buildManualFlightInfo({ ...validInput, departure: { iata: "", scheduledTime: "2026-09-17T18:00:00Z" } }))
+      .toThrow(/departure airport and time/i);
+    expect(() => buildManualFlightInfo({ ...validInput, arrival: { iata: "ASE", scheduledTime: "" } }))
+      .toThrow(/arrival airport and time/i);
   });
 });

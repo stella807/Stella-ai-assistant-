@@ -101,6 +101,65 @@ export function bestTimeFor(leg: FlightAirportLeg): string {
   return leg.actualTime ?? leg.estimatedTime ?? leg.scheduledTime;
 }
 
+/**
+ * What a personal assistant enters by hand after booking a flight directly
+ * with a private jet operator or an airline — the other way `FlightInfo`
+ * reaches a customer's dashboard, alongside `FlightTrackingPort.lookup`.
+ *
+ * A charter has no public schedule to look up: it is not in AeroDataBox or
+ * any other ADS-B-fed provider until it is airborne and broadcasting, if it
+ * broadcasts at all. So this is the assistant's own account of the booking
+ * they just made — the same "provider-sourced or a pass-through of it" rule
+ * `FlightInfo`'s own doc comment states does not apply here, because there
+ * is no third-party provider behind a charter's schedule. What's true stays
+ * true only as long as the assistant keeps it updated; `status` therefore
+ * always starts `"scheduled"` rather than guessing at something live.
+ */
+export interface ManualFlightInput {
+  /** A flight number for a scheduled airline booking, or the aircraft's tail
+   *  number for a charter — whichever the assistant actually has. */
+  flightNumber: string;
+  airlineName: string;
+  airlineIata?: string;
+  aircraftTailNumber?: string;
+  aircraftType?: string;
+  departure: { iata: string; name?: string; terminal?: string; scheduledTime: string };
+  arrival: { iata: string; name?: string; terminal?: string; scheduledTime: string };
+}
+
+export function buildManualFlightInfo(input: ManualFlightInput): FlightInfo {
+  const flightNumber = input.flightNumber?.trim();
+  if (!flightNumber) throw new Error("Enter the flight number or the aircraft's tail number.");
+  const airlineName = input.airlineName?.trim();
+  if (!airlineName) throw new Error("Name the airline or charter operator.");
+  if (!input.departure?.iata?.trim() || !input.departure?.scheduledTime) {
+    throw new Error("Enter the departure airport and time.");
+  }
+  if (!input.arrival?.iata?.trim() || !input.arrival?.scheduledTime) {
+    throw new Error("Enter the arrival airport and time.");
+  }
+  return {
+    flightNumber,
+    airlineName,
+    airlineIata: input.airlineIata?.trim() ?? "",
+    ...(input.aircraftTailNumber?.trim() ? { aircraftTailNumber: input.aircraftTailNumber.trim() } : {}),
+    ...(input.aircraftType?.trim() ? { aircraftType: input.aircraftType.trim() } : {}),
+    status: "scheduled",
+    departure: {
+      iata: input.departure.iata.trim().toUpperCase(),
+      name: input.departure.name?.trim(),
+      terminal: input.departure.terminal?.trim(),
+      scheduledTime: input.departure.scheduledTime,
+    },
+    arrival: {
+      iata: input.arrival.iata.trim().toUpperCase(),
+      name: input.arrival.name?.trim(),
+      terminal: input.arrival.terminal?.trim(),
+      scheduledTime: input.arrival.scheduledTime,
+    },
+  };
+}
+
 /** Minutes late against the schedule, using the best time available —
  *  negative when running early. Not shown as a hard fact when it comes
  *  from `estimatedTime` rather than `actualTime`; see `describeFlightStatus`. */

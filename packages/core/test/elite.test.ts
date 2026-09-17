@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONCIERGE_DOCTOR_DISCLOSURES, ELITE_DESK_MEMBERSHIP, ELITE_SERVICES, JET_TRAVEL_DISCLOSURES,
+  CONCIERGE_DOCTOR_DISCLOSURES, ELITE_DESK_MEMBERSHIP, ELITE_EVENTS, ELITE_SERVICES, JET_TRAVEL_DISCLOSURES,
   MAX_ELITE_BRIEF_LENGTH, commissionCentsFor, directMembershipCrossoverCents, disclosuresFor,
   doctorAvailableFor, eliteBreakEvenMembers, eliteDeskAnnualCostCents, eliteDeskIsViable,
-  findEliteService, validateEliteRequest,
+  eliteEventHasRoom, findEliteEvent, findEliteService, upcomingEliteEvents, validateEliteRequest,
 } from "../src/elite.ts";
-import { ELITE_LADDER, ELITE_ONLY, findPlan, includedConciergeHours } from "../src/billing.ts";
+import { ELITE_LADDER, ELITE_ONLY, eliteSpendingAllowanceCents, findPlan, includedConciergeHours, isElitePlan } from "../src/billing.ts";
 import { serviceFeeFor } from "../src/concierge.ts";
 import type { EliteBooking } from "../src/elite.ts";
 
@@ -249,5 +249,55 @@ describe("whether the Elite desk pays for itself", () => {
     // And at the top rung the commission is not remotely the point.
     expect(commissionCentsFor("jet-travel", fourHourMidsize))
       .toBeLessThan(findPlan("elite-private").monthlyCents);
+  });
+});
+
+describe("Elite member events", () => {
+  it("rejects an event that does not exist", () => {
+    expect(() => findEliteEvent("secret-gala")).toThrow(/unknown elite event/i);
+  });
+
+  it("keeps every catalogued event capped at a real, positive number of seats", () => {
+    for (const event of ELITE_EVENTS) {
+      expect(event.capacity).toBeGreaterThan(0);
+    }
+  });
+
+  it("only surfaces events that have not already happened", () => {
+    const now = new Date("2026-09-17T00:00:00Z");
+    const upcoming = upcomingEliteEvents(now);
+    for (const event of upcoming) {
+      expect(new Date(event.date).getTime()).toBeGreaterThanOrEqual(now.getTime());
+    }
+    // Sorted soonest first, not catalogue order.
+    for (let i = 1; i < upcoming.length; i++) {
+      expect(upcoming[i]!.date >= upcoming[i - 1]!.date).toBe(true);
+    }
+  });
+
+  it("has room until the roster fills the exact capacity, then none", () => {
+    const event = ELITE_EVENTS[0]!;
+    expect(eliteEventHasRoom(event, 0)).toBe(true);
+    expect(eliteEventHasRoom(event, event.capacity - 1)).toBe(true);
+    expect(eliteEventHasRoom(event, event.capacity)).toBe(false);
+  });
+});
+
+describe("eliteSpendingAllowanceCents — the free bee, funded by Safehubby", () => {
+  it("is zero on every non-Elite plan", () => {
+    expect(eliteSpendingAllowanceCents("free")).toBe(0);
+    expect(eliteSpendingAllowanceCents("family")).toBe(0);
+  });
+
+  it("is exactly ten percent of the rung's own dues", () => {
+    for (const id of ELITE_LADDER) {
+      expect(isElitePlan(id)).toBe(true);
+      expect(eliteSpendingAllowanceCents(id)).toBe(Math.round(findPlan(id).monthlyCents * 0.1));
+    }
+  });
+
+  it("climbs with the ladder, the same direction dues and hours already climb", () => {
+    const rungs = ELITE_LADDER.map(eliteSpendingAllowanceCents);
+    for (let i = 1; i < rungs.length; i++) expect(rungs[i]!).toBeGreaterThan(rungs[i - 1]!);
   });
 });

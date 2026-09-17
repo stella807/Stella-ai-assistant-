@@ -32,6 +32,8 @@ export const SEED: Db = {
   payouts: [],
   assistantAdjustments: [],
   eliteBookings: [],
+  eliteEventRsvps: [],
+  eliteSpendingCards: [],
   referrals: [],
   holds: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

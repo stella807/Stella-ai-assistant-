@@ -9,6 +9,41 @@ import type {
 } from "@safehubby/core";
 import type { EliteBooking, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
+/** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
+ *  than nested under the event, the same shape `Referral` and the other
+ *  many-to-one records here use, so it survives a catalogue entry changing
+ *  shape later. */
+export interface EliteEventRsvp {
+  id: string;
+  eventId: string;
+  travelerId: string;
+  createdAt: string;
+}
+
+/**
+ * One month's spending-allowance card for one Elite member — see
+ * `eliteSpendingAllowanceCents` in billing.ts. Funded by Safehubby, not held
+ * against the member's own card, which is the whole difference from a
+ * concierge task's card (`ConciergeTask.card`). No `revealUrl` here on
+ * purpose: like the task card, the one-time reveal link is fetched fresh
+ * from Revolut each time (`revolutCards.revealCard`) rather than stored, so
+ * there is never a stale link sitting in the database.
+ */
+export interface EliteSpendingCard {
+  id: string;
+  travelerId: string;
+  /** "2026-09" — one card per member per calendar month; a new month means
+   *  a new card, never a topped-up old one. */
+  monthKey: string;
+  capCents: number;
+  cardId: string;
+  last4: string;
+  network: string;
+  expMonth: number;
+  expYear: number;
+  issuedAt: string;
+}
+
 export interface Traveler {
   id: string;
   email: string;
@@ -132,6 +167,10 @@ export interface Db {
    *  so these carry no hold and no card. See desk-tasks.ts. */
   deskTasks: DeskTask[];
   eliteBookings: EliteBooking[];
+  /** RSVPs to Elite's own member events — see elite.ts's `ELITE_EVENTS`. */
+  eliteEventRsvps: EliteEventRsvp[];
+  /** One issued card per Elite member per month — see `EliteSpendingCard`. */
+  eliteSpendingCards: EliteSpendingCard[];
   referrals: Referral[];
   voiceMessages: VoiceMessage[];
   /** Typed messages on a task's thread. Sealed at rest alongside the voice
@@ -178,7 +217,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

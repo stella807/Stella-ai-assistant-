@@ -96,9 +96,14 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
               </span>
             </div>
           </div>
-          <span className={`pill${task.status === "in-progress" ? " pill-safe" : ""}`}>
-            {STATUS_LABEL[task.status] ?? task.status}
-          </span>
+          <div className="row" style={{ gap: 6 }}>
+            {/* Elite's "priority everything" — see the `priority` field's
+                own doc comment in concierge.ts for what it actually does. */}
+            {task.priority && <span className="pill pill-safe">Priority</span>}
+            <span className={`pill${task.status === "in-progress" ? " pill-safe" : ""}`}>
+              {STATUS_LABEL[task.status] ?? task.status}
+            </span>
+          </div>
         </div>
 
         <p className="small">{task.note}</p>

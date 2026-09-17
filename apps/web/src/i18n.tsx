@@ -156,6 +156,16 @@ const EN = {
   "footer.termsPending": "Our Terms of Service are being finalized before launch. Questions in the meantime: hello@safehubby.app.",
   "footer.privacyPending": "Our Privacy Policy is being finalized before launch. Questions in the meantime: hello@safehubby.app.",
   "footer.copyright": "© {year} Safehubby. All rights reserved.",
+
+  "press.tag": "FOR IMMEDIATE RELEASE",
+  "press.headline": "Safehubby Opens Pre-Launch Signups in Puerto Rico, Texas, and Los Angeles",
+  "press.body1": "Safehubby, a personal safety app built for nights out, today opened pre-launch signups ahead of its rollout in Puerto Rico, Texas, and Los Angeles. The app checks in on users through the night on an adaptive schedule, keeps an honest log of check-ins and drinks, and makes getting home the easiest option — alerting a chosen contact automatically if a check-in is missed.",
+  "press.body2": "Beyond safety tracking, Safehubby offers a personal concierge service: a vetted assistant who can check on a friend in person, run an errand, or handle a booking, dispatched to a spend cap the customer sets and that is never exceeded. Its Elite tier adds a dedicated concierge desk, jet-travel and yacht-charter booking, and a concierge physician's retainer covered by Safehubby rather than billed to the member.",
+  "press.body3": "Signups are open now at no cost during the pre-launch period — no service is billed until launch. Safehubby plans to expand beyond its three launch markets as it grows.",
+  "press.quote": "“We built this for the person who couldn’t get a ride, the friend who needed someone to check on them and had no one to call, and the family who wishes there had been another option,” said Safehubby’s founding team. “Every feature here exists because someone, somewhere, needed exactly that and didn’t have it.”",
+  "press.contactLabel": "Press contact:",
+  "press.boilerplate": "About Safehubby: Safehubby is a safety-first app for nights out, combining automated check-ins, a sober way home, emergency escalation, and a vetted personal concierge in one product. Safehubby is not an emergency service and never tells anyone they are safe to drive.",
+  "press.kit": "For interviews, logos, or screenshots, write to press@safehubby.app.",
 } as const;
 
 export type TranslationKey = keyof typeof EN;
@@ -302,6 +312,16 @@ const ES: Record<TranslationKey, string> = {
   "footer.termsPending": "Nuestros Términos de servicio se están finalizando antes del lanzamiento. Preguntas mientras tanto: hello@safehubby.app.",
   "footer.privacyPending": "Nuestra Política de privacidad se está finalizando antes del lanzamiento. Preguntas mientras tanto: hello@safehubby.app.",
   "footer.copyright": "© {year} Safehubby. Todos los derechos reservados.",
+
+  "press.tag": "PARA PUBLICACIÓN INMEDIATA",
+  "press.headline": "Safehubby abre el registro previo al lanzamiento en Puerto Rico, Texas y Los Ángeles",
+  "press.body1": "Safehubby, una app de seguridad personal creada para salidas nocturnas, abrió hoy el registro previo al lanzamiento antes de su despliegue en Puerto Rico, Texas y Los Ángeles. La app hace seguimiento a los usuarios durante la noche con un horario adaptativo, mantiene un registro honesto de chequeos y tragos, y facilita llegar a casa — alertando automáticamente a un contacto elegido si se pierde un chequeo.",
+  "press.body2": "Más allá del seguimiento de seguridad, Safehubby ofrece un servicio de conserjería personal: un asistente verificado que puede revisar a un amigo en persona, hacer un mandado o gestionar una reserva, despachado con un límite de gasto que el cliente fija y que nunca se excede. Su nivel Elite añade un escritorio de conserjería dedicado, reservas de vuelos privados y chárteres de yate, y el retén de un médico de conserjería cubierto por Safehubby en lugar de cobrado al miembro.",
+  "press.body3": "El registro está abierto ahora sin costo durante el período previo al lanzamiento — no se cobra ningún servicio hasta el lanzamiento. Safehubby planea expandirse más allá de sus tres mercados de lanzamiento a medida que crece.",
+  "press.quote": "“Construimos esto para la persona que no pudo conseguir un viaje, el amigo que necesitaba que alguien lo revisara y no tenía a quién llamar, y la familia que desearía haber tenido otra opción”, dijo el equipo fundador de Safehubby. “Cada función aquí existe porque alguien, en algún lugar, necesitó exactamente eso y no lo tuvo.”",
+  "press.contactLabel": "Contacto de prensa:",
+  "press.boilerplate": "Acerca de Safehubby: Safehubby es una app centrada en la seguridad para salidas nocturnas, que combina chequeos automáticos, una forma sobria de llegar a casa, escalamiento de emergencia y un conserje personal verificado en un solo producto. Safehubby no es un servicio de emergencia y nunca le dice a nadie que está en condiciones de conducir.",
+  "press.kit": "Para entrevistas, logotipos o capturas de pantalla, escribe a press@safehubby.app.",
 };
 
 const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES };

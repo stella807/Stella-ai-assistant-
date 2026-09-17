@@ -411,6 +411,25 @@ export const api = {
     request<{ booking: EliteBooking; disclosures: string[]; note: string | null }>(
       "POST", "/api/elite/bookings", { serviceId, brief },
     ),
+  eliteSpendingCard: () => request<{
+    capCents: number; monthKey: string; automatic: boolean;
+    card: { id: string; monthKey: string; capCents: number; last4: string; network: string; expMonth: number; expYear: number } | null;
+  }>("GET", "/api/elite/spending-card"),
+  issueEliteSpendingCard: () => request<{
+    card: { id: string; monthKey: string; capCents: number; last4: string; network: string; expMonth: number; expYear: number };
+  }>("POST", "/api/elite/spending-card", {}),
+  revealEliteSpendingCard: () =>
+    request<{ revealUrl: string; card: unknown }>("POST", "/api/elite/spending-card/reveal", {}),
+  eliteEvents: () => request<{
+    events: {
+      id: string; label: string; emoji: string; description: string; city: string; date: string;
+      capacity: number; rsvpCount: number; hasRoom: boolean; isGoing: boolean;
+    }[];
+  }>("GET", "/api/elite/events"),
+  rsvpEliteEvent: (eventId: string) =>
+    request<{ isGoing: boolean; rsvpCount: number }>("POST", `/api/elite/events/${eventId}/rsvp`, {}),
+  cancelEliteEventRsvp: (eventId: string) =>
+    request<{ isGoing: boolean; rsvpCount: number }>("POST", `/api/elite/events/${eventId}/cancel`, {}),
   clubStatus: () => request<{
     isMember: boolean;
     memberCount: number;
@@ -418,6 +437,7 @@ export const api = {
     overheadCovered: boolean;
     perks: readonly string[];
     disclosures: string[];
+    duesCoveredBySafehubby: boolean;
     catalog: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number }[];
     thisMonth: {
       experience: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number };

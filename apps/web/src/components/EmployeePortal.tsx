@@ -487,7 +487,10 @@ function TaskRow({ task, onOpen }: { task: PortalTask; onOpen: () => void }) {
     <button className="card card-quiet" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }} onClick={onOpen}>
       <div className="row-between">
         <div>
-          <strong className="small">{conciergeCategoryLabel(task.category)}</strong>
+          <strong className="small">
+            {conciergeCategoryLabel(task.category)}
+            {task.priority && <span className="pill pill-safe" style={{ marginLeft: 6 }}>Priority</span>}
+          </strong>
           <div className="tiny muted">For {task.requesterName} · {task.note.slice(0, 60)}</div>
         </div>
         <span className={`pill${task.status === "in-progress" ? " pill-safe" : ""}`}>{task.status}</span>

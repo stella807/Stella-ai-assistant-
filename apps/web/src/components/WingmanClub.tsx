@@ -74,6 +74,13 @@ export function WingmanClub() {
             </p>
           </div>
 
+          {status.duesCoveredBySafehubby && (
+            <p className="tiny" style={{ margin: 0, color: "var(--accent-bright)" }}>
+              Included with your Elite membership — Safehubby covers this due, the same way it covers your
+              concierge physician's retainer. You are not billed for it separately.
+            </p>
+          )}
+
           <div className="stack" style={{ gap: 4 }}>
             <strong className="tiny" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--accent-bright)" }}>
               Every event includes
