@@ -45,7 +45,7 @@ export const DESK_TASK_KINDS: DeskTaskKindInfo[] = [
   {
     id: "reminder",
     label: "Remind me",
-    description: "Anything you would rather not carry in your head. A birthday, a renewal, a deadline.",
+    description: "Anything you would rather not carry in your head. An anniversary, a birthday, a renewal, a deadline.",
   },
   {
     id: "message",

@@ -110,6 +110,32 @@ export const CONCIERGE_MIN_CAP_CENTS = 1000;
 export const CONCIERGE_MAX_CAP_CENTS = 60000;
 
 /**
+ * `grab-something`'s own range, wider on both ends than every other capped
+ * category — this is the one an assistant is sent on for someone who is
+ * drunk and needs water, food, and one thing right now, or for supplies
+ * brought to someone in a hospital bed who cannot go get them. Two things
+ * follow from that:
+ *
+ * No floor at all. `CONCIERGE_MIN_CAP_CENTS` exists so a card is never
+ * loaded for less than an errand could plausibly cost, but a water bottle,
+ * a bag of chips, and a bottle of Advil is a real request that can cost
+ * under $10 — the exact case this category exists for should never be
+ * blocked behind a minimum sized for something else.
+ *
+ * A $1,000 ceiling, not $100. The shared quick-task ceiling
+ * (`QUICK_TASK_MAX_CAP_CENTS`) is deliberately tight everywhere else to
+ * stop "quick and simple" from becoming a way to book a large purchase at
+ * the discounted fee — but grab-something is not always a $5 sandwich
+ * either: an emergency medication run, or a hangover-recovery basket for a
+ * group, is still one trip and one thing named, just a bigger one. This is
+ * grab-something's own number, not a raise to the shared ceiling
+ * `run-errand` still uses — that category keeps its client-set cap up to
+ * `CONCIERGE_MAX_CAP_CENTS` unchanged.
+ */
+export const GRAB_SOMETHING_MIN_CAP_CENTS = 0;
+export const GRAB_SOMETHING_MAX_CAP_CENTS = 100000;
+
+/**
  * A purchase task has no product ceiling. The balance is whatever the
  * customer funds it with.
  *
@@ -137,8 +163,15 @@ export function hasCapCeiling(category: ConciergeCategory, quickTask?: boolean):
 
 /** The ceiling in force, or `null` where the customer sets the balance. */
 export function maxCapFor(category: ConciergeCategory, quickTask?: boolean): number | null {
+  if (category === "grab-something") return GRAB_SOMETHING_MAX_CAP_CENTS;
   if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_MAX_CAP_CENTS;
   return category === "book-and-buy" ? null : CONCIERGE_MAX_CAP_CENTS;
+}
+
+/** The floor in force — `grab-something` alone has none, per
+ *  `GRAB_SOMETHING_MIN_CAP_CENTS`'s own doc comment. */
+export function minCapFor(category: ConciergeCategory): number {
+  return category === "grab-something" ? GRAB_SOMETHING_MIN_CAP_CENTS : CONCIERGE_MIN_CAP_CENTS;
 }
 
 /**
@@ -156,7 +189,7 @@ export const PURCHASE_LADDER_TOP_CENTS = 1000000;
  */
 export function capScaleFor(category: ConciergeCategory, quickTask?: boolean): AmountScale {
   return {
-    minCents: CONCIERGE_MIN_CAP_CENTS,
+    minCents: minCapFor(category),
     // Where there is no ceiling this is the ladder's top, not a limit: the
     // stepper needs a finite scale to step along, and larger amounts are
     // typed rather than nudged to.
@@ -178,9 +211,12 @@ export function defaultCapFor(category: ConciergeCategory): number {
  *  quick-task ceiling collapses the tail of the errand ladder rather than
  *  silently shortening the row. */
 export function capPresetsFor(category: ConciergeCategory): number[] {
-  return category === "book-and-buy"
-    ? [25000, 50000, 100000, 250000, 500000, PURCHASE_LADDER_TOP_CENTS]
-    : [2500, 5000, 10000, 20000, 40000, 60000];
+  if (category === "book-and-buy") return [25000, 50000, 100000, 250000, 500000, PURCHASE_LADDER_TOP_CENTS];
+  // Starts lower than the shared ladder — a $0 floor means $10 is a real
+  // one-tap option, not just the minimum — and reaches grab-something's own
+  // $1,000 ceiling instead of stopping at the shared $600 top.
+  if (category === "grab-something") return [1000, 2500, 5000, 10000, 25000, 50000, GRAB_SOMETHING_MAX_CAP_CENTS];
+  return [2500, 5000, 10000, 20000, 40000, 60000];
 }
 
 /**
@@ -605,15 +641,16 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
     throw new Error(`${conciergeCategoryLabel(input.category)} does not track a flight.`);
   }
   const maxCap = maxCapFor(input.category, input.quickTask);
+  const minCap = minCapFor(input.category);
   if (
     !Number.isInteger(input.spendCapCents) ||
-    input.spendCapCents < CONCIERGE_MIN_CAP_CENTS ||
+    input.spendCapCents < minCap ||
     (maxCap !== null && input.spendCapCents > maxCap)
   ) {
     throw new Error(
       maxCap === null
-        ? `Load at least $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} onto the card.`
-        : `Spend cap must be between $${(CONCIERGE_MIN_CAP_CENTS / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}${input.quickTask ? " for a quick task" : ""}.`,
+        ? `Load at least $${(minCap / 100).toFixed(0)} onto the card.`
+        : `Spend cap must be between $${(minCap / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}${input.quickTask ? " for a quick task" : ""}.`,
     );
   }
 }
