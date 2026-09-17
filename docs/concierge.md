@@ -100,7 +100,7 @@ the spend cap:
 | Run an errand | $10.00 | $12.50 | $2.50 | A dollar above grabbing one thing — an errand is open-scoped within the trip (a grocery list, aisles, choices) |
 | Check on someone | $12.00 | $15.00 | $3.00 | Getting there and actually assessing someone takes longer |
 | Wait with someone | $18.00 | $22.50 | $4.50 | Open-ended by nature — priced for a first ~30-45 min block |
-| Quick task | $3.00 | $3.75 | $0.75 | See the quick-task discount below |
+| Quick task | $4.00 | $5.00 | $1.00 | See the quick-task discount below |
 
 **The margin sits on top of the payout, not inside it.** The customer pays
 `payout / (1 - margin)`; the assistant receives the payout untouched. This is
@@ -180,8 +180,8 @@ the payout grossed up by the margin:
 
 | Category | Standard payout / fee | Quick-task payout / fee |
 |---|---|---|
-| Grab something | $10.50 / $13.13 | $3.00 / $3.75 |
-| Run an errand | $11.50 / $14.38 | $3.00 / $3.75 |
+| Grab something | $10.50 / $13.13 | $4.00 / $5.00 |
+| Run an errand | $11.50 / $14.38 | $4.00 / $5.00 |
 
 `wait-with-someone` and `check-in-person` are deliberately excluded: both
 involve open-ended real time with a person, and discounting them would mean
@@ -775,16 +775,20 @@ expensive market Safehubby operates in.
 | Run an errand | 18 min | **$11.50** | $38.33 | $14.38 |
 | Check on someone | 25 min | **$15.00** | $36.00 | $18.75 |
 | Wait with someone | 40 min | **$23.50** | $35.25 | $29.38 |
-| *Quick task* | *10 min* | *$3.00* | *$18.00* | *$3.75* |
+| *Quick task* | *10 min* | *$4.00* | *$24.00* | *$5.00* |
 
 The quick task is the one row not anchored to $35/hr, on purpose: it isn't
 this role's work, it's the errand-runner role's — a different, lower-skill
 job dispatched to a different roster (see `ROLE_CATEGORIES` in `roster.ts`),
-so it is priced against *that* labor market instead. $18/hr sits inside the
-real range for dedicated errand-running work: Glassdoor puts it at ~$20/hr
-and Salary.com at ~$19/hr (both September 2026), and Instacart/DoorDash
-shoppers — the closest gig-economy comparison — run $15-26/hr net. See
-`QUICK_TASK_ASSISTANT_PAYOUT_CENTS`'s own comment in `concierge.ts`.
+so it is priced against *that* labor market instead. $24/hr sits at the top
+of the real range for dedicated errand-running work — raised there from an
+earlier $18/hr at ownership's explicit direction, on fair-wage grounds, once
+`grab-something` opened to Free subscribers too (see
+`FREE_GRAB_SOMETHING_MAX_CAP_CENTS` in `concierge.ts`): Glassdoor puts
+errand-running at ~$20/hr and Salary.com at ~$19/hr (both September 2026),
+and Instacart/DoorDash shoppers — the closest gig-economy comparison — run
+$15-26/hr net. See `QUICK_TASK_ASSISTANT_PAYOUT_CENTS`'s own comment in
+`concierge.ts`.
 
 ### Why the high-end band and not the mid
 

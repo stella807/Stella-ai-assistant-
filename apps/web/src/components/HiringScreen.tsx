@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isElitePlan, QUICK_TASK_MAX_CAP_CENTS, type PlanId } from "@safehubby/core";
+import { isElitePlan, type PlanId } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
 import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
 import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
@@ -28,7 +28,7 @@ const TABS: { id: Tab; label: string; blurb: string }[] = [
   {
     id: "errand",
     label: "Small errands",
-    blurb: `Something short and specific — grab one thing, run one errand. Lower rate, and a cap of up to $${QUICK_TASK_MAX_CAP_CENTS / 100} so "quick" stays quick.`,
+    blurb: "Something short and specific — grab one thing, run one errand. Lower rate, and a cap that stays low so \"quick\" stays quick — see the errand's own screen for the exact number on your plan.",
   },
   {
     id: "concierge",
@@ -38,7 +38,7 @@ const TABS: { id: Tab; label: string; blurb: string }[] = [
   {
     id: "ride",
     label: "Get a ride",
-    blurb: "Opens Uber or Lyft with your ride home already filled in — Safehubby never invents a fare, so it links you to the real one rather than quoting its own.",
+    blurb: "Coordinated with a driver Safehubby actually hired, not a hand-off to Uber or Lyft — see the ride screen for how that works today.",
   },
   {
     id: "club",
@@ -101,7 +101,7 @@ export function HiringScreen({ account }: { account: Account }) {
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
         : kind === "ride"
-        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || "home"} />
+        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || "home"} planId={account.planId as PlanId} />
         : kind === "club"
         ? <WingmanClub />
         : kind === "elite"

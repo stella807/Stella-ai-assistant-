@@ -846,7 +846,7 @@ function masterAccountOf(ctx: Ctx): MasterAccount | null {
 /**
  * Where the master pricing dashboard starts before any override — mirrors
  * the real rates in concierge.ts, driver-pay.ts and staffing.ts (PA
- * $35/hr, a $3 quick task — $18/hr at the ten-minute typical length,
+ * $35/hr, a $4 quick task — $24/hr at the ten-minute typical length,
  * see QUICK_TASK_ASSISTANT_PAYOUT_CENTS's own comment — drivers' rate
  * card, the desk roles' $22/hr). Kept as one constant, rather than typed
  * out at each pricing route, so "someone edits one copy and the
@@ -856,7 +856,7 @@ function masterAccountOf(ctx: Ctx): MasterAccount | null {
 function defaultPricing(): CurrentPricing {
   return {
     paHourlyCents: 3500,
-    errandRunnerTaskCents: 300,
+    errandRunnerTaskCents: 400,
     driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
     driverSecureTransport: { baseCents: 1500, perMileCents: 450, perMinuteCents: 60 },
     secretaryHourlyCents: 2200,
@@ -2306,7 +2306,7 @@ export const routes: Record<string, Handler> = {
   "POST /api/concierge/quote": async (ctx, _p, body) => {
     const me = actor(ctx);
     const input = conciergeInputFrom(body);
-    validateConciergeRequest(input);
+    validateConciergeRequest(input, planOf(ctx, me));
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
     if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
@@ -2340,7 +2340,7 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     requireServiceLive(ctx);
     const input = conciergeInputFrom(body);
-    validateConciergeRequest(input);
+    validateConciergeRequest(input, planOf(ctx, me));
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
     // Looked up server-side, from the flight number and date alone — never

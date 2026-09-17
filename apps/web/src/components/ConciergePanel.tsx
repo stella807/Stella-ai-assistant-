@@ -60,7 +60,7 @@ const COPY_FOR: Record<HiringKind, { heading: string; blurb: string; locked: str
   errand: {
     heading: "Small errand",
     blurb: "One short, specific job — grab a thing, run an errand — capped at exactly what you set below, never more.",
-    locked: "🔒 Send someone for a quick pickup or errand, at a spend cap you set. Included on every paid plan.",
+    locked: "🔒 Send someone for a quick pickup or errand, at a spend cap you set. Included on every plan, Free too.",
   },
   concierge: {
     heading: "Personal concierge",
@@ -104,12 +104,19 @@ function TaskRow({ task, onOpen }: { task: ConciergeTask; onOpen: () => void }) 
 }
 
 export function ConciergePanel({ account, kind = "concierge" }: { account: Account; kind?: HiringKind }) {
-  const locked = !hasFeature(account.planId as PlanId, "personal-concierge");
+  const planId = account.planId as PlanId;
+  // Small errands (grab-something, run-errand) are gated on `quick-tasks`,
+  // which is on every plan including Free — see `FREE_FEATURES` in
+  // billing.ts and its own "a free user can send someone to grab a
+  // specific thing" reasoning. Gating this tab on `personal-concierge`
+  // instead, the way the rest of this panel is, would lock Free users out
+  // of the one thing their plan already promises them.
+  const locked = kind === "errand" ? !hasFeature(planId, "quick-tasks") : !hasFeature(planId, "personal-concierge");
   const allowed = CATEGORIES_FOR[kind];
 
   const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
-  const [capCents, setCapCents] = useState(() => defaultCapFor(allowed[0] ?? "grab-something"));
+  const [capCents, setCapCents] = useState(() => defaultCapFor(allowed[0] ?? "grab-something", planId));
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
   /** The typed cap, kept as text so a half-entered "40" is not parsed as $40
    *  and snapped away while somebody is still typing "40000". */
@@ -183,7 +190,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   useEffect(() => {
     setCategory((current) => {
       const next = allowed.includes(current) ? current : allowed[0] ?? "grab-something";
-      if (next !== current) { setCapCents(defaultCapFor(next)); setHours(defaultHoursFor(next)); }
+      if (next !== current) { setCapCents(defaultCapFor(next, planId)); setHours(defaultHoursFor(next)); }
       return next;
     });
     setRoster(null);
@@ -206,7 +213,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const covered = fix ? isInLaunchMarket(fix) : null;
 
   const quickEligible = isQuickTaskEligible(category);
-  const effectiveQuickTask = quickTask && quickEligible;
+  // Free can only ever book a quick task — `requireConciergeAccess` on the
+  // server waives `personal-concierge` for this plan only when `quickTask`
+  // is true, since Free never has that feature at all. Forced here rather
+  // than left to the checkbox below, so there is no way to land on this
+  // plan's own combination the server would refuse: pick a category this
+  // plan can reach, and it books at the rate that comes with it.
+  const effectiveQuickTask = (quickTask || planId === "free") && quickEligible;
   // A quick task ("grab something", "run an errand") is meant to be
   // low-friction: type what you need, confirm it with a tap, done — the
   // roster-browsing screen below is the wrong amount of ceremony for a
@@ -215,12 +228,12 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // voice messages, photos and all, the same screen every other concierge
   // category already opens into — a named team is the thing Elite is
   // actually paying for, so routing them around it here would be odd.
-  const eliteMember = isElitePlan(account.planId as PlanId);
+  const eliteMember = isElitePlan(planId);
   const useConfirmFlow = QUICK_TASK_CATEGORIES.includes(category) && !eliteMember;
   // Ceiling, step and presets all come from core: a booking that buys concert
   // tickets is funded differently from one that fetches a burger, and that is
   // a pricing rule, not a form detail.
-  const base = capScaleFor(category, effectiveQuickTask);
+  const base = capScaleFor(category, effectiveQuickTask, planId);
   // Where Safehubby sets no ceiling, the scale stretches to whatever was
   // typed. Its max is the top of the preset ladder, which the stepper needs
   // something finite to step along — but leaving it there would clamp a
@@ -465,7 +478,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               // The cap follows the category rather than carrying over. A $100
               // ceiling means nothing on a hotel booking, and a $500 one is not
               // a number anybody meant to authorize for a coffee run.
-              setCapCents(defaultCapFor(c.id));
+              setCapCents(defaultCapFor(c.id, planId));
               setHours(defaultHoursFor(c.id));
               setCapEntry("");
               setRoster(null);
@@ -582,7 +595,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         )}
       </div>
 
-      {quickEligible && (
+      {quickEligible && planId !== "free" && (
         <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
           <input type="checkbox" checked={quickTask}
             onChange={(e) => { setQuickTask(e.target.checked); setRoster(null); }} />
@@ -590,6 +603,14 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             This is quick and simple — book at the discounted rate (capped at {dollars(QUICK_TASK_MAX_CAP_CENTS)} spend).
           </span>
         </label>
+      )}
+      {/* Free books at the quick-task rate always — the checkbox above
+          would let someone switch to the plan they can't reach and hit a
+          402, so it says so instead of offering the choice. */}
+      {quickEligible && planId === "free" && (
+        <p className="tiny muted" style={{ margin: 0 }}>
+          Booked at the discounted rate, free of charge on your plan — capped at {dollars(base.maxCents)} spend.
+        </p>
       )}
 
       {/* Hours first, then the card. They are the two halves of an hourly
@@ -618,7 +639,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         hint={`Goes onto a card that works for this task only — the hotel, the tickets, whatever it takes. A ceiling, not a price: you pay what is actually spent. Nudge it ${dollars(capScale.stepCents)} at a time.`}
         valueCents={spendCapCents}
         scale={capScale}
-        presetsCents={capPresetsFor(category)}
+        presetsCents={capPresetsFor(category, planId)}
         onChange={(cents) => { setCapCents(cents); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
       />
 

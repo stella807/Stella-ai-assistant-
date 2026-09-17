@@ -46,6 +46,7 @@ import type { AmountScale } from "./amount-steps.ts";
 import { approximateDecodedBytes } from "./voice-messages.ts";
 import type { StaffRole } from "./staffing.ts";
 import type { FlightInfo } from "./flight-tracking.ts";
+import type { PlanId } from "./billing.ts";
 
 
 export type ConciergeCategory =
@@ -136,6 +137,24 @@ export const GRAB_SOMETHING_MIN_CAP_CENTS = 0;
 export const GRAB_SOMETHING_MAX_CAP_CENTS = 100000;
 
 /**
+ * Free tier's own, much lower ceiling for `grab-something` — the same
+ * category, a different reality. The $1,000 ceiling above is sized for an
+ * emergency medication run or a hangover basket for a group, charged
+ * against a paid plan. This one is sized for the case that never needed a
+ * subscription at all: an elderly patient in a hospital bed who cannot get
+ * up, has no spouse left to send, and just needs a coffee, or a coffee and
+ * a couple of things — a request that is real and small and should not sit
+ * behind a paywall while it waits.
+ *
+ * $20 covers that outright — a coffee is a few dollars, a coffee with chips
+ * and something else lands well inside it — while staying far below the
+ * amount somebody would need a paid plan's own $1,000 ceiling for. Delivery
+ * is not a separate line here: it is what `grab-something` already is,
+ * paid tier or not.
+ */
+export const FREE_GRAB_SOMETHING_MAX_CAP_CENTS = 2000;
+
+/**
  * A purchase task has no product ceiling. The balance is whatever the
  * customer funds it with.
  *
@@ -161,9 +180,14 @@ export function hasCapCeiling(category: ConciergeCategory, quickTask?: boolean):
   return category !== "book-and-buy";
 }
 
-/** The ceiling in force, or `null` where the customer sets the balance. */
-export function maxCapFor(category: ConciergeCategory, quickTask?: boolean): number | null {
-  if (category === "grab-something") return GRAB_SOMETHING_MAX_CAP_CENTS;
+/** The ceiling in force, or `null` where the customer sets the balance.
+ *  `planId` narrows `grab-something` further on Free — see
+ *  `FREE_GRAB_SOMETHING_MAX_CAP_CENTS`'s own doc comment — and is ignored
+ *  everywhere else, including every paid plan. */
+export function maxCapFor(category: ConciergeCategory, quickTask?: boolean, planId?: PlanId): number | null {
+  if (category === "grab-something") {
+    return planId === "free" ? FREE_GRAB_SOMETHING_MAX_CAP_CENTS : GRAB_SOMETHING_MAX_CAP_CENTS;
+  }
   if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_MAX_CAP_CENTS;
   return category === "book-and-buy" ? null : CONCIERGE_MAX_CAP_CENTS;
 }
@@ -187,31 +211,44 @@ export const PURCHASE_LADDER_TOP_CENTS = 1000000;
  * offered to authorize — and keeping them beside the ceiling they have to
  * respect is what stops a preset drifting above a cap the server rejects.
  */
-export function capScaleFor(category: ConciergeCategory, quickTask?: boolean): AmountScale {
+export function capScaleFor(category: ConciergeCategory, quickTask?: boolean, planId?: PlanId): AmountScale {
   return {
     minCents: minCapFor(category),
     // Where there is no ceiling this is the ladder's top, not a limit: the
     // stepper needs a finite scale to step along, and larger amounts are
     // typed rather than nudged to.
-    maxCents: maxCapFor(category, quickTask) ?? PURCHASE_LADDER_TOP_CENTS,
+    maxCents: maxCapFor(category, quickTask, planId) ?? PURCHASE_LADDER_TOP_CENTS,
     // A $5 nudge on a hotel booking is noise; a $25 nudge on a coffee run is
-    // a blunt instrument. The step follows the size of the thing.
-    stepCents: category === "book-and-buy" ? 2500 : 500,
+    // a blunt instrument. Free's own $0-$20 grab-something range is a
+    // blunter instrument still at $5 a nudge — a fifth of the whole range —
+    // so it nudges in single dollars instead.
+    stepCents: category === "book-and-buy"
+      ? 2500
+      : (category === "grab-something" && planId === "free" ? 100 : 500),
   };
 }
 
 /** Where the control starts for this category. A purchase task opens higher
  *  because $100 is not a plausible ceiling for the thing being bought — but
- *  it is still the customer's to lower. */
-export function defaultCapFor(category: ConciergeCategory): number {
-  return category === "book-and-buy" ? 50000 : DEFAULT_CONCIERGE_CAP_CENTS;
+ *  it is still the customer's to lower. Clamped to whatever ceiling
+ *  `planId` narrows the category to, so Free's own default never opens
+ *  above the cap the server will actually accept. */
+export function defaultCapFor(category: ConciergeCategory, planId?: PlanId): number {
+  if (category === "book-and-buy") return 50000;
+  const ceiling = maxCapFor(category, false, planId);
+  return ceiling === null ? DEFAULT_CONCIERGE_CAP_CENTS : Math.min(DEFAULT_CONCIERGE_CAP_CENTS, ceiling);
 }
 
 /** The one-tap amounts. Clamped against the scale by `presetAmounts`, so the
  *  quick-task ceiling collapses the tail of the errand ladder rather than
  *  silently shortening the row. */
-export function capPresetsFor(category: ConciergeCategory): number[] {
+export function capPresetsFor(category: ConciergeCategory, planId?: PlanId): number[] {
   if (category === "book-and-buy") return [25000, 50000, 100000, 250000, 500000, PURCHASE_LADDER_TOP_CENTS];
+  if (category === "grab-something" && planId === "free") {
+    // A coffee is the common case, so it gets its own low rungs rather than
+    // sharing the paid ladder's $10 floor.
+    return [300, 500, 1000, 1500, FREE_GRAB_SOMETHING_MAX_CAP_CENTS];
+  }
   // Starts lower than the shared ladder — a $0 floor means $10 is a real
   // one-tap option, not just the minimum — and reaches grab-something's own
   // $1,000 ceiling instead of stopping at the shared $600 top.
@@ -309,19 +346,26 @@ export const CONCIERGE_FEE_MARGIN = 0.2;
 export const QUICK_TASK_CATEGORIES: ConciergeCategory[] = ["grab-something", "run-errand"];
 
 /**
- * $3.00 per quick task, at `QUICK_TASK_MINUTES`'s 10-minute typical length,
- * is $18/hr — priced against the real errand-runner labor market rather
- * than picked to sound generous: Glassdoor puts dedicated errand-runner
- * pay at ~$20/hr and Salary.com at ~$19/hr (both September 2026), and
+ * $4.00 per quick task, at `QUICK_TASK_MINUTES`'s 10-minute typical length,
+ * is $24/hr — the top of the real errand-runner labor market this is priced
+ * against, not the middle of it: Glassdoor puts dedicated errand-runner pay
+ * at ~$20/hr and Salary.com at ~$19/hr (both September 2026), and
  * Instacart/DoorDash shoppers, the closest gig-economy comparison, run
- * $15-26/hr net. $18/hr sits inside that band. It replaced a flat $6/task
- * ($36/hr equivalent) that was never benchmarked against anything —
- * comfortably above every one of those real rates, which is generous to
- * a fault rather than competitive.
+ * $15-26/hr net. $24/hr sits inside that band, at its high end.
+ *
+ * Raised here from an earlier $3.00/task ($18/hr, the low end of the same
+ * band) at ownership's explicit direction, on fair-wage grounds — a
+ * deliberate choice, not a drift, and one worth stating plainly given who
+ * these tasks are increasingly for: `FREE_GRAB_SOMETHING_MAX_CAP_CENTS` in
+ * this same file opens `grab-something` to Free subscribers precisely
+ * because it covers a widowed elderly patient who cannot get up for a
+ * coffee, not a subscriber who could pay more for the same errand. That
+ * customer's cheapness is not a reason to land the person doing the
+ * errand at the bottom of a fair range instead of the top of it.
  */
 export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory, number>> = {
-  "grab-something": 300,
-  "run-errand": 300,
+  "grab-something": 400,
+  "run-errand": 400,
 };
 
 /**
@@ -604,7 +648,7 @@ export interface ConciergeTaskInput {
 
 const MAX_NOTE_LENGTH = 280;
 
-export function validateConciergeRequest(input: ConciergeTaskInput): void {
+export function validateConciergeRequest(input: ConciergeTaskInput, planId?: PlanId): void {
   if (!CONCIERGE_CATEGORIES.some((c) => c.id === input.category)) throw new Error("Unknown task type.");
   if (!input.note.trim()) throw new Error("Describe the task so the assistant knows what to do.");
   if (input.note.length > MAX_NOTE_LENGTH) throw new Error(`Keep the task description under ${MAX_NOTE_LENGTH} characters.`);
@@ -640,7 +684,7 @@ export function validateConciergeRequest(input: ConciergeTaskInput): void {
     // for hours on a per-task category.
     throw new Error(`${conciergeCategoryLabel(input.category)} does not track a flight.`);
   }
-  const maxCap = maxCapFor(input.category, input.quickTask);
+  const maxCap = maxCapFor(input.category, input.quickTask, planId);
   const minCap = minCapFor(input.category);
   if (
     !Number.isInteger(input.spendCapCents) ||

@@ -1376,8 +1376,10 @@ describe("personal concierge", () => {
   });
 
   it("is available on every paid tier, gated only on being free", async () => {
-    // Jordan stays free (see beforeEach) — no paid plan at all.
-    const free = await call("POST", "/api/concierge/quote", task(), jordan);
+    // Jordan stays free (see beforeEach) — no paid plan at all. Under
+    // FREE_GRAB_SOMETHING_MAX_CAP_CENTS, so the cap check doesn't fire
+    // before the feature gate this test is actually about.
+    const free = await call("POST", "/api/concierge/quote", task({ spendCapCents: 1000 }), jordan);
     expect(free.status).toBe(402);
 
     // Sam is premium-plus, not Family, and still gets past the gate — it's
@@ -1393,9 +1395,11 @@ describe("personal concierge", () => {
   });
 
   it("waives the gate on the free tier for a quick errand — grab-something or run-errand, booked as quickTask", async () => {
-    // Jordan stays free. Past the 402 this time — 503 because no partner
-    // network is configured in tests, same handoff every paid tier gets.
-    const grab = await call("POST", "/api/concierge/quote", task({ quickTask: true }), jordan);
+    // Jordan stays free. Under FREE_GRAB_SOMETHING_MAX_CAP_CENTS, so the cap
+    // check doesn't fire first. Past the 402 this time — 503 because no
+    // partner network is configured in tests, same handoff every paid tier
+    // gets.
+    const grab = await call("POST", "/api/concierge/quote", task({ spendCapCents: 1000, quickTask: true }), jordan);
     expect(grab.status).toBe(503);
 
     const errand = await call(
@@ -1407,8 +1411,9 @@ describe("personal concierge", () => {
   it("still gates the free tier without the quick-task flag, or for open-ended categories", async () => {
     // Same category the quick-task test just waived the gate for — without
     // `quickTask: true` this is the full-price personal-assistant booking,
-    // which stays behind `personal-concierge`.
-    const standardRate = await call("POST", "/api/concierge/quote", task(), jordan);
+    // which stays behind `personal-concierge`. Under the free-tier cap so
+    // that gate, not the cap check, is what this test exercises.
+    const standardRate = await call("POST", "/api/concierge/quote", task({ spendCapCents: 1000 }), jordan);
     expect(standardRate.status).toBe(402);
 
     // Waiting with someone is open-ended time with a person, not a bounded
@@ -3274,12 +3279,14 @@ describe("push to the assistant", () => {
     await call("POST", "/api/assistant/push/devices", { token: "assistant-device-token", platform: "ios" }, null, cookie);
 
     // Jordan stays on the free plan — this is exactly the quick-task gate
-    // waived above, now carried through to an actual booking.
+    // waived above, now carried through to an actual booking. Under
+    // FREE_GRAB_SOMETHING_MAX_CAP_CENTS, so the free-tier cap doesn't
+    // refuse the booking this test is actually about.
     await call("POST", "/api/account/payment-method", { brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030 }, jordan);
     const booked = await call("POST", "/api/concierge/tasks", {
       category: "grab-something", note: "A burger and fries from The Anchor Tavern",
       location: { lat: 30.2672, lng: -97.7431, label: "The Anchor Tavern" },
-      spendCapCents: 2500, quickTask: true, acknowledgedDisclosures: true,
+      spendCapCents: 1000, quickTask: true, acknowledgedDisclosures: true,
       assistantId,
     }, jordan);
     expect(booked.status).toBe(200);

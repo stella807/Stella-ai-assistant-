@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { defaultCapFor } from "@safehubby/core";
-import type { PickupRequest } from "@safehubby/core";
+import type { PickupRequest, PlanId } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 import { LiveMap } from "./LiveMap.tsx";
 
@@ -21,9 +21,13 @@ const FALLBACK_HOME_LABEL = "Home";
  * uses for a jet charter — so this says exactly that rather than implying a
  * car is already on its way the instant the button is tapped.
  */
-export function GetHomePanel({ pickup, homeLabel }: {
+export function GetHomePanel({ pickup, homeLabel, planId }: {
   pickup: { lat: number; lng: number } | null;
   homeLabel: string;
+  /** So the one-tap "bring water & a snack" button below opens at a cap the
+   *  server will actually accept — Free's own `grab-something` ceiling is
+   *  far below the standard default. See `defaultCapFor` in concierge.ts. */
+  planId: PlanId;
 }) {
   const [homeAddress, setHomeAddress] = useState<{ lat: number; lng: number; label: string } | null>(null);
   const [addressLabel, setAddressLabel] = useState(FALLBACK_HOME_LABEL);
@@ -204,7 +208,7 @@ export function GetHomePanel({ pickup, homeLabel }: {
                   category: "grab-something",
                   note: "Water, Liquid I.V. or Pedialyte, and a snack",
                   location: homeAddress,
-                  spendCapCents: defaultCapFor("grab-something"),
+                  spendCapCents: defaultCapFor("grab-something", planId),
                   quickTask: true,
                 });
                 setSupplies(`On the way from ${task.assistantName ?? "an errand runner"} to ${homeAddress.label}.`);

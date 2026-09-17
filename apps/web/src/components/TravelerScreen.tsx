@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrinkDefinition, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
+import type { DrinkDefinition, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
 import { hasMovedVenue } from "@safehubby/core";
 import { api, type Account, type NightSummary } from "../api.ts";
 import { BacCard } from "./BacCard.tsx";
@@ -243,7 +243,7 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
 
       {sos && <div className="banner banner-danger">{sos}</div>}
 
-      {!ended && <GetHomePanel pickup={summary.lastPing} homeLabel={HOME_LABEL} />}
+      {!ended && <GetHomePanel pickup={summary.lastPing} homeLabel={HOME_LABEL} planId={account.planId as PlanId} />}
 
       <SharingPanel grants={grants} busy={busy}
         onShare={() => run(async () => {

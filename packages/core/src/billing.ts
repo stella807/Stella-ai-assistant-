@@ -160,6 +160,14 @@ export interface Plan {
  * checking on someone, booking and buying, airport pickups) stays behind
  * `personal-concierge` on a paid tier: those are open-ended time with a
  * person, not a bounded ten-minute pickup.
+ *
+ * `grab-something` on this tier is not the same $1,000 ceiling a paid plan
+ * gets — see `FREE_GRAB_SOMETHING_MAX_CAP_CENTS` in concierge.ts. This tier
+ * exists for the case a subscription was never going to be the answer to:
+ * an elderly patient in a hospital bed, no spouse left to send, who needs a
+ * coffee brought to them and cannot get up to buy it themselves. $20 covers
+ * that outright, at the same real pay the errand runner earns for a $1,000
+ * one.
  */
 const FREE_FEATURES: Feature[] = ["location-sharing", "check-ins", "drink-count", "sos", "ride-booking", "quick-tasks"];
 
@@ -327,7 +335,7 @@ export const PLANS: Plan[] = [
     annualCents: 0,
     seats: 1,
     features: FREE_FEATURES,
-    blurb: "For one person. Location sharing, check-ins, drink count, SOS, ride booking, and quick errands. Always free — safety basics are not a paywall.",
+    blurb: "For one person. Location sharing, check-ins, drink count, SOS, ride booking, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.",
   },
   {
     id: "premium-basic",
