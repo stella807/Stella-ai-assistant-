@@ -12,7 +12,7 @@ import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
 import { StaffSignupScreen } from "./components/StaffSignupScreen.tsx";
-import { HiringScreen } from "./components/HiringScreen.tsx";
+import { HiringScreen, type HiringTab } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
@@ -24,6 +24,10 @@ type Role =
 
 export function App() {
   const [role, setRole] = useState<Role>("out");
+  // Which Hiring sub-tab to open on, when something else sent the member
+  // there for a specific thing. Cleared by HiringScreen's own tabs from then
+  // on; it only decides where that screen starts.
+  const [hiringTab, setHiringTab] = useState<HiringTab | undefined>(undefined);
   const [drinks, setDrinks] = useState<DrinkDefinition[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
   const [launch, setLaunch] = useState<LaunchStatus | null>(null);
@@ -116,7 +120,8 @@ export function App() {
             <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>
               <span className="tab-icon"><IconCard /></span><span>{t("nav.payments")}</span>
             </button>
-            <button role="tab" aria-selected={role === "hiring"} onClick={() => setRole("hiring")}>
+            <button role="tab" aria-selected={role === "hiring"}
+              onClick={() => { setHiringTab(undefined); setRole("hiring"); }}>
               <span className="tab-icon"><IconBriefcase /></span><span>{t("nav.hiring")}</span>
             </button>
           </nav>
@@ -125,7 +130,10 @@ export function App() {
               about your money that has been waiting for you to be able to
               answer it. */}
           <PendingOrderPrompt />
-          {role === "out" && <TravelerScreen drinks={drinks} account={account} />}
+          {role === "out" && (
+            <TravelerScreen drinks={drinks} account={account}
+              onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }} />
+          )}
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
           {role === "party" && isEnabled("party-supply") && <PartyScreen />}
@@ -139,7 +147,7 @@ export function App() {
               onPlanChanged={(planId) => setAccount((a) => (a && a.planId !== planId ? { ...a, planId } : a))}
             />
           )}
-          {role === "hiring" && <HiringScreen account={account} />}
+          {role === "hiring" && <HiringScreen account={account} initialTab={hiringTab} />}
           {role === "about" && <AboutScreen />}
         </>
       )}

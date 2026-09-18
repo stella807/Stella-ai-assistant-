@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isElitePlan, type PlanId } from "@safehubby/core";
+import { hasFeature, isElitePlan, type Feature, type PlanId } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
 import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
 import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
@@ -17,9 +17,19 @@ import type { Account } from "../api.ts";
  * the one core already draws in `QUICK_TASK_CATEGORIES` rather than a new
  * distinction invented in the UI — see `HiringKind` in ConciergePanel.
  */
-type Tab = HiringKind | "desk" | "ride" | "club" | "elite";
+export type HiringTab = HiringKind | "desk" | "ride" | "club" | "elite";
 
-const TABS: { id: Tab; label: string; blurb: string }[] = [
+/** The feature a tab needs, where it needs one. `club` is a separate
+ *  membership rather than a plan feature, so it has none. Used to open this
+ *  screen on something the member can actually use — see `firstUsable`. */
+const TAB_FEATURE: Partial<Record<HiringTab, Feature>> = {
+  desk: "desk-tasks",
+  errand: "quick-tasks",
+  concierge: "personal-concierge",
+  ride: "ride-booking",
+};
+
+const TABS: { id: HiringTab; label: string; blurb: string }[] = [
   {
     id: "desk",
     label: "Ask an assistant",
@@ -56,19 +66,27 @@ const TABS: { id: Tab; label: string; blurb: string }[] = [
  * everyday plans should even see a tab for. Appended only for a member
  * actually on Elite, the same gate `requireElite` applies server-side.
  */
-const ELITE_TAB: { id: Tab; label: string; blurb: string } = {
+const ELITE_TAB: { id: HiringTab; label: string; blurb: string } = {
   id: "elite",
   label: "Elite desk",
   blurb: "Jet travel, yacht charter, villas, events and a concierge doctor — arranged by your assistant. You pay the supplier directly; Safehubby's commission is disclosed before you agree to anything.",
 };
 
-export function HiringScreen({ account }: { account: Account }) {
-  const onElite = isElitePlan(account.planId as PlanId);
+export function HiringScreen({ account, initialTab }: { account: Account; initialTab?: HiringTab }) {
+  const planId = account.planId as PlanId;
+  const onElite = isElitePlan(planId);
   const tabs = onElite ? [...TABS, ELITE_TAB] : TABS;
 
-  // The desk tab first: it is the one most people will use most weeks,
-  // and it costs nothing, so it should not be the one they have to find.
-  const [kind, setKind] = useState<Tab>("desk");
+  // Open on something this plan can actually use. This used to open on the
+  // desk tab unconditionally, on the reasoning that it is what most members
+  // use most weeks — true on a paid plan, and exactly wrong on Free, which
+  // is the one plan without `desk-tasks`. A free member tapping Hiring
+  // landed on a padlock, with the errands they do have a tab further along.
+  const firstUsable = tabs.find((t) => {
+    const feature = TAB_FEATURE[t.id];
+    return !feature || hasFeature(planId, feature);
+  })?.id ?? "errand";
+  const [kind, setKind] = useState<HiringTab>(initialTab ?? firstUsable);
   const active = tabs.find((t) => t.id === kind) ?? tabs[0]!;
 
   // Fetched once a ride is actually asked for, not on every visit to this
@@ -101,7 +119,7 @@ export function HiringScreen({ account }: { account: Account }) {
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
         : kind === "ride"
-        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || "home"} planId={account.planId as PlanId} />
+        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || "home"} planId={planId} />
         : kind === "club"
         ? <WingmanClub />
         : kind === "elite"

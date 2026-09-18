@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrinkDefinition, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
-import { hasMovedVenue } from "@safehubby/core";
+import type { DrinkDefinition, Feature, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
+import { hasFeature, hasMovedVenue } from "@safehubby/core";
+import type { HiringTab } from "./HiringScreen.tsx";
 import { api, type Account, type NightSummary } from "../api.ts";
 import { BacCard } from "./BacCard.tsx";
 import { CheckInPrompt } from "./CheckInPrompt.tsx";
@@ -17,7 +18,70 @@ import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } 
 /** Only used when the device refuses a fix, and the UI says so when it is. */
 const FALLBACK_POINT = { lat: 40.714, lng: -74.003 };
 
-export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[]; account: Account }) {
+/**
+ * The things this plan can do right now, without starting a night first.
+ *
+ * Everything below used to be reachable only by finding the Hiring tab and
+ * then the right sub-tab inside it — a word that reads like recruitment, over
+ * a screen whose whole first fold asks about a night out and a drink limit.
+ * For the member this product is actually built around, who wants someone to
+ * bring them a coffee or drive them somewhere and is never going to start a
+ * night, that made the plan's own contents effectively unreachable.
+ *
+ * Each row is gated on the real `Feature`, so this states what the member has
+ * rather than advertising something the next screen would refuse — and it is
+ * not Free-specific: these are on every tier, Free just had the least else to
+ * find.
+ */
+const INCLUDED_NOW: { feature: Feature; tab: HiringTab; label: string; hint: string }[] = [
+  {
+    feature: "quick-tasks", tab: "errand",
+    label: "Have someone bring you something",
+    hint: "A coffee, milk, a prescription — one thing fetched, at a spend cap you set.",
+  },
+  {
+    feature: "quick-tasks", tab: "errand",
+    label: "Send someone on an errand",
+    hint: "One short, specific job. No spend ceiling — you decide what goes on the card.",
+  },
+  {
+    feature: "ride-booking", tab: "ride",
+    label: "Get a ride",
+    hint: "Coordinated with one of Safehubby's own drivers, at a fare you see first.",
+  },
+];
+
+function IncludedNow({ planId, onOpenHiring }: {
+  planId: PlanId;
+  onOpenHiring: (tab: HiringTab) => void;
+}) {
+  const rows = INCLUDED_NOW.filter((r) => hasFeature(planId, r.feature));
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="card stack" aria-label="Included on your plan">
+      <div>
+        <h2>What you can ask for</h2>
+        <p className="small muted" style={{ margin: 0 }}>
+          Included on your plan. Nothing to start first.
+        </p>
+      </div>
+      {rows.map((r) => (
+        <button key={r.label} className="btn btn-block" style={{ textAlign: "left" }}
+          onClick={() => onOpenHiring(r.tab)}>
+          <strong className="small">{r.label}</strong>
+          <div className="tiny muted">{r.hint}</div>
+        </button>
+      ))}
+    </section>
+  );
+}
+
+export function TravelerScreen({ drinks, account, onOpenHiring }: {
+  drinks: DrinkDefinition[];
+  account: Account;
+  onOpenHiring: (tab: HiringTab) => void;
+}) {
   const TRAVELER_ID = account.id;
   const HOME_LABEL = account.homeLabel || "Home";
 
@@ -133,6 +197,7 @@ export function TravelerScreen({ drinks, account }: { drinks: DrinkDefinition[];
   if (!summary) {
     return (
       <div className="stack">
+        <IncludedNow planId={account.planId as PlanId} onOpenHiring={onOpenHiring} />
         <CrewPanel travelerId={TRAVELER_ID} />
         <section className="card stack">
           <h2>Heading out tonight?</h2>
