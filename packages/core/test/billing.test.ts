@@ -5,6 +5,7 @@ import {
   eliteUnlockProgressPercent, eliteUnlockThresholdCents, findPlan, formatPrice,
   hasFeature, includedConciergeHours, isElitePlan, isPlanReleased, releasedPlans,
 } from "../src/billing.ts";
+import type { PlanId } from "../src/billing.ts";
 import { disclosuresFor, doctorAvailableFor, findEliteService } from "../src/elite.ts";
 import { resetFlags, setFlag } from "../src/features.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
@@ -151,12 +152,18 @@ describe("plans", () => {
     expect(findPlan("elite-private").monthlyCents).toBe(6_000_000);
   });
 
-  it("makes every everyday paid tier the same features, differing only in seats", () => {
-    // Premium, Premium Plus and Family are the same product at three seat
-    // counts, not three different feature lists. If these ever diverge
-    // again, the blurbs and docs/billing.md are wrong too.
-    expect([...findPlan("premium-basic").features].sort()).toEqual([...findPlan("premium-plus").features].sort());
+  it("makes every everyday paid tier the same features, except multi-profile on the single-seat one", () => {
+    // Premium Plus and Family are the same product at two seat counts, not
+    // two different feature lists. Premium differs from both by exactly
+    // one feature — multi-profile — because it is the one everyday paid
+    // tier with a single seat, and "multiple people, one account" is not
+    // a real claim to make about a one-person plan.
     expect([...findPlan("family").features].sort()).toEqual([...findPlan("premium-plus").features].sort());
+    expect(hasFeature("premium-basic", "multi-profile")).toBe(false);
+    expect(hasFeature("premium-plus", "multi-profile")).toBe(true);
+    expect(hasFeature("family", "multi-profile")).toBe(true);
+    const nonMultiProfile = (id: PlanId) => findPlan(id).features.filter((f) => f !== "multi-profile");
+    expect([...nonMultiProfile("premium-basic")].sort()).toEqual([...nonMultiProfile("premium-plus")].sort());
     expect(findPlan("premium-plus").seats).toBeGreaterThan(findPlan("premium-basic").seats);
     expect(findPlan("family").seats).toBeGreaterThan(findPlan("premium-plus").seats);
   });

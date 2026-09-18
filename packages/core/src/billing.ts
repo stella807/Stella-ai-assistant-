@@ -203,12 +203,13 @@ export const ELITE_ONLY: Feature[] = [
 /**
  * The everything set for everyday use — every feature except the
  * Elite-only catalogue, derived from `ALL_FEATURES` rather than
- * hand-maintained. Every paid everyday tier (Premium, Premium Plus, Family)
- * gets exactly this list: automatic fulfilment (Safehubby books and pays on
- * the user's behalf through the business APIs, then bills it on — that
- * float is a real part of what these tiers cost), ride booking, supply
- * delivery, safe routes, history, group games, secure transport, the
- * extended pharmacy-run menu, extended SOS contacts, and multi-profile.
+ * hand-maintained. Premium Plus and Family get exactly this list:
+ * automatic fulfilment (Safehubby books and pays on the user's behalf
+ * through the business APIs, then bills it on — that float is a real part
+ * of what these tiers cost), ride booking, supply delivery, safe routes,
+ * history, group games, secure transport, the extended pharmacy-run menu,
+ * extended SOS contacts, and multi-profile. Premium gets all of it except
+ * the last one — see `PREMIUM_FEATURES` just below.
  *
  * Deriving it this way keeps the guarantee that matters: adding a `Feature`
  * is still a compile error until it is listed in `EVERY_FEATURE`, and the
@@ -216,6 +217,16 @@ export const ELITE_ONLY: Feature[] = [
  * the everyday tiers. Nothing can be added and quietly forgotten.
  */
 const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes(f));
+
+/**
+ * Premium's own feature set: everything Premium Plus and Family have,
+ * minus `multi-profile`. Premium is a single-seat plan — `seats: 1` in its
+ * own `PLANS` entry, and a real limit `peopleCountFor` enforces — so
+ * "multiple people, one account" is not a real claim to make about it, and
+ * showing a checkmark for it on the comparison table would be advertising
+ * a household feature to a subscriber the plan says covers one person.
+ */
+const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-profile");
 
 /**
  * Pricing.
@@ -356,10 +367,10 @@ export const PLANS: Plan[] = [
     monthlyCents: 8999,
     annualCents: 89999,
     seats: 1,
-    // Identical features to Premium Plus and Family, by design — every
-    // paid tier is the same product; only the seats change. See the
-    // pricing rationale above.
-    features: PLUS_FEATURES,
+    // Everything Premium Plus and Family have, minus multi-profile —
+    // Premium is one seat, so "multiple people, one account" is not a
+    // real feature of it. See PREMIUM_FEATURES's own doc comment above.
+    features: PREMIUM_FEATURES,
     blurb: "For one person. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
@@ -368,9 +379,11 @@ export const PLANS: Plan[] = [
     monthlyCents: 9999,
     annualCents: 99999,
     seats: 2,
-    // Identical features to Premium and Family, by design.
+    // Identical features to Family, by design. The one feature Premium
+    // doesn't get — multi-profile — is exactly the one that makes sense
+    // once a plan actually covers more than one person.
     features: PLUS_FEATURES,
-    blurb: "The same everything as Premium, for two people instead of one — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
+    blurb: "The same everything as Premium, for two people instead of one, plus multiple people on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
   },
   {
     id: "family",
@@ -378,8 +391,10 @@ export const PLANS: Plan[] = [
     monthlyCents: 53994,
     annualCents: 539999,
     seats: 6,
-    // Identical features to Premium and Premium Plus, by design — Family is
-    // the same product for more people, not a longer feature list.
+    // Identical features to Premium Plus, by design — Family is the same
+    // product for more people, not a longer feature list. Differs from
+    // Premium only in multi-profile, the same way Premium Plus does — see
+    // PREMIUM_FEATURES's own doc comment above.
     features: PLUS_FEATURES,
     blurb: "The same everything as Premium Plus, for up to six people instead of two — one household on one bill, at ownership's set price.",
   },
