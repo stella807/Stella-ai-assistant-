@@ -85,8 +85,9 @@ function PaymentBadges() {
   const { t } = useLanguage();
   const methods = [
     "Visa", "Mastercard", "Amex", "Discover",
-    "Apple Pay", "Google Pay", "PayPal", "Venmo",
-    "Klarna", "Amazon Pay", "Cash App Pay", "Affirm", "Afterpay", "ATH Móvil",
+    "Apple Pay", "Google Pay", "Link",
+    "Klarna", "Amazon Pay", "Cash App Pay",
+    "PayPal", "Venmo", "ATH Móvil",
   ];
   return (
     <div className="stack" style={{ gap: 6, alignItems: "center" }}>

@@ -3031,7 +3031,7 @@ describe("payment method on file", () => {
     // ride on the Stripe account this app already has, so the stored method
     // must say `stripe`. Recording them as their own backend would claim an
     // integration that does not exist.
-    for (const payWith of ["klarna", "amazon-pay", "cashapp", "affirm"]) {
+    for (const payWith of ["klarna", "amazon-pay", "cashapp", "link"]) {
       const res = await call("POST", "/api/account/payment-method", {
         processor: "stripe", payWith, brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
       }, sam);
@@ -3070,6 +3070,33 @@ describe("payment method on file", () => {
   });
 });
 
+describe("the SetupIntent behind the Payment Element", () => {
+  it("requires a session", async () => {
+    expect((await call("POST", "/api/payment/setup-intent", { brand: "klarna" })).status).toBe(401);
+  });
+
+  it("refuses a brand it cannot collect this way, before reaching Stripe", async () => {
+    // Apple Pay and Google Pay are savable Stripe brands, but they come
+    // through the Payment Request sheet and never need an intent — so they
+    // are a 400 here, not a 503, however Stripe is configured.
+    for (const brand of ["apple-pay", "google-pay", "venmo", "nonsense", undefined]) {
+      const res = await call("POST", "/api/payment/setup-intent", { brand }, sam);
+      expect(res.status, String(brand)).toBe(400);
+    }
+  });
+
+  it("reports Stripe as unconfigured rather than pretending, for a brand it would collect", async () => {
+    // No STRIPE_SECRET_KEY in tests, so the honest answer is 503 with what's
+    // missing — never a fabricated client secret.
+    for (const brand of ["klarna", "cashapp", "amazon-pay", "link"]) {
+      const res = await call("POST", "/api/payment/setup-intent", { brand }, sam);
+      expect(res.status, brand).toBe(503);
+      expect(res.json.error, brand).toMatch(/stripe/i);
+      expect(res.json.clientSecret, brand).toBeUndefined();
+    }
+  });
+});
+
 describe("payment processor status", () => {
   it("reports all three processors as handoff without real credentials configured", async () => {
     const res = await call("GET", "/api/payment/processors", undefined, sam);
@@ -3088,6 +3115,17 @@ describe("payment processor status", () => {
     // Nothing is configured in tests, so no brand may claim to be usable —
     // the sheet reads this to avoid offering a button that would fail.
     for (const b of brands) expect(b.available, b.id).toBe(false);
+  });
+
+  it("offers no brand that cannot be saved for a later off-session hold", async () => {
+    // The whole payment surface is "a method on file, charged later with
+    // nobody present". Affirm and Afterpay cannot do that — Stripe supports
+    // neither on SetupIntents — so they must not appear at all. A tab for
+    // them would be one no amount of configuration could ever complete.
+    const res = await call("GET", "/api/payment/processors", undefined, sam);
+    const ids = (res.json.brands as { id: string }[]).map((b) => b.id);
+    expect(ids).not.toContain("affirm");
+    expect(ids).not.toContain("afterpay-clearpay");
   });
 
   it("serves the card networks the card path accepts, Mastercard among them", async () => {

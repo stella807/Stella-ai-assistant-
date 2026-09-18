@@ -50,36 +50,54 @@ export type PaymentProcessor = "stripe" | "paypal" | "ath-movil";
  */
 export type PayBrand =
   | "apple-pay" | "google-pay" | "link"
-  | "klarna" | "affirm" | "afterpay-clearpay"
-  | "cashapp" | "amazon-pay"
+  | "klarna" | "cashapp" | "amazon-pay"
   | "venmo";
 
+/**
+ * Every brand, and the two facts about it that decide whether it can appear
+ * on this app's payment screen at all.
+ *
+ * `savable` is the one that does real work. Safehubby has exactly one
+ * payment surface: a method stored on the account, against which a hold is
+ * placed later, off-session, when a ride or an errand is actually booked
+ * (see `authorizeExactHold`). A method that cannot be stored for later
+ * off-session use therefore has nowhere to live here, whatever else it
+ * supports.
+ *
+ * That is why Affirm and Afterpay are absent rather than listed as
+ * unavailable. Stripe's own payment-method support table marks both as
+ * unsupported for SetupIntents and for `setup_future_usage` — they
+ * underwrite one specific purchase at one specific amount, which is a
+ * different product from a card on file. Offering them here would be a tab
+ * that could never be completed, no matter what got configured. If a
+ * per-purchase checkout ever exists, they belong on it, not here.
+ */
+export interface PayBrandSpec {
+  label: string;
+  processor: PaymentProcessor;
+  savable: boolean;
+}
+
+export const PAY_BRAND_SPEC: Record<PayBrand, PayBrandSpec> = {
+  "apple-pay": { label: "Apple Pay", processor: "stripe", savable: true },
+  "google-pay": { label: "Google Pay", processor: "stripe", savable: true },
+  "link": { label: "Link", processor: "stripe", savable: true },
+  "klarna": { label: "Klarna", processor: "stripe", savable: true },
+  "cashapp": { label: "Cash App Pay", processor: "stripe", savable: true },
+  "amazon-pay": { label: "Amazon Pay", processor: "stripe", savable: true },
+  "venmo": { label: "Venmo", processor: "paypal", savable: true },
+};
+
+export const PAY_BRANDS = Object.keys(PAY_BRAND_SPEC) as PayBrand[];
+
 /** Which processor actually settles each brand. */
-export const PROCESSOR_FOR_BRAND: Record<PayBrand, PaymentProcessor> = {
-  "apple-pay": "stripe",
-  "google-pay": "stripe",
-  "link": "stripe",
-  "klarna": "stripe",
-  "affirm": "stripe",
-  "afterpay-clearpay": "stripe",
-  "cashapp": "stripe",
-  "amazon-pay": "stripe",
-  "venmo": "paypal",
-};
+export const PROCESSOR_FOR_BRAND = Object.fromEntries(
+  PAY_BRANDS.map((b) => [b, PAY_BRAND_SPEC[b].processor]),
+) as Record<PayBrand, PaymentProcessor>;
 
-export const PAY_BRAND_LABEL: Record<PayBrand, string> = {
-  "apple-pay": "Apple Pay",
-  "google-pay": "Google Pay",
-  "link": "Link",
-  "klarna": "Klarna",
-  "affirm": "Affirm",
-  "afterpay-clearpay": "Afterpay",
-  "cashapp": "Cash App Pay",
-  "amazon-pay": "Amazon Pay",
-  "venmo": "Venmo",
-};
-
-export const PAY_BRANDS = Object.keys(PROCESSOR_FOR_BRAND) as PayBrand[];
+export const PAY_BRAND_LABEL = Object.fromEntries(
+  PAY_BRANDS.map((b) => [b, PAY_BRAND_SPEC[b].label]),
+) as Record<PayBrand, string>;
 
 /** The brands a given processor can settle, for building a payment sheet. */
 export function brandsFor(processor: PaymentProcessor): PayBrand[] {

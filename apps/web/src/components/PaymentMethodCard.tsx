@@ -3,7 +3,8 @@ import {
   api, type PayBrand, type PaymentMethod, type PaymentProcessor, type ProcessorStatus,
 } from "../api.ts";
 import {
-  availableWallets, isStripeConfigured, stripe, walletRequest, type StripeCardElement,
+  availableWallets, confirmSetup, isStripeConfigured, mountPaymentElement, stripe, walletRequest,
+  type StripeCardElement, type StripeElements,
 } from "../native/stripe.ts";
 
 type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
@@ -14,14 +15,19 @@ type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
  * method whose checkout SDK is not loaded here yet, and saying "not
  * available" would blame the wrong side.
  *
- * - `card` / `payment-request` are wired, through Stripe.js (see native/stripe.ts).
+ * - `card`, `payment-request` and `payment-element` are wired, through
+ *   Stripe.js (see native/stripe.ts). The last of those collects a method
+ *   against a SetupIntent from our own server, which is what Klarna, Cash
+ *   App Pay, Amazon Pay and Link need in order to render at all.
  * - `sdk-pending` means the server adapter is ready and the vendor's own
- *   client SDK is not loaded on this screen. Klarna, Affirm, Afterpay, Cash
- *   App, Link and Amazon Pay all need Stripe's Payment Element rather than
- *   the Card Element this screen mounts; PayPal needs its own JS SDK; ATH
- *   Móvil needs Evertec's Payment Button script.
+ *   client SDK is not loaded on this screen: PayPal and Venmo need PayPal's
+ *   JS SDK, ATH Móvil needs Evertec's Payment Button script.
+ *
+ * Affirm and Afterpay are not here, and not merely unwired: Stripe does not
+ * support them on SetupIntents at all, so they cannot be a method on file.
+ * See `PayBrandSpec.savable` in core's payment.ts.
  */
-type Wiring = "card" | "payment-request" | "sdk-pending";
+type Wiring = "card" | "payment-request" | "payment-element" | "sdk-pending";
 
 /**
  * Every option the screen offers, and what sits behind each one.
@@ -42,12 +48,10 @@ const TABS: { id: Tab; label: string; processor: PaymentProcessor; brand?: PayBr
   { id: "card", label: "Card", processor: "stripe", wiring: "card" },
   { id: "apple-pay", label: "Apple Pay", processor: "stripe", brand: "apple-pay", wiring: "payment-request" },
   { id: "google-pay", label: "Google Pay", processor: "stripe", brand: "google-pay", wiring: "payment-request" },
-  { id: "klarna", label: "Klarna", processor: "stripe", brand: "klarna", wiring: "sdk-pending" },
-  { id: "amazon-pay", label: "Amazon Pay", processor: "stripe", brand: "amazon-pay", wiring: "sdk-pending" },
-  { id: "cashapp", label: "Cash App Pay", processor: "stripe", brand: "cashapp", wiring: "sdk-pending" },
-  { id: "affirm", label: "Affirm", processor: "stripe", brand: "affirm", wiring: "sdk-pending" },
-  { id: "afterpay-clearpay", label: "Afterpay", processor: "stripe", brand: "afterpay-clearpay", wiring: "sdk-pending" },
-  { id: "link", label: "Link", processor: "stripe", brand: "link", wiring: "sdk-pending" },
+  { id: "klarna", label: "Klarna", processor: "stripe", brand: "klarna", wiring: "payment-element" },
+  { id: "amazon-pay", label: "Amazon Pay", processor: "stripe", brand: "amazon-pay", wiring: "payment-element" },
+  { id: "cashapp", label: "Cash App Pay", processor: "stripe", brand: "cashapp", wiring: "payment-element" },
+  { id: "link", label: "Link", processor: "stripe", brand: "link", wiring: "payment-element" },
   { id: "paypal", label: "PayPal", processor: "paypal", wiring: "sdk-pending" },
   { id: "venmo", label: "Venmo", processor: "paypal", brand: "venmo", wiring: "sdk-pending" },
   { id: "ath-movil", label: "ATH Móvil", processor: "ath-movil", wiring: "sdk-pending" },
@@ -95,9 +99,12 @@ export function PaymentMethodCard() {
   const [expYear, setExpYear] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [elementError, setElementError] = useState<string | null>(null);
 
   const cardMount = useRef<HTMLDivElement>(null);
   const cardElement = useRef<StripeCardElement | null>(null);
+  const elementMount = useRef<HTMLDivElement>(null);
+  const elementsRef = useRef<StripeElements | null>(null);
 
   useEffect(() => {
     Promise.all([api.paymentMethod(), api.paymentProcessors()])
@@ -138,6 +145,46 @@ export function PaymentMethodCard() {
       cardElement.current = null;
     };
   }, [adding, tab, stripeLive]);
+
+  /**
+   * The Payment Element needs a SetupIntent before it can render, so this
+   * asks the server for one whenever a tab that uses it is opened. Scoped to
+   * the chosen brand, so the widget shows that method and not a menu.
+   */
+  useEffect(() => {
+    if (!adding || active.wiring !== "payment-element" || !stripeLive || !elementMount.current) return;
+    let cancelled = false;
+    setElementError(null);
+    elementsRef.current = null;
+    api.paymentSetupIntent(active.brand!)
+      .then(({ clientSecret }) => {
+        if (cancelled || !elementMount.current) return null;
+        return mountPaymentElement(clientSecret, elementMount.current);
+      })
+      .then((mounted) => { if (mounted && !cancelled) elementsRef.current = mounted.elements; })
+      .catch((e) => { if (!cancelled) setElementError(e instanceof Error ? e.message : "Could not start that method."); });
+    return () => { cancelled = true; elementsRef.current = null; };
+  }, [adding, tab, stripeLive, active.wiring, active.brand]);
+
+  /**
+   * Confirms the SetupIntent and stores whatever Stripe saved. The method id
+   * goes to our own server as a token, which re-verifies it against Stripe
+   * rather than trusting this screen — the same rule the card path follows.
+   */
+  const attachViaPaymentElement = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const elements = elementsRef.current;
+      if (!elements) throw new Error("That payment method didn't finish loading. Try again.");
+      const token = await confirmSetup(elements, window.location.href);
+      await save({ processor: "stripe", payWith: active.brand, token });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save that method");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const save = async (input: Parameters<typeof api.attachPaymentMethod>[0]) => {
     const res = await api.attachPaymentMethod(input);
@@ -383,6 +430,23 @@ export function PaymentMethodCard() {
                 Pay with {active.label}
               </button>
               <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
+            </>
+          )}
+
+          {active.wiring === "payment-element" && (
+            <>
+              {/* Stripe renders this method's own fields or redirect prompt
+                  into this node, against the SetupIntent above. */}
+              <div className="field"><div ref={elementMount} /></div>
+              {elementError && <p className="small muted">{elementError}</p>}
+              <div className="row">
+                <button className="btn grow" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
+                <button className="btn btn-primary grow"
+                  disabled={busy || Boolean(blocked) || Boolean(elementError)}
+                  onClick={attachViaPaymentElement}>
+                  Save {active.label}
+                </button>
+              </div>
             </>
           )}
 

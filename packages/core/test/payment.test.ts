@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CARD_NETWORKS, HOLD_BUFFER, HOLD_TTL_HOURS, PAY_BRANDS, PAY_BRAND_LABEL, PROCESSOR_FOR_BRAND,
+  CARD_NETWORKS, HOLD_BUFFER, HOLD_TTL_HOURS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
   attachPaymentMethod, authorizeExactHold, authorizeHold, brandsFor,
   canBookAutomatically, captureHold, isHoldExpired, isMethodExpired, releaseHold, sweepExpiredHolds,
 } from "../src/payment.ts";
@@ -91,6 +91,18 @@ describe("attaching a payment method", () => {
     expect(PROCESSOR_FOR_BRAND["amazon-pay"]).toBe("stripe");
     expect(PROCESSOR_FOR_BRAND["venmo"]).toBe("paypal");
     expect(brandsFor("ath-movil")).toEqual([]);
+  });
+
+  it("lists only brands that can actually be saved for a later off-session hold", () => {
+    // This app's only payment surface is a method on file, charged later
+    // with nobody present. A brand that cannot be stored that way has
+    // nowhere to live here, so the list must not contain one — which is why
+    // Affirm and Afterpay are absent rather than listed-but-unavailable:
+    // Stripe supports neither on SetupIntents, so no amount of configuration
+    // would ever make them work on this screen.
+    for (const b of PAY_BRANDS) expect(PAY_BRAND_SPEC[b].savable, b).toBe(true);
+    expect(PAY_BRANDS as string[]).not.toContain("affirm");
+    expect(PAY_BRANDS as string[]).not.toContain("afterpay-clearpay");
   });
 
   it("keeps Mastercard a card network rather than a processor or a brand", () => {

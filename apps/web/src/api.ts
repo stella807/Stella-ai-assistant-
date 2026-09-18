@@ -130,8 +130,7 @@ export interface Account {
 export type PaymentProcessor = "stripe" | "paypal" | "ath-movil";
 export type PayBrand =
   | "apple-pay" | "google-pay" | "link"
-  | "klarna" | "affirm" | "afterpay-clearpay"
-  | "cashapp" | "amazon-pay"
+  | "klarna" | "cashapp" | "amazon-pay"
   | "venmo";
 
 export interface PaymentMethod {
@@ -321,6 +320,12 @@ export const api = {
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),
+  /** A SetupIntent for the Payment Element, scoped to one brand. Only the
+   *  Stripe-settled methods that can be saved off-session accept this — see
+   *  POST /api/payment/setup-intent. */
+  paymentSetupIntent: (brand: PayBrand) =>
+    request<{ clientSecret: string }>("POST", "/api/payment/setup-intent", { brand }),
+
   paymentProcessors: () => request<{
     processors: ProcessorStatus[];
     brands: PayBrandOption[];

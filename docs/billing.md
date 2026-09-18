@@ -278,9 +278,22 @@ those three surfaces, listed in `PayBrand` in `payment.ts` with
 | Brand | Settles through | Why it isn't its own processor |
 |---|---|---|
 | Apple Pay, Google Pay, Link | `stripe` | Wallets Stripe's client SDK surfaces on the same card rails. |
-| Klarna, Affirm, Afterpay | `stripe` | Buy-now-pay-later methods enabled on the Stripe account; Stripe settles, Safehubby holds no Klarna account. |
+| Klarna | `stripe` | Enabled on the Stripe account; Stripe settles, Safehubby holds no Klarna account. |
 | Cash App Pay, Amazon Pay | `stripe` | Same — enabled as Stripe payment methods. |
 | Venmo | `paypal` | PayPal's own, on the PayPal account. |
+
+**Affirm and Afterpay are deliberately absent**, and this is the one
+constraint worth understanding before adding another method. Safehubby has
+exactly one payment surface: a method saved on the account, against which a
+hold is placed later, off-session, when a ride or errand is actually booked.
+Stripe's [payment method support
+table](https://docs.stripe.com/payments/payment-methods/payment-method-support)
+marks both Affirm and Afterpay as **unsupported for SetupIntents and for
+`setup_future_usage`** — they underwrite one purchase at one amount, which is
+a different product from a method on file. A tab for either would be one no
+amount of configuration could ever complete, so `PayBrandSpec.savable` gates
+the list and the tests assert every listed brand passes it. If a per-purchase
+checkout ever exists, they belong on that, not here.
 
 `PaymentMethodOnFile.processor` records the processor either way; `payWith`
 records the brand, for display only. Adding one of these to
@@ -360,21 +373,25 @@ Stated plainly, because the code says the same thing where it matters:
   swap is made yet. That work is contained to `apps/api/src/routes.ts` and
   `apps/api/src/billing.ts`; verifying the payment method itself (above) is
   a separate, already-done step from actually moving money against it.
-- **Only the card and wallet paths are wired in the browser.** Of the twelve
-  options on the payment screen, `Card`, `Apple Pay` and `Google Pay` are
-  complete end to end through Stripe.js. The rest have a ready server side
-  and no client SDK loaded yet, tracked as `wiring: "sdk-pending"` in
-  `TABS` in `PaymentMethodCard.tsx`, and each says so on its own tab rather
-  than offering a button that would fail:
-  - **Klarna, Affirm, Afterpay, Cash App Pay, Amazon Pay, Link** need
-    Stripe's Payment Element; this screen currently mounts the Card Element,
-    which does not surface them. Enabling them is a Stripe dashboard setting
-    plus that swap — no new credentials.
+- **Three of the ten options still need a vendor SDK in the browser.** Card,
+  Apple Pay, Google Pay, Klarna, Cash App Pay, Amazon Pay and Link are wired
+  end to end through Stripe.js — the first three via the Card Element and the
+  Payment Request sheet, the rest via the Payment Element against a
+  SetupIntent from `POST /api/payment/setup-intent`. Still pending, tracked
+  as `wiring: "sdk-pending"` in `TABS` in `PaymentMethodCard.tsx`, and each
+  saying so on its own tab rather than offering a button that would fail:
   - **PayPal and Venmo** need PayPal's own checkout SDK, which needs a real
     PayPal REST app's client id.
   - **ATH Móvil** needs Evertec's Payment Button script
     (`evertec/athmovil-javascript-api`) to produce the `ecommerceId` that
     `adapters/ath-movil.ts` already knows how to verify.
+- **The Payment Element path has not been exercised against a live Stripe
+  account either.** `createSetupIntent` and `ensureStripeCustomer` follow
+  Stripe's documented SetupIntents and Customers APIs, and the screen follows
+  the documented `elements.submit()` → `confirmSetup()` sequence, but with no
+  test keys here it is verified only to compile, lint, pass the suite, and
+  return an honest 503 when unconfigured. Run a Stripe test-mode key through
+  it — and actually complete a Klarna redirect — before trusting it.
 - **The Stripe integration has not been exercised against a live account.**
   The code follows Stripe's documented Elements and Payment Request APIs, but
   with no test keys available here it has only been verified to compile, to

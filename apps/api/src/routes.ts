@@ -29,7 +29,7 @@ import {
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
-  CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PROCESSOR_FOR_BRAND,
+  CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   clampHours, defaultHoursFor, isHourlyCategory,
@@ -77,7 +77,7 @@ import {
 import { flightTracking } from "./adapters/flight-tracking.ts";
 import { revolutCards } from "./adapters/cards.ts";
 import { revolutPayouts } from "./adapters/payouts.ts";
-import { stripeProcessor } from "./adapters/stripe.ts";
+import { createSetupIntent, ensureStripeCustomer, stripeProcessor } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { paypalProcessor } from "./adapters/paypal.ts";
@@ -257,6 +257,18 @@ const PROCESSOR_PORTS: Record<PaymentProcessor, ChargeProcessorPort> = {
   stripe: stripeProcessor,
   paypal: paypalProcessor,
   "ath-movil": athMovilProcessor,
+};
+
+/**
+ * Stripe's own `payment_method_types` enum for each brand it settles. Their
+ * spelling, not ours — `cashapp` and `amazon_pay` are what the API expects,
+ * and guessing at either produces a SetupIntent Stripe rejects.
+ */
+const STRIPE_PAYMENT_METHOD_TYPE: Partial<Record<PayBrand, string>> = {
+  klarna: "klarna",
+  cashapp: "cashapp",
+  "amazon-pay": "amazon_pay",
+  link: "link",
 };
 
 /**
@@ -1375,6 +1387,50 @@ export const routes: Record<string, Handler> = {
     })),
     cardNetworks: CARD_NETWORKS,
   }),
+
+  /**
+   * A SetupIntent for the Payment Element, so a method that is not a typed
+   * card can be collected without charging anything.
+   *
+   * The card and wallet paths do not come through here — Stripe.js tokenizes
+   * those directly — but Klarna, Cash App Pay, Amazon Pay and Link all need
+   * an intent to render against. `brand` picks which, and is checked against
+   * core's own table rather than passed through: a brand that cannot be
+   * saved off-session, or that settles somewhere other than Stripe, has no
+   * business creating a Stripe SetupIntent.
+   */
+  "POST /api/payment/setup-intent": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    const brand = body?.brand as PayBrand | undefined;
+    const spec = brand ? PAY_BRAND_SPEC[brand] : undefined;
+    const type = brand ? STRIPE_PAYMENT_METHOD_TYPE[brand] : undefined;
+    // `type` is the narrower check and the one that matters: Apple Pay and
+    // Google Pay are savable Stripe brands with no entry here on purpose,
+    // because they are collected through the Payment Request sheet instead
+    // and never need an intent from this route.
+    if (!spec || !type || spec.processor !== "stripe" || !spec.savable) {
+      throw new HttpError(400, "That isn't a payment method this screen collects with a SetupIntent.");
+    }
+    if (!isAutomatic(stripeProcessor.status)) {
+      throw new HttpError(503, `Stripe isn't configured. ${stripeProcessor.status.requires}`);
+    }
+
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw new HttpError(404, "No such traveler.");
+
+    const customerId = await ensureStripeCustomer({
+      existingId: ctx.store.data.stripeCustomers[me],
+      email: traveler.email,
+      name: traveler.displayName,
+    });
+    ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
+
+    const { clientSecret } = await createSetupIntent({
+      customerId,
+      paymentMethodType: type,
+    });
+    return { clientSecret };
+  },
 
   "GET /api/account/payment-method": (ctx) => {
     const me = actor(ctx);

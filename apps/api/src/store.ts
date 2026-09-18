@@ -163,6 +163,11 @@ export interface Db {
   pendingOrders: Record<string, PendingOrder[]>;
   partyCarts: Record<string, { sku: string; qty: number }[]>;
   paymentMethods: Record<string, PaymentMethodOnFile>;
+  /** The traveler's Stripe Customer id, created the first time they open a
+   *  payment sheet that needs one. Kept so a member ends up with one Customer
+   *  rather than one per visit — Stripe only reuses a method off-session when
+   *  it is attached to one. See `ensureStripeCustomer` in adapters/stripe.ts. */
+  stripeCustomers: Record<string, string>;
   holds: PreAuthorization[];
   /** One ledger for every charge — subscription, ride, delivery — so a single
    *  screen can show the whole account. See wallet.ts. */
@@ -227,7 +232,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, stripeCustomers: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

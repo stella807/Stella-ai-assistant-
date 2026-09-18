@@ -4,7 +4,9 @@
 // request to Stripe before anything asks them to. `/pure` loads the script
 // only when `loadStripe` is actually called.
 import { loadStripe } from "@stripe/stripe-js/pure";
-import type { PaymentRequest, Stripe, StripeCardElement } from "@stripe/stripe-js";
+import type {
+  PaymentRequest, Stripe, StripeCardElement, StripeElements, StripePaymentElement,
+} from "@stripe/stripe-js";
 
 /**
  * Stripe.js, loaded lazily and only when it is actually configured.
@@ -38,7 +40,65 @@ export function stripe(): Promise<Stripe | null> {
   return cached;
 }
 
-export type { StripeCardElement };
+export type { StripeCardElement, StripeElements, StripePaymentElement };
+
+/**
+ * Mounts Stripe's Payment Element against a SetupIntent from our own server
+ * (`POST /api/payment/setup-intent`).
+ *
+ * The Card Element this screen already uses renders card fields and nothing
+ * else — it is why Klarna, Cash App Pay, Amazon Pay and Link could not be
+ * offered before. The Payment Element renders whichever method the intent
+ * was created for, which is why the server scopes each intent to a single
+ * `payment_method_types` entry: one tab, one method, no sheet of six.
+ */
+export async function mountPaymentElement(
+  clientSecret: string,
+  node: HTMLElement,
+): Promise<{ elements: StripeElements; element: StripePaymentElement } | null> {
+  const s = await stripe();
+  if (!s) return null;
+  const elements = s.elements({ clientSecret });
+  const element = elements.create("payment");
+  element.mount(node);
+  return { elements, element };
+}
+
+/**
+ * Completes the setup and returns the saved method's id.
+ *
+ * `redirect: "if_required"` matters: Klarna, Cash App Pay and Amazon Pay all
+ * send the customer to the provider to authorise, and come back through
+ * `return_url`. Stripe resolves in place for anything that does not need
+ * that hop, so this handles both without the caller branching — and the
+ * `return_url` is this same screen, so a customer who does get redirected
+ * lands back where they started rather than on a blank page.
+ */
+export async function confirmSetup(
+  elements: StripeElements,
+  returnUrl: string,
+): Promise<string> {
+  const s = await stripe();
+  if (!s) throw new Error("Stripe isn't configured in this build.");
+
+  const submitted = await elements.submit();
+  if (submitted.error) throw new Error(submitted.error.message ?? "Those details were not accepted.");
+
+  const result = await s.confirmSetup({
+    elements,
+    confirmParams: { return_url: returnUrl },
+    redirect: "if_required",
+  });
+  if (result.error) throw new Error(result.error.message ?? "Stripe could not save that method.");
+
+  const method = result.setupIntent?.payment_method;
+  // A string id is what this app stores; an expanded object would mean the
+  // intent was created differently than `createSetupIntent` creates it.
+  if (typeof method !== "string" || !method) {
+    throw new Error("Stripe saved the method but returned no id for it.");
+  }
+  return method;
+}
 
 /**
  * A wallet request for the amount-less case: attaching a payment method is
