@@ -68,17 +68,26 @@ export function Footer() {
 }
 
 /**
- * The trust-badge row most sites put at the bottom — real methods this app
- * actually takes a card, a wallet, or a PayPal token through (see
- * PaymentMethodCard.tsx and adapters/stripe.ts, adapters/paypal.ts), not
- * logos borrowed for the look of legitimacy. Plain text rather than brand
- * marks: the actual Visa/Mastercard/Apple/PayPal logos are trademarked
- * assets this app has no license to reproduce, and a lookalike icon reads
- * worse than an honest label once anyone looks closely.
+ * The trust-badge row most sites put at the bottom — real methods the
+ * payment screen offers (see `TABS` in PaymentMethodCard.tsx), not logos
+ * borrowed for the look of legitimacy. Plain text rather than brand marks:
+ * the actual Visa/Mastercard/Apple/PayPal logos are trademarked assets this
+ * app has no license to reproduce, and a lookalike icon reads worse than an
+ * honest label once anyone looks closely.
+ *
+ * The card networks come first because they are the path that is fully
+ * wired; the rest are offered on the payment screen, which states per
+ * method what is still needed before it can be completed. A badge here is a
+ * claim about what Safehubby takes, so it must not run ahead of that screen
+ * — if an option is ever dropped there, drop it here too.
  */
 function PaymentBadges() {
   const { t } = useLanguage();
-  const methods = ["Visa", "Mastercard", "Amex", "Apple Pay", "Google Pay", "PayPal"];
+  const methods = [
+    "Visa", "Mastercard", "Amex", "Discover",
+    "Apple Pay", "Google Pay", "PayPal", "Venmo",
+    "Klarna", "Amazon Pay", "Cash App Pay", "Affirm", "Afterpay", "ATH Móvil",
+  ];
   return (
     <div className="stack" style={{ gap: 6, alignItems: "center" }}>
       <p className="tiny muted" style={{ margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>

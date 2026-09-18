@@ -279,8 +279,10 @@ export interface PayoutPort {
 export interface VerifiedMethod {
   brand: string;
   last4: string;
-  expMonth: number;
-  expYear: number;
+  /** Absent where the processor has no card behind the method — an ATH Móvil
+   *  account has nothing to expire. See `PaymentMethodOnFile` in payment.ts. */
+  expMonth?: number;
+  expYear?: number;
 }
 
 export interface ChargeProcessorPort {

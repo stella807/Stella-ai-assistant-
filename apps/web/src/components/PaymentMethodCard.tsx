@@ -1,28 +1,59 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type PaymentMethod, type PaymentProcessor, type ProcessorStatus, type WalletType } from "../api.ts";
+import {
+  api, type PayBrand, type PaymentMethod, type PaymentProcessor, type ProcessorStatus,
+} from "../api.ts";
 import {
   availableWallets, isStripeConfigured, stripe, walletRequest, type StripeCardElement,
 } from "../native/stripe.ts";
 
-type Tab = "card" | "apple-pay" | "google-pay" | "paypal";
+type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
 
-const TAB_LABEL: Record<Tab, string> = {
-  card: "Card",
-  "apple-pay": "Apple Pay",
-  "google-pay": "Google Pay",
-  paypal: "PayPal",
-};
+/**
+ * How the browser half of each option is actually produced today. This is
+ * the honest half of the screen: the server can be fully configured for a
+ * method whose checkout SDK is not loaded here yet, and saying "not
+ * available" would blame the wrong side.
+ *
+ * - `card` / `payment-request` are wired, through Stripe.js (see native/stripe.ts).
+ * - `sdk-pending` means the server adapter is ready and the vendor's own
+ *   client SDK is not loaded on this screen. Klarna, Affirm, Afterpay, Cash
+ *   App, Link and Amazon Pay all need Stripe's Payment Element rather than
+ *   the Card Element this screen mounts; PayPal needs its own JS SDK; ATH
+ *   Móvil needs Evertec's Payment Button script.
+ */
+type Wiring = "card" | "payment-request" | "sdk-pending";
 
-/** Which real processor settles each tab. Apple Pay and Google Pay are not
- *  separate processors — both are wallets Stripe's own SDK surfaces on top
- *  of the same card rails, so they map onto the `stripe` status the same
- *  way the plain "Card" tab does. See adapters/stripe.ts. */
-const PROCESSOR_FOR: Record<Tab, PaymentProcessor> = {
-  card: "stripe",
-  "apple-pay": "stripe",
-  "google-pay": "stripe",
-  paypal: "paypal",
-};
+/**
+ * Every option the screen offers, and what sits behind each one.
+ *
+ * `processor` is the account that actually settles it, and most of these
+ * share one: Klarna, Amazon Pay, Cash App, Affirm, Afterpay and Link are
+ * brands Stripe surfaces on the Stripe account this app already has, not
+ * integrations of their own, so they carry `brand` and settle as `stripe`.
+ * Venmo is the same story on PayPal's side. Only ATH Móvil is a genuinely
+ * separate backend — see `PayBrand` and `PaymentProcessor` in core's
+ * payment.ts, which this table mirrors rather than redefines.
+ *
+ * Mastercard is deliberately absent: it is a card network the Card tab
+ * already accepts, not a method of its own. The network list lives beside
+ * the card form.
+ */
+const TABS: { id: Tab; label: string; processor: PaymentProcessor; brand?: PayBrand; wiring: Wiring }[] = [
+  { id: "card", label: "Card", processor: "stripe", wiring: "card" },
+  { id: "apple-pay", label: "Apple Pay", processor: "stripe", brand: "apple-pay", wiring: "payment-request" },
+  { id: "google-pay", label: "Google Pay", processor: "stripe", brand: "google-pay", wiring: "payment-request" },
+  { id: "klarna", label: "Klarna", processor: "stripe", brand: "klarna", wiring: "sdk-pending" },
+  { id: "amazon-pay", label: "Amazon Pay", processor: "stripe", brand: "amazon-pay", wiring: "sdk-pending" },
+  { id: "cashapp", label: "Cash App Pay", processor: "stripe", brand: "cashapp", wiring: "sdk-pending" },
+  { id: "affirm", label: "Affirm", processor: "stripe", brand: "affirm", wiring: "sdk-pending" },
+  { id: "afterpay-clearpay", label: "Afterpay", processor: "stripe", brand: "afterpay-clearpay", wiring: "sdk-pending" },
+  { id: "link", label: "Link", processor: "stripe", brand: "link", wiring: "sdk-pending" },
+  { id: "paypal", label: "PayPal", processor: "paypal", wiring: "sdk-pending" },
+  { id: "venmo", label: "Venmo", processor: "paypal", brand: "venmo", wiring: "sdk-pending" },
+  { id: "ath-movil", label: "ATH Móvil", processor: "ath-movil", wiring: "sdk-pending" },
+];
+
+const TAB = Object.fromEntries(TABS.map((t) => [t.id, t])) as Record<Tab, (typeof TABS)[number]>;
 
 /**
  * The one payment method on the account. It backs every charge that is not a
@@ -31,10 +62,11 @@ const PROCESSOR_FOR: Record<Tab, PaymentProcessor> = {
  * itself — it lets a hold be placed at the moment a trip is actually booked,
  * and Safehubby never spends before that hold exists.
  *
- * Four tabs, two real backends. Stripe and PayPal are independent processors
- * with their own credentials (adapters/stripe.ts, adapters/paypal.ts). Apple
- * Pay and Google Pay are wallets Stripe's own SDK offers on top of the same
- * card rails, so they settle as `stripe` with `wallet` recorded for display.
+ * Twelve options, three real backends — see `TABS` above for which is which.
+ * Stripe, PayPal and ATH Móvil are independent processors with their own
+ * credentials (adapters/stripe.ts, paypal.ts, ath-movil.ts); everything else
+ * on the row is a brand one of those three surfaces, settled by it and
+ * recorded in `payWith` for display only.
  *
  * Card entry and the wallet sheets all happen inside Stripe.js — this app
  * never touches a raw card number. What it sends to its own server is the
@@ -52,6 +84,7 @@ const PROCESSOR_FOR: Record<Tab, PaymentProcessor> = {
 export function PaymentMethodCard() {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [processors, setProcessors] = useState<ProcessorStatus[]>([]);
+  const [cardNetworks, setCardNetworks] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState<Tab>("card");
@@ -71,6 +104,7 @@ export function PaymentMethodCard() {
       .then(([m, p]) => {
         setMethod(m.method);
         setProcessors(p.processors);
+        setCardNetworks(p.cardNetworks);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -81,7 +115,8 @@ export function PaymentMethodCard() {
   }, []);
 
   const statusOf = (processor: PaymentProcessor) => processors.find((p) => p.id === processor) ?? null;
-  const activeStatus = statusOf(PROCESSOR_FOR[tab]);
+  const active = TAB[tab];
+  const activeStatus = statusOf(active.processor);
   /** Both halves present: this build has the publishable key, and the server
    *  has the secret key to verify the resulting token with. */
   const stripeLive = isStripeConfigured() && statusOf("stripe")?.mode === "automatic";
@@ -155,7 +190,7 @@ export function PaymentMethodCard() {
    * confirms a payment — the point is the tokenized method it hands back,
    * which later holds are placed against at booking time.
    */
-  const attachWallet = async (wallet: WalletType) => {
+  const attachWallet = async (payWith: PayBrand) => {
     setBusy(true);
     setError(null);
     try {
@@ -172,23 +207,12 @@ export function PaymentMethodCard() {
         request.on("cancel", () => reject(new Error("Cancelled.")));
         request.show();
       });
-      await save({ processor: "stripe", wallet, token });
+      await save({ processor: "stripe", payWith, token });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add that wallet");
     } finally {
       setBusy(false);
     }
-  };
-
-  /**
-   * PayPal's own JS SDK is not wired in yet — unlike Stripe, which is fully
-   * connected above, this is still a labeled gap. The server side
-   * (adapters/paypal.ts) is ready to verify a vaulted payment-token id; what
-   * is missing is loading PayPal's SDK to produce one, which needs a real
-   * PayPal REST app's client id.
-   */
-  const attachPaypal = () => {
-    setError("PayPal's server side is ready, but its checkout SDK isn't wired into this screen yet.");
   };
 
   const remove = async () => {
@@ -206,18 +230,39 @@ export function PaymentMethodCard() {
 
   if (!loaded) return null;
 
-  /** Why a tab can't be completed right now, in the user's terms. */
+  /**
+   * Why a tab can't be completed right now, in the user's terms — and whose
+   * side the gap is on. Server credentials, this build's keys, this device,
+   * and an unloaded vendor SDK are four different problems, and collapsing
+   * them into one "unavailable" would leave nobody able to act on it.
+   */
   const blockedReason = (): string | null => {
-    if (PROCESSOR_FOR[tab] === "paypal") {
-      return activeStatus?.mode === "automatic" ? null : "PayPal isn't connected on this server yet.";
+    if (activeStatus?.mode !== "automatic") {
+      // Name the processor, not the tab: "Card isn't connected" is not a
+      // thing that can be true, and for a brand it is worth saying whose
+      // rails it is actually waiting on — that is the account the operator
+      // has to go and connect.
+      const name = activeStatus?.name ?? active.label;
+      const lead = active.brand && name !== active.label
+        ? `${active.label} settles through ${name}, which isn't connected on this server yet`
+        : `${name} isn't connected on this server yet`;
+      // The `requires` strings are written as standalone sentences by each
+      // adapter, so they arrive capitalised and full-stopped; both are wrong
+      // once they continue a clause here.
+      const needs = activeStatus?.requires?.replace(/\.$/, "").replace(/^./, (c) => c.toLowerCase());
+      return `${lead}${needs ? ` — needs ${needs}.` : "."}`;
     }
-    if (!isStripeConfigured()) return "This build has no Stripe publishable key — see docs/billing.md.";
-    if (statusOf("stripe")?.mode !== "automatic") return "Stripe isn't connected on this server yet.";
+    if (active.processor === "stripe" && !isStripeConfigured()) {
+      return "This build has no Stripe publishable key — see docs/billing.md.";
+    }
     if (tab === "apple-pay" && !wallets.applePay) {
       return "Apple Pay needs Safari on an iPhone, iPad, or Mac — this browser doesn't offer it.";
     }
     if (tab === "google-pay" && !wallets.googlePay) {
       return "Google Pay isn't available in this browser, or has no card saved in it.";
+    }
+    if (active.wiring === "sdk-pending") {
+      return `${active.label}'s server side is ready, but its checkout isn't wired into this screen yet.`;
     }
     return null;
   };
@@ -235,10 +280,14 @@ export function PaymentMethodCard() {
         <>
           <div className="row-between">
             <span className="small">
-              {method.wallet ? `${method.wallet === "apple-pay" ? "Apple Pay" : "Google Pay"} — ` : ""}
+              {method.payWith ? `${TAB[method.payWith]?.label ?? method.payWith} — ` : ""}
               {method.brand} ···· {method.last4}
             </span>
-            <span className="tiny muted">Exp {String(method.expMonth).padStart(2, "0")}/{method.expYear}</span>
+            {/* An account-based method has no card behind it and so no
+                expiry — see PaymentMethodOnFile in core's payment.ts. */}
+            {method.expMonth !== undefined && method.expYear !== undefined && (
+              <span className="tiny muted">Exp {String(method.expMonth).padStart(2, "0")}/{method.expYear}</span>
+            )}
           </div>
           <button className="btn btn-block btn-ghost" disabled={busy} onClick={remove}>Remove</button>
         </>
@@ -255,10 +304,10 @@ export function PaymentMethodCard() {
               reader nothing; a visible one that states plainly why it won't
               work tells them whether the problem is their device or our
               setup. */}
-          <div className="tabs" role="tablist">
-            {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-              <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-                {TAB_LABEL[t]}
+          <div className="tabs tabs-scroll" role="tablist">
+            {TABS.map((t) => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
+                {t.label}
               </button>
             ))}
           </div>
@@ -267,6 +316,14 @@ export function PaymentMethodCard() {
 
           {tab === "card" && (
             <>
+              {/* Served rather than hardcoded — CARD_NETWORKS in core's
+                  payment.ts. Mastercard is accepted here, on this tab, which
+                  is the whole of what "supporting Mastercard" means. */}
+              {cardNetworks.length > 0 && (
+                <p className="tiny muted" style={{ margin: 0 }}>
+                  We accept {cardNetworks.join(", ")}.
+                </p>
+              )}
               {stripeLive ? (
                 <>
                   {/* Stripe.js renders the real card fields into this node,
@@ -319,20 +376,23 @@ export function PaymentMethodCard() {
             </>
           )}
 
-          {(tab === "apple-pay" || tab === "google-pay") && (
+          {active.wiring === "payment-request" && (
             <>
               <button className="btn btn-block btn-primary" disabled={busy || Boolean(blocked)}
-                onClick={() => attachWallet(tab === "apple-pay" ? "apple-pay" : "google-pay")}>
-                {tab === "apple-pay" ? "Pay with Apple Pay" : "Pay with Google Pay"}
+                onClick={() => attachWallet(active.brand!)}>
+                Pay with {active.label}
               </button>
               <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
             </>
           )}
 
-          {tab === "paypal" && (
+          {/* The button stays, disabled, rather than disappearing: the
+              blocked reason above names what is missing, and an option that
+              vanishes reads as one that doesn't exist. */}
+          {active.wiring === "sdk-pending" && (
             <>
-              <button className="btn btn-block btn-primary" disabled={busy || Boolean(blocked)} onClick={attachPaypal}>
-                Continue with PayPal
+              <button className="btn btn-block btn-primary" disabled aria-disabled="true">
+                Continue with {active.label}
               </button>
               <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
             </>

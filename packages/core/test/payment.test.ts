@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  HOLD_BUFFER, HOLD_TTL_HOURS, attachPaymentMethod, authorizeExactHold, authorizeHold,
+  CARD_NETWORKS, HOLD_BUFFER, HOLD_TTL_HOURS, PAY_BRANDS, PAY_BRAND_LABEL, PROCESSOR_FOR_BRAND,
+  attachPaymentMethod, authorizeExactHold, authorizeHold, brandsFor,
   canBookAutomatically, captureHold, isHoldExpired, isMethodExpired, releaseHold, sweepExpiredHolds,
 } from "../src/payment.ts";
 
@@ -46,28 +47,92 @@ describe("attaching a payment method", () => {
     expect(isMethodExpired(m, T0)).toBe(false);
   });
 
-  it("records which processor and wallet settled the method", () => {
+  it("records which processor and brand settled the method", () => {
     const m = attachPaymentMethod({
-      id: "p", processor: "stripe", wallet: "apple-pay", brand: "Visa", last4: "4242",
+      id: "p", processor: "stripe", payWith: "apple-pay", brand: "Visa", last4: "4242",
       expMonth: 12, expYear: 2027, now: T0,
     });
     expect(m.processor).toBe("stripe");
-    expect(m.wallet).toBe("apple-pay");
+    expect(m.payWith).toBe("apple-pay");
   });
 
-  it("accepts PayPal with no wallet", () => {
+  it("accepts PayPal with no brand", () => {
     const m = attachPaymentMethod({
       id: "p", processor: "paypal", brand: "PayPal", last4: "4242", expMonth: 12, expYear: 2027, now: T0,
     });
     expect(m.processor).toBe("paypal");
-    expect(m.wallet).toBeUndefined();
+    expect(m.payWith).toBeUndefined();
   });
 
-  it("rejects a wallet method claiming to settle through PayPal", () => {
+  it("refuses a brand claimed against a processor that does not settle it", () => {
+    // Every brand belongs to exactly one processor, so a mismatch is the app
+    // misreporting where the money actually went — the one thing a payment
+    // record cannot get wrong. Checked both directions, since the old rule
+    // ("a wallet means Stripe") only ever caught one of them.
     expect(() => attachPaymentMethod({
-      id: "p", processor: "paypal", wallet: "google-pay", brand: "Visa", last4: "4242",
+      id: "p", processor: "paypal", payWith: "google-pay", brand: "Visa", last4: "4242",
       expMonth: 12, expYear: 2027, now: T0,
-    })).toThrow(/only offered through stripe/i);
+    })).toThrow(/settles through stripe/i);
+    expect(() => attachPaymentMethod({
+      id: "p", processor: "stripe", payWith: "venmo", brand: "Venmo", last4: "4242",
+      expMonth: 12, expYear: 2027, now: T0,
+    })).toThrow(/settles through paypal/i);
+  });
+
+  it("maps every brand to a processor the app actually holds an account with", () => {
+    for (const b of PAY_BRANDS) {
+      expect(PROCESSOR_FOR_BRAND[b], b).toBeDefined();
+      expect(PAY_BRAND_LABEL[b], b).toBeTruthy();
+    }
+    // Klarna, Amazon Pay and the rest ride on Stripe rather than being
+    // integrations of their own; Venmo rides on PayPal. If one of these ever
+    // needs its own credentials, it belongs in PaymentProcessor instead.
+    expect(PROCESSOR_FOR_BRAND["klarna"]).toBe("stripe");
+    expect(PROCESSOR_FOR_BRAND["amazon-pay"]).toBe("stripe");
+    expect(PROCESSOR_FOR_BRAND["venmo"]).toBe("paypal");
+    expect(brandsFor("ath-movil")).toEqual([]);
+  });
+
+  it("keeps Mastercard a card network rather than a processor or a brand", () => {
+    // "Add Mastercard" is not an integration: the card path already accepts
+    // it, through Stripe, like every other network here. Listing it as a
+    // processor would claim a backend that does not and should not exist.
+    expect(CARD_NETWORKS).toContain("Mastercard");
+    expect(PAY_BRANDS as string[]).not.toContain("mastercard");
+  });
+});
+
+describe("a method with no card behind it", () => {
+  // ATH Móvil is an account tied to a phone number, not a card. It has
+  // nothing to expire, and treating a missing expiry as expired would lock
+  // the method out the moment it was added.
+  const athMovil = () => attachPaymentMethod({
+    id: "p", processor: "ath-movil", brand: "ATH Móvil", last4: "5309", now: T0,
+  });
+
+  it("attaches without an expiry", () => {
+    const m = athMovil();
+    expect(m.processor).toBe("ath-movil");
+    expect(m.expMonth).toBeUndefined();
+    expect(m.expYear).toBeUndefined();
+  });
+
+  it("never counts as expired, however far out the clock is", () => {
+    expect(isMethodExpired(athMovil(), T0)).toBe(false);
+    expect(isMethodExpired(athMovil(), at(24 * 365 * 20))).toBe(false);
+  });
+
+  it("can still book automatically", () => {
+    expect(canBookAutomatically(true, athMovil(), at(24 * 365 * 20))).toBe(true);
+  });
+
+  it("still refuses a half-given expiry rather than silently dropping it", () => {
+    expect(() => attachPaymentMethod({
+      id: "p", processor: "stripe", brand: "Visa", last4: "4242", expMonth: 12, now: T0,
+    })).toThrow(/expiry year/i);
+    expect(() => attachPaymentMethod({
+      id: "p", processor: "stripe", brand: "Visa", last4: "4242", expYear: 2027, now: T0,
+    })).toThrow(/expiry month/i);
   });
 });
 

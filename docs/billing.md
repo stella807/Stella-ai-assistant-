@@ -267,10 +267,55 @@ mock form this screen has always used, and `GET /api/payment/processors`
 reports both as `handoff` so the UI never claims a wallet or PayPal button
 works when it can't.
 
-**Apple Pay and Google Pay are not separate processors.** Both are wallets
-Stripe's own client SDK surfaces on top of the same card rails — a wallet
-token still verifies through the Stripe adapter, and `PaymentMethodOnFile.processor`
-records `"stripe"` either way, with `wallet` set only for display.
+**Most "payment methods" are not processors.** A processor is an account
+Safehubby holds, with its own credentials and its own settlement. There are
+three: Stripe, PayPal, and ATH Móvil.
+
+Everything else a customer recognises as a way to pay is a *brand* one of
+those three surfaces, listed in `PayBrand` in `payment.ts` with
+`PROCESSOR_FOR_BRAND` recording which settles it:
+
+| Brand | Settles through | Why it isn't its own processor |
+|---|---|---|
+| Apple Pay, Google Pay, Link | `stripe` | Wallets Stripe's client SDK surfaces on the same card rails. |
+| Klarna, Affirm, Afterpay | `stripe` | Buy-now-pay-later methods enabled on the Stripe account; Stripe settles, Safehubby holds no Klarna account. |
+| Cash App Pay, Amazon Pay | `stripe` | Same — enabled as Stripe payment methods. |
+| Venmo | `paypal` | PayPal's own, on the PayPal account. |
+
+`PaymentMethodOnFile.processor` records the processor either way; `payWith`
+records the brand, for display only. Adding one of these to
+`PaymentProcessor` instead would claim an integration that does not exist,
+so the mapping is a table the tests assert against rather than a rule.
+
+**ATH Móvil is the one genuine third processor.** Puerto Rico's own network,
+run by Evertec, reachable through neither Stripe nor PayPal, so it needs its
+own merchant account and its own adapter (`adapters/ath-movil.ts`). It is an
+account tied to a phone number rather than a card, which is why
+`PaymentMethodOnFile`'s expiry is optional — there is nothing to expire, and
+treating a missing expiry as expired would lock the method out immediately.
+
+**Mastercard is not a processor or a brand.** It is a card network the card
+path already accepts, through Stripe, like Visa, Amex and Discover.
+`CARD_NETWORKS` lists them so the payment screen and the footer badges read
+off one source; "supporting Mastercard" means nothing more than the card form
+already working.
+
+### Configuring ATH Móvil
+
+Needs an ATH Móvil Business account. Both tokens are in the Settings tab of
+the ATH Móvil Business app:
+
+```bash
+railway variables --set "ATH_MOVIL_PUBLIC_TOKEN=..."
+railway variables --set "ATH_MOVIL_PRIVATE_TOKEN=..."
+```
+
+The private token is only strictly needed for refunds, and is required here
+anyway — a processor that can take money but not give it back is not one
+worth turning on. Evertec accepts the literal public token `dummy` for
+simulated payments against production, so there is no separate sandbox host
+to point at the way PayPal needs one. Endpoints are documented at
+[github.com/evertec/ATHM-Payment-Button-API](https://github.com/evertec/ATHM-Payment-Button-API).
 
 ### Configuring Stripe
 
@@ -315,11 +360,21 @@ Stated plainly, because the code says the same thing where it matters:
   swap is made yet. That work is contained to `apps/api/src/routes.ts` and
   `apps/api/src/billing.ts`; verifying the payment method itself (above) is
   a separate, already-done step from actually moving money against it.
-- **No PayPal client SDK.** PayPal's server side (`adapters/paypal.ts`) is
-  ready to verify a vaulted payment-token id, but loading PayPal's own
-  checkout SDK to produce one is still a labeled gap (`attachPaypal` in
-  `PaymentMethodCard.tsx`). Stripe, by contrast, is wired end to end — see
-  "Configuring Stripe" above.
+- **Only the card and wallet paths are wired in the browser.** Of the twelve
+  options on the payment screen, `Card`, `Apple Pay` and `Google Pay` are
+  complete end to end through Stripe.js. The rest have a ready server side
+  and no client SDK loaded yet, tracked as `wiring: "sdk-pending"` in
+  `TABS` in `PaymentMethodCard.tsx`, and each says so on its own tab rather
+  than offering a button that would fail:
+  - **Klarna, Affirm, Afterpay, Cash App Pay, Amazon Pay, Link** need
+    Stripe's Payment Element; this screen currently mounts the Card Element,
+    which does not surface them. Enabling them is a Stripe dashboard setting
+    plus that swap — no new credentials.
+  - **PayPal and Venmo** need PayPal's own checkout SDK, which needs a real
+    PayPal REST app's client id.
+  - **ATH Móvil** needs Evertec's Payment Button script
+    (`evertec/athmovil-javascript-api`) to produce the `ecommerceId` that
+    `adapters/ath-movil.ts` already knows how to verify.
 - **The Stripe integration has not been exercised against a live account.**
   The code follows Stripe's documented Elements and Payment Request APIs, but
   with no test keys available here it has only been verified to compile, to

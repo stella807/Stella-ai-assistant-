@@ -29,6 +29,7 @@ import {
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
+  CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PROCESSOR_FOR_BRAND,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   clampHours, defaultHoursFor, isHourlyCategory,
@@ -65,7 +66,7 @@ import type {
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
-  PaymentProcessor, WalletType,
+  PaymentProcessor, PayBrand, ChargeProcessorPort,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -80,6 +81,7 @@ import { stripeProcessor } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { paypalProcessor } from "./adapters/paypal.ts";
+import { athMovilProcessor } from "./adapters/ath-movil.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -243,6 +245,19 @@ function requirePaymentMethod(ctx: Ctx, userId: string): void {
     );
   }
 }
+
+/**
+ * Every processor Safehubby holds an account with, keyed by the id stored on
+ * a payment method. Keeping it as one table is what lets the status endpoint
+ * and the attach handler stay in agreement — the previous pair of ternaries
+ * had to be edited in two places to add a third processor, and silently
+ * defaulted anything unrecognised to Stripe.
+ */
+const PROCESSOR_PORTS: Record<PaymentProcessor, ChargeProcessorPort> = {
+  stripe: stripeProcessor,
+  paypal: paypalProcessor,
+  "ath-movil": athMovilProcessor,
+};
 
 /**
  * The platform the request came from, which decides the rail a subscription
@@ -1349,7 +1364,16 @@ export const routes: Record<string, Handler> = {
    * entry, not a separate backend integration. See stripe.ts's doc comment.
    */
   "GET /api/payment/processors": () => ({
-    processors: [stripeProcessor.status, paypalProcessor.status],
+    processors: Object.values(PROCESSOR_PORTS).map((p) => p.status),
+    // The brands each configured processor can surface, and the card
+    // networks the card path already accepts. Both are display data the
+    // payment sheet reads rather than hardcoding — see `PayBrand` and
+    // `CARD_NETWORKS` in payment.ts for why neither is a processor.
+    brands: PAY_BRANDS.map((id) => ({
+      id, label: PAY_BRAND_LABEL[id], processor: PROCESSOR_FOR_BRAND[id],
+      available: isAutomatic(PROCESSOR_PORTS[PROCESSOR_FOR_BRAND[id]].status),
+    })),
+    cardNetworks: CARD_NETWORKS,
   }),
 
   "GET /api/account/payment-method": (ctx) => {
@@ -1360,15 +1384,20 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/account/payment-method": async (ctx, _p, body) => {
     const me = actor(ctx);
-    const processor: PaymentProcessor = body?.processor === "paypal" ? "paypal" : "stripe";
-    const wallet: WalletType | undefined =
-      body?.wallet === "apple-pay" || body?.wallet === "google-pay" ? body.wallet : undefined;
-    const port = processor === "paypal" ? paypalProcessor : stripeProcessor;
+    const processor: PaymentProcessor =
+      body?.processor === "paypal" || body?.processor === "ath-movil" ? body.processor : "stripe";
+    // A brand the client does not recognise is dropped rather than rejected —
+    // it is display-only. One that settles through a different processor is
+    // not dropped, though: `attachPaymentMethod` refuses it, since claiming
+    // Venmo against Stripe would misreport where the money actually went.
+    const payWith: PayBrand | undefined =
+      PAY_BRANDS.includes(body?.payWith) ? body.payWith : undefined;
+    const port = PROCESSOR_PORTS[processor];
 
     let brand = String(body?.brand ?? "");
     let last4 = String(body?.last4 ?? "");
-    let expMonth = Number(body?.expMonth);
-    let expYear = Number(body?.expYear);
+    let expMonth = body?.expMonth === undefined ? undefined : Number(body.expMonth);
+    let expYear = body?.expYear === undefined ? undefined : Number(body.expYear);
 
     // When the real processor is configured, trust only what it reports back
     // for a token the browser's own SDK produced — never the brand/last4/expiry
@@ -1388,11 +1417,11 @@ export const routes: Record<string, Handler> = {
     const method = attachPaymentMethod({
       id: newId("pm"),
       processor,
-      ...(wallet ? { wallet } : {}),
+      ...(payWith ? { payWith } : {}),
       brand,
       last4,
-      expMonth,
-      expYear,
+      ...(expMonth === undefined ? {} : { expMonth }),
+      ...(expYear === undefined ? {} : { expYear }),
       now: ctx.now(),
     });
     ctx.store.update((db) => { db.paymentMethods[me] = method; });

@@ -18,59 +18,137 @@ import type { Iso8601 } from "./types.ts";
  */
 
 /**
- * The real backend that settled this method. PayPal is genuinely a second
- * processor; Apple Pay and Google Pay are not — both are wallets that
- * Stripe's own client-side SDK surfaces on top of the same card rails
- * (Payment Request Button / Payment Element), so a wallet method's
- * `processor` is still `"stripe"`. `wallet` records which button the
- * customer actually tapped, for display only — it changes nothing about how
- * the method settles. See `ChargeProcessorPort` in fulfillment.ts.
+ * The real backend that settles a method — an account Safehubby holds, with
+ * its own credentials, its own rails and its own settlement.
+ *
+ * Deliberately short, and it is the list that decides what is real. Most of
+ * what a customer recognises as "a way to pay" is not one of these: Apple
+ * Pay, Google Pay, Klarna, Amazon Pay and the rest are brands Stripe
+ * surfaces on top of the Stripe account Safehubby already has, and Venmo is
+ * one PayPal surfaces on PayPal's. Those belong in `PayBrand` below, not
+ * here — adding one here would claim an integration that does not exist.
+ *
+ * ATH Móvil is the exception that earns a place: Puerto Rico's own network,
+ * run by Evertec, reachable through neither Stripe nor PayPal, so supporting
+ * it means a third set of credentials and a third adapter. See
+ * `ChargeProcessorPort` in fulfillment.ts and `adapters/ath-movil.ts`.
  */
-export type PaymentProcessor = "stripe" | "paypal";
-export type WalletType = "apple-pay" | "google-pay";
+export type PaymentProcessor = "stripe" | "paypal" | "ath-movil";
+
+/**
+ * A branded way to pay that rides on a processor Safehubby already has,
+ * rather than being a backend of its own.
+ *
+ * Tapping one of these still produces an ordinary payment-method token from
+ * the processor underneath, verified the same way a typed card is, and the
+ * stored method's `processor` is still that processor. Recording which was
+ * tapped is for display: it changes nothing about how the money moves.
+ *
+ * Which is exactly why the mapping below is a table rather than a rule —
+ * the old "a wallet always means Stripe" shortcut stopped being true the
+ * moment Venmo arrived on PayPal's side.
+ */
+export type PayBrand =
+  | "apple-pay" | "google-pay" | "link"
+  | "klarna" | "affirm" | "afterpay-clearpay"
+  | "cashapp" | "amazon-pay"
+  | "venmo";
+
+/** Which processor actually settles each brand. */
+export const PROCESSOR_FOR_BRAND: Record<PayBrand, PaymentProcessor> = {
+  "apple-pay": "stripe",
+  "google-pay": "stripe",
+  "link": "stripe",
+  "klarna": "stripe",
+  "affirm": "stripe",
+  "afterpay-clearpay": "stripe",
+  "cashapp": "stripe",
+  "amazon-pay": "stripe",
+  "venmo": "paypal",
+};
+
+export const PAY_BRAND_LABEL: Record<PayBrand, string> = {
+  "apple-pay": "Apple Pay",
+  "google-pay": "Google Pay",
+  "link": "Link",
+  "klarna": "Klarna",
+  "affirm": "Affirm",
+  "afterpay-clearpay": "Afterpay",
+  "cashapp": "Cash App Pay",
+  "amazon-pay": "Amazon Pay",
+  "venmo": "Venmo",
+};
+
+export const PAY_BRANDS = Object.keys(PROCESSOR_FOR_BRAND) as PayBrand[];
+
+/** The brands a given processor can settle, for building a payment sheet. */
+export function brandsFor(processor: PaymentProcessor): PayBrand[] {
+  return PAY_BRANDS.filter((b) => PROCESSOR_FOR_BRAND[b] === processor);
+}
+
+/**
+ * The card networks accepted on the card path.
+ *
+ * Not processors, and the distinction is the point: a Mastercard is accepted
+ * because Stripe accepts it, so "adding Mastercard" is not an integration —
+ * it is already true of every card typed into the card form. Listing the
+ * networks here keeps the badge row and the payment screen reading off one
+ * source instead of each hardcoding its own guess.
+ */
+export const CARD_NETWORKS = ["Visa", "Mastercard", "American Express", "Discover"] as const;
 
 export interface PaymentMethodOnFile {
   id: string;
   processor: PaymentProcessor;
-  wallet?: WalletType;
+  payWith?: PayBrand;
   /** Never a full card number. This is the only thing worth storing that way. */
   brand: string;
+  /** Last four of the card, or of the linked phone number for an
+   *  account-based method like ATH Móvil. */
   last4: string;
-  expMonth: number;
-  expYear: number;
+  /** Absent on a method with no card behind it — an ATH Móvil account, a
+   *  PayPal or Cash App balance. There is nothing to expire, and treating a
+   *  missing expiry as "expired" would lock those methods out permanently.
+   *  Validated strictly whenever it is present. */
+  expMonth?: number;
+  expYear?: number;
   addedAt: Iso8601;
 }
 
 export interface AttachMethodInput {
   id: string;
   processor: PaymentProcessor;
-  wallet?: WalletType;
+  payWith?: PayBrand;
   brand: string;
   last4: string;
-  expMonth: number;
-  expYear: number;
+  expMonth?: number;
+  expYear?: number;
   now: Date;
 }
 
 export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFile {
   if (!/^\d{4}$/.test(input.last4)) throw new Error("Card number is not right.");
-  if (!Number.isInteger(input.expMonth) || input.expMonth < 1 || input.expMonth > 12) {
-    throw new Error("Expiry month is not right.");
-  }
-  if (!isFuture(input.expMonth, input.expYear, input.now)) throw new Error("That card has expired.");
   if (!input.brand.trim()) throw new Error("Missing card brand.");
-  if (input.wallet && input.processor !== "stripe") {
-    throw new Error("Apple Pay and Google Pay are only offered through Stripe.");
+  if (input.payWith && PROCESSOR_FOR_BRAND[input.payWith] !== input.processor) {
+    throw new Error(`${PAY_BRAND_LABEL[input.payWith]} settles through ${PROCESSOR_FOR_BRAND[input.payWith]}, not ${input.processor}.`);
+  }
+
+  const hasExpiry = input.expMonth !== undefined || input.expYear !== undefined;
+  if (hasExpiry) {
+    if (!Number.isInteger(input.expMonth) || input.expMonth! < 1 || input.expMonth! > 12) {
+      throw new Error("Expiry month is not right.");
+    }
+    if (!Number.isInteger(input.expYear)) throw new Error("Expiry year is not right.");
+    if (!isFuture(input.expMonth!, input.expYear!, input.now)) throw new Error("That card has expired.");
   }
 
   return {
     id: input.id,
     processor: input.processor,
-    ...(input.wallet ? { wallet: input.wallet } : {}),
+    ...(input.payWith ? { payWith: input.payWith } : {}),
     brand: input.brand.trim(),
     last4: input.last4,
-    expMonth: input.expMonth,
-    expYear: input.expYear,
+    ...(hasExpiry ? { expMonth: input.expMonth!, expYear: input.expYear! } : {}),
     addedAt: input.now.toISOString(),
   };
 }
@@ -81,6 +159,7 @@ function isFuture(month: number, year: number, now: Date): boolean {
 }
 
 export function isMethodExpired(method: PaymentMethodOnFile, now: Date): boolean {
+  if (method.expMonth === undefined || method.expYear === undefined) return false;
   return !isFuture(method.expMonth, method.expYear, now);
 }
 

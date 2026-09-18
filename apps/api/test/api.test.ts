@@ -3007,40 +3007,95 @@ describe("payment method on file", () => {
       brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
     expect(res.json.method.processor).toBe("stripe");
-    expect(res.json.method.wallet).toBeUndefined();
+    expect(res.json.method.payWith).toBeUndefined();
   });
 
-  it("records a paypal method with no wallet", async () => {
+  it("records a paypal method with no brand", async () => {
     const res = await call("POST", "/api/account/payment-method", {
       processor: "paypal", brand: "PayPal", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
     expect(res.json.method.processor).toBe("paypal");
-    expect(res.json.method.wallet).toBeUndefined();
+    expect(res.json.method.payWith).toBeUndefined();
   });
 
-  it("records which wallet was used through Stripe", async () => {
+  it("records which brand was used through Stripe", async () => {
     const res = await call("POST", "/api/account/payment-method", {
-      processor: "stripe", wallet: "apple-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+      processor: "stripe", payWith: "apple-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
     expect(res.json.method.processor).toBe("stripe");
-    expect(res.json.method.wallet).toBe("apple-pay");
+    expect(res.json.method.payWith).toBe("apple-pay");
   });
 
-  it("rejects a wallet claimed against paypal instead of stripe", async () => {
-    const res = await call("POST", "/api/account/payment-method", {
-      processor: "paypal", wallet: "google-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+  it("records a Stripe-surfaced brand like Klarna as settling through Stripe", async () => {
+    // Klarna, Amazon Pay and the rest are not processors of their own — they
+    // ride on the Stripe account this app already has, so the stored method
+    // must say `stripe`. Recording them as their own backend would claim an
+    // integration that does not exist.
+    for (const payWith of ["klarna", "amazon-pay", "cashapp", "affirm"]) {
+      const res = await call("POST", "/api/account/payment-method", {
+        processor: "stripe", payWith, brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+      }, sam);
+      expect(res.status, payWith).toBe(200);
+      expect(res.json.method.processor, payWith).toBe("stripe");
+      expect(res.json.method.payWith, payWith).toBe(payWith);
+    }
+  });
+
+  it("records Venmo as settling through PayPal, not Stripe", async () => {
+    const ok = await call("POST", "/api/account/payment-method", {
+      processor: "paypal", payWith: "venmo", brand: "Venmo", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
-    expect(res.status).toBe(400);
+    expect(ok.status).toBe(200);
+    expect(ok.json.method.processor).toBe("paypal");
+  });
+
+  it("rejects a brand claimed against the wrong processor, either direction", async () => {
+    const wrongWay = await call("POST", "/api/account/payment-method", {
+      processor: "paypal", payWith: "google-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(wrongWay.status).toBe(400);
+    const otherWay = await call("POST", "/api/account/payment-method", {
+      processor: "stripe", payWith: "venmo", brand: "Venmo", last4: "4242", expMonth: 12, expYear: 2030,
+    }, sam);
+    expect(otherWay.status).toBe(400);
+  });
+
+  it("accepts an ATH Móvil account, which has no card expiry to give", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      processor: "ath-movil", brand: "ATH Móvil", last4: "5309",
+    }, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.method.processor).toBe("ath-movil");
+    expect(res.json.method.expMonth).toBeUndefined();
   });
 });
 
 describe("payment processor status", () => {
-  it("reports stripe and paypal as handoff without real credentials configured", async () => {
+  it("reports all three processors as handoff without real credentials configured", async () => {
     const res = await call("GET", "/api/payment/processors", undefined, sam);
     expect(res.status).toBe(200);
     const ids = res.json.processors.map((p: { id: string }) => p.id);
-    expect(ids).toEqual(["stripe", "paypal"]);
+    expect(ids).toEqual(["stripe", "paypal", "ath-movil"]);
     for (const p of res.json.processors) expect(p.mode).toBe("handoff");
+  });
+
+  it("lists each brand against the processor that settles it, and none as available", async () => {
+    const res = await call("GET", "/api/payment/processors", undefined, sam);
+    const brands = res.json.brands as { id: string; processor: string; available: boolean }[];
+    expect(brands.find((b) => b.id === "klarna")?.processor).toBe("stripe");
+    expect(brands.find((b) => b.id === "amazon-pay")?.processor).toBe("stripe");
+    expect(brands.find((b) => b.id === "venmo")?.processor).toBe("paypal");
+    // Nothing is configured in tests, so no brand may claim to be usable —
+    // the sheet reads this to avoid offering a button that would fail.
+    for (const b of brands) expect(b.available, b.id).toBe(false);
+  });
+
+  it("serves the card networks the card path accepts, Mastercard among them", async () => {
+    // Not a processor and not a brand: accepting Mastercard is a property of
+    // the card path, which Stripe already gives. See CARD_NETWORKS in core.
+    const res = await call("GET", "/api/payment/processors", undefined, sam);
+    expect(res.json.cardNetworks).toContain("Mastercard");
+    expect(res.json.processors.map((p: { id: string }) => p.id)).not.toContain("mastercard");
   });
 });
 
