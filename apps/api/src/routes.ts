@@ -38,7 +38,7 @@ import {
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
-  validatePickupRequest,
+  validatePickupRequest, estimateFareCents,
   validateAiDraftInstruction,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
@@ -2048,7 +2048,8 @@ export const routes: Record<string, Handler> = {
   "POST /api/rides/quote": async (ctx, _p, body) => {
     const me = actor(ctx);
     requireFeature(ctx, me, "ride-booking");
-    const dropoff = { lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label };
+    const pickup = { lat: Number(body?.pickup?.lat), lng: Number(body?.pickup?.lng), label: body?.pickup?.label };
+    const dropoff = { lat: Number(body?.dropoff?.lat), lng: Number(body?.dropoff?.lng), label: body?.dropoff?.label };
     const providerReady = isAutomatic(uberForBusiness.status) && hasFeature(planOf(ctx, me), "automatic-rides");
     const hasCard = hasLivePaymentMethod(ctx, me);
     const automatic = providerReady && hasCard;
@@ -2061,13 +2062,20 @@ export const routes: Record<string, Handler> = {
         .catch(() => null);
     }
 
+    // Safehubby's own published fare for a standard, coordinated-pickup
+    // ride (see estimateFareCents in ride-coordination.ts) — on every plan
+    // alike, Free included, since ride-booking is a safety basic. Not
+    // gated on any provider: there is no third party involved in this
+    // number at all, so nothing to be automatic or unconfigured about.
+    const standard = { fareEstimateCents: estimateFareCents(pickup, dropoff) };
+
     if (automatic) {
       // Real fares, from Uber's own estimates endpoint. Safehubby still never
       // computes one — it displays what the provider quoted.
       const estimates = await uberEstimates({
         pickup: body.pickup, dropoff, riderName: nameOf(ctx, me),
       }).catch(() => []);
-      return { mode: "automatic", provider: uberForBusiness.status.name, estimates, secure };
+      return { mode: "automatic", provider: uberForBusiness.status.name, estimates, secure, standard };
     }
     // The card, not the provider, is the only thing standing between this
     // account and automatic booking — say that instead of a generic note.
@@ -2080,6 +2088,7 @@ export const routes: Record<string, Handler> = {
       needsPaymentMethod,
       handoffs: ridesFor(dropoff),
       secure,
+      standard,
     };
   },
 
@@ -2106,6 +2115,7 @@ export const routes: Record<string, Handler> = {
 
     const request: PickupRequest = {
       id: newId("pickup"), travelerId: me, pickup, dropoff,
+      fareEstimateCents: estimateFareCents(pickup, dropoff),
       ...(body?.note ? { note: String(body.note) } : {}),
       status: "requested", createdAt: ctx.now().toISOString(),
     };

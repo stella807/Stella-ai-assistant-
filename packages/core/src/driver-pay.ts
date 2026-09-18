@@ -71,13 +71,52 @@ export function driverRateFor(tier: DriverTier): DriverRate {
   return DRIVER_RATE_CARD[tier];
 }
 
-/** What one trip pays a driver, before any platform margin. There is no
- *  separate `DRIVER_FEE_MARGIN` the way concierge has one yet — Safehubby
- *  does not dispatch a driver from this list today, so there is no live
- *  customer-facing fare to take a margin against; add one here, disclosed
- *  the same way, if and when that changes. */
+/** What one trip pays a driver, before any platform margin. */
 export function driverEarningsCents(tier: DriverTier, miles: number, minutes: number): number {
   if (miles < 0 || minutes < 0) throw new Error("Trip distance and duration cannot be negative.");
   const rate = driverRateFor(tier);
   return Math.round(rate.baseCents + rate.perMileCents * miles + rate.perMinuteCents * minutes);
+}
+
+/**
+ * The customer-facing fare for a standard ride — Safehubby's own published
+ * number, not a live third-party quote. That is a deliberate departure from
+ * `RideEstimate.fareEstimateCents` in ports.ts, whose own doc comment says
+ * Safehubby never computes a fare — but that rule is about the
+ * Uber-for-Business integration specifically, where a real third party's
+ * live quote exists and substituting a guess for it would be the dishonest
+ * move. A ride dispatched from Safehubby's own driver roster (see
+ * ride-coordination.ts) has no such third party to defer to at all, so a
+ * disclosed rate card is the honest choice over pretending to compute one
+ * from nothing — the same reasoning `serviceFeeFor` already rests on for
+ * concierge tasks, which have no live labor-pricing API to quote from either.
+ *
+ * Priced at ownership's direction to land at the floor of Uber Black's own
+ * published per-mile/per-minute band ($2.50-$4.00/mi, $0.40-$0.65/min): an
+ * ordinary Safehubby ride costs no more than Uber's own premium chauffeur
+ * tier, while `DRIVER_RATE_CARD.standard` above pays the driver exactly what
+ * it always has — $3.00 base, $0.90/mi, $0.18/min, untouched by this. The
+ * gap between the two is Safehubby's own margin on the trip, the same shape
+ * `CONCIERGE_FEE_MARGIN` prices concierge work at, just not expressed as one
+ * flat percentage here, since a ride's mix of base, distance and time
+ * doesn't reduce to a single rate the way a flat task fee does.
+ *
+ * This is Free's own price too, not a paid-plan perk: `ride-booking` is on
+ * `FREE_FEATURES`, and there is no cheaper version of getting home safely to
+ * hold back for a subscription.
+ */
+export const STANDARD_RIDE_FARE: DriverRate = { baseCents: 500, perMileCents: 250, perMinuteCents: 40 };
+
+export function standardRideFareCents(miles: number, minutes: number): number {
+  if (miles < 0 || minutes < 0) throw new Error("Trip distance and duration cannot be negative.");
+  const f = STANDARD_RIDE_FARE;
+  return Math.round(f.baseCents + f.perMileCents * miles + f.perMinuteCents * minutes);
+}
+
+/** Safehubby's own margin on a standard ride — the gap between the
+ *  published fare above and what the driver is actually paid. Always
+ *  positive: every component of the fare sits above the matching
+ *  component of `DRIVER_RATE_CARD.standard`. */
+export function standardRideMarginCents(miles: number, minutes: number): number {
+  return standardRideFareCents(miles, minutes) - driverEarningsCents("standard", miles, minutes);
 }

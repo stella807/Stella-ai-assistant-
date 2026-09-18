@@ -3,6 +3,7 @@ import { defaultCapFor } from "@safehubby/core";
 import type { PickupRequest, PlanId } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 import { LiveMap } from "./LiveMap.tsx";
+import { money } from "../money.ts";
 
 const FALLBACK_HOME_LABEL = "Home";
 
@@ -20,6 +21,14 @@ const FALLBACK_HOME_LABEL = "Home";
  * the same honest "request and coordinate" shape the Elite desk already
  * uses for a jet charter — so this says exactly that rather than implying a
  * car is already on its way the instant the button is tapped.
+ *
+ * The fare shown here is real and disclosed, not invented, even though
+ * dispatch is still manual: it is Safehubby's own published rate
+ * (`standardRideFareCents` in driver-pay.ts, priced at ownership's
+ * direction against Uber Black's own per-mile band), computed from
+ * straight-line distance since there is no routing API configured for the
+ * real route — see `estimateFareCents` in ride-coordination.ts for exactly
+ * what it is and isn't.
  */
 export function GetHomePanel({ pickup, homeLabel, planId }: {
   pickup: { lat: number; lng: number } | null;
@@ -33,6 +42,11 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   const [addressLabel, setAddressLabel] = useState(FALLBACK_HOME_LABEL);
   const [request, setRequest] = useState<PickupRequest | null>(null);
   const [secure, setSecure] = useState<SecureQuote | null>(null);
+  // Safehubby's own published fare for the standard coordinated pickup
+  // below — real and disclosed, not a live quote, since there is no
+  // third-party provider in this path at all. See estimateFareCents in
+  // ride-coordination.ts for the number itself.
+  const [standardFareCents, setStandardFareCents] = useState<number | null>(null);
   const [secureOpen, setSecureOpen] = useState(false);
   const [note, setNote] = useState("");
   const [supplies, setSupplies] = useState<string | null>(null);
@@ -65,7 +79,10 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   // it (see POST /api/rides/quote in routes.ts), so this reads only that
   // one field off it and ignores the handoffs/estimates it also returns.
   useEffect(() => {
-    api.rideQuotes(at, dropoff).then((r) => setSecure(r.secure ?? null)).catch(() => setSecure(null));
+    api.rideQuotes(at, dropoff).then((r) => {
+      setSecure(r.secure ?? null);
+      setStandardFareCents(r.standard.fareEstimateCents);
+    }).catch(() => { setSecure(null); setStandardFareCents(null); });
   }, [at.lat, at.lng, dropoff.lat, dropoff.lng]);
 
   const run = async (fn: () => Promise<void>) => {
@@ -115,6 +132,12 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
 
       {!request && (
         <>
+          {standardFareCents !== null && (
+            <div className="row-between">
+              <span className="tiny muted">Estimated fare</span>
+              <strong className="small charge-amount">{money(standardFareCents)}</strong>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="pickup-note" className="tiny muted">Anything the driver should know? (optional)</label>
             <input id="pickup-note" type="text" value={note} onChange={(e) => setNote(e.target.value)}
@@ -126,6 +149,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
           <p className="tiny muted" style={{ margin: 0 }}>
             Matched with one of Safehubby's own drivers — not Uber, not Lyft. Someone on our end confirms who's
             coming and texts you; this isn't an instant, live-tracked booking.
+            {standardFareCents !== null && " The fare is an estimate — straight-line distance, not the actual route, so the real one is often a bit higher, never lower."}
           </p>
         </>
       )}
@@ -133,7 +157,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
       {request && request.status === "requested" && (
         <div className="banner">
           <strong>Coordinating your pickup.</strong> We're matching you with one of our drivers and will text you
-          who's coming.
+          who's coming. Estimated fare: {money(request.fareEstimateCents)}.
           <div style={{ marginTop: 8 }}>
             <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel request</button>
           </div>
@@ -150,6 +174,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
               <a href={`sms:${request.driverPhone}`} className="inline-link">Text</a>
             </>
           )}
+          <div className="tiny muted" style={{ marginTop: 4 }}>Estimated fare: {money(request.fareEstimateCents)}.</div>
           <div style={{ marginTop: 8 }}>
             <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel</button>
           </div>

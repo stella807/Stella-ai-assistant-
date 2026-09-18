@@ -1114,6 +1114,17 @@ describe("ride hand-off", () => {
     }, jordan)).json;
     expect(res.mode).toBe("handoff");
   });
+
+  it("always includes Safehubby's own standard fare, priced against Uber Black, on every plan", async () => {
+    // Ownership's direction: price the free-tier standard ride against
+    // Uber Black specifically. This has no third-party provider to gate on
+    // at all, so it is present regardless of plan or Uber configuration.
+    const res = (await call("POST", "/api/rides/quote", {
+      pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, jordan)).json;
+    expect(res.standard.fareEstimateCents).toBeGreaterThan(0);
+    expect(Number.isInteger(res.standard.fareEstimateCents)).toBe(true);
+  });
 });
 
 describe("medical escalation", () => {
@@ -4224,6 +4235,9 @@ describe("master access — a per-account role instead of one shared secret", ()
     }, sam);
     expect(requested.status).toBe(200);
     expect(requested.json.request.status).toBe("requested");
+    // Stamped at request time, not invented later — see fareEstimateCents
+    // on PickupRequest in ride-coordination.ts.
+    expect(requested.json.request.fareEstimateCents).toBeGreaterThan(0);
 
     const { cookie: secCookie } = await masterLogin("secretary", "Sec Three", "sec3@example.com");
     const coordinated = await call(

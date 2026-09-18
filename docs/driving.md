@@ -33,6 +33,36 @@ list today (see below), so there is nothing for a payout run to pay against.
 Add one — likely mirroring `payroll.ts`'s biweekly sweep — once trips are
 actually being assigned.
 
+## The rider's fare: priced against Uber Black, not invented
+
+`driver-pay.ts` also defines `STANDARD_RIDE_FARE` and `standardRideFareCents()`
+— what the rider is quoted for a standard coordinated pickup, as distinct
+from `DRIVER_RATE_CARD.standard`, what the driver is paid for the same trip.
+These are two different numbers on purpose: the rider's fare is priced at the
+floor of Uber Black's own published bands ($2.50/mi, $0.40/min, base $5.00),
+at ownership's explicit direction ("price it against Uber Black
+specifically"), while the driver's payout is untouched and unrelated to it —
+`standardRideMarginCents()` is what's left over, and it's always positive.
+
+This is the price shown on every plan, including Free — there is no paid-plan
+markup or discount on it. It applies to `POST /api/rides/coordinate` (the
+actual "get me home" flow in `ride-coordination.ts`) and is also surfaced as
+the always-present `standard` field on `POST /api/rides/quote`, alongside
+whatever Uber/Lyft hand-off links that endpoint can offer.
+
+The number itself, `estimateFareCents()` in `ride-coordination.ts`, is real
+and disclosed, not a live quote: there is no routing API configured, so it's
+computed from straight-line distance (`metersBetween` in `geo.ts`) and a
+deliberately conservative assumed speed (`ESTIMATE_AVERAGE_MPH = 20`). Both
+of those choices push the estimate toward reading a little low next to the
+real route, never high — the app tells the rider exactly that ("the real one
+is often a bit higher, never lower") rather than promising precision a
+straight-line estimate can't have. It's stamped onto the `PickupRequest` at
+request time (`fareEstimateCents`), so a past request's number stays true
+even if the rate card changes later, and it is not a charge — dispatch is
+still a person on operations matching an approved driver by hand (see below),
+so nothing is held against the rider's card yet.
+
 ## Two tiers
 
 `packages/core/src/driver-applications.ts` defines `DriverTier` as `"standard"`

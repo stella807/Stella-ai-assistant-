@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { DRIVER_RATE_CARD, driverEarningsCents, driverRateFor } from "../src/driver-pay.ts";
+import {
+  DRIVER_RATE_CARD, STANDARD_RIDE_FARE, driverEarningsCents, driverRateFor,
+  standardRideFareCents, standardRideMarginCents,
+} from "../src/driver-pay.ts";
 
 describe("driver pay scale", () => {
   it("pays the base fare alone for a zero-distance, zero-time trip", () => {
@@ -60,5 +63,54 @@ describe("driver pay scale", () => {
     // shared constant between the two modules — this is the one test that
     // would fail if someone "simplified" by reusing concierge's numbers.
     expect(DRIVER_RATE_CARD.standard.baseCents).not.toBe(DRIVER_RATE_CARD["secure-transport"].baseCents);
+  });
+});
+
+describe("standard ride fare — the customer-facing price, priced against Uber Black", () => {
+  it("computes the exact fare from the published rate card", () => {
+    // base 500 + 5mi * 250 + 15min * 40 = 500 + 1250 + 600 = 2350
+    expect(standardRideFareCents(5, 15)).toBe(2350);
+  });
+
+  it("pays the base fare alone for a zero-distance, zero-time trip", () => {
+    expect(standardRideFareCents(0, 0)).toBe(STANDARD_RIDE_FARE.baseCents);
+  });
+
+  it("rejects a negative distance or duration", () => {
+    expect(() => standardRideFareCents(-1, 10)).toThrow(/negative/i);
+    expect(() => standardRideFareCents(10, -1)).toThrow(/negative/i);
+  });
+
+  it("lands inside Uber Black's own published per-mile and per-minute bands", () => {
+    // Uber Black's fare components run $2.50-$4.00/mi and $0.40-$0.65/min —
+    // this is priced at the floor of that band, ownership's explicit call
+    // ("price it against Uber Black specifically"), not above it the way
+    // secure-transport deliberately is.
+    expect(STANDARD_RIDE_FARE.perMileCents).toBeGreaterThanOrEqual(250);
+    expect(STANDARD_RIDE_FARE.perMileCents).toBeLessThanOrEqual(400);
+    expect(STANDARD_RIDE_FARE.perMinuteCents).toBeGreaterThanOrEqual(40);
+    expect(STANDARD_RIDE_FARE.perMinuteCents).toBeLessThanOrEqual(65);
+  });
+
+  it("never touches the driver's own payout rate card", () => {
+    // The fare customers see and what a driver gets paid are two different
+    // numbers on purpose — DRIVER_RATE_CARD.standard is untouched by this
+    // change, at ownership's explicit direction ("the drivers pay stays
+    // the same"). If this ever fails, someone conflated the two.
+    expect(DRIVER_RATE_CARD.standard.baseCents).toBe(300);
+    expect(DRIVER_RATE_CARD.standard.perMileCents).toBe(90);
+    expect(DRIVER_RATE_CARD.standard.perMinuteCents).toBe(18);
+  });
+
+  it("always leaves a positive margin over the driver's payout", () => {
+    expect(standardRideMarginCents(0, 0)).toBeGreaterThan(0);
+    expect(standardRideMarginCents(5, 15)).toBeGreaterThan(0);
+    expect(standardRideMarginCents(25, 60)).toBeGreaterThan(0);
+  });
+
+  it("computes the margin as fare minus the driver's own payout for the identical trip", () => {
+    const fare = standardRideFareCents(8, 20);
+    const payout = driverEarningsCents("standard", 8, 20);
+    expect(standardRideMarginCents(8, 20)).toBe(fare - payout);
   });
 });
