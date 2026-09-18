@@ -142,6 +142,9 @@ const EN = {
 
   "compare.heading": "Compare what's included",
   "compare.seats": "Seats",
+  "compare.grabSomething": "Grab something",
+  "compare.runErrand": "Run an errand",
+  "compare.upToCap": "up to {amount}",
   "compare.concierge": "Personal concierge",
   "compare.deskTasks": "Ask an assistant",
   "compare.venueMenus": "Venue menus",
@@ -384,6 +387,9 @@ const ES: Record<TranslationKey, string> = {
 
   "compare.heading": "Compara lo que incluye cada plan",
   "compare.seats": "Personas",
+  "compare.grabSomething": "Que te compren algo",
+  "compare.runErrand": "Que te hagan un mandado",
+  "compare.upToCap": "hasta {amount}",
   "compare.concierge": "Concierge personal",
   "compare.deskTasks": "Pide ayuda a un asistente",
   "compare.venueMenus": "Menús de locales",
