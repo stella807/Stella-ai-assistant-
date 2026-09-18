@@ -27,10 +27,11 @@ import { dollars } from "../money.ts";
 const COMPARE_ROWS: { id: string; feature: Feature; labelKey: TranslationKey; capCategory?: ConciergeCategory }[] = [
   // Free's ceiling here is far lower than a paid plan's, so a bare ✓ in both
   // columns would read as parity that doesn't exist — hence `capCategory`,
-  // which prints each plan's real `maxCapFor` rather than a number retyped
-  // into the table and left to drift.
+  // which prints each plan's real `maxCapFor` — or "no limit" where there
+  // isn't one — rather than a number retyped into the table and left to
+  // drift.
   { id: "grab-something", feature: "quick-tasks", labelKey: "compare.grabSomething", capCategory: "grab-something" },
-  { id: "run-errand", feature: "quick-tasks", labelKey: "compare.runErrand" },
+  { id: "run-errand", feature: "quick-tasks", labelKey: "compare.runErrand", capCategory: "run-errand" },
   { id: "personal-concierge", feature: "personal-concierge", labelKey: "compare.concierge" },
   { id: "desk-tasks", feature: "desk-tasks", labelKey: "compare.deskTasks" },
   { id: "venue-menus", feature: "venue-menus", labelKey: "compare.venueMenus" },
@@ -48,8 +49,8 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
   const [open, setOpen] = useState(true);
 
   const capNote = (category: ConciergeCategory, planId: PlanId) => {
-    const cap = maxCapFor(category, true, planId);
-    return cap === null ? null : t("compare.upToCap").replace("{amount}", dollars(cap));
+    const cap = maxCapFor(category, planId);
+    return cap === null ? t("compare.noCap") : t("compare.upToCap").replace("{amount}", dollars(cap));
   };
 
   if (plans.length === 0) return null;

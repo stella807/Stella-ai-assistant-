@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
   BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, conciergeCategoryLabel,
   defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
@@ -233,17 +233,17 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // Ceiling, step and presets all come from core: a booking that buys concert
   // tickets is funded differently from one that fetches a burger, and that is
   // a pricing rule, not a form detail.
-  const base = capScaleFor(category, effectiveQuickTask, planId);
+  const base = capScaleFor(category, planId);
   // Where Safehubby sets no ceiling, the scale stretches to whatever was
   // typed. Its max is the top of the preset ladder, which the stepper needs
   // something finite to step along — but leaving it there would clamp a
   // typed $40,000 back down to the ladder, turning "no limit" into a limit
   // with extra steps.
-  const capScale = hasCapCeiling(category, effectiveQuickTask)
+  const capScale = hasCapCeiling(category)
     ? base
     : { ...base, maxCents: Math.max(base.maxCents, capCents) };
-  // Clamped rather than stored clamped: switching a booking to a quick task
-  // drops the ceiling, and the cap has to follow it down without losing the
+  // Clamped rather than stored clamped: switching category can drop the
+  // ceiling, and the cap has to follow it down without losing the
   // customer's original number if they switch back.
   const spendCapCents = clampAmount(capCents, capScale);
   // Priced with the same functions the server charges with, so what is shown
@@ -600,7 +600,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <input type="checkbox" checked={quickTask}
             onChange={(e) => { setQuickTask(e.target.checked); setRoster(null); }} />
           <span className="small">
-            This is quick and simple — book at the discounted rate (capped at {dollars(QUICK_TASK_MAX_CAP_CENTS)} spend).
+            This is quick and simple — book at the discounted rate.
           </span>
         </label>
       )}
@@ -609,7 +609,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           402, so it says so instead of offering the choice. */}
       {quickEligible && planId === "free" && (
         <p className="tiny muted" style={{ margin: 0 }}>
-          Booked at the discounted rate, free of charge on your plan — capped at {dollars(base.maxCents)} spend.
+          Booked at the discounted rate, free of charge on your plan
+          {hasCapCeiling(category) ? ` — capped at ${dollars(base.maxCents)} spend.` : "."}
         </p>
       )}
 
@@ -647,7 +648,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           in: a forty-thousand-dollar hotel stay is a real booking and there
           is no sensible number of preset buttons that reaches it. Typed
           rather than nudged, so an amount this size is always deliberate. */}
-      {!hasCapCeiling(category, effectiveQuickTask) && (
+      {!hasCapCeiling(category) && (
         <div className="field">
           <label htmlFor="concierge-cap-exact">Or load an exact amount</label>
           <input

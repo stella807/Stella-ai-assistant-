@@ -5,7 +5,7 @@ import {
   CONCIERGE_MIN_CAP_CENTS, CONCIERGE_TASK_MINUTES, DEFAULT_CONCIERGE_CAP_CENTS,
   GRAB_SOMETHING_MIN_CAP_CENTS, GRAB_SOMETHING_MAX_CAP_CENTS, minCapFor,
   MAX_PHOTO_BYTES, MAX_TASKS_PER_WEEK_ESTIMATE, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
-  QUICK_TASK_CATEGORIES, QUICK_TASK_MAX_CAP_CENTS,
+  QUICK_TASK_CATEGORIES,
   HOUSEHOLD_INCREMENT, MAX_PEOPLE_PER_TASK,
   MAX_SPEND_REQUEST_NOTE,
   annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel,
@@ -22,6 +22,7 @@ import {
 } from "../src/concierge.ts";
 import { presetAmounts } from "../src/amount-steps.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
+import type { PlanId } from "../src/billing.ts";
 
 const request = (over: Partial<ConciergeTaskInput> = {}): ConciergeTaskInput => {
   const category = over.category ?? "grab-something";
@@ -58,13 +59,15 @@ describe("validateConciergeRequest", () => {
   });
 
   it("enforces the spend-cap bounds — a hard ceiling, not a suggestion", () => {
-    // Not grab-something (see its own doc comment on GRAB_SOMETHING_MIN/MAX_CAP_CENTS)
-    // — run-errand is what still uses the shared bounds this test is about.
-    const errand = { category: "run-errand" as const };
-    expect(() => validateConciergeRequest(request({ ...errand, spendCapCents: CONCIERGE_MIN_CAP_CENTS - 1 }))).toThrow(/spend cap/i);
-    expect(() => validateConciergeRequest(request({ ...errand, spendCapCents: CONCIERGE_MAX_CAP_CENTS + 1 }))).toThrow(/spend cap/i);
-    expect(() => validateConciergeRequest(request({ ...errand, spendCapCents: CONCIERGE_MIN_CAP_CENTS }))).not.toThrow();
-    expect(() => validateConciergeRequest(request({ ...errand, spendCapCents: CONCIERGE_MAX_CAP_CENTS }))).not.toThrow();
+    // Neither grab-something nor run-errand: the first has its own wider
+    // bounds (see GRAB_SOMETHING_MIN/MAX_CAP_CENTS) and the second has no
+    // ceiling at all now (see `maxCapFor`). wait-with-someone is what still
+    // uses the shared bounds this test is about.
+    const capped = { category: "wait-with-someone" as const };
+    expect(() => validateConciergeRequest(request({ ...capped, spendCapCents: CONCIERGE_MIN_CAP_CENTS - 1 }))).toThrow(/spend cap/i);
+    expect(() => validateConciergeRequest(request({ ...capped, spendCapCents: CONCIERGE_MAX_CAP_CENTS + 1 }))).toThrow(/spend cap/i);
+    expect(() => validateConciergeRequest(request({ ...capped, spendCapCents: CONCIERGE_MIN_CAP_CENTS }))).not.toThrow();
+    expect(() => validateConciergeRequest(request({ ...capped, spendCapCents: CONCIERGE_MAX_CAP_CENTS }))).not.toThrow();
   });
 
   it("gives grab-something its own, wider bounds — no floor, a $1,000 ceiling", () => {
@@ -232,24 +235,27 @@ describe("quick-task discount", () => {
       .toThrow(/isn't eligible for the quick-task discount/i);
   });
 
-  it("enforces a lower spend cap for a quick task than the standard max", () => {
-    // run-errand, not grab-something — see the previous test's comment.
-    expect(QUICK_TASK_MAX_CAP_CENTS).toBeLessThan(CONCIERGE_MAX_CAP_CENTS);
-    expect(() => validateConciergeRequest(request({ category: "run-errand", quickTask: true, spendCapCents: QUICK_TASK_MAX_CAP_CENTS })))
-      .not.toThrow();
-    expect(() => validateConciergeRequest(request({ category: "run-errand", quickTask: true, spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 })))
-      .toThrow(/spend cap/i);
+  it("does not let the quick-task discount change any ceiling", () => {
+    // There is no separate quick-task ceiling any more: grab-something keeps
+    // its own cap and run-errand has none, so booking either at the reduced
+    // rate cannot move the number. A ceiling that reappeared here would be
+    // the discount quietly rationing the purchase instead of the time.
+    for (const category of QUICK_TASK_CATEGORIES) {
+      const cap = maxCapFor(category);
+      for (const quickTask of [false, true]) {
+        const spendCapCents = cap ?? 4_000_000;
+        expect(() => validateConciergeRequest(request({ category, quickTask, spendCapCents })),
+          `${category} quick=${quickTask}`).not.toThrow();
+      }
+    }
   });
 
-  it("never shrinks grab-something's ceiling for a quick task — it keeps its own $1,000 max either way", () => {
+  it("keeps grab-something's own $1,000 ceiling, narrowed only on Free", () => {
     expect(() => validateConciergeRequest(request({ quickTask: true, spendCapCents: GRAB_SOMETHING_MAX_CAP_CENTS })))
       .not.toThrow();
-    expect(maxCapFor("grab-something", true)).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
-    expect(maxCapFor("grab-something", false)).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
-  });
-
-  it("still allows the standard, higher cap when not booked as a quick task", () => {
-    expect(() => validateConciergeRequest(request({ spendCapCents: QUICK_TASK_MAX_CAP_CENTS + 1 }))).not.toThrow();
+    expect(maxCapFor("grab-something")).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
+    expect(maxCapFor("grab-something", "premium-plus")).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
+    expect(maxCapFor("grab-something", "free")).toBeLessThan(GRAB_SOMETHING_MAX_CAP_CENTS);
   });
 });
 
@@ -594,21 +600,39 @@ describe("two ceilings: an errand and a purchase are funded differently", () => 
       .toBe(cap + serviceFeeFor("book-and-buy", false, 1, 3));
   });
 
-  it("does not let an errand reach the purchase ceiling", () => {
-    // The higher balance belongs to the task that is buying something, not to
-    // whoever picks the roomier category by accident.
+  it("puts no ceiling on an errand, on any tier", () => {
+    // Ownership's call: an errand is defined by the trip, not by the size of
+    // what gets bought at the end of it, so lumber for a deck and a car part
+    // are both one errand. The old $600 ceiling refused them.
+    expect(maxCapFor("run-errand")).toBeNull();
+    expect(hasCapCeiling("run-errand")).toBe(false);
+    for (const planId of ["free", "premium-basic", "premium-plus", "family"] as PlanId[]) {
+      expect(maxCapFor("run-errand", planId), planId).toBeNull();
+    }
     expect(() => validateConciergeRequest(request({
       category: "run-errand", spendCapCents: CONCIERGE_MAX_CAP_CENTS + 1,
-    }))).toThrow(/spend cap/i);
-    expect(maxCapFor("run-errand")).toBe(CONCIERGE_MAX_CAP_CENTS);
-    expect(hasCapCeiling("run-errand")).toBe(true);
+    }))).not.toThrow();
+    expect(() => validateConciergeRequest(request({
+      category: "run-errand", spendCapCents: 4_000_000,
+    }))).not.toThrow();
+  });
+
+  it("still holds an uncapped errand exactly, and still refuses one below the floor", () => {
+    // No ceiling is not no floor: a card loaded for less than an errand can
+    // plausibly cost is still a broken booking.
+    expect(() => validateConciergeRequest(request({
+      category: "run-errand", spendCapCents: CONCIERGE_MIN_CAP_CENTS - 1,
+    }))).toThrow(/at least/i);
+    const cap = 250000;
+    expect(totalChargeCents("run-errand", cap, false, 1))
+      .toBe(cap + serviceFeeFor("run-errand", false, 1));
   });
 
   it("never offers a preset the ceiling would reject", () => {
     for (const { id } of CONCIERGE_CATEGORIES) {
       for (const quick of [false, true]) {
         if (quick && !isQuickTaskEligible(id)) continue;
-        const scale = capScaleFor(id, quick);
+        const scale = capScaleFor(id);
         for (const preset of presetAmounts(capPresetsFor(id), scale)) {
           expect(() => validateConciergeRequest(request({
             category: id, quickTask: quick, spendCapCents: preset,
@@ -626,7 +650,7 @@ describe("two ceilings: an errand and a purchase are funded differently", () => 
     for (const { id } of CONCIERGE_CATEGORIES) {
       for (const quick of [false, true]) {
         if (quick && !isQuickTaskEligible(id)) continue;
-        const scale = capScaleFor(id, quick);
+        const scale = capScaleFor(id);
         expect(presetAmounts(capPresetsFor(id), scale), `${id} quick=${quick}`)
           .toContain(scale.maxCents);
       }

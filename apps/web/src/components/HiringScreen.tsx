@@ -28,7 +28,7 @@ const TABS: { id: Tab; label: string; blurb: string }[] = [
   {
     id: "errand",
     label: "Small errands",
-    blurb: "Something short and specific — grab one thing, run one errand. Lower rate, and a cap that stays low so \"quick\" stays quick — see the errand's own screen for the exact number on your plan.",
+    blurb: "Something short and specific — grab one thing, run one errand. Lower rate, and you set the spend cap: an errand has no ceiling at all, and grabbing something has one you'll see on its own screen.",
   },
   {
     id: "concierge",

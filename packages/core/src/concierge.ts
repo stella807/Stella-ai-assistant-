@@ -123,15 +123,12 @@ export const CONCIERGE_MAX_CAP_CENTS = 60000;
  * under $10 — the exact case this category exists for should never be
  * blocked behind a minimum sized for something else.
  *
- * A $1,000 ceiling, not $100. The shared quick-task ceiling
- * (`QUICK_TASK_MAX_CAP_CENTS`) is deliberately tight everywhere else to
- * stop "quick and simple" from becoming a way to book a large purchase at
- * the discounted fee — but grab-something is not always a $5 sandwich
- * either: an emergency medication run, or a hangover-recovery basket for a
- * group, is still one trip and one thing named, just a bigger one. This is
- * grab-something's own number, not a raise to the shared ceiling
- * `run-errand` still uses — that category keeps its client-set cap up to
- * `CONCIERGE_MAX_CAP_CENTS` unchanged.
+ * A $1,000 ceiling. Grab-something is not always a $5 sandwich: an
+ * emergency medication run, or a hangover-recovery basket for a group, is
+ * still one trip and one thing named, just a bigger one. A ceiling remains
+ * because this category names the thing up front — unlike `run-errand`,
+ * which has none at all (see `maxCapFor`), since an errand is defined by
+ * the trip rather than by what is bought at the end of it.
  */
 export const GRAB_SOMETHING_MIN_CAP_CENTS = 0;
 export const GRAB_SOMETHING_MAX_CAP_CENTS = 100000;
@@ -175,21 +172,32 @@ export const FREE_GRAB_SOMETHING_MAX_CAP_CENTS = 2000;
  * None of that weakens as the number grows; what changed is only who picks
  * the number.
  */
-export function hasCapCeiling(category: ConciergeCategory, quickTask?: boolean): boolean {
-  if (quickTask && isQuickTaskEligible(category)) return true;
-  return category !== "book-and-buy";
+export function hasCapCeiling(category: ConciergeCategory): boolean {
+  return category !== "book-and-buy" && category !== "run-errand";
 }
 
-/** The ceiling in force, or `null` where the customer sets the balance.
- *  `planId` narrows `grab-something` further on Free — see
- *  `FREE_GRAB_SOMETHING_MAX_CAP_CENTS`'s own doc comment — and is ignored
- *  everywhere else, including every paid plan. */
-export function maxCapFor(category: ConciergeCategory, quickTask?: boolean, planId?: PlanId): number | null {
+/**
+ * The ceiling in force, or `null` where the customer sets the balance.
+ *
+ * `run-errand` has no ceiling on any tier, at ownership's direction, for the
+ * reason `book-and-buy` already has none: an errand is defined by the trip,
+ * not by the size of what is bought at the end of it. Lumber for a deck, a
+ * transmission part, a month's shop for a household — each is one errand and
+ * each blew past the $600 this used to impose. Refusing those is not
+ * prudence, it is a product that cannot do the thing it says it does, and
+ * the real bound sits outside this module either way: the customer funds the
+ * card and the funding has to clear.
+ *
+ * `planId` narrows `grab-something` further on Free — see
+ * `FREE_GRAB_SOMETHING_MAX_CAP_CENTS`'s own doc comment — and is ignored
+ * everywhere else, including every paid plan.
+ */
+export function maxCapFor(category: ConciergeCategory, planId?: PlanId): number | null {
+  if (!hasCapCeiling(category)) return null;
   if (category === "grab-something") {
     return planId === "free" ? FREE_GRAB_SOMETHING_MAX_CAP_CENTS : GRAB_SOMETHING_MAX_CAP_CENTS;
   }
-  if (quickTask && isQuickTaskEligible(category)) return QUICK_TASK_MAX_CAP_CENTS;
-  return category === "book-and-buy" ? null : CONCIERGE_MAX_CAP_CENTS;
+  return CONCIERGE_MAX_CAP_CENTS;
 }
 
 /** The floor in force — `grab-something` alone has none, per
@@ -211,13 +219,13 @@ export const PURCHASE_LADDER_TOP_CENTS = 1000000;
  * offered to authorize — and keeping them beside the ceiling they have to
  * respect is what stops a preset drifting above a cap the server rejects.
  */
-export function capScaleFor(category: ConciergeCategory, quickTask?: boolean, planId?: PlanId): AmountScale {
+export function capScaleFor(category: ConciergeCategory, planId?: PlanId): AmountScale {
   return {
     minCents: minCapFor(category),
     // Where there is no ceiling this is the ladder's top, not a limit: the
     // stepper needs a finite scale to step along, and larger amounts are
     // typed rather than nudged to.
-    maxCents: maxCapFor(category, quickTask, planId) ?? PURCHASE_LADDER_TOP_CENTS,
+    maxCents: maxCapFor(category, planId) ?? PURCHASE_LADDER_TOP_CENTS,
     // A $5 nudge on a hotel booking is noise; a $25 nudge on a coffee run is
     // a blunt instrument. Free's own $0-$20 grab-something range is a
     // blunter instrument still at $5 a nudge — a fifth of the whole range —
@@ -235,7 +243,7 @@ export function capScaleFor(category: ConciergeCategory, quickTask?: boolean, pl
  *  above the cap the server will actually accept. */
 export function defaultCapFor(category: ConciergeCategory, planId?: PlanId): number {
   if (category === "book-and-buy") return 50000;
-  const ceiling = maxCapFor(category, false, planId);
+  const ceiling = maxCapFor(category, planId);
   return ceiling === null ? DEFAULT_CONCIERGE_CAP_CENTS : Math.min(DEFAULT_CONCIERGE_CAP_CENTS, ceiling);
 }
 
@@ -253,6 +261,11 @@ export function capPresetsFor(category: ConciergeCategory, planId?: PlanId): num
   // one-tap option, not just the minimum — and reaches grab-something's own
   // $1,000 ceiling instead of stopping at the shared $600 top.
   if (category === "grab-something") return [1000, 2500, 5000, 10000, 25000, 50000, GRAB_SOMETHING_MAX_CAP_CENTS];
+  // Reaches past `CONCIERGE_MAX_CAP_CENTS` deliberately. An errand has no
+  // ceiling any more, and a ladder that stopped at the old $600 would put
+  // it back as far as anyone tapping buttons could tell. Ordinary errands
+  // still get the low rungs; anything past the top is typed.
+  if (category === "run-errand") return [2500, 5000, 10000, 20000, 60000, 150000, PURCHASE_LADDER_TOP_CENTS];
   return [2500, 5000, 10000, 20000, 40000, 60000];
 }
 
@@ -367,20 +380,6 @@ export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory
   "grab-something": 400,
   "run-errand": 400,
 };
-
-/**
- * The discounted tier keeps a lower ceiling on purpose. Raising it to the
- * standard cap would turn "quick and simple" into a way to book a $600
- * purchase at the reduced fee, which is the one thing this tier must not
- * become — but $50 was drawn too tight. A quick job is defined by how long
- * it takes, not by how much the thing costs: one counter and back is ten
- * minutes whether the item is a sandwich or a power tool. At $50 the tier
- * was really rationing the purchase rather than the time, which pushed
- * ordinary ten-minute errands onto the standard rate for no reason the
- * customer could see. $100 still leaves the six-fold gap that stops this
- * becoming the cheap way to book a large purchase.
- */
-export const QUICK_TASK_MAX_CAP_CENTS = 10000;
 
 /**
  * How long a quick task actually takes — shorter than the standard version
@@ -684,7 +683,7 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
     // for hours on a per-task category.
     throw new Error(`${conciergeCategoryLabel(input.category)} does not track a flight.`);
   }
-  const maxCap = maxCapFor(input.category, input.quickTask, planId);
+  const maxCap = maxCapFor(input.category, planId);
   const minCap = minCapFor(input.category);
   if (
     !Number.isInteger(input.spendCapCents) ||
@@ -694,7 +693,7 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
     throw new Error(
       maxCap === null
         ? `Load at least $${(minCap / 100).toFixed(0)} onto the card.`
-        : `Spend cap must be between $${(minCap / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}${input.quickTask ? " for a quick task" : ""}.`,
+        : `Spend cap must be between $${(minCap / 100).toFixed(0)} and $${(maxCap / 100).toFixed(0)}.`,
     );
   }
 }
