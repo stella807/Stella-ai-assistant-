@@ -4,13 +4,15 @@ import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive,
-  HIRING_BENEFITS, PRELAUNCH_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
+  HIRING_BENEFITS, PRELAUNCH_HEADCOUNT, SOLO_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
+  subscribersToCarryRoster,
   reviewStaffApplication, submitStaffApplication, withdrawStaffApplication,
   addSubscriber, activeSubscribers, newUnsubscribeToken, unsubscribe,
   type NewsletterSource, type StaffRole,
   ELITE_SERVICES, commissionCentsFor, disclosuresFor, doctorAvailableFor, findEliteService,
   validateEliteRequest, findEliteEvent, upcomingEliteEvents, eliteEventHasRoom,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
+  PLANS,
   createGrant, deriveAlerts, estimateBac, hasFeature, isElitePlan, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
@@ -4639,9 +4641,36 @@ export const routes: Record<string, Handler> = {
         ? approvedDrivers.length
         : approved.filter((a) => a.role === role.id).length,
     ])) as Record<StaffRole, number>;
+    // How many subscribers each everyday plan needs to carry the roster,
+    // for the planned headcount and for who is actually hired. Computed off
+    // the live plan price rather than written into docs/budget.md, where the
+    // same figure went stale through a repricing and nothing caught it.
+    const carriedBy = (headcount: Record<StaffRole, number>) =>
+      Object.fromEntries(
+        PLANS.filter((p) => p.monthlyCents > 0 && !isElitePlan(p.id))
+          .map((p) => [p.id, subscribersToCarryRoster(p.id, headcount)]),
+      );
+
     return {
-      plan: { headcount: PRELAUNCH_HEADCOUNT, budget: prelaunchBudget(), monthlyAfterLaunch: monthlyRosterCents() },
-      actual: { headcount: hired, budget: prelaunchBudget(hired), monthlyAfterLaunch: monthlyRosterCents(hired) },
+      plan: {
+        headcount: PRELAUNCH_HEADCOUNT,
+        budget: prelaunchBudget(),
+        monthlyAfterLaunch: monthlyRosterCents(),
+        subscribersToCarry: carriedBy(PRELAUNCH_HEADCOUNT),
+      },
+      actual: {
+        headcount: hired,
+        budget: prelaunchBudget(hired),
+        monthlyAfterLaunch: monthlyRosterCents(hired),
+        subscribersToCarry: carriedBy(hired),
+      },
+      // One owner-operator with a car: what it costs before there is a
+      // roster at all, which is the number this actually starts against.
+      solo: {
+        headcount: SOLO_HEADCOUNT,
+        monthlyAfterLaunch: monthlyRosterCents(SOLO_HEADCOUNT),
+        subscribersToCarry: carriedBy(SOLO_HEADCOUNT),
+      },
       benefits: HIRING_BENEFITS,
     };
   },

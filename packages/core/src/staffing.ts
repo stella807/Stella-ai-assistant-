@@ -1,4 +1,5 @@
 import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "./promotions.ts";
+import { findPlan, type PlanId } from "./billing.ts";
 
 /**
  * Who Safehubby hires, what it costs to have them on the roster, and what the
@@ -458,3 +459,41 @@ export function monthlyRosterCents(
 ): number {
   return monthlyInsuranceCents(headcount) + monthlyPayrollCents(headcount);
 }
+
+/**
+ * How many subscribers on a given plan it takes to carry the roster.
+ *
+ * This existed only as a sentence in docs/budget.md, and it was wrong: it
+ * read "roughly 237 Premium subscribers", a figure computed when Premium was
+ * $17.99 and never revisited when it became $89.99. The true answer had been
+ * five times better than the plan claimed for as long as the price had been
+ * current, which is the whole argument for computing it — a number that
+ * cannot be recomputed is a number that is only accurate on the day it is
+ * typed.
+ *
+ * Counts subscription revenue alone. Per-job margin from rides and errands
+ * is real but varies with work done, so leaving it out keeps this a floor:
+ * the count that carries the roster on subscriptions even if nobody books
+ * anything in a given month.
+ */
+export function subscribersToCarryRoster(
+  planId: PlanId,
+  headcount: Record<StaffRole, number> = PRELAUNCH_HEADCOUNT,
+): number {
+  const monthlyCents = findPlan(planId).monthlyCents;
+  if (monthlyCents <= 0) return Infinity; // Free carries nothing, by design.
+  return Math.ceil(monthlyRosterCents(headcount) / monthlyCents);
+}
+
+/**
+ * One person doing everything, which is how this actually starts.
+ *
+ * Not a hypothetical: before there is a roster there is an owner with a car,
+ * and the number that decides whether that is survivable is much smaller
+ * than the one above. A solo operator drives, so they carry the driver
+ * surcharge — which makes insurance the entire fixed cost of the business,
+ * since a sole owner-operator is not on their own payroll.
+ */
+export const SOLO_HEADCOUNT: Record<StaffRole, number> = Object.fromEntries(
+  STAFF_ROLES.map((r) => [r.id, r.id === "driver" ? 1 : 0]),
+) as Record<StaffRole, number>;

@@ -26,20 +26,59 @@ than estimating.
 
 ## What it costs
 
-At the planned headcount (`PRELAUNCH_HEADCOUNT`): 8 drivers, 5 personal
-assistants, 4 errand runners, 1 secretary — 18 people.
+At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 
 | Role | Head | Insurance (2 mo) | Gas | Wages | Total |
 |---|---:|---:|---:|---:|---:|
 | Driver | 8 | $3,200.00 | $720.00 | $0.00 | $3,920.00 |
 | Personal assistant | 5 | $750.00 | $0.00 | $0.00 | $750.00 |
 | Errand runner | 4 | $600.00 | $0.00 | $0.00 | $600.00 |
+| Social media manager | 1 | $150.00 | $0.00 | $3,960.00 | $4,110.00 |
 | Secretary | 1 | $150.00 | $0.00 | $3,960.00 | $4,110.00 |
-| **Total** | **18** | **$4,700.00** | **$720.00** | **$3,960.00** | **$9,380.00** |
+| Lawyer | 1 | $150.00 | $0.00 | $16,875.00 | $17,025.00 |
+| Web developer | 1 | $150.00 | $0.00 | $15,750.00 | $15,900.00 |
+| Physician (Elite medical advisor) | 1 | $150.00 | $0.00 | $10,800.00 | $10,950.00 |
+| Nurse (Elite tier coordination) | 1 | $150.00 | $0.00 | $6,075.00 | $6,225.00 |
+| Wingman Club coordinator | 1 | $150.00 | $0.00 | $7,200.00 | $7,350.00 |
+| **Total** | **24** | **$5,600.00** | **$720.00** | **$64,620.00** | **$70,940.00** |
 
-Recurring after launch: **$4,256.67/month** — $2,350.00 insurance plus
-$1,906.67 payroll. That is roughly **237 Premium subscribers** just to carry
-the roster.
+Recurring after launch: **$33,913.33/month** — $2,800.00 insurance plus
+$31,113.33 payroll.
+
+## What it takes to carry that
+
+Computed by `subscribersToCarryRoster`, off the live plan price:
+
+| Plan | Monthly | Subscribers to carry the roster |
+|---|---:|---:|
+| Premium | $89.99 | **377** |
+| Premium Plus | $99.99 | **340** |
+| Family | $539.94 | **63** |
+
+Subscription revenue only. Per-job margin from rides and errands is real but
+scales with work done, so leaving it out keeps these a floor: the count that
+carries the roster in a month where nobody books anything.
+
+### Starting solo
+
+Before there is a roster there is an owner with a car, and that number is a
+different order of magnitude. `SOLO_HEADCOUNT` is one owner-operator who
+drives, so insurance is the whole fixed cost — a sole owner-operator is not
+on their own payroll:
+
+**$200.00/month**, which is **3 Premium subscribers, or 1 Family plan.**
+
+The gap between $200 and $33,913.33 is the entire hiring decision. Each role
+above is a commitment that has to be carried every month whether or not
+anyone books; the solo figure is what it costs to find out whether they will.
+
+> **These figures are checked, not typed.** `docs/budget.md stays in step
+> with staffing.ts` in `packages/core/test/staffing.test.ts` reads this file
+> and fails if any headline number drifts from what the code computes. That
+> test exists because this section previously read "roughly 237 Premium
+> subscribers" — true when Premium was $17.99, and left uncorrected through
+> a repricing to $89.99 and the addition of six roles, by which point every
+> number in it was wrong.
 
 ## The three lines, and why they are the three
 

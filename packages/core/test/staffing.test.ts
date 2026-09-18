@@ -3,8 +3,10 @@ import {
   DRIVER_INSURANCE_SURCHARGE_CENTS_PER_MONTH, GAS_STIPEND_CENTS_PER_WEEK, GAS_STIPEND_WEEKS,
   LIABILITY_INSURANCE_CENTS_PER_MONTH, PRELAUNCH_HEADCOUNT, PRELAUNCH_MONTHS, PRELAUNCH_WEEKS,
   STAFF_ROLES, findRole, gasStipendCentsPerDriver, insuranceCentsPerMonth, monthlyInsuranceCents,
-  monthlyPayrollCents, monthlyRosterCents, prelaunchBudget,
+  monthlyPayrollCents, monthlyRosterCents, prelaunchBudget, subscribersToCarryRoster, SOLO_HEADCOUNT,
 } from "../src/staffing.ts";
+import { findPlan, type PlanId } from "../src/billing.ts";
+import { readFileSync } from "node:fs";
 import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "../src/promotions.ts";
 
 describe("the roles being hired", () => {
@@ -162,5 +164,71 @@ describe("what the roster costs after launch", () => {
     // charge it twice.
     expect(monthlyRosterCents()).toBe(monthlyInsuranceCents() + monthlyPayrollCents());
     expect(monthlyRosterCents({ driver: 0, "personal-assistant": 0, "errand-runner": 0, secretary: 0, "social-media-manager": 0, lawyer: 0, "web-developer": 0, physician: 0, nurse: 0, "wingman-club-coordinator": 0 })).toBe(0);
+  });
+});
+
+describe("what it takes to carry the roster", () => {
+  it("counts subscribers off the live plan price, never a typed figure", () => {
+    const monthly = monthlyRosterCents();
+    for (const planId of ["premium-basic", "premium-plus", "family"] as PlanId[]) {
+      const needed = subscribersToCarryRoster(planId);
+      const price = findPlan(planId).monthlyCents;
+      // Enough, and not one more than enough.
+      expect(needed * price, planId).toBeGreaterThanOrEqual(monthly);
+      expect((needed - 1) * price, planId).toBeLessThan(monthly);
+    }
+  });
+
+  it("says Free carries nothing, rather than dividing by zero", () => {
+    expect(subscribersToCarryRoster("free")).toBe(Infinity);
+  });
+
+  it("makes a dearer plan need fewer subscribers", () => {
+    expect(subscribersToCarryRoster("family")).toBeLessThan(subscribersToCarryRoster("premium-basic"));
+  });
+
+  it("costs an owner-operator only their own cover, with no payroll", () => {
+    // A sole owner-operator is not on their own payroll, and they drive — so
+    // the whole fixed cost is one insured driving person.
+    expect(monthlyPayrollCents(SOLO_HEADCOUNT)).toBe(0);
+    expect(monthlyRosterCents(SOLO_HEADCOUNT)).toBe(
+      LIABILITY_INSURANCE_CENTS_PER_MONTH + DRIVER_INSURANCE_SURCHARGE_CENTS_PER_MONTH,
+    );
+    expect(monthlyRosterCents(SOLO_HEADCOUNT)).toBeLessThan(monthlyRosterCents());
+  });
+});
+
+describe("docs/budget.md stays in step with staffing.ts", () => {
+  // The doc claimed to be computed and was not: it read "roughly 237 Premium
+  // subscribers", a figure from when Premium was $17.99, and survived both a
+  // repricing to $89.99 and six added roles. Every number in it was wrong by
+  // the time anyone noticed. A doc nothing checks is a doc that is only ever
+  // accurate on the day it is written, so this checks it.
+  const doc = readFileSync(new URL("../../../docs/budget.md", import.meta.url), "utf8");
+  const money = (cents: number) =>
+    `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  it("quotes the stand-up total and the recurring monthly", () => {
+    expect(doc).toContain(money(prelaunchBudget().totalCents));
+    expect(doc).toContain(money(monthlyRosterCents()));
+    expect(doc).toContain(money(monthlyRosterCents(SOLO_HEADCOUNT)));
+  });
+
+  it("quotes the planned headcount", () => {
+    const head = Object.values(PRELAUNCH_HEADCOUNT).reduce((a, c) => a + c, 0);
+    expect(doc).toContain(`**${head}**`);
+  });
+
+  it("quotes the subscriber count for every everyday plan", () => {
+    for (const planId of ["premium-basic", "premium-plus", "family"] as PlanId[]) {
+      expect(doc, planId).toContain(`**${subscribersToCarryRoster(planId)}**`);
+    }
+  });
+
+  it("quotes every role's line total", () => {
+    for (const line of prelaunchBudget().lines) {
+      expect(doc, line.label).toContain(`| ${line.label} | ${line.headcount} |`);
+      expect(doc, line.label).toContain(money(line.totalCents));
+    }
   });
 });
