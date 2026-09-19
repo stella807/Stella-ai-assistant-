@@ -37,7 +37,7 @@ const INCLUDED_NOW: { feature: Feature; tab: HiringTab; label: string; hint: str
   {
     feature: "quick-tasks", tab: "errand",
     label: "Have someone bring you something",
-    hint: "A coffee, milk, a prescription — one thing fetched, at a spend cap you set.",
+    hint: "A coffee, milk, a prescription — one thing brought to you, at a spend cap you set.",
   },
   {
     feature: "quick-tasks", tab: "errand",

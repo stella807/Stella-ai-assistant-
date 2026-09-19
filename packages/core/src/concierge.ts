@@ -67,7 +67,14 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
   {
     id: "grab-something",
     label: "Grab something",
-    description: "Pick up food, drinks, or supplies from a place you name and bring it to you.",
+    // Deliberately does not promise the assistant walks in and buys it.
+    // Either route is legitimate — a $40 family order is cheaper and faster
+    // delivered, while a $6 coffee is not, once a delivery app's markup and
+    // fees are on it. Both spend the same funded card against the same cap,
+    // so the customer's money works identically; what changes is only how
+    // the thing arrives, and naming one method would make the other a
+    // broken promise the first time it was the better choice.
+    description: "Food, drinks or supplies from a place you name — collected in person or delivered, whichever gets it to you sooner and cheaper.",
   },
   {
     id: "wait-with-someone",
