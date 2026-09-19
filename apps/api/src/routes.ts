@@ -41,7 +41,7 @@ import {
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
-  validatePickupRequest, estimateFareCents,
+  validatePickupRequest, ARRANGE_RIDE_FEE_CENTS, recordRideCost,
   validateAiDraftInstruction,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
@@ -2145,16 +2145,18 @@ export const routes: Record<string, Handler> = {
     let secure = null;
     if (hasFeature(planOf(ctx, me), "secure-transport") && isAutomatic(secureTransport.status)) {
       secure = await secureTransport
-        .quote({ pickup: body.pickup, dropoff, riderName: nameOf(ctx, me) })
+        // Both ends parsed, rather than dropoff parsed and pickup passed
+        // through raw as it used to be — the provider gets two coordinates
+        // of the same shape either way.
+        .quote({ pickup, dropoff, riderName: nameOf(ctx, me) })
         .catch(() => null);
     }
 
-    // Safehubby's own published fare for a standard, coordinated-pickup
-    // ride (see estimateFareCents in ride-coordination.ts) — on every plan
-    // alike, Free included, since ride-booking is a safety basic. Not
-    // gated on any provider: there is no third party involved in this
-    // number at all, so nothing to be automatic or unconfigured about.
-    const standard = { fareEstimateCents: estimateFareCents(pickup, dropoff) };
+    // What Safehubby charges to arrange a ride, on every plan alike, Free
+    // included, since ride-booking is a safety basic. Deliberately the fee
+    // and nothing else: a rideshare sets the fare and this app does not
+    // predict it — see ride-coordination.ts's doc comment.
+    const standard = { arrangeFeeCents: ARRANGE_RIDE_FEE_CENTS };
 
     if (automatic) {
       // Real fares, from Uber's own estimates endpoint. Safehubby still never
@@ -2202,7 +2204,7 @@ export const routes: Record<string, Handler> = {
 
     const request: PickupRequest = {
       id: newId("pickup"), travelerId: me, pickup, dropoff,
-      fareEstimateCents: estimateFareCents(pickup, dropoff),
+      arrangeFeeCents: ARRANGE_RIDE_FEE_CENTS,
       ...(body?.note ? { note: String(body.note) } : {}),
       status: "requested", createdAt: ctx.now().toISOString(),
     };
@@ -3097,6 +3099,47 @@ export const routes: Record<string, Handler> = {
    * it commits a real person to show up, the same authority level
    * approving a staff application already needs.
    */
+  /**
+   * Records what the ride actually cost, once whoever arranged it can read
+   * the real figure off the rideshare app.
+   *
+   * Separate from coordinating on purpose: coordinating says who is handling
+   * it, this says what it came to, and the two happen minutes apart — the
+   * fare does not exist at the moment somebody picks the request up. Gated
+   * on "money" rather than "operations", because unlike dispatch this one
+   * decides what a customer is charged.
+   */
+  "POST /api/master/pickup-requests/:id/ride-cost": (ctx, p, body) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "money", now)) {
+      throw unauthorized();
+    }
+    const id = req(p, "id");
+    const existing = ctx.store.data.pickupRequests.find((r) => r.id === id);
+    if (!existing) throw notFound("Pickup request");
+
+    // Validated in core, so the rules about a negative, fractional or
+    // already-recorded cost hold wherever this is called from.
+    let updated;
+    try {
+      updated = recordRideCost(existing, Math.round(Number(body?.costCents)), String(body?.bookedOn ?? ""));
+    } catch (e) {
+      throw new HttpError(400, e instanceof Error ? e.message : "That ride cost was not accepted.");
+    }
+
+    ctx.store.update((db) => {
+      const r = db.pickupRequests.find((x) => x.id === id)!;
+      r.rideCostCents = updated.rideCostCents;
+      r.bookedOn = updated.bookedOn;
+      db.masterAuditLog.push(recordAccess({
+        id: newId("aud"), account, scope: "money",
+        subject: `recorded ride cost for pickup ${id}: ${updated.rideCostCents} on ${updated.bookedOn}`, now,
+      }));
+    });
+    return { request: updated };
+  },
+
   "POST /api/master/pickup-requests/:id/coordinate": (ctx, p, body) => {
     const account = masterAccountOf(ctx);
     const now = ctx.now();

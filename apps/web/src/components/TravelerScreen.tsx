@@ -47,7 +47,7 @@ const INCLUDED_NOW: { feature: Feature; tab: HiringTab; label: string; hint: str
   {
     feature: "ride-booking", tab: "ride",
     label: "Get a ride",
-    hint: "Coordinated with one of Safehubby's own drivers, at a fare you see first.",
+    hint: "We book the ride for you and tell you the price before it's confirmed.",
   },
 ];
 

@@ -1115,15 +1115,15 @@ describe("ride hand-off", () => {
     expect(res.mode).toBe("handoff");
   });
 
-  it("always includes Safehubby's own standard fare, priced against Uber Black, on every plan", async () => {
-    // Ownership's direction: price the free-tier standard ride against
-    // Uber Black specifically. This has no third-party provider to gate on
-    // at all, so it is present regardless of plan or Uber configuration.
+  it("quotes the arranging fee on every plan, and no fare at all", async () => {
+    // Safehubby charges to arrange the ride; a rideshare sets the fare. The
+    // fee is on every plan including Free, and the fare is deliberately
+    // absent — this app does not predict somebody else's surge pricing.
     const res = (await call("POST", "/api/rides/quote", {
       pickup: { lat: 40.714, lng: -74.003 }, dropoff: { lat: 40.75, lng: -73.98 },
     }, jordan)).json;
-    expect(res.standard.fareEstimateCents).toBeGreaterThan(0);
-    expect(Number.isInteger(res.standard.fareEstimateCents)).toBe(true);
+    expect(res.standard.arrangeFeeCents).toBeGreaterThan(0);
+    expect(res.standard.fareEstimateCents).toBeUndefined();
   });
 });
 
@@ -4328,9 +4328,10 @@ describe("master access — a per-account role instead of one shared secret", ()
     }, sam);
     expect(requested.status).toBe(200);
     expect(requested.json.request.status).toBe("requested");
-    // Stamped at request time, not invented later — see fareEstimateCents
-    // on PickupRequest in ride-coordination.ts.
-    expect(requested.json.request.fareEstimateCents).toBeGreaterThan(0);
+    // The fee is known at request time; the fare is not, and must not be
+    // guessed — see PickupRequest in ride-coordination.ts.
+    expect(requested.json.request.arrangeFeeCents).toBeGreaterThan(0);
+    expect(requested.json.request.rideCostCents).toBeUndefined();
 
     const { cookie: secCookie } = await masterLogin("secretary", "Sec Three", "sec3@example.com");
     const coordinated = await call(
@@ -4344,6 +4345,50 @@ describe("master access — a per-account role instead of one shared secret", ()
     const mine = await call("GET", "/api/rides/coordinate", undefined, sam);
     expect(mine.json.requests[0].status).toBe("coordinated");
     expect(mine.json.requests[0].driverPhone).toBe("4045550199");
+  });
+
+  it("records what the ride actually cost, and refuses to restate it", async () => {
+    const requested = await call("POST", "/api/rides/coordinate", {
+      pickup: { lat: 40.71, lng: -74.0 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    const id = requested.json.request.id;
+    const { cookie } = await masterLogin("owner", "Owner Cost", "ownercost@example.com");
+
+    const ok = await call("POST", `/api/master/pickup-requests/${id}/ride-cost`,
+      { costCents: 2340, bookedOn: "Uber" }, null, cookie);
+    expect(ok.status).toBe(200);
+    expect(ok.json.request.rideCostCents).toBe(2340);
+    expect(ok.json.request.bookedOn).toBe("Uber");
+
+    // The price the rider was told is the price they pay.
+    const again = await call("POST", `/api/master/pickup-requests/${id}/ride-cost`,
+      { costCents: 9900, bookedOn: "Uber" }, null, cookie);
+    expect(again.status).toBe(400);
+    expect(again.json.error).toMatch(/already been recorded/i);
+  });
+
+  it("refuses a nonsense ride cost, and one with no service named", async () => {
+    const requested = await call("POST", "/api/rides/coordinate", {
+      pickup: { lat: 40.71, lng: -74.0 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    const id = requested.json.request.id;
+    const { cookie } = await masterLogin("owner", "Owner Bad", "ownerbad@example.com");
+    expect((await call("POST", `/api/master/pickup-requests/${id}/ride-cost`,
+      { costCents: -1, bookedOn: "Uber" }, null, cookie)).status).toBe(400);
+    expect((await call("POST", `/api/master/pickup-requests/${id}/ride-cost`,
+      { costCents: 2340, bookedOn: "  " }, null, cookie)).status).toBe(400);
+  });
+
+  it("needs money access to record a cost — dispatch access is not enough", async () => {
+    // Coordinating says who is handling it; this decides what a customer is
+    // charged, which is a different scope.
+    const requested = await call("POST", "/api/rides/coordinate", {
+      pickup: { lat: 40.71, lng: -74.0 }, dropoff: { lat: 40.75, lng: -73.98 },
+    }, sam);
+    const { cookie } = await masterLogin("secretary", "Sec Cost", "seccost@example.com");
+    const res = await call("POST", `/api/master/pickup-requests/${requested.json.request.id}/ride-cost`,
+      { costCents: 2340, bookedOn: "Uber" }, null, cookie);
+    expect(res.status).toBe(401);
   });
 
   it("refuses to coordinate onto a driver who was never approved", async () => {

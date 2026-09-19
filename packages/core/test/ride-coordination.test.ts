@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { estimateFareCents, validatePickupRequest } from "../src/ride-coordination.ts";
-import { standardRideFareCents } from "../src/driver-pay.ts";
+import {
+  ARRANGE_RIDE_FEE_CENTS, ARRANGE_RIDE_PAYOUT_CENTS, arrangeRideMarginCents,
+  recordRideCost, totalRideCents, validatePickupRequest, type PickupRequest,
+} from "../src/ride-coordination.ts";
 
 const here = { lat: 40.7128, lng: -74.006 };
 const home = { lat: 40.7488, lng: -73.9857, label: "Home" };
@@ -25,29 +27,47 @@ describe("validatePickupRequest", () => {
   });
 });
 
-describe("estimateFareCents — the real, disclosed standard-ride fare", () => {
-  it("returns Safehubby's base fare alone for an identical pickup and dropoff", () => {
-    expect(estimateFareCents(here, here)).toBe(standardRideFareCents(0, 0));
+const request = (over: Partial<PickupRequest> = {}): PickupRequest => ({
+  id: "pr1", travelerId: "sam", pickup: here, dropoff: home, status: "requested",
+  arrangeFeeCents: ARRANGE_RIDE_FEE_CENTS, createdAt: "2026-09-19T12:00:00.000Z", ...over,
+});
+
+describe("what an arranged ride costs", () => {
+  it("keeps Safehubby's whole margin in the fee, taking nothing on the fare", () => {
+    expect(arrangeRideMarginCents()).toBe(ARRANGE_RIDE_FEE_CENTS - ARRANGE_RIDE_PAYOUT_CENTS);
+    // The assistant keeps their rate and Safehubby's cut is added on top,
+    // never taken out of it — the same rule concierge pay follows.
+    expect(ARRANGE_RIDE_PAYOUT_CENTS).toBeLessThan(ARRANGE_RIDE_FEE_CENTS);
+    expect(arrangeRideMarginCents()).toBeGreaterThan(0);
   });
 
-  it("charges more for a longer trip than a shorter one", () => {
-    const short = estimateFareCents(here, { lat: 40.716, lng: -74.006 });
-    const long = estimateFareCents(here, home);
-    expect(long).toBeGreaterThan(short);
+  it("knows nothing about the fare until the ride is booked", () => {
+    const r = request();
+    expect(r.rideCostCents).toBeUndefined();
+    expect(totalRideCents(r)).toBeUndefined();
   });
 
-  it("matches standardRideFareCents computed from the same straight-line distance and assumed speed", () => {
-    // metersBetween(here, home) is roughly 6.4km ≈ 4mi. Rather than hardcode
-    // that conversion twice, this checks the two functions agree, since
-    // estimateFareCents is defined entirely in terms of standardRideFareCents.
-    const fare = estimateFareCents(here, home);
-    expect(fare).toBeGreaterThan(standardRideFareCents(0, 0));
-    expect(Number.isInteger(fare)).toBe(true);
+  it("passes the real cost straight through once it is known", () => {
+    const booked = recordRideCost(request(), 2340, "Uber");
+    expect(booked.rideCostCents).toBe(2340);
+    expect(booked.bookedOn).toBe("Uber");
+    // Fee plus fare, with nothing added in between.
+    expect(totalRideCents(booked)).toBe(ARRANGE_RIDE_FEE_CENTS + 2340);
   });
 
-  it("never goes negative or NaN, even for the same point twice", () => {
-    const fare = estimateFareCents(home, home);
-    expect(fare).toBeGreaterThan(0);
-    expect(Number.isFinite(fare)).toBe(true);
+  it("refuses a cost that is not a whole, non-negative number of cents", () => {
+    expect(() => recordRideCost(request(), -1, "Uber")).toThrow(/negative/i);
+    expect(() => recordRideCost(request(), 12.5, "Uber")).toThrow(/whole number/i);
+  });
+
+  it("refuses to restate a cost already recorded", () => {
+    // The price the rider was shown is the price they pay. A fare that moves
+    // after the fact is the one thing this flow exists not to do.
+    const booked = recordRideCost(request(), 2340, "Uber");
+    expect(() => recordRideCost(booked, 9900, "Uber")).toThrow(/already been recorded/i);
+  });
+
+  it("refuses a booking with no service named, so the receipt says where it went", () => {
+    expect(() => recordRideCost(request(), 2340, "  ")).toThrow(/which service/i);
   });
 });

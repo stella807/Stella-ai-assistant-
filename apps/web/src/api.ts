@@ -378,7 +378,7 @@ export const api = {
       /** Safehubby's own published fare for a coordinated-pickup ride — see
        *  estimateFareCents in ride-coordination.ts. Always present, on
        *  every plan, since it depends on no third-party provider at all. */
-      standard: { fareEstimateCents: number };
+      standard: { arrangeFeeCents: number };
     }>("POST", "/api/rides/quote", { pickup, dropoff }),
   bookSecureRide: (pickup: any, dropoff: any) =>
     request<any>("POST", "/api/rides/secure", { pickup, dropoff, acknowledgedDisclosures: true }),

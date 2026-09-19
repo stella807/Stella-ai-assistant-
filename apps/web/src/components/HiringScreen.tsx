@@ -48,7 +48,7 @@ const TABS: { id: HiringTab; label: string; blurb: string }[] = [
   {
     id: "ride",
     label: "Get a ride",
-    blurb: "Coordinated with a driver Safehubby actually hired, not a hand-off to Uber or Lyft — see the ride screen for how that works today.",
+    blurb: "Somebody on our side books the ride for you — not a link for you to tap. You pay the fare it comes to, plus a small fee for arranging it.",
   },
   {
     id: "club",

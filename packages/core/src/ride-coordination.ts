@@ -1,29 +1,39 @@
 import type { Iso8601 } from "./types.ts";
-import { metersBetween, type Point } from "./geo.ts";
-import { standardRideFareCents } from "./driver-pay.ts";
+
 
 /**
- * Getting home, coordinated with a driver Safehubby actually hired —
- * replacing the old Uber/Lyft hand-off entirely rather than sitting beside
- * it. See `driver-applications.ts` for how a driver gets approved; nothing
- * there yet assigns an approved driver to a specific rider in real time, so
- * this is a request-and-coordinate flow, the same honest shape the Elite
- * desk already uses for a jet charter: a rider asks, a person on the
- * operations side matches an approved driver and relays back who's coming,
- * rather than a live-matching engine this app does not have.
+ * Getting home: Safehubby arranges the ride, on a rideshare the customer
+ * already has access to.
  *
- * What this deliberately is not: a redo of the ride-quote/booking code in
- * fulfillment.ts, which exists to talk to Uber's own APIs, and still never
- * invents a fare on that path — see `RideEstimate.fareEstimateCents` in
- * ports.ts. This module is different: there is no third party here to quote
- * a fare from at all, so `estimateFareCents` below prices the trip off
- * Safehubby's own published rate card (`standardRideFareCents` in
- * driver-pay.ts) instead — the same "no live quote to defer to, so a
- * disclosed rate stands in for one" shape `serviceFeeFor` already uses for
- * concierge tasks. What is still missing is dispatch itself: `driverId`
- * below is filled in by a person on operations, not a matching engine, and
- * there is still no charge or hold wired to a request — the fare is a real,
- * disclosed number to expect, not something taken from anyone's card yet.
+ * This used to dispatch a driver from Safehubby's own roster. That needs
+ * eight insured drivers before anyone can be taken anywhere, and commercial
+ * auto exposure carried by a company with no revenue yet — so it is a later
+ * chapter, not the way this starts. `driver-applications.ts` and
+ * `DRIVER_RATE_CARD` are kept intact and dormant for when it is.
+ *
+ * What happens instead is the thing a concierge has always been able to do
+ * and an app cannot: a person opens the rideshare app and books the trip on
+ * the customer's behalf. Worth being exact about why that is not a cheat —
+ * Uber retired its Ride Request API for third-party consumer apps (see
+ * docs/mobile.md), so no amount of integration work would let *this app*
+ * book a ride. A human being with a phone needs no API at all. The
+ * capability that is impossible to automate is trivial to perform.
+ *
+ * The money follows from that, and only two numbers are involved:
+ *
+ * - **`arrangeFeeCents`** is Safehubby's own, published up front. Known
+ *   before anyone agrees to anything, the same way every concierge fee is.
+ * - **`rideCostCents`** is what the ride actually cost, read off the booking
+ *   once it exists. It is absent until then and is *never* estimated —
+ *   Safehubby does not set this price and cannot predict it, which is
+ *   exactly the rule `RideEstimate.fareEstimateCents` states in ports.ts.
+ *
+ * An earlier version of this module did estimate the fare, from straight-line
+ * distance and an assumed speed, back when Safehubby's own rate card set the
+ * price. Against a third party's surge-priced, route-dependent fare that
+ * arithmetic would be fabrication with a decimal point on it, so it is gone.
+ * The customer is told the real price before the ride is booked, because by
+ * then the assistant is looking at it.
  */
 
 export type PickupRequestStatus = "requested" | "coordinated" | "completed" | "cancelled";
@@ -41,15 +51,21 @@ export interface PickupRequest {
   dropoff: PickupLocation;
   note?: string;
   status: PickupRequestStatus;
-  /** Stamped at request time from `estimateFareCents` below, so a past
-   *  request's number stays true even if the rate card changes later —
-   *  the same "price it once, keep it" reasoning concierge tasks already
-   *  follow for `serviceFeeCents`. Not a charge — nothing is held against
-   *  the rider's card yet, since dispatch itself is still a person on
-   *  operations matching a driver by hand, not an instant booking. */
-  fareEstimateCents: number;
-  /** Set once operations has matched a driver — see
-   *  `POST /api/master/pickup-requests/:id/coordinate` in routes.ts. */
+  /** What Safehubby charges to arrange this, stamped at request time so a
+   *  past request's fee stays true if the published fee changes later — the
+   *  same "price it once, keep it" rule concierge tasks follow for
+   *  `serviceFeeCents`. */
+  arrangeFeeCents: number;
+  /** What the ride itself cost, once it has been booked and there is a real
+   *  number to read. Absent until then, and never estimated — see this
+   *  module's doc comment. Passed straight through: Safehubby takes its fee
+   *  above and no margin on the fare. */
+  rideCostCents?: number;
+  /** Which rideshare it was booked on, for the receipt. */
+  bookedOn?: string;
+  /** Set once an assistant has picked the request up. Named for the driver
+   *  only in the dormant own-roster case; today it is the Safehubby person
+   *  who arranged the trip. */
   driverId?: string;
   driverName?: string;
   driverPhone?: string;
@@ -68,30 +84,51 @@ export function validatePickupRequest(input: { pickup: PickupLocation; dropoff: 
   if (!finite(input.dropoff)) throw new Error("Say where you're headed.");
 }
 
-const METERS_PER_MILE = 1609.34;
+/**
+ * What Safehubby charges to arrange a ride.
+ *
+ * The same shape and the same money as a quick concierge task, because it is
+ * the same job: a few minutes of somebody's attention, with a defined end.
+ * Mirrors `QUICK_TASK_ASSISTANT_PAYOUT_CENTS` in concierge.ts rather than
+ * inventing a second price for ten minutes of the same person's time — the
+ * assistant keeps $4.00 and Safehubby's $1.00 is added on top of their rate,
+ * never taken out of it.
+ *
+ * Charged on every plan including Free. `ride-booking` is in
+ * `FREE_FEATURES`, and there is no cheaper version of getting somebody home
+ * safely to hold back for a subscription.
+ */
+export const ARRANGE_RIDE_FEE_CENTS = 500;
+export const ARRANGE_RIDE_PAYOUT_CENTS = 400;
+
+/** What Safehubby keeps for arranging one ride. The fare is not in here:
+ *  it is passed through at cost, so this is the whole of the margin. */
+export function arrangeRideMarginCents(): number {
+  return ARRANGE_RIDE_FEE_CENTS - ARRANGE_RIDE_PAYOUT_CENTS;
+}
 
 /**
- * The assumed speed behind the estimate below, since no routing API is
- * configured to ask a real one. Deliberately on the slow side of ordinary
- * city driving (20 mph, not the 25-30 a highway stretch would allow) —
- * this estimate is already built on straight-line distance, which
- * undercounts a real route (streets bend, one-ways backtrack), and a fast
- * assumed speed would let both errors compound into a number that reads
- * low next to what a ride actually takes.
+ * Records what the ride actually cost, once it is booked and there is a real
+ * figure to read off the rideshare app.
+ *
+ * Refuses a negative, and refuses to overwrite a cost already recorded: the
+ * number a customer was shown is what they are charged, and a booking whose
+ * price moves after the fact is the thing this whole flow exists not to do.
  */
-export const ESTIMATE_AVERAGE_MPH = 20;
+export function recordRideCost(request: PickupRequest, costCents: number, bookedOn: string): PickupRequest {
+  if (!Number.isInteger(costCents) || costCents < 0) {
+    throw new Error("A ride cost has to be a whole number of cents, and cannot be negative.");
+  }
+  if (request.rideCostCents !== undefined) {
+    throw new Error("This ride's cost has already been recorded.");
+  }
+  if (!bookedOn.trim()) throw new Error("Say which service the ride was booked on.");
+  return { ...request, rideCostCents: costCents, bookedOn: bookedOn.trim() };
+}
 
-/**
- * A fare estimate for a pickup request, priced off Safehubby's own
- * published rate card (`standardRideFareCents`) rather than a live quote —
- * see this module's own doc comment for why there is no third party here
- * to quote one from. Built on straight-line distance between the two
- * points, since there is no routing API configured for a real driving
- * route: this is a real number, honestly disclosed as an estimate rather
- * than the exact fare a longer real route would actually run.
- */
-export function estimateFareCents(pickup: PickupLocation, dropoff: PickupLocation): number {
-  const miles = metersBetween(pickup as Point, dropoff as Point) / METERS_PER_MILE;
-  const minutes = (miles / ESTIMATE_AVERAGE_MPH) * 60;
-  return standardRideFareCents(miles, minutes);
+/** Fee plus fare — what the rider actually pays, once the ride is booked.
+ *  Undefined until then, because half of it is not known yet. */
+export function totalRideCents(request: PickupRequest): number | undefined {
+  if (request.rideCostCents === undefined) return undefined;
+  return request.arrangeFeeCents + request.rideCostCents;
 }
