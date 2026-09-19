@@ -168,6 +168,9 @@ export interface Db {
    *  rather than one per visit — Stripe only reuses a method off-session when
    *  it is attached to one. See `ensureStripeCustomer` in adapters/stripe.ts. */
   stripeCustomers: Record<string, string>;
+  /** When each hand-ticked launch step was marked done. Only the steps the
+   *  app cannot observe for itself live here — see launch-plan.ts. */
+  launchStepsMarkedAt: Record<string, string>;
   holds: PreAuthorization[];
   /** One ledger for every charge — subscription, ride, delivery — so a single
    *  screen can show the whole account. See wallet.ts. */
@@ -232,7 +235,7 @@ export interface Db {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, stripeCustomers: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, stripeCustomers: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

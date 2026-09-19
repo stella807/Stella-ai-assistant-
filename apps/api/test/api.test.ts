@@ -4543,3 +4543,95 @@ describe("master pricing controls", () => {
     expect(res.json.ownerAccrual).toEqual({ accruedCents: Math.round((310000 * 15) / 28), dayOfMonth: 15, daysInMonth: 28 });
   });
 });
+
+describe("the launch plan on the master dashboard", () => {
+  useAdminKey();
+
+  const masterLogin = async (role: "owner" | "secretary", name = "Luis Garcia", email = "luis@example.com") => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", { name, email, role });
+    const key = created.json.key as string;
+    const signedIn = await call("POST", "/api/master/auth/login", { key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    return { cookie: { Cookie: `sh_master_session=${token}` } };
+  };
+
+  const stepsOf = (overview: { json: any }) =>
+    Object.fromEntries(overview.json.money.launch.steps.map((s: any) => [s.id, s]));
+
+  it("rides along with the money scope, so a secretary never sees it", async () => {
+    // It is a view of where the business is, which is money, not operations.
+    const { cookie } = await masterLogin("secretary", "Sec Launch", "seclaunch@example.com");
+    const res = await call("GET", "/api/master/overview", undefined, null, cookie);
+    expect(res.status).toBe(200);
+    expect(res.json.money).toBeUndefined();
+  });
+
+  it("reads the roster from real state rather than a tick", async () => {
+    const { cookie } = await masterLogin("owner", "Own Launch", "ownlaunch@example.com");
+    const before = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
+    expect(before["on-the-roster"].done).toBe(false);
+    expect(before["first-hire"].done).toBe(false);
+
+    const apply = (over: Record<string, unknown>) => call("POST", "/api/staff/apply", {
+      role: "personal-assistant", fullName: "Rosa Delgado", email: "rosa@example.com",
+      phone: "2125550147", city: "Houston", state: "TX", hoursPerWeek: 20,
+      backgroundCheckConsent: true,
+      experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
+      ...over,
+    });
+    const hire = async (over: Record<string, unknown>) => {
+      const { json } = await apply(over);
+      await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+      await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+      await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas" });
+    };
+
+    await hire({});
+    const one = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
+    // One body on the roster is the owner, not a hire.
+    expect(one["on-the-roster"].done).toBe(true);
+    expect(one["first-hire"].done).toBe(false);
+
+    await hire({ fullName: "Kit Moreno", email: "kitlaunch@example.com" });
+    const two = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
+    expect(two["first-hire"].done).toBe(true);
+  });
+
+  it("lets the owner tick a step the app cannot see, and untick it", async () => {
+    const { cookie } = await masterLogin("owner", "Own Tick", "owntick@example.com");
+    expect((await call("POST", "/api/master/launch/insurance-quote", { done: true }, null, cookie)).status).toBe(200);
+
+    const marked = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
+    expect(marked["insurance-quote"].done).toBe(true);
+    expect(marked["insurance-quote"].markedAt).toBeTruthy();
+
+    expect((await call("POST", "/api/master/launch/insurance-quote", { done: false }, null, cookie)).status).toBe(200);
+    const cleared = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
+    expect(cleared["insurance-quote"].done).toBe(false);
+    expect(cleared["insurance-quote"].markedAt).toBeUndefined();
+  });
+
+  it("refuses to let an observed step be ticked, so the dashboard cannot lie", async () => {
+    // The whole value of "Connect Stripe" being observed is that saying it is
+    // done does not make the dashboard say so. Enforced here, not just hidden
+    // in the UI.
+    const { cookie } = await masterLogin("owner", "Own Lie", "ownlie@example.com");
+    const res = await call("POST", "/api/master/launch/stripe-configured", { done: true }, null, cookie);
+    expect(res.status).toBe(400);
+
+    const after = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
+    expect(after["stripe-configured"].done).toBe(false);
+  });
+
+  it("refuses a secretary outright — marking is a write", async () => {
+    const { cookie } = await masterLogin("secretary", "Sec Tick", "sectick@example.com");
+    expect((await call("POST", "/api/master/launch/insurance-quote", { done: true }, null, cookie)).status).toBe(401);
+  });
+
+  it("records the mark in the access log", async () => {
+    const { cookie } = await masterLogin("owner", "Own Log", "ownlog@example.com");
+    await call("POST", "/api/master/launch/app-store", { done: true }, null, cookie);
+    const log = await call("GET", "/api/master/audit-log", undefined, null, cookie);
+    expect(log.json.some((e: { subject: string }) => e.subject.includes("app-store"))).toBe(true);
+  });
+});

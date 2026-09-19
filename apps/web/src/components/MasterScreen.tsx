@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { MasterAuditEntry } from "@safehubby/core";
+import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
 import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars } from "../money.ts";
 
@@ -300,6 +300,10 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         <OperationsSection operations={overview.operations}
           canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
       )}
+      {overview.money && (
+        <LaunchSection launch={overview.money.launch}
+          canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
+      )}
       {overview.money && <MoneySection money={overview.money} />}
 
       {overview.account.role === "owner" && <PricingSection />}
@@ -548,6 +552,85 @@ function OperationsSection({ operations, canWrite, onChanged }: {
           </ul>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * The route from here to a business that pays for itself, as the dashboard
+ * reads it. Most rows are observed — Stripe, the roster, paying clients — so
+ * they have no button and cannot be ticked; the ones the app genuinely
+ * cannot see (a broker's quote, an application to Stripe, the App Store) are
+ * the only ones with a "Mark done". See launch-plan.ts for why that split is
+ * enforced on the server too rather than just being a UI habit.
+ */
+function LaunchSection({ launch, canWrite, onChanged }: {
+  launch: LaunchProgress;
+  canWrite: boolean;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState<LaunchStepId | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const mark = async (id: LaunchStepId, done: boolean) => {
+    setBusy(id);
+    setError(null);
+    try {
+      await api.masterMarkLaunchStep(id, done);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't save.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const percent = Math.round((launch.done / launch.total) * 100);
+
+  return (
+    <section className="card stack">
+      <div className="row-between">
+        <h3 style={{ margin: 0 }}>Launch plan</h3>
+        <span className="tiny muted">{launch.done} of {launch.total}</span>
+      </div>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        {launch.next
+          ? <>Next: <strong>{launch.next.label}</strong></>
+          : "Every step done."}
+      </p>
+      <div className="progress-track" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+        <div className="progress-fill" style={{ width: `${percent}%` }} />
+      </div>
+
+      <ul className="launch-list">
+        {launch.steps.map((step) => {
+          const isNext = launch.next?.id === step.id;
+          return (
+            <li key={step.id}
+              className={`launch-step${step.done ? " launch-step-done" : ""}${isNext ? " launch-step-next" : ""}`}>
+              <span className="launch-mark" aria-hidden="true">{step.done ? "✓" : ""}</span>
+              <div>
+                <div className="launch-label">{step.label}</div>
+                <p className="launch-detail">{step.detail}</p>
+                <p className="launch-detail" style={{ opacity: 0.75 }}>
+                  {step.manual
+                    ? step.markedAt
+                      ? `Marked done ${new Date(step.markedAt).toLocaleDateString()}.`
+                      : "Happens outside this app — mark it yourself."
+                    : `Read from ${step.derivedFrom}.`}
+                </p>
+              </div>
+              {canWrite && step.manual && (
+                <button className="btn btn-sm btn-ghost" disabled={busy === step.id}
+                  onClick={() => void mark(step.id, !step.done)}>
+                  {step.done ? "Undo" : "Mark done"}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {error && <p className="tiny" style={{ margin: 0, color: "var(--danger)" }}>{error}</p>}
     </section>
   );
 }

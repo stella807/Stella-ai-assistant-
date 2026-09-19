@@ -30,6 +30,7 @@ export * from "./staff-applications.ts";
 export * from "./roster.ts";
 export * from "./newsletter.ts";
 export * from "./wallet.ts";
+export * from "./launch-plan.ts";
 export * from "./subscription.ts";
 export * from "./payment.ts";
 export * from "./driver-applications.ts";

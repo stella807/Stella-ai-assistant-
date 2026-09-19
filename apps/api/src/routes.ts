@@ -32,6 +32,7 @@ import {
   validateBody, validateDrinkLimit,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
+  canMarkByHand, launchProgress,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
   clampHours, defaultHoursFor, isHourlyCategory,
@@ -68,7 +69,7 @@ import type {
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
-  PaymentProcessor, PayBrand, ChargeProcessorPort,
+  PaymentProcessor, PayBrand, ChargeProcessorPort, LaunchStepId,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -3081,6 +3082,15 @@ export const routes: Record<string, Handler> = {
         // duplicated here — see GET /api/admin/budget, now reachable with
         // the same master key rather than only the shared admin one.
         eliteUnlock: eliteUnlockStatus(ctx),
+        // Where the business is, read off real state rather than ticked —
+        // see launch-plan.ts for which steps are observed and which are not.
+        launch: launchProgress({
+          stripeConfigured: isAutomatic(stripeProcessor.status),
+          serviceLive: serviceIsLive(now),
+          rosterActive: ctx.store.data.assistants.filter((a) => isOnRoster(a, now)).length,
+          payingClients: Object.values(ctx.store.data.subscriptions)
+            .filter((sub) => sub.status === "active" && sub.planId !== "free").length,
+        }, ctx.store.data.launchStepsMarkedAt),
       };
       record("money", "ledger summary");
     }
@@ -4680,6 +4690,34 @@ export const routes: Record<string, Handler> = {
    * against the roster actually hired so far, so the budget is checked against
    * reality rather than against the plan it was written from.
    */
+  /**
+   * Ticks one of the launch steps this app cannot observe for itself — a
+   * broker's quote, an application to Stripe. `canMarkByHand` refuses the
+   * rest: a step that reads real state must not be settable, or the
+   * dashboard could be made to claim Stripe was connected when it was not.
+   */
+  "POST /api/master/launch/:id": (ctx, p, body) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "write", now)) {
+      throw unauthorized();
+    }
+    const id = req(p, "id") as LaunchStepId;
+    if (!canMarkByHand(id)) {
+      throw new HttpError(400, "That step is read from real state, not ticked by hand.");
+    }
+    const done = body?.done !== false;
+    ctx.store.update((db) => {
+      if (done) db.launchStepsMarkedAt[id] = now.toISOString();
+      else delete db.launchStepsMarkedAt[id];
+      db.masterAuditLog.push(recordAccess({
+        id: newId("aud"), account, scope: "write",
+        subject: `launch step ${id} marked ${done ? "done" : "not done"}`, now,
+      }));
+    });
+    return { ok: true };
+  },
+
   "GET /api/admin/budget": (ctx) => {
     requireAdmin(ctx, "money");
     const approved = ctx.store.data.staffApplications.filter((a) => a.status === "approved");

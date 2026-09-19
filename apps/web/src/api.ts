@@ -2,7 +2,7 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, FlightInfo,
-  IdentityPhoto, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus,
+  IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus,
   RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
@@ -735,6 +735,10 @@ export const api = {
   masterHireStaffApplication: (id: string, market: string) =>
     request<{ assistant: { id: string; name: string }; credentials: { username: string; tempPassword?: string } }>(
       "POST", `/api/staff/applications/${id}/hire`, { market }),
+  /** Tick one of the launch steps the app cannot observe for itself. The
+   *  server refuses an observed step outright — see launch-plan.ts. */
+  masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
+    request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
   masterGetPricing: () => request<any>("GET", "/api/master/pricing"),
   masterSetPrice: (roleOrService: string, priceCents: number, reason?: string) =>
     request<any>("POST", "/api/master/pricing/override", { roleOrService, priceCents, reason }),
@@ -779,6 +783,7 @@ export interface MasterOverview {
       thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
       targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
     };
+    launch: LaunchProgress;
   };
 }
 

@@ -1230,3 +1230,39 @@ label:has(> input[type="checkbox"]) {
   color: var(--text);
   text-wrap: pretty;
 }
+
+/* ---------- Launch plan (master dashboard) ----------
+   A checklist where most rows are read from real state rather than ticked,
+   so the marker has to distinguish "done" from "you said so" — the observed
+   rows carry the fact they were read from instead of a button. */
+.launch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.launch-step {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: var(--r-btn);
+}
+/* The one to work on next. Everything above it is done and everything below
+   it is blocked, so it is the only row worth drawing attention to. */
+.launch-step-next {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-bright) 26%, transparent);
+}
+.launch-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 750;
+  background: var(--fill-strong);
+  color: var(--muted);
+  margin-top: 1px;
+}
+.launch-step-done .launch-mark { background: var(--ok-fill); color: var(--ok); }
+.launch-step-done .launch-label { color: var(--muted); }
+.launch-label { font-size: 14px; font-weight: 640; letter-spacing: -0.01em; color: var(--text); }
+.launch-detail { margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); text-wrap: pretty; }
