@@ -2986,8 +2986,16 @@ export const routes: Record<string, Handler> = {
     }
 
     if (canAccess(account, "operations", now)) {
+      // Approved-but-not-yet-hired belongs in this queue too. It used to
+      // stop at "under-review", which meant approving somebody removed them
+      // from the dashboard — and hiring is reached from this list, so an
+      // approval made the next step unreachable without a shared admin key.
+      // Anyone already on the roster drops out, since there is nothing left
+      // to do with them here.
       const pendingStaffApplications = ctx.store.data.staffApplications
-        .filter((a) => a.status === "submitted" || a.status === "under-review");
+        .filter((a) => a.status === "submitted" || a.status === "under-review"
+          || (a.status === "approved"
+            && !ctx.store.data.assistants.some((x) => x.applicationId === a.id)));
       const pendingDriverApplications = ctx.store.data.driverApplications
         .filter((a) => a.status === "submitted" || a.status === "under-review");
       // Hired so far, by role — the same headcount `GET /api/admin/budget`

@@ -3829,6 +3829,78 @@ describe("hiring somebody and actually sending them to a job", () => {
     return callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market, maxConcurrentCustomers: 2 });
   };
 
+  it("keeps an approved applicant in the queue until they are actually hired", async () => {
+    // Hiring is reached from this list, so dropping somebody the moment they
+    // are approved made the next step unreachable from the dashboard. They
+    // stay until they are on the roster, then leave — there is nothing else
+    // to do with them here.
+    const { json } = await apply({ email: "stayvisible@example.com" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+
+    const created = await callAdmin("POST", "/api/admin/master-accounts",
+      { name: "Own Queue", email: "ownqueue@example.com", role: "owner" });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    const cookie = { Cookie: `sh_master_session=${token}` };
+    const before = await call("GET", "/api/master/overview", undefined, null, cookie);
+    const idsBefore = before.json.operations.applications.staff.map((a: { id: string }) => a.id);
+    expect(idsBefore).toContain(json.id);
+
+    await call("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas" }, null, cookie);
+    const after = await call("GET", "/api/master/overview", undefined, null, cookie);
+    const idsAfter = after.json.operations.applications.staff.map((a: { id: string }) => a.id);
+    expect(idsAfter).not.toContain(json.id);
+  });
+
+  it("lets a secretary see the queue but never act on it", async () => {
+    // The master dashboard hides the review and hire buttons without the
+    // `write` scope, which a secretary does not hold. That is a convenience,
+    // not the control — this proves the server refuses regardless, so the
+    // gate does not live in the UI.
+    const { json } = await apply();
+    const created = await callAdmin("POST", "/api/admin/master-accounts",
+      { name: "Sec Hire", email: "sechire@example.com", role: "secretary" });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    const cookie = { Cookie: `sh_master_session=${token}` };
+
+    // Reading the queue is operations, which they do have.
+    expect((await call("GET", "/api/staff/applications", undefined, null, cookie)).status).toBe(200);
+
+    // Acting on it is `write`, which they do not.
+    expect((await call("POST", `/api/staff/applications/${json.id}/review`,
+      { status: "under-review" }, null, cookie)).status).toBe(401);
+    expect((await call("POST", `/api/staff/applications/${json.id}/hire`,
+      { market: "texas" }, null, cookie)).status).toBe(401);
+  });
+
+  it("lets an owner run the whole pipeline from a master session, no shared key", async () => {
+    // What the dashboard buttons actually do, through the same session the
+    // browser holds — the admin key is not involved.
+    const { json } = await apply({ email: "ownerpipe@example.com" });
+    const created = await callAdmin("POST", "/api/admin/master-accounts",
+      { name: "Own Hire", email: "ownhire@example.com", role: "owner" });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    const cookie = { Cookie: `sh_master_session=${token}` };
+
+    // Straight to approved is refused: somebody has to open it first.
+    expect((await call("POST", `/api/staff/applications/${json.id}/review`,
+      { status: "approved" }, null, cookie)).status).toBe(400);
+
+    expect((await call("POST", `/api/staff/applications/${json.id}/review`,
+      { status: "under-review" }, null, cookie)).status).toBe(200);
+    expect((await call("POST", `/api/staff/applications/${json.id}/review`,
+      { status: "approved" }, null, cookie)).status).toBe(200);
+
+    const hired = await call("POST", `/api/staff/applications/${json.id}/hire`,
+      { market: "puerto-rico" }, null, cookie);
+    expect(hired.status).toBe(200);
+    // Shown once, and the dashboard has to surface it immediately.
+    expect(hired.json.credentials.tempPassword).toBeTruthy();
+  });
+
   it("makes an approved applicant dispatchable, which is the point of hiring them", async () => {
     const hired = await hireOne();
     expect(hired.status).toBe(200);

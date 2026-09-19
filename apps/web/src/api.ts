@@ -721,6 +721,20 @@ export const api = {
   masterLogout: () => request<{ ok: true }>("POST", "/api/master/auth/logout", {}),
   masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
   masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
+
+  /** Move a staff application through review. Owner only — `write` is not a
+   *  scope a secretary holds, so the buttons are hidden for them and the
+   *  server refuses regardless. */
+  masterReviewStaffApplication: (id: string, status: "under-review" | "approved" | "rejected", note?: string) =>
+    request<{ id: string; status: string }>(
+      "POST", `/api/staff/applications/${id}/review`, { status, ...(note ? { note } : {}) }),
+
+  /** Hire an approved applicant onto the roster. Returns the portal
+   *  credentials **once** — they are not stored readably and cannot be
+   *  shown again, so the caller has to surface them immediately. */
+  masterHireStaffApplication: (id: string, market: string) =>
+    request<{ assistant: { id: string; name: string }; credentials: { username: string; tempPassword?: string } }>(
+      "POST", `/api/staff/applications/${id}/hire`, { market }),
   masterGetPricing: () => request<any>("GET", "/api/master/pricing"),
   masterSetPrice: (roleOrService: string, priceCents: number, reason?: string) =>
     request<any>("POST", "/api/master/pricing/override", { roleOrService, priceCents, reason }),

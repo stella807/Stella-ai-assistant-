@@ -296,7 +296,10 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
 
       {overview.customers && <CustomersSection customers={overview.customers} />}
-      {overview.operations && <OperationsSection operations={overview.operations} />}
+      {overview.operations && (
+        <OperationsSection operations={overview.operations}
+          canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
+      )}
       {overview.money && <MoneySection money={overview.money} />}
 
       {overview.account.role === "owner" && <PricingSection />}
@@ -370,7 +373,124 @@ function CustomersSection({ customers }: { customers: NonNullable<MasterOverview
   );
 }
 
-function OperationsSection({ operations }: { operations: NonNullable<MasterOverview["operations"]> }) {
+/**
+ * One applicant, and the one action that makes sense for where they are.
+ *
+ * Review is a sequence, not a set of choices: `reviewStaffApplication`
+ * refuses a jump from submitted straight to approved, so an approval always
+ * means somebody opened the application first. Showing every button at once
+ * would offer moves the server rejects, so each state offers only its own.
+ *
+ * Hidden entirely without the `write` scope. A secretary can see the queue
+ * and should — they answer these people — but hiring is the owner's, and the
+ * server refuses either way.
+ */
+function ApplicationRow({ app, canWrite, onChanged }: {
+  app: { id: string; fullName: string; role: string; city: string; state: string; status: string; hoursPerWeek?: number; hasResume?: boolean; kind: "staff" | "driver" };
+  canWrite: boolean;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [market, setMarket] = useState("puerto-rico");
+  // Shown once and never again: the server does not store this readably, so
+  // if it scrolls past unread the person needs a fresh provisioning.
+  const [issued, setIssued] = useState<{ username: string; tempPassword?: string } | null>(null);
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "That didn't go through"); }
+    finally { setBusy(false); }
+  };
+
+  const review = (status: "under-review" | "approved" | "rejected") => run(async () => {
+    await api.masterReviewStaffApplication(app.id, status);
+    onChanged();
+  });
+
+  // Deliberately does NOT refresh the list. Hiring removes this applicant
+  // from the queue, which unmounts this row — and the temporary password
+  // lives in its state, shown once and unrecoverable. Refreshing here
+  // destroyed the credential the moment it was issued. The refresh happens
+  // when the owner dismisses the banner, having read it.
+  const hire = () => run(async () => {
+    const res = await api.masterHireStaffApplication(app.id, market);
+    setIssued(res.credentials);
+  });
+
+  return (
+    <li className="stack" style={{ gap: 6 }}>
+      <div className="row-between">
+        <span className="tiny muted">
+          {app.fullName} — {app.role}{app.hoursPerWeek ? `, ${app.hoursPerWeek}h/wk` : ""}
+          {app.hasResume && <span className="pill" style={{ marginLeft: 6 }}>Résumé attached</span>}
+        </span>
+        <span className="tiny">{app.city}, {app.state}</span>
+      </div>
+
+      {/* Drivers review through their own pipeline (docs/driving.md), so
+          only staff applications get buttons here. */}
+      {canWrite && app.kind === "staff" && !issued && (
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          {app.status === "submitted" && (
+            <button className="btn btn-sm" disabled={busy} onClick={() => review("under-review")}>
+              Start review
+            </button>
+          )}
+          {app.status === "under-review" && (
+            <>
+              <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => review("approved")}>
+                Approve
+              </button>
+              <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => review("rejected")}>
+                Reject
+              </button>
+            </>
+          )}
+          {app.status === "approved" && (
+            <>
+              <select aria-label="Market" value={market} onChange={(e) => setMarket(e.target.value)}>
+                <option value="puerto-rico">Puerto Rico</option>
+                <option value="texas">Texas</option>
+                <option value="los-angeles">Los Angeles</option>
+              </select>
+              <button className="btn btn-sm btn-primary" disabled={busy} onClick={hire}>
+                Hire onto the roster
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {issued && (
+        <div className="banner banner-safe">
+          <strong className="small">Hired. Give them these now.</strong>
+          <div className="tiny" style={{ marginTop: 4 }}>
+            Username <strong>{issued.username}</strong>
+            {issued.tempPassword && <><br />Temporary password <strong>{issued.tempPassword}</strong></>}
+          </div>
+          <div className="tiny muted" style={{ marginTop: 4 }}>
+            {issued.tempPassword
+              ? "This is the only time it is shown — it is not stored in a readable form. The portal makes them change it on first sign-in."
+              : "They already had a portal login, so no new password was issued. Their existing one still works."}
+          </div>
+          <button className="btn btn-sm btn-block" style={{ marginTop: 8 }} onClick={onChanged}>
+            I've written it down
+          </button>
+        </div>
+      )}
+
+      {error && <div className="tiny" style={{ color: "var(--danger, #f88)" }}>{error}</div>}
+    </li>
+  );
+}
+
+function OperationsSection({ operations, canWrite, onChanged }: {
+  operations: NonNullable<MasterOverview["operations"]>;
+  canWrite: boolean;
+  onChanged: () => void;
+}) {
   const rows: [string, number | string][] = [
     ["Active concierge tasks", operations.activeConciergeTasks],
     ["Open desk tasks", operations.openDeskTasks],
@@ -423,13 +543,7 @@ function OperationsSection({ operations }: { operations: NonNullable<MasterOverv
           </strong>
           <ul className="timeline">
             {applications.map((a) => (
-              <li key={a.id} className="row-between">
-                <span className="tiny muted">
-                  {a.fullName} — {a.role}{a.hoursPerWeek ? `, ${a.hoursPerWeek}h/wk` : ""}
-                  {a.hasResume && <span className="pill" style={{ marginLeft: 6 }}>Résumé attached</span>}
-                </span>
-                <span className="tiny">{a.city}, {a.state}</span>
-              </li>
+              <ApplicationRow key={a.id} app={a as never} canWrite={canWrite} onChanged={onChanged} />
             ))}
           </ul>
         </div>
