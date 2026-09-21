@@ -26,7 +26,7 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-producti
 
 /** Where a visitor goes to actually sign up. The app, not this site. */
 export const APP_URL = "https://safehubby-app-production.up.railway.app";
-export const CONTACT_EMAIL = "le2596@yahoo.com";
+export const CONTACT_EMAIL = "ceo@safehubby.com";
 
 export function money(cents: number): string {
   if (cents === 0) return "$0";
