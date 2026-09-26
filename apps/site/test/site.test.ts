@@ -3,7 +3,7 @@ import {
   LAUNCH_WINDOW_START, PA_HOURLY_RATE_CENTS, SERVICE_LIVE_AT, findPlan, isPlanReleased,
   releasedPlans,
 } from "@safehubby/core";
-import { LANGS, money, type Lang } from "../src/content.ts";
+import { LANGS, money, whatsappHref, whatsappLabel, type Lang } from "../src/content.ts";
 import { renderPage } from "../src/render.ts";
 
 const pages: Record<Lang, string> = { en: renderPage("en"), es: renderPage("es") };
@@ -76,6 +76,21 @@ describe("the marketing site", () => {
     // appears here, the page has stopped being readable before a bundle loads
     // — and stopped being indexable.
     for (const lang of LANGS) expect(pages[lang], lang).not.toContain("<script");
+  });
+
+  it("omits WhatsApp entirely until there is a real number", () => {
+    // A dead wa.me link is worse than no link: the reader cannot tell it
+    // failed, they just get a WhatsApp error and assume nobody is there.
+    for (const lang of LANGS) {
+      expect(pages[lang], lang).not.toContain("wa.me");
+    }
+  });
+
+  it("builds a click-to-chat link WhatsApp will actually open", () => {
+    expect(whatsappHref("1 (787) 555-0147")).toBe("https://wa.me/17875550147");
+    expect(whatsappLabel("17875550147")).toBe("+1 (787) 555-0147");
+    // A non-NANP number keeps its digits rather than being mangled into one.
+    expect(whatsappLabel("34911223344")).toBe("+34911223344");
   });
 
   it("escapes plan copy rather than interpolating it raw", () => {

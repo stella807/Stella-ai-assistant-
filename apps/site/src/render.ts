@@ -1,4 +1,7 @@
-import { APP_URL, CONTACT_EMAIL, COPY, ORIGIN, money, plansFor, type Lang } from "./content.ts";
+import {
+  APP_URL, CONTACT_EMAIL, COPY, ORIGIN, WHATSAPP, money, plansFor, whatsappHref, whatsappLabel,
+  type Lang,
+} from "./content.ts";
 
 /**
  * The marketing site, rendered to plain HTML at build time.
@@ -141,6 +144,9 @@ ${head(lang)}
     <h2>${esc(c.contactHeading)}</h2>
     <p class="lede">${esc(c.contactBody)}</p>
     <p class="contact-mail"><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+${WHATSAPP
+  ? `    <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">${esc(c.whatsappLabel)} ${esc(whatsappLabel(WHATSAPP))}</a></p>`
+  : ""}
   </section>
 </main>
 
@@ -282,8 +288,12 @@ h2 {
   letter-spacing: -0.025em; margin: 0 0 12px;
 }
 
-.contact-mail { font-family: var(--display); font-size: clamp(20px, 3.4vw, 28px); letter-spacing: -0.02em; margin: 0; }
-.contact-mail a { text-decoration: none; word-break: break-all; }
+.contact-mail, .contact-wa {
+  font-family: var(--display); font-size: clamp(20px, 3.4vw, 28px);
+  letter-spacing: -0.02em; margin: 0;
+}
+.contact-wa { margin-top: 8px; }
+.contact-mail a, .contact-wa a { text-decoration: none; word-break: break-all; }
 
 /* ---------- Foot ---------- */
 .site-foot {

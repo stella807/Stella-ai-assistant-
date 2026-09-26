@@ -28,6 +28,31 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-producti
 export const APP_URL = "https://safehubby-app-production.up.railway.app";
 export const CONTACT_EMAIL = "ceo@safehubby.com";
 
+/**
+ * The WhatsApp business number, digits only with country code (a Puerto Rico
+ * line is `1787…` or `1939…`). Empty until there is a real one, and the
+ * contact section simply omits WhatsApp while it is — printing a dead
+ * `wa.me` link is worse than offering only email, because the reader cannot
+ * tell it failed.
+ *
+ * WhatsApp is carried as its own channel rather than as a phone number
+ * because in Puerto Rico it is the one most people actually answer.
+ */
+export const WHATSAPP = (process.env.SITE_WHATSAPP ?? "").replace(/\D/g, "");
+
+/** The click-to-chat link WhatsApp itself documents. */
+export function whatsappHref(digits: string): string {
+  return `https://wa.me/${digits.replace(/\D/g, "")}`;
+}
+
+/** +1 (787) 555-0147, from 17875550147. Falls back to a plain + form for
+ *  anything that is not a NANP number. */
+export function whatsappLabel(digits: string): string {
+  const d = digits.replace(/\D/g, "");
+  const m = /^1(\d{3})(\d{3})(\d{4})$/.exec(d);
+  return m ? `+1 (${m[1]}) ${m[2]}-${m[3]}` : `+${d}`;
+}
+
 export function money(cents: number): string {
   if (cents === 0) return "$0";
   return cents % 100 === 0
@@ -89,6 +114,7 @@ export interface Copy {
 
   contactHeading: string;
   contactBody: string;
+  whatsappLabel: string;
 
   disclaimer: string;
   footerNote: string;
@@ -173,6 +199,7 @@ export const COPY: Record<Lang, Copy> = {
 
     contactHeading: "Get in touch",
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
+    whatsappLabel: "WhatsApp",
 
     disclaimer:
       "Safehubby LLC is in formation. Safehubby is not an emergency service and never tells anyone they are safe to drive. In an emergency, call your local emergency number first.",
@@ -251,6 +278,7 @@ export const COPY: Record<Lang, Copy> = {
 
     contactHeading: "Escríbenos",
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
+    whatsappLabel: "WhatsApp",
 
     disclaimer:
       "Safehubby LLC está en proceso de formación. Safehubby no es un servicio de emergencia y nunca le dice a nadie que puede manejar. En una emergencia, llama primero al número de emergencias de tu área.",
