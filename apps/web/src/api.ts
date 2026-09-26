@@ -4,7 +4,7 @@ import type {
   EliteBooking, EliteService, EliteServiceId, FlightInfo,
   IdentityPhoto, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, Plan, ProviderStatus,
   RecoveryPlan, ShareGrant, SpendRequest,
-  Statement, Subscription, Venue, VoiceMessage,
+  Statement, StellaSafetyKind, StellaTurn, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
 export interface CrewMemberView {
@@ -39,6 +39,13 @@ export interface CarePackageState {
   mode?: "prepared" | "ordered";
   note?: string | null;
   handoff?: { provider: string; url: string; description: string } | null;
+}
+
+export interface StellaReply {
+  text: string;
+  /** "safety" is a fixed emergency script, never a model's words. */
+  source: "stella" | "safety";
+  safety?: StellaSafetyKind;
 }
 
 export interface RedFlag { id: string; label: string; detail: string }
@@ -470,6 +477,11 @@ export const api = {
       aiAssist: { mode: "automatic" | "handoff" | "unavailable"; requires: string };
     }>("GET", "/api/assistant/portal"),
   /** A faster first draft of the assistant's own wording — see ai-assist.ts. Never sent on its own. */
+  /** Whether Stella can talk on this server; "handoff" means no model provider is configured. */
+  stellaStatus: () => request<{ mode: "automatic" | "handoff" | "unavailable"; requires: string }>("GET", "/api/stella/status"),
+  /** One turn with Stella. The client owns the history — nothing is stored server-side. */
+  stellaSend: (messages: StellaTurn[]) => request<StellaReply>("POST", "/api/stella/messages", { messages }),
+
   assistantAiDraft: (taskId: string, input: { purpose: string; instruction: string }) =>
     request<{ text: string }>("POST", `/api/assistant/tasks/${taskId}/ai-draft`, input),
   assistantSetPayoutDestination: (accountHolderName: string, routingNumber: string, accountNumber: string) =>

@@ -7,6 +7,7 @@ import { LanguageProvider } from "./i18n.tsx";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/carousel.css";
+import "./styles/stella.css";
 
 // Three distinct areas of one app, split by path rather than by a query
 // param carried on a link: /employee is the employee portal and /master is

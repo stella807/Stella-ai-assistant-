@@ -3960,3 +3960,96 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect((await call("POST", "/api/staff/roster/nope/stand-down", {}, null, secCookie)).status).toBe(401);
   });
 });
+
+describe("Stella", () => {
+  /** A stand-in provider: records what it was asked and answers from a script. */
+  const fakeStella = (reply: (req: { system: string; turns: { role: string; text: string }[] }) => string) => {
+    const seen: { system: string; turns: { role: string; text: string }[] }[] = [];
+    ctx.stella = {
+      status: { id: "stella", name: "fake", mode: "automatic", requires: "" },
+      async reply(req) { seen.push(req); return { text: reply(req) }; },
+    };
+    return seen;
+  };
+  afterEach(() => { delete ctx.stella; });
+
+  const ask = (messages: unknown, token: string | null = sam) => call("POST", "/api/stella/messages", { messages }, token);
+
+  it("requires sign-in", async () => {
+    expect((await ask([{ role: "user", text: "hi" }], null)).status).toBe(401);
+    expect((await call("GET", "/api/stella/status")).status).toBe(401);
+  });
+
+  it("says plainly when no provider is configured", async () => {
+    const status = await call("GET", "/api/stella/status", undefined, sam);
+    expect(status.json.mode).toBe("handoff");
+    const res = await ask([{ role: "user", text: "what should I eat?" }]);
+    expect(res.status).toBe(503);
+    expect(res.json.error).toMatch(/isn't set up/);
+  });
+
+  it("answers emergencies from the script even with no provider configured", async () => {
+    const res = await ask([{ role: "user", text: "my friend won't wake up" }]);
+    expect(res.status).toBe(200);
+    expect(res.json.source).toBe("safety");
+    expect(res.json.safety).toBe("medical");
+    expect(res.json.text).toMatch(/911/);
+  });
+
+  it("never sends an emergency to the model", async () => {
+    const seen = fakeStella(() => "chatty reply");
+    const res = await ask([{ role: "user", text: "someone is following me" }]);
+    expect(res.json.source).toBe("safety");
+    expect(seen).toHaveLength(0);
+  });
+
+  it("rejects a malformed conversation before calling anything", async () => {
+    const seen = fakeStella(() => "nope");
+    expect((await ask([{ role: "assistant", text: "hi" }])).status).toBe(400);
+    expect((await ask("hi")).status).toBe(400);
+    expect(seen).toHaveLength(0);
+  });
+
+  it("replies with tonight's facts in the prompt and no location", async () => {
+    const seen = fakeStella(() => "Grab some water between rounds.");
+    const night = (await startNight()).json.night;
+    await call("POST", `/api/nights/${night.id}/drinks`, { drinkId: "beer-regular" }, sam);
+    await call("POST", `/api/nights/${night.id}/location`, { lat: 40.7128, lng: -74.006 }, sam);
+
+    const res = await ask([{ role: "user", text: "how am I doing?" }]);
+    expect(res.status).toBe(200);
+    expect(res.json).toEqual({ text: "Grab some water between rounds.", source: "stella" });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.system).toMatch(/Their first name: Sam/);
+    expect(seen[0]!.system).toMatch(/Drinks logged: 1/);
+    expect(seen[0]!.system).not.toMatch(/40\.71|-74\.00/);
+    expect(seen[0]!.turns).toEqual([{ role: "user", text: "how am I doing?" }]);
+  });
+
+  it("only ever describes the caller's own night", async () => {
+    const seen = fakeStella(() => "ok");
+    const night = (await startNight(sam)).json.night;
+    await call("POST", `/api/nights/${night.id}/drinks`, { drinkId: "beer-regular" }, sam);
+    await ask([{ role: "user", text: "how many drinks have I had?" }], jordan);
+    expect(seen[0]!.system).toMatch(/No night is running/);
+    expect(seen[0]!.system).toMatch(/Their first name: Jordan/);
+  });
+
+  it("hides provider errors behind a plain message", async () => {
+    ctx.stella = {
+      status: { id: "stella", name: "fake", mode: "automatic", requires: "" },
+      async reply() { throw new Error("upstream 529: secret internal detail"); },
+    };
+    const res = await ask([{ role: "user", text: "hello" }]);
+    expect(res.status).toBe(502);
+    expect(res.json.error).not.toMatch(/secret/);
+  });
+
+  it("rate-limits model calls per traveler, but never emergencies", async () => {
+    fakeStella(() => "ok");
+    for (let i = 0; i < 60; i++) expect((await ask([{ role: "user", text: `hi ${i}` }])).status).toBe(200);
+    expect((await ask([{ role: "user", text: "one more" }])).status).toBe(429);
+    expect((await ask([{ role: "user", text: "I think my drink was spiked" }])).status).toBe(200);
+    expect((await ask([{ role: "user", text: "hi" }], jordan)).status).toBe(200);
+  });
+});

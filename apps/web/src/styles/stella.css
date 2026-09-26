@@ -1,0 +1,92 @@
+/*
+ * Stella's chat. Bubbles, not cards: a conversation should read as one
+ * continuous thread, and a stack of hairline cards makes every reply look
+ * like a separate notification. The traveler's own messages take the gold
+ * (their voice, the primary action); Stella's sit on the lifted surface.
+ * A safety script borrows the alarm treatment so it can never be skimmed
+ * past as small talk.
+ */
+.stella-intro { position: relative; }
+.stella-intro .row { align-items: flex-start; }
+.stella-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+  font-size: 18px;
+}
+.stella-clear { align-self: flex-end; }
+
+.stella-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stella-bubble {
+  max-width: 85%;
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px 18px 18px 6px;
+  padding: 11px 14px;
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.stella-bubble-user {
+  align-self: flex-end;
+  background: var(--accent-bright);
+  border-color: transparent;
+  color: #1a1206;
+  border-radius: 18px 18px 6px 18px;
+}
+.stella-bubble-safety {
+  max-width: 100%;
+  background: var(--danger-fill);
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+}
+.stella-safety-label {
+  display: block;
+  color: var(--danger);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 4px;
+}
+.stella-typing { color: var(--muted); font-style: italic; }
+
+.stella-suggestions { gap: 8px; }
+.stella-suggestions .btn { box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+/* The composer stays on screen above the fixed bottom nav rather than
+   scrolling away with the thread — the one thing you always want to reach. */
+.stella-composer {
+  position: sticky;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 8px;
+  background: var(--ground);
+  padding: 8px 0;
+}
+.stella-composer input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+  border-radius: var(--r-btn);
+  padding: 0 14px;
+  /* 16px keeps iOS from zooming the viewport on focus. */
+  font: 400 16px/1 var(--font);
+  min-height: 54px;
+}
+.stella-composer input::placeholder { color: var(--faint); }
+.stella-composer input:focus { box-shadow: inset 0 0 0 2px var(--accent-bright); outline: none; }

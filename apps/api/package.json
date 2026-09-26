@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@safehubby/core": "workspace:*",
     "pg": "^8.23.0"
   },

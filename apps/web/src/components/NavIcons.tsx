@@ -90,3 +90,13 @@ export function IconInfo({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Stella: a four-point spark, the conventional mark for "an assistant lives here". */
+export function IconSparkle({ className }: IconProps) {
+  return (
+    <svg {...base} className={className} aria-hidden="true">
+      <path d="M12 3.5c.6 3.9 2.2 5.9 6.5 6.5-4.3.6-5.9 2.6-6.5 6.5-.6-3.9-2.2-5.9-6.5-6.5 4.3-.6 5.9-2.6 6.5-6.5Z" />
+      <path d="M18.5 15.5c.25 1.6.9 2.25 2.5 2.5-1.6.25-2.25.9-2.5 2.5-.25-1.6-.9-2.25-2.5-2.5 1.6-.25 2.25-.9 2.5-2.5Z" />
+    </svg>
+  );
+}

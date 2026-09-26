@@ -6,6 +6,7 @@ import { isEnabled } from "@safehubby/core";
 import { BillingScreen } from "./components/BillingScreen.tsx";
 import { GamesScreen } from "./components/GamesScreen.tsx";
 import { PartyScreen } from "./components/PartyScreen.tsx";
+import { StellaScreen } from "./components/StellaScreen.tsx";
 import { AccountScreen } from "./components/AccountScreen.tsx";
 import { PendingOrderPrompt } from "./components/PendingOrderPrompt.tsx";
 import { GuardianScreen } from "./components/GuardianScreen.tsx";
@@ -16,10 +17,10 @@ import { HiringScreen } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
-import { IconBriefcase, IconCard, IconConfetti, IconDice, IconEye, IconMoon } from "./components/NavIcons.tsx";
+import { IconBriefcase, IconCard, IconConfetti, IconDice, IconEye, IconMoon, IconSparkle } from "./components/NavIcons.tsx";
 
 type Role =
-  | "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account"
+  | "out" | "stella" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account"
   | "drive" | "work";
 
 export function App() {
@@ -102,6 +103,9 @@ export function App() {
             <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>
               <span className="tab-icon"><IconMoon /></span><span>{t("nav.tonight")}</span>
             </button>
+            <button role="tab" aria-selected={role === "stella"} onClick={() => setRole("stella")}>
+              <span className="tab-icon"><IconSparkle /></span><span>{t("nav.stella")}</span>
+            </button>
             <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>
               <span className="tab-icon"><IconEye /></span><span>{t("nav.watch")}</span>
             </button>
@@ -126,6 +130,7 @@ export function App() {
               answer it. */}
           <PendingOrderPrompt />
           {role === "out" && <TravelerScreen drinks={drinks} account={account} />}
+          {role === "stella" && <StellaScreen />}
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
           {role === "party" && isEnabled("party-supply") && <PartyScreen />}

@@ -103,6 +103,15 @@ location history included. Account → Delete my account is real erasure, not
 deactivation: it takes the traveler's nights, traces, sessions and sharing with
 it, while leaving crews and shared game rounds standing for everyone else.
 
+**Stella.** A chat assistant on her own tab, powered by Claude. She knows
+tonight's numbers (drinks, the estimate range, check-ins, how many people are
+watching), but never location, and answers in a line or three, in English or
+Spanish. She only talks: she can't book, share, alert or check in anything, so
+she points to the button that does. She never tells anyone they're OK to drive.
+Emergencies ("she won't wake up", "someone's following me") skip the model
+entirely and get a fixed script: call 911 and hold SOS. That script works even
+with no API key set. Needs `ANTHROPIC_API_KEY`; see `docs/stella.md`.
+
 **Language.** An EN/ES toggle in the header, persisted per browser, covers
 the landing page (mission, what-we-do, leadership), the sign-in gate, and
 the main navigation — the screens a visitor sees first. It's a scoped start,

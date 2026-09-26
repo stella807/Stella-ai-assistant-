@@ -36,6 +36,8 @@ import {
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience,
   validateAiDraftInstruction,
+  detectStellaSafety, stellaFactsFor, stellaSafetyReply, stellaSystemPrompt, validateStellaTurns,
+  type StellaPort,
   markRead, messagesForTask, sendTextMessage,
   isQuickTaskEligible, validateIdentityPhoto, validateDisputeReason,
   canRevealCard, remainingSpendCents, unaccountedSpendCents, validateSpendChange, validateSpendRequest,
@@ -73,6 +75,7 @@ import { revolutPayouts } from "./adapters/payouts.ts";
 import { stripeProcessor } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
+import { stella as stellaAdapter } from "./adapters/stella.ts";
 import { paypalProcessor } from "./adapters/paypal.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
@@ -145,6 +148,7 @@ export interface Ctx {
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
     applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter;
+    stella: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -155,6 +159,9 @@ export interface Ctx {
    *  requirePartnerNetwork below. Not a session; the caller is a server, not
    *  a signed-in traveler. */
   partnerKey: string | null;
+  /** Stella's model provider. Absent in production, where the real adapter
+   *  is used; tests set it so a conversation runs without a network call. */
+  stella?: StellaPort;
 }
 
 const unauthorized = () => new HttpError(401, "Sign in to continue.");
@@ -870,6 +877,9 @@ export function makeLimiters() {
     /** Flight lookups bill per call the same way places do. Generous enough
      *  to check a delayed flight every few minutes while waiting on it. */
     flights: new RateLimiter(30, 60 * 60_000),
+    /** Every Stella reply is a billed model call. Plenty for a night of
+     *  chatting; not enough to use the app as a free model endpoint. */
+    stella: new RateLimiter(60, 60 * 60_000),
   };
 }
 
@@ -2706,6 +2716,55 @@ export const routes: Record<string, Handler> = {
       purpose: String(body?.purpose ?? "a note to the customer"), context, instruction: instruction.trim(),
     });
     return { text };
+  },
+
+  /** Whether Stella can talk on this server, so the chat can say so up front. */
+  "GET /api/stella/status": (ctx) => {
+    actor(ctx);
+    const { mode, requires } = (ctx.stella ?? stellaAdapter).status;
+    return { mode, requires };
+  },
+
+  /**
+   * One turn of conversation with Stella. Nothing is stored: the client
+   * sends its own recent history and gets back one reply. See stella.ts in
+   * core — Stella talks and never acts, and an emergency is answered from a
+   * fixed script before any model, rate limit or configuration check can
+   * stand in the way.
+   */
+  "POST /api/stella/messages": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    const parsed = validateStellaTurns(body?.messages);
+    if ("error" in parsed) throw new HttpError(400, parsed.error);
+
+    const safety = detectStellaSafety(parsed.turns.at(-1)!.text);
+    if (safety) return { text: stellaSafetyReply(safety), source: "safety", safety };
+
+    const port = ctx.stella ?? stellaAdapter;
+    if (!isAutomatic(port.status)) throw new HttpError(503, "Stella isn't set up on this server yet.");
+    if (ctx.limiters.stella.hit(me)) throw new HttpError(429, "Stella needs a breather. Try again in a little while.");
+
+    const now = ctx.now();
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    const night = ctx.store.data.nights
+      .filter((n) => n.travelerId === me && n.status !== "ended" && n.status !== "home-safe")
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    const facts = stellaFactsFor({
+      displayName: traveler?.displayName ?? null,
+      homeLabel: traveler?.homeLabel ?? null,
+      night: night ? refresh(ctx, night) : null,
+      watchers: activeGrantsFor(ctx.store.data.grants, me, now).length,
+      now,
+    });
+
+    try {
+      const { text } = await port.reply({ system: stellaSystemPrompt(facts), turns: parsed.turns });
+      return { text, source: "stella" };
+    } catch {
+      // The provider's own error text is for the operator's logs, not for
+      // someone in a bar; what they need is to know it didn't work.
+      throw new HttpError(502, "Stella couldn't answer just now. Try again in a moment.");
+    }
   },
 
   /**
