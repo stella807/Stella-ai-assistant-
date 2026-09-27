@@ -1,0 +1,23 @@
+{
+  "name": "kids-scripts",
+  "version": "0.1.0",
+  "description": "Script generator for kids' YouTube videos — standalone, not part of the Safehubby app",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "gen": "node --experimental-strip-types src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
