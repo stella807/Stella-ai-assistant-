@@ -80,6 +80,11 @@ import { push } from "./adapters/push.ts";
 import { email } from "./adapters/email.ts";
 import { guardianMessages } from "./notify.ts";
 import { renewDueSubscriptions } from "./billing.ts";
+import {
+  AppStoreVerificationError, verifyAppStoreNotification, verifyAppStoreTransaction,
+  type AppStoreTransaction,
+} from "./app-store.ts";
+import { AppStoreBillingError, applyAppStoreNotification, linkAppStorePurchase } from "./app-store-billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword,
@@ -155,6 +160,9 @@ export interface Ctx {
    *  requirePartnerNetwork below. Not a session; the caller is a server, not
    *  a signed-in traveler. */
   partnerKey: string | null;
+  /** PEM roots trusted for StoreKit signatures. Unset means Apple Root CA - G3,
+   *  which is the only correct value outside tests. See app-store.ts. */
+  appStoreRoots?: string[];
 }
 
 const unauthorized = () => new HttpError(401, "Sign in to continue.");
@@ -753,6 +761,32 @@ function requirePartnerNetwork(ctx: Ctx): void {
   const expected = process.env.CONCIERGE_API_KEY;
   if (!expected) throw new HttpError(503, "The concierge partner network is not configured on this server.");
   if (!ctx.partnerKey || ctx.partnerKey !== expected) throw new HttpError(401, "Bad or missing partner key.");
+}
+
+/** Verifies a StoreKit transaction from a request body, as a 400 when it fails. */
+function verifiedTransaction(ctx: Ctx, body: any): AppStoreTransaction {
+  const signed = body?.signedTransaction;
+  if (typeof signed !== "string" || signed.trim() === "") {
+    throw new HttpError(400, "Send the purchase's signedTransaction (StoreKit's jwsRepresentation).");
+  }
+  try {
+    return verifyAppStoreTransaction(signed.trim(), {
+      now: ctx.now(), ...(ctx.appStoreRoots ? { trustedRoots: ctx.appStoreRoots } : {}),
+    });
+  } catch (error) {
+    if (error instanceof AppStoreVerificationError) throw new HttpError(400, `App Store purchase rejected: ${error.message}`);
+    throw error;
+  }
+}
+
+/** Applies a verified purchase to the database, mapping its refusals to HTTP. */
+function linkPurchase(ctx: Ctx, me: string, transaction: AppStoreTransaction, options: { chargeId?: string } = {}): void {
+  try {
+    ctx.store.update((db) => void linkAppStorePurchase(db, me, transaction, ctx.now(), options));
+  } catch (error) {
+    if (error instanceof AppStoreBillingError) throw new HttpError(error.status, error.message);
+    throw error;
+  }
 }
 
 /** Every authenticated route starts here. */
@@ -1775,13 +1809,13 @@ export const routes: Record<string, Handler> = {
   },
 
   /**
-   * Confirms a store purchase against a pending ledger line.
+   * Confirms an in-app purchase against a pending ledger line.
    *
-   * The client hands back the App Store or Play receipt it got. This build
-   * records it and settles the line; a real deployment verifies the receipt
-   * with Apple or Google first, and this is the single place that has to
-   * change when it does. It refuses to settle a card line, so nothing can be
-   * marked paid by claiming a receipt for it.
+   * Settles only on a StoreKit signed transaction that verifies against
+   * Apple's root (see app-store.ts) and is for the plan the line was recorded
+   * for. A bare receipt string used to be accepted here as-is, which made a
+   * paid plan one made-up string away. Play purchases are refused outright
+   * until Google verification exists, for the same reason.
    */
   "POST /api/billing/charges/:chargeId/confirm": (ctx, p, body) => {
     const me = actor(ctx);
@@ -1789,15 +1823,57 @@ export const routes: Record<string, Handler> = {
     const charge = ctx.store.data.charges.find((c) => c.id === chargeId);
     if (!charge || charge.travelerId !== me) throw notFound("Charge");
     if (charge.rail === "card") throw new HttpError(400, "A card charge is not settled by a store receipt.");
-    const receipt = String(body?.receipt ?? "").trim();
-    if (!receipt) throw new HttpError(400, "Missing the store receipt for this purchase.");
+    if (charge.rail === "play-store") {
+      throw new HttpError(501, "Google Play purchases cannot be verified yet, so they are not settled here.");
+    }
+    if (charge.status !== "pending") throw new HttpError(409, `This charge is already ${charge.status}.`);
 
-    updateCharge(ctx, chargeId, (c) => settleCharge(c, ctx.now(), undefined, receipt));
+    linkPurchase(ctx, me, verifiedTransaction(ctx, body), { chargeId });
     return {
       ...billingState(ctx, me),
-      verified: false,
-      note: "Recorded against your account. Receipt verification with the store is not wired in this build — see docs/billing.md.",
+      verified: true,
+      note: "Confirmed with Apple. Your plan is active.",
     };
+  },
+
+  /**
+   * Links a StoreKit purchase to the signed-in account.
+   *
+   * What the iOS app calls after `Product.purchase()` succeeds, and again on
+   * restore. Apple's transaction decides the plan and the period; the server
+   * only checks it is genuine and not already someone else's.
+   */
+  "POST /api/subscription/app-store": (ctx, _p, body) => {
+    const me = actor(ctx);
+    linkPurchase(ctx, me, verifiedTransaction(ctx, body));
+    const state = billingState(ctx, me);
+    return { ...state, note: describeSubscription(state.subscription, ctx.now()) };
+  },
+
+  /**
+   * App Store Server Notifications V2. Set this URL as the production and
+   * sandbox notification URL in App Store Connect.
+   *
+   * Called by Apple, not a signed-in user, so there is no session: the JWS
+   * signature is the credential, and anything that fails it is a 400. A
+   * verified notification always gets a 2xx, even one about a purchase no
+   * account has linked yet, because Apple retries anything else for days.
+   */
+  "POST /api/billing/app-store/notifications": (ctx, _p, body) => {
+    const signedPayload = body?.signedPayload;
+    if (typeof signedPayload !== "string") throw new HttpError(400, "Missing signedPayload.");
+    let notification;
+    try {
+      notification = verifyAppStoreNotification(signedPayload, {
+        now: ctx.now(), ...(ctx.appStoreRoots ? { trustedRoots: ctx.appStoreRoots } : {}),
+      });
+    } catch (error) {
+      if (error instanceof AppStoreVerificationError) throw new HttpError(400, `Notification rejected: ${error.message}`);
+      throw error;
+    }
+    let outcome = "ignored";
+    ctx.store.update((db) => { outcome = applyAppStoreNotification(db, notification, ctx.now()).outcome; });
+    return { ok: true, outcome };
   },
 
   /**

@@ -315,17 +315,14 @@ Stated plainly, because the code says the same thing where it matters:
   pass lint and the suite, and to degrade correctly to the stand-in form when
   unconfigured. Run a Stripe test-mode key through it before trusting it in
   production.
-- **No store receipt verification.** `POST /api/billing/charges/:id/confirm`
-  records the receipt the client hands back and settles the line. A real
-  deployment verifies it with Apple or Google first; the response says
-  `verified: false` so no caller can mistake this for a checked purchase. That
-  endpoint refuses to settle a card line at all, so nothing can be marked paid
-  by claiming a receipt for it.
-- **No store renewal webhook.** Apple and Google renew their own subscriptions
-  on their own schedule. `renewDueSubscriptions` deliberately skips store-rail
-  subscriptions and counts them in `storeRailPending` rather than inventing a
-  renewal — a line on someone's statement for money we never took is worse than
-  a stale period. The server logs the count each hour.
+- **App Store purchases are verified; Google Play purchases are not.**
+  Apple's are checked against Apple's own signature (see "App Store purchases"
+  below). There is no Play verification yet, so the confirm endpoint answers a
+  Play line with `501` instead of settling it on the client's word, and an
+  unverified Play subscription lapses when its trial ends.
+- **The iOS app does not call StoreKit yet.** The server side of an in-app
+  purchase is done; the native purchase sheet is not (see
+  `docs/ios-submission.md`, step 7).
 - **A pharmacy run only reaches the ledger when Safehubby pays for it.**
   Without a fulfilment partnership the run hands off to the store and the user
   pays there, so no line is written. See `docs/fulfillment.md`.
@@ -495,7 +492,9 @@ See `docs/api.md` for the full surface. The billing ones:
 | `GET /api/billing` | The card, the subscription, the statement and the charge history, together |
 | `POST /api/subscription` | Start or change a plan; records the line and picks the rail from `platform` |
 | `POST /api/subscription/cancel` | Cancel, keeping access to the end of the period |
-| `POST /api/billing/charges/:chargeId/confirm` | Settle a store-rail line against its receipt |
+| `POST /api/billing/charges/:chargeId/confirm` | Settle a pending in-app line with a verified StoreKit `signedTransaction` |
+| `POST /api/subscription/app-store` | Link a StoreKit purchase (or a restore) to the signed-in account |
+| `POST /api/billing/app-store/notifications` | Apple's App Store Server Notifications V2; no session, the signature is the credential |
 | `GET /api/share` | The caller's referral code, link, invite text, and how many have joined with it |
 | `GET /api/catalog` | Public; carries the launch-party window so the signed-out landing page can show it |
 
@@ -504,3 +503,52 @@ client knows whether it is the App Store build. A client that lied would be
 routing an in-app subscription around Apple's billing, which is the operator's
 compliance problem — it cannot take a user's money twice or reach anyone else's
 data. It is stored on the subscription so the rail is auditable afterwards.
+
+## App Store purchases
+
+An in-app subscription is paid to Apple, and the server learns about it two
+ways, both as JWS payloads Apple signs:
+
+1. **From the app**, right after a purchase: StoreKit 2's
+   `Transaction.jwsRepresentation`, sent to `POST /api/subscription/app-store`
+   (or to `POST /api/billing/charges/:id/confirm` for a pending line).
+2. **From Apple**, for everything after: renewals, failed renewals, auto-renew
+   switched off, expiry, refunds, sent to
+   `POST /api/billing/app-store/notifications`.
+
+`apps/api/src/app-store.ts` accepts a payload only if its certificate chain
+leads to **Apple Root CA - G3** (pinned by fingerprint in the tests), both
+certificates carry Apple's role markers, the ES256 signature matches, and it is
+for bundle `app.safehubby` in the Production or Sandbox environment. Sandbox is
+accepted because TestFlight and App Review both buy there. Nothing calls Apple
+over the network, so an Apple outage cannot block a purchase.
+
+`apps/api/src/app-store-billing.ts` then decides which account it belongs to:
+
+- **One Apple subscription, one account.** A purchase already linked to another
+  account is refused, so one Apple ID cannot unlock a household of accounts.
+- **One transaction, one ledger line.** Each line carries
+  `reference: "apple:<transactionId>"`, which makes repeats (Apple retries
+  notifications) harmless and stops one transaction settling two charges.
+- **Apple decides the plan and the dates.** The product id names the plan
+  (`app.safehubby.<plan>.<monthly|annual>`, from `appStoreProductId` in core),
+  and the period ends when Apple's transaction says it does.
+- **A pending line is only settled by a purchase of its own plan.**
+
+`renewDueSubscriptions` still never renews a store subscription itself. It does
+end the ones nothing stands behind: one never linked to a verified purchase was
+only the server's own trial, and lapses when that ends (otherwise
+`platform: "ios"` alone was a paid plan forever); and a linked one Apple has
+been silent about for more than 60 days, Apple's longest billing retry, lapses
+too, because that means the notification URL is broken.
+
+**To set up**, in App Store Connect:
+
+- Create one auto-renewable subscription product per paid plan and cadence,
+  named exactly as `appStoreProductId` builds them, e.g.
+  `app.safehubby.premium-plus.monthly`.
+- Under App Information → App Store Server Notifications, set both the
+  production and sandbox URLs to `https://<api>/api/billing/app-store/notifications`
+  and choose **Version 2**. Apple's "Request a Test Notification" button sends
+  a `TEST` notification that the endpoint acknowledges.
+

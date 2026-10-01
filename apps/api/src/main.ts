@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   const sweepRetention = () => {
     let removed = 0;
     let released = 0;
-    let renewals = { renewed: 0, chargedCents: 0, storeRailPending: 0 };
+    let renewals = { renewed: 0, chargedCents: 0, storeRailPending: 0, lapsedUnverified: 0 };
     store.update((db) => {
       const now = new Date();
       const result = sweepLocationHistory(db.nights, now);
@@ -81,6 +81,9 @@ async function main(): Promise<void> {
     if (released > 0) console.log(`[safehubby] Released ${released} expired payment hold(s)`);
     if (renewals.renewed > 0) {
       console.log(`[safehubby] Renewed ${renewals.renewed} subscription(s), $${(renewals.chargedCents / 100).toFixed(2)}`);
+    }
+    if (renewals.lapsedUnverified > 0) {
+      console.log(`[safehubby] ${renewals.lapsedUnverified} store-billed subscription(s) lapsed: no verified purchase or no word from the store — see docs/billing.md`);
     }
     if (renewals.storeRailPending > 0) {
       console.log(`[safehubby] ${renewals.storeRailPending} store-billed subscription(s) awaiting a store notification — see docs/billing.md`);

@@ -50,12 +50,15 @@ describe("renewDueSubscriptions", () => {
   it("does not invent a renewal the App Store owns", () => {
     // Apple charges these on their own schedule and tells us with a server
     // notification. Renewing here would put money on a statement we never took.
+    // This one was never linked to a verified Apple purchase, so it was only
+    // ever the server's own trial: it lapses rather than renewing, and rather
+    // than staying a paid plan forever (see app-store-billing.test.ts).
     const db = dbWith(subFor("premium-plus", "ios"));
     const result = renewDueSubscriptions(db, days(20));
 
-    expect(result).toMatchObject({ renewed: 0, chargedCents: 0, storeRailPending: 1 });
+    expect(result).toMatchObject({ renewed: 0, chargedCents: 0, storeRailPending: 0, lapsedUnverified: 1 });
     expect(db.charges).toHaveLength(0);
-    expect(db.subscriptions.t1!.status).toBe("trialing");
+    expect(db.subscriptions.t1!.status).toBe("canceled");
   });
 
   it("does not bill a free plan, and does not leave it stuck", () => {
@@ -104,7 +107,9 @@ describe("renewDueSubscriptions", () => {
 
   it("is safe on a database with no subscriptions at all", () => {
     const db = structuredClone(SEED);
-    expect(renewDueSubscriptions(db, now)).toEqual({ renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0 });
+    expect(renewDueSubscriptions(db, now)).toEqual({
+      renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0, lapsedUnverified: 0,
+    });
   });
 });
 

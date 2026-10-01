@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import { createApp, makeCtx } from "../src/server.ts";
+import { TEST_ROOT_PEM, signAppleJws, transaction } from "./app-store-signing.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
@@ -105,7 +106,9 @@ beforeEach(async () => {
   clock = new Date("2027-01-01T20:00:00Z");
   store = new Store(join(dir, "db.json"));
   store.reset(structuredClone(SEED));
-  ctx = { ...makeCtx(store), now: () => clock };
+  // StoreKit payloads in these tests are signed by a stand-in chain; see
+  // app-store-signing.ts. Production trusts only Apple's root.
+  ctx = { ...makeCtx(store), now: () => clock, appStoreRoots: [TEST_ROOT_PEM] };
   server = createApp(ctx);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -829,15 +832,74 @@ describe("one billing surface", () => {
     const ios = await call("POST", "/api/subscription", { planId: "family", platform: "ios" }, jordan);
     const chargeId = ios.json.charged.id;
 
-    expect((await call("POST", `/api/billing/charges/${chargeId}/confirm`, {}, jordan)).status).toBe(400);
-    const done = await call("POST", `/api/billing/charges/${chargeId}/confirm`, { receipt: "apple-receipt-1" }, jordan);
+    const confirm = (body: unknown) => call("POST", `/api/billing/charges/${chargeId}/confirm`, body, jordan);
+    const familyPurchase = transaction({ productId: "app.safehubby.family.monthly", purchaseDate: clock.getTime(), signedDate: clock.getTime(), expiresDate: clock.getTime() + 30 * 86_400_000 });
+
+    expect((await confirm({})).status).toBe(400);
+    // A string that merely claims to be a receipt no longer settles anything.
+    expect((await confirm({ receipt: "apple-receipt-1" })).status).toBe(400);
+    // Nor does a well-formed purchase signed by anyone but Apple.
+    expect((await confirm({ signedTransaction: signAppleJws(familyPurchase, "rogue") })).status).toBe(400);
+    expect((await call("GET", "/api/billing", undefined, jordan)).json.charges.find((c: any) => c.id === chargeId).status)
+      .toBe("pending");
+
+    const done = await confirm({ signedTransaction: signAppleJws(familyPurchase) });
     expect(done.status).toBe(200);
-    expect(done.json.charges.find((c: any) => c.id === chargeId).status).toBe("settled");
-    // Honest about what it did not do.
-    expect(done.json.verified).toBe(false);
+    expect(done.json.charges.find((c: any) => c.id === chargeId)).toMatchObject({ status: "settled", reference: "apple:2000000100" });
+    expect(done.json.verified).toBe(true);
 
     // A card line cannot be marked paid by claiming a store receipt for it.
-    expect((await call("POST", `/api/billing/charges/${web.json.charged.id}/confirm`, { receipt: "x" }, jordan)).status).toBe(400);
+    expect((await call("POST", `/api/billing/charges/${web.json.charged.id}/confirm`, { signedTransaction: signAppleJws(familyPurchase) }, jordan)).status).toBe(400);
+  });
+
+  it("links an in-app purchase, then follows Apple's notifications for it", async () => {
+    const at = (ms: number) => ({ purchaseDate: ms, signedDate: clock.getTime(), expiresDate: ms + 30 * 86_400_000 });
+    const linked = await call("POST", "/api/subscription/app-store", {
+      signedTransaction: signAppleJws(transaction({ ...at(clock.getTime()) })),
+    }, jordan);
+    expect(linked.status).toBe(200);
+    expect(linked.json.plan.id).toBe("premium-plus");
+
+    // The same Apple subscription cannot unlock a second account.
+    const shared = await call("POST", "/api/subscription/app-store", {
+      signedTransaction: signAppleJws(transaction({ transactionId: "2000000555", ...at(clock.getTime()) })),
+    }, sam);
+    expect(shared.status).toBe(409);
+
+    const notify = (payload: unknown, chain: "trusted" | "rogue" = "trusted") =>
+      call("POST", "/api/billing/app-store/notifications", { signedPayload: signAppleJws(payload, chain) });
+    const renewal = (type: string, tx: Record<string, unknown>, subtype?: string) => ({
+      notificationType: type, ...(subtype ? { subtype } : {}), notificationUUID: `n-${type}-${tx.transactionId}`,
+      signedDate: clock.getTime(),
+      data: { bundleId: "app.safehubby", environment: "Production", signedTransactionInfo: signAppleJws(tx) },
+    });
+
+    // Apple calls this endpoint with no session; the signature is the credential.
+    const forged = await notify(renewal("REFUND", transaction({ ...at(clock.getTime()) })), "rogue");
+    expect(forged.status).toBe(400);
+    expect((await call("GET", "/api/billing", undefined, jordan)).json.charges[0].status).toBe("settled");
+
+    // Dated a month on rather than moving the clock, which would also expire
+    // the test session; the renewal's own dates are what the server follows.
+    const nextPeriod = clock.getTime() + 30 * 86_400_000;
+    const renewed = await notify(renewal("DID_RENEW", transaction({ transactionId: "2000000200", ...at(nextPeriod) })));
+    expect(renewed.status).toBe(200);
+    expect(renewed.json.outcome).toBe("renewed");
+    const billing = (await call("GET", "/api/billing", undefined, jordan)).json;
+    expect(billing.charges.map((c: any) => c.reference).sort()).toEqual(["apple:2000000100", "apple:2000000200"]);
+
+    const refunded = await notify(renewal("REFUND", transaction({ transactionId: "2000000200", revocationDate: clock.getTime(), ...at(nextPeriod) })));
+    expect(refunded.json.outcome).toBe("refunded");
+    expect((await call("GET", "/api/billing", undefined, jordan)).json.plan.id).toBe("free");
+  });
+
+  it("does not pretend to verify Google Play purchases", async () => {
+    await addCard(jordan);
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    advancePastTrial();
+    const android = await call("POST", "/api/subscription", { planId: "family", platform: "android" }, jordan);
+    const res = await call("POST", `/api/billing/charges/${android.json.charged.id}/confirm`, { receipt: "gp-token" }, jordan);
+    expect(res.status).toBe(501);
   });
 
   it("will not let one person confirm or read another person's charges", async () => {

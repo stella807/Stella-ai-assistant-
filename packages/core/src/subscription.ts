@@ -49,6 +49,13 @@ export interface Subscription {
   currentPeriodEnd: Iso8601;
   trialEndsAt?: Iso8601;
   canceledAt?: Iso8601;
+  /**
+   * The App Store subscription this one mirrors, once a verified StoreKit
+   * transaction has linked them. Apple's server notifications name only this
+   * id, so it is how a renewal or refund finds its way back to an account —
+   * and an app-store subscription without it was never actually bought.
+   */
+  appStoreOriginalTransactionId?: string;
 }
 
 /** What a plan change or renewal wants charged, and what to call the line. */

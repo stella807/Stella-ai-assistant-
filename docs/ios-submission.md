@@ -92,10 +92,14 @@ Safehubby has both kinds and the code already knows the difference:
 `platform` on the subscription picks the rail (`railFor` in `billing.ts`), and
 the store rail records a charge as pending until its receipt confirms it.
 
-- **Plan subscriptions bought in the iOS app** → Apple IAP. Not yet wired:
-  `@capacitor/in-app-purchase` or RevenueCat, plus products created in App
-  Store Connect. **This is the one remaining piece of real work before a
-  paid submission.**
+- **Plan subscriptions bought in the iOS app** → Apple IAP. **The server side
+  is done**: purchases are verified against Apple's signature, linked to one
+  account each, and kept current by App Store Server Notifications (see
+  "App Store purchases" in `docs/billing.md`). **What remains is the native
+  purchase sheet**: a small StoreKit 2 bridge (or a plugin that exposes
+  `jwsRepresentation`) that buys `appStoreProductId(plan, cadence)` and posts
+  the result to `POST /api/subscription/app-store`. It needs a Mac, or
+  Codemagic, to compile, which is why it is not in this repo yet.
 - **Rides, concierge tasks, deliveries** → real-world services delivered by a
   person, so Stripe is correct and Apple's cut does not apply.
 
@@ -111,7 +115,8 @@ on day one.
 4. Set VITE_API_URL in the Codemagic group       (minutes)
 5. Run `ios-simulator-build` — does it compile?  (~10 min)
 6. Add app icons                                 (an afternoon)
-7. Wire Apple IAP for subscriptions              (the real work)
+7. StoreKit purchase sheet in the app            (server side done)
+   + create the products, set the notification URL (see docs/billing.md)
 8. Run `ios-testflight` → install on your phone  (~20 min)
 9. Screenshots, privacy labels, review notes     (an afternoon)
 10. Submit                                       (review: 1–3 days)

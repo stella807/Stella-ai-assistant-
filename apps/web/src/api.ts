@@ -607,9 +607,13 @@ export const api = {
       "POST", "/api/subscription", { planId, cadence, platform: platform() }),
   cancelSubscription: () =>
     request<Billing & { note: string }>("POST", "/api/subscription/cancel", {}),
-  confirmStorePurchase: (chargeId: string, receipt: string) =>
+  /** Settles a pending in-app line with StoreKit's `jwsRepresentation`. */
+  confirmStorePurchase: (chargeId: string, signedTransaction: string) =>
     request<Billing & { verified: boolean; note: string }>(
-      "POST", `/api/billing/charges/${chargeId}/confirm`, { receipt }),
+      "POST", `/api/billing/charges/${chargeId}/confirm`, { signedTransaction }),
+  /** Links a StoreKit purchase (or a restored one) to this account. */
+  linkAppStorePurchase: (signedTransaction: string) =>
+    request<Billing & { note: string }>("POST", "/api/subscription/app-store", { signedTransaction }),
 
   /**
    * Master access — the owner/secretary dashboard, a third identity space
