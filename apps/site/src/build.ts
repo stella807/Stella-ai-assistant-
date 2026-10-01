@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LANGS, ORIGIN } from "./content.ts";
@@ -24,7 +24,16 @@ console.log("Building the Safehubby site…");
 for (const lang of LANGS) {
   write(lang === "en" ? "index.html" : "es/index.html", renderPage(lang));
 }
-write("site.css", STYLESHEET);
+// The @font-face rules go first so the faces are known before anything that
+// uses them, and the woff2 files ride along next to the stylesheet.
+const fontDir = join(here, "fonts");
+const faces = readFileSync(join(fontDir, "fonts.css"), "utf8");
+write("site.css", `${faces}\n${STYLESHEET}`);
+for (const file of readdirSync(fontDir).filter((f) => f.endsWith(".woff2"))) {
+  mkdirSync(join(dist, "fonts"), { recursive: true });
+  copyFileSync(join(fontDir, file), join(dist, "fonts", file));
+}
+console.log(`  fonts/  ${readdirSync(fontDir).filter((f) => f.endsWith(".woff2")).length} files, self-hosted`);
 write("robots.txt", `User-agent: *\nAllow: /\nSitemap: ${ORIGIN}/sitemap.xml\n`);
 write(
   "sitemap.xml",

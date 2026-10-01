@@ -13,6 +13,8 @@ import {
   validateEliteRequest, findEliteEvent, upcomingEliteEvents, eliteEventHasRoom,
   activeGrantsFor, alcoholicDrinks, answerCheckIn, award, balance, buildRecoveryPlan,
   PLANS,
+  autoRenewalTermsFor,
+  requiresRenewalDisclosure,
   createGrant, deriveAlerts, estimateBac, hasFeature, isElitePlan, leaderboard, logDrink, redeem,
   retimePendingCheckIn, revokeGrant, scheduleCheckIn, sosAlert,
   sweepMissedCheckIns, totalCalories, totalStandardDrinks,
@@ -1991,6 +1993,23 @@ export const routes: Record<string, Handler> = {
   "GET /api/billing": (ctx) => billingState(ctx, actor(ctx)),
 
   /**
+   * The automatic-renewal terms for an offer, so the plan screen can show
+   * them next to the button that agrees to them.
+   *
+   * Served rather than computed in the browser because the price the
+   * subscriber sees and the price the consent is checked against have to be
+   * the same number from the same place — see auto-renewal.ts.
+   */
+  "GET /api/billing/renewal-terms": (ctx, p) => {
+    actor(ctx);
+    const planId = String(p.planId ?? "") as PlanId;
+    if (!PLANS.some((plan) => plan.id === planId)) throw notFound("Plan");
+    const cadence = p.cadence === "annual" ? "annual" : "monthly";
+    const terms = autoRenewalTermsFor(planId, cadence, ctx.now());
+    return { ...terms, required: requiresRenewalDisclosure(terms) };
+  },
+
+  /**
    * Starts or changes the subscription.
    *
    * Charges land on the same ledger as a ride home. What differs is only the
@@ -2030,7 +2049,17 @@ export const routes: Record<string, Handler> = {
 
     const change = existing
       ? changePlan({ subscription: existing, planId: plan.id, cadence, platform, now: ctx.now() })
-      : startSubscription({ travelerId: me, planId: plan.id, cadence, platform, now: ctx.now() });
+      : startSubscription({
+        travelerId: me, planId: plan.id, cadence, platform, now: ctx.now(),
+        // The subscriber's agreement to the renewal terms. Absent or
+        // mismatched, startSubscription refuses — see auto-renewal.ts.
+        renewalConsent: body?.renewalConsent === undefined ? undefined : {
+          planId: plan.id,
+          cadence,
+          priceCents: Number((body.renewalConsent as Record<string, unknown>)?.priceCents),
+          acceptedAt: ctx.now().toISOString(),
+        },
+      });
 
     const charge = change.due
       ? addCharge(ctx, {

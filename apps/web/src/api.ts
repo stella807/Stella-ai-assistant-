@@ -683,9 +683,19 @@ export const api = {
 
   /** The whole account's money in one call — see GET /api/billing. */
   billing: () => request<Billing>("GET", "/api/billing"),
-  subscribe: (planId: string, cadence: "monthly" | "annual") =>
+  /** The automatic-renewal terms to show before the subscriber agrees. */
+  renewalTerms: (planId: string, cadence: "monthly" | "annual") =>
+    request<RenewalTermsView>(
+      "GET", `/api/billing/renewal-terms?planId=${encodeURIComponent(planId)}&cadence=${cadence}`),
+  /**
+   * `consent` carries the price the subscriber was actually shown. The server
+   * refuses a paid plan without it, and refuses one whose price no longer
+   * matches the offer — see auto-renewal.ts.
+   */
+  subscribe: (planId: string, cadence: "monthly" | "annual", consent?: { priceCents: number }) =>
     request<Billing & { charged: Charge | null; awaitingStoreReceipt: boolean; note: string }>(
-      "POST", "/api/subscription", { planId, cadence, platform: platform() }),
+      "POST", "/api/subscription",
+      { planId, cadence, platform: platform(), ...(consent ? { renewalConsent: consent } : {}) }),
   cancelSubscription: () =>
     request<Billing & { note: string }>("POST", "/api/subscription/cancel", {}),
   confirmStorePurchase: (chargeId: string, receipt: string) =>
@@ -785,6 +795,19 @@ export interface MasterOverview {
     };
     launch: LaunchProgress;
   };
+}
+
+/** GET /api/billing/renewal-terms. */
+export interface RenewalTermsView {
+  planId: string;
+  planName: string;
+  cadence: "monthly" | "annual";
+  priceCents: number;
+  firstChargeAt: string;
+  trialDays: number;
+  trialEndsAt?: string;
+  /** False for a free plan, which has nothing to renew into. */
+  required: boolean;
 }
 
 export { ApiError };

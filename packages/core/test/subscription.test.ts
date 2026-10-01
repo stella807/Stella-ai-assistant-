@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TRIAL_DAYS, findPlan } from "../src/billing.ts";
 import { SERVICE_LIVE_AT } from "../src/promotions.ts";
+import { autoRenewalTermsFor } from "../src/auto-renewal.ts";
 import {
   cancelSubscription, changePlan, describeSubscription, effectivePlan, isRenewalDue,
   markPastDue, periodEnd, priceOf, prorationCreditCents, renew, requiresHelpDeskToDowngrade,
@@ -11,8 +12,21 @@ import type { Subscription } from "../src/subscription.ts";
 const now = new Date("2026-03-01T00:00:00Z");
 const days = (n: number) => new Date(now.getTime() + n * 86_400_000);
 
+/** The agreement a subscriber would have given on the plan screen. */
+const consent = (
+  planId: Parameters<typeof findPlan>[0],
+  cadence: "monthly" | "annual" = "monthly",
+  at: Date = now,
+) => {
+  const terms = autoRenewalTermsFor(planId, cadence, at);
+  return { planId, cadence, priceCents: terms.priceCents, acceptedAt: at.toISOString() };
+};
+
 const start = (planId: Parameters<typeof findPlan>[0], platform: "web" | "ios" | "android" = "web") =>
-  startSubscription({ travelerId: "t1", planId, cadence: "monthly", platform, now });
+  startSubscription({
+    travelerId: "t1", planId, cadence: "monthly", platform, now,
+    renewalConsent: consent(planId),
+  });
 
 describe("starting a subscription", () => {
   it("puts a paid plan into a trial and charges nothing today", () => {
@@ -36,6 +50,7 @@ describe("starting a subscription", () => {
     const after = new Date(Date.parse(SERVICE_LIVE_AT) + 90 * 86_400_000);
     const { subscription } = startSubscription({
       travelerId: "t1", planId: "premium-plus", cadence: "monthly", platform: "web", now: after,
+      renewalConsent: consent("premium-plus", "monthly", after),
     });
     expect(subscription.trialEndsAt).toBe(new Date(after.getTime() + TRIAL_DAYS * 86_400_000).toISOString());
   });

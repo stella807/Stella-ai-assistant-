@@ -40,9 +40,6 @@ function head(lang: Lang): string {
 <meta property="og:description" content="${esc(c.description)}">
 <meta property="og:url" content="${canonical}">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Source+Sans+3:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="${lang === "en" ? "" : "../"}site.css">`;
 }
 

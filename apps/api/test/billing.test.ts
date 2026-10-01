@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LAUNCH_DISCOUNT_RATE, findPlan, startSubscription } from "@safehubby/core";
+import { LAUNCH_DISCOUNT_RATE, autoRenewalTermsFor, findPlan, startSubscription } from "@safehubby/core";
 import type { Subscription } from "@safehubby/core";
 import { renewDueSubscriptions } from "../src/billing.ts";
 import { SEED } from "../src/seed.ts";
@@ -24,8 +24,18 @@ function dbWith(sub: Subscription): Db {
   return db;
 }
 
+/** The agreement the plan screen collects before a paid plan can start. */
+const consent = (planId: Parameters<typeof findPlan>[0], at: Date = now) => ({
+  planId, cadence: "monthly" as const,
+  priceCents: autoRenewalTermsFor(planId, "monthly", at).priceCents,
+  acceptedAt: at.toISOString(),
+});
+
 const subFor = (planId: Parameters<typeof findPlan>[0], platform: "web" | "ios" = "web") =>
-  startSubscription({ travelerId: "t1", planId, cadence: "monthly", platform, now }).subscription;
+  startSubscription({
+    travelerId: "t1", planId, cadence: "monthly", platform, now,
+    renewalConsent: consent(planId),
+  }).subscription;
 
 describe("renewDueSubscriptions", () => {
   it("leaves a period that has not run out alone", () => {
@@ -89,6 +99,7 @@ describe("renewDueSubscriptions", () => {
     db.travelers.push(traveler("t2"));
     db.subscriptions.t2 = startSubscription({
       travelerId: "t2", planId: "family", cadence: "monthly", platform: "web", now,
+      renewalConsent: consent("family"),
     }).subscription;
 
     const result = renewDueSubscriptions(db, days(20));

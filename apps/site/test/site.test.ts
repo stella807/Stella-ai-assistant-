@@ -93,6 +93,23 @@ describe("the marketing site", () => {
     expect(whatsappLabel("34911223344")).toBe("+34911223344");
   });
 
+  it("asks no third party for anything before the page renders", () => {
+    // Fonts are self-hosted. Beyond the privacy argument (a visitor's IP
+    // reaching a font CDN they never chose), this page's whole purpose is
+    // being readable fast on a slow connection — and a webfont from another
+    // origin is two round-trips before any text appears.
+    for (const lang of LANGS) {
+      expect(pages[lang], lang).not.toContain("fonts.googleapis.com");
+      expect(pages[lang], lang).not.toContain("fonts.gstatic.com");
+      // Nor anything else the browser would fetch. `rel="canonical"` and
+      // `hreflang` are absolute on purpose — they are metadata, not loads —
+      // so this looks only at links that pull a resource.
+      expect(pages[lang], lang).not.toMatch(/<link[^>]*rel="stylesheet"[^>]*href="https?:\/\//);
+      expect(pages[lang], lang).not.toMatch(/<link[^>]*rel="preconnect"/);
+      expect(pages[lang], lang).not.toMatch(/<(?:script|img)[^>]+src="https?:\/\//);
+    }
+  });
+
   it("escapes plan copy rather than interpolating it raw", () => {
     for (const lang of LANGS) {
       const body = pages[lang];

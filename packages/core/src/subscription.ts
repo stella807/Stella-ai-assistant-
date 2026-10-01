@@ -1,5 +1,6 @@
 import type { Iso8601 } from "./types.ts";
 import { TRIAL_DAYS, findPlan, type Plan, type PlanId } from "./billing.ts";
+import { assertRenewalConsent, autoRenewalTermsFor, type RenewalConsent } from "./auto-renewal.ts";
 import { billingStartsAt } from "./promotions.ts";
 import { railFor, type BillingRail, type Platform } from "./wallet.ts";
 
@@ -25,6 +26,16 @@ export interface Subscription {
   cadence: Cadence;
   rail: BillingRail;
   status: SubscriptionStatus;
+  /**
+   * When the subscriber agreed to the automatic-renewal terms. Absent on a
+   * free plan, which has nothing to renew into, and on records written
+   * before the consent gate existed.
+   *
+   * Kept on the subscription rather than only in an audit log because it is
+   * the thing to produce if the agreement is ever questioned — see
+   * auto-renewal.ts.
+   */
+  renewalTermsAcceptedAt?: Iso8601;
   /**
    * When the **current period** started. `renew` and `changePlan` both move
    * it, so it answers "how far into this month are we", not "how long have
@@ -62,6 +73,8 @@ export interface SubscriptionChange {
   due: AmountDue | null;
 }
 
+/** The one place the cadence-to-price rule lives for callers. auto-renewal.ts
+ *  restates it rather than importing it, to avoid a runtime cycle. */
 export function priceOf(plan: Plan, cadence: Cadence): number {
   return cadence === "annual" ? plan.annualCents : plan.monthlyCents;
 }
@@ -86,10 +99,22 @@ export function startSubscription(input: {
   cadence: Cadence;
   platform: Platform;
   now: Date;
+  /** The subscriber's agreement to the automatic-renewal terms. Required for
+   *  any paid plan — see auto-renewal.ts for why this throws rather than
+   *  returning false. */
+  renewalConsent?: RenewalConsent;
 }): SubscriptionChange {
   const plan = findPlan(input.planId);
   const rail = railFor("subscription", input.platform);
   const price = priceOf(plan, input.cadence);
+
+  // Before anything is created: a paid plan that renews cannot start without
+  // a recorded consent naming the same plan, cadence and price that was
+  // shown. A free plan needs none.
+  assertRenewalConsent(
+    autoRenewalTermsFor(input.planId, input.cadence, input.now),
+    input.renewalConsent,
+  );
 
   if (price === 0) {
     return {
@@ -126,6 +151,7 @@ export function startSubscription(input: {
       joinedAt: input.now.toISOString(),
       currentPeriodEnd: trialEnd.toISOString(),
       trialEndsAt: trialEnd.toISOString(),
+      renewalTermsAcceptedAt: input.renewalConsent?.acceptedAt,
     },
     due: null,
   };

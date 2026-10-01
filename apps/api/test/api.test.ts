@@ -9,8 +9,8 @@ import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runFlightSweep, runPayroll, type Ctx } from "../src/routes.ts";
 import {
-  ELITE_LADDER, authorizeExactHold, assistantPayoutFor, eliteUnlockThresholdCents, previousPayoutPeriod,
-  recordCharge, resetFlags, settleCharge, setFlag,
+  ELITE_LADDER, PLANS, authorizeExactHold, findPlan, assistantPayoutFor, eliteUnlockThresholdCents,
+  previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag,
 } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
@@ -23,11 +23,34 @@ let clock: Date;
 let store: Store;
 let ctx: Ctx;
 
+/**
+ * Subscribing to a paid plan needs the subscriber's agreement to the
+ * automatic-renewal terms, which the plan screen collects and the server
+ * refuses to start without — see auto-renewal.ts.
+ *
+ * The browser sends it on every real purchase, so the harness does the same
+ * rather than making fifty call sites restate it. A test that wants the
+ * refusal passes `renewalConsent: null` explicitly; the gate itself is
+ * covered in core's auto-renewal.test.ts and in "the renewal-terms gate"
+ * below.
+ */
+const withRenewalConsent = (path: string, body: unknown): unknown => {
+  if (path !== "/api/subscription" || typeof body !== "object" || body === null) return body;
+  const b = body as Record<string, unknown>;
+  if ("renewalConsent" in b) return b.renewalConsent === null ? { ...b, renewalConsent: undefined } : b;
+  const plan = PLANS.find((p) => p.id === b.planId);
+  if (!plan) return b;
+  const priceCents = b.cadence === "annual" ? plan.annualCents : plan.monthlyCents;
+  if (priceCents === 0) return b;
+  return { ...b, renewalConsent: { priceCents } };
+};
+
 /** Each "session" is just a bearer token, so tests can act as different users. */
 const call = async (
-  method: string, path: string, body?: unknown, token?: string | null,
+  method: string, path: string, rawBody?: unknown, token?: string | null,
   extraHeaders?: Record<string, string>,
 ) => {
+  const body = withRenewalConsent(path, rawBody);
   const headers: Record<string, string> = { ...extraHeaders };
   if (body) headers["content-type"] = "application/json";
   if (token) headers.authorization = `Bearer ${token}`;
@@ -4633,5 +4656,58 @@ describe("the launch plan on the master dashboard", () => {
     await call("POST", "/api/master/launch/app-store", { done: true }, null, cookie);
     const log = await call("GET", "/api/master/audit-log", undefined, null, cookie);
     expect(log.json.some((e: { subject: string }) => e.subject.includes("app-store"))).toBe(true);
+  });
+});
+
+describe("the renewal-terms gate", () => {
+  it("refuses a paid plan with no agreement to the renewal terms", async () => {
+    // California's ARL is the reason this exists; Los Angeles is a launch
+    // market. A disclosure the server does not enforce is a disclosure
+    // somebody eventually forgets to render.
+    const res = await call("POST", "/api/subscription",
+      { planId: "premium-basic", renewalConsent: null }, jordan);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/renewal terms/i);
+
+    // And nothing was created on the way to refusing.
+    const after = await call("GET", "/api/billing", undefined, jordan);
+    expect(after.json.subscription?.planId ?? "free").toBe("free");
+  });
+
+  it("lets the free plan through without one", async () => {
+    const res = await call("POST", "/api/subscription",
+      { planId: "free", renewalConsent: null }, jordan);
+    expect(res.status).toBe(200);
+  });
+
+  it("refuses an agreement to a price that is not the price", async () => {
+    const res = await call("POST", "/api/subscription",
+      { planId: "premium-basic", renewalConsent: { priceCents: 1 } }, jordan);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/price changed/i);
+  });
+
+  it("serves the terms the plan screen has to show, with the real first-charge date", async () => {
+    const res = await call("GET", "/api/billing/renewal-terms?planId=premium-basic&cadence=monthly",
+      undefined, jordan);
+    expect(res.status).toBe(200);
+    expect(res.json.required).toBe(true);
+    expect(res.json.priceCents).toBe(findPlan("premium-basic").monthlyCents);
+    // Nobody is charged before the service is running — the disclosure has to
+    // say so rather than quoting signup plus a trial.
+    expect(Date.parse(res.json.firstChargeAt)).toBeGreaterThanOrEqual(Date.parse(SERVICE_LIVE_AT));
+  });
+
+  it("says the free plan has nothing to disclose", async () => {
+    const res = await call("GET", "/api/billing/renewal-terms?planId=free&cadence=monthly",
+      undefined, jordan);
+    expect(res.json.required).toBe(false);
+    expect(res.json.priceCents).toBe(0);
+  });
+
+  it("records the agreement on the subscription, where it can be produced later", async () => {
+    await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
+    const billing = await call("GET", "/api/billing", undefined, jordan);
+    expect(billing.json.subscription.renewalTermsAcceptedAt).toBeTruthy();
   });
 });

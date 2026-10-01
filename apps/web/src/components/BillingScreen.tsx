@@ -3,6 +3,7 @@ import { api, type Billing } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { PlanPicker } from "./PlanPicker.tsx";
+import { RenewalTermsGate } from "./RenewalTermsGate.tsx";
 
 import { money } from "../money.ts";
 
@@ -28,6 +29,8 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
+  /** The offer waiting on its renewal-terms agreement, if any. */
+  const [pending, setPending] = useState<{ planId: string; cadence: "monthly" | "annual" } | null>(null);
 
   const load = useCallback(async () => {
     const state = await api.billing();
@@ -125,9 +128,21 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
           )}
         </div>
 
-        {showPlans && (
+        {showPlans && !pending && (
           <PlanPicker currentPlanId={currentPlanId} busy={busy}
-            onChoose={(planId, cadence) => run(() => api.subscribe(planId, cadence))} />
+            // Every choice goes through the gate, which asks the server
+            // whether this offer needs a disclosure and waves through the
+            // ones that do not.
+            onChoose={(planId, cadence) => setPending({ planId, cadence })} />
+        )}
+
+        {showPlans && pending && (
+          <RenewalTermsGate planId={pending.planId} cadence={pending.cadence} busy={busy}
+            onCancel={() => setPending(null)}
+            onAgree={(consent) => {
+              setPending(null);
+              void run(() => api.subscribe(pending.planId, pending.cadence, consent));
+            }} />
         )}
       </section>
 

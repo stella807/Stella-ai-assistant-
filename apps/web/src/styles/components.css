@@ -1266,3 +1266,37 @@ label:has(> input[type="checkbox"]) {
 .launch-step-done .launch-label { color: var(--muted); }
 .launch-label { font-size: 14px; font-weight: 640; letter-spacing: -0.01em; color: var(--text); }
 .launch-detail { margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); text-wrap: pretty; }
+
+/* ---------- Automatic-renewal disclosure ----------
+   The law asks for the terms "clearly and conspicuously" and in visual
+   proximity to the control that accepts them, so this is a panel with its own
+   edge rather than small print under a button, and the checkbox sits directly
+   above the button it gates. */
+.renewal-gate {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-bright) 34%, transparent), var(--shadow);
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 55%);
+}
+.renewal-what {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 620;
+  line-height: 1.45;
+  letter-spacing: -0.012em;
+  color: var(--text);
+  text-wrap: pretty;
+}
+/* Not muted, and not smaller than the rest: this is the sentence somebody
+   would later say they never saw. */
+.renewal-agree {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: var(--r-btn);
+  background: var(--fill-strong);
+  font-size: 15px;
+  font-weight: 620;
+  color: var(--text);
+  cursor: pointer;
+}
