@@ -10,11 +10,17 @@ import { startRecording, type ActiveRecording } from "../native/audio.ts";
 import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { PermissionGate } from "./PermissionGate.tsx";
 import { readFileAsBase64 } from "../native/camera.ts";
+import { TaskMessageThread } from "./TaskMessageThread.tsx";
 
 /** Exact, to the cent — this screen is where the hold is actually agreed to,
  *  so it follows the same rule ConciergePanel's own pricing card does: a fee
  *  of $87.50 shown as $88 is a number the customer did not actually accept. */
 import { money } from "../money.ts";
+
+/** How often an open, still-running thread re-reads its messages. Ten
+ *  seconds is fast enough that "I'm outside" lands while it still means
+ *  something, and slow enough not to matter to a phone's battery. */
+const MESSAGE_POLL_MS = 10_000;
 
 /**
  * Popup shown after picking a specific assistant from the roster. Two modes
@@ -78,14 +84,46 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   // meant for unmount firing mid-flow instead. A ref sidesteps that; the
   // effect below only ever runs its cleanup on unmount.
   const activeRecording = useRef<ActiveRecording | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selfieInput = useRef<HTMLInputElement>(null);
 
+  /**
+   * Keeps the thread live while it is open.
+   *
+   * It used to fetch once and never again, so a reply from the assistant —
+   * "I'm outside", "they only had the 10ft one" — never arrived until the
+   * customer closed the popup and opened it again. Nobody does that while
+   * waiting for an answer, so in practice the chat only ever showed what the
+   * customer had said themselves.
+   *
+   * Polled rather than pushed because the API has no socket for this, and
+   * only while the task can still change: a completed or canceled task's
+   * thread is finished, and waking the radio every ten seconds for it would
+   * cost battery for nothing. A window regaining focus refetches
+   * immediately, which is what someone coming back to the tab expects.
+   */
+  const taskId = task?.id;
+  const threadIsLive = task?.status === "in-progress";
   useEffect(() => {
-    if (!task) return;
-    api.voiceMessages(task.id).then((r) => setMessages(r.messages)).catch(() => {});
-    api.taskMessages(task.id).then((r) => setTexts(r.messages)).catch(() => {});
-  }, [task?.id]);
+    if (!taskId) return;
+    let live = true;
+    const load = () => {
+      api.voiceMessages(taskId).then((r) => { if (live) setMessages(r.messages); }).catch(() => {});
+      api.taskMessages(taskId).then((r) => { if (live) setTexts(r.messages); }).catch(() => {});
+    };
+    load();
+    if (!threadIsLive) return () => { live = false; };
+
+    const timer = setInterval(load, MESSAGE_POLL_MS);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [taskId, threadIsLive]);
 
   useEffect(() => {
     if (task) return;
@@ -104,6 +142,23 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     activeRecording.current?.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
   }, []);
+
+  /**
+   * A dialog that announces `aria-modal` has to behave like one. Escape
+   * closes it, focus moves inside on open so a keyboard or screen-reader
+   * user is not left behind on the page underneath, and whatever was focused
+   * before gets it back on close.
+   */
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    sheetRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
 
   const send = async () => {
     setBusy(true);
@@ -223,7 +278,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={assistant.name}>
+      <div className="modal-sheet" ref={sheetRef} tabIndex={-1}
+        onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={assistant.name}>
         <div className="row-between">
           <div className="row" style={{ gap: 10 }}>
             <div className="assistant-avatar">
@@ -419,22 +475,9 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
               </div>
             )}
 
-            {/* Typed messages first — the quiet, ordinary channel — with the
-                voice thread under it for when talking is easier. */}
-            <div className="voice-thread" aria-live="polite">
-              {texts.length === 0 && messages.length === 0 && (
-                <p className="tiny muted">No messages yet.</p>
-              )}
-              {texts.map((m) => (
-                <div key={m.id} className={`voice-bubble${m.sender === "traveler" ? " voice-bubble-mine" : ""}`}>
-                  <div className="tiny muted">
-                    {m.sender === "traveler" ? "You" : assistant.name}
-                    {m.sender === "traveler" && m.readAt ? " · Read" : ""}
-                  </div>
-                  <p className="small" style={{ margin: 0 }}>{m.body}</p>
-                </div>
-              ))}
-            </div>
+            {/* Typed and spoken messages in one timeline, with both ways to
+                reply under it — see TaskMessageThread. */}
+            <TaskMessageThread texts={texts} voices={messages} assistantName={assistant.name} />
 
             <div className="row" style={{ gap: 8 }}>
               <input
@@ -451,17 +494,6 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
               </button>
             </div>
 
-            <div className="voice-thread" aria-live="polite">
-              {messages.map((m) => (
-                <div key={m.id} className={`voice-bubble${m.sender === "traveler" ? " voice-bubble-mine" : ""}`}>
-                  <div className="tiny muted">{m.sender === "traveler" ? "You" : assistant.name} · {m.durationSeconds}s</div>
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption -- a
-                      transcript isn't available for a voice note recorded on
-                      the fly, same tradeoff every voice-message product makes. */}
-                  <audio controls src={`data:${m.mimeType};base64,${m.audioBase64}`} />
-                </div>
-              ))}
-            </div>
             {/* Explains itself before the OS dialog appears. On a native
                 build a refused microphone prompt is never shown again, so the
                 one chance to ask has to land on someone who knows why. */}
