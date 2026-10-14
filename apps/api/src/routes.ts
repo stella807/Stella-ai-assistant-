@@ -2759,6 +2759,24 @@ export const routes: Record<string, Handler> = {
   },
 
   /**
+   * One task, for a screen watching it change.
+   *
+   * The list route exists, but an open thread re-reading it every few
+   * seconds would pull every other task's identity selfies, receipts and
+   * completion photos down with it — all base64, all unchanged, all
+   * irrelevant to the one being watched. Scoped to the owner like every
+   * other read here: somebody else's task id is a 404, not a 403, so the
+   * route does not confirm that the id exists.
+   */
+  "GET /api/concierge/tasks/:taskId": (ctx, p) => {
+    const me = actor(ctx);
+    const task = ctx.store.data.conciergeTasks
+      .find((t) => t.id === req(p, "taskId") && t.travelerId === me);
+    if (!task) throw notFound("Task");
+    return { task };
+  },
+
+  /**
    * Marks a task done and settles what it actually cost. The partner network
    * is the one source of truth for the purchase amount; until its
    * receipt-reporting is wired, this trusts what is passed in and otherwise

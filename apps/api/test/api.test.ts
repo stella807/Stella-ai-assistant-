@@ -4711,3 +4711,57 @@ describe("the renewal-terms gate", () => {
     expect(billing.json.subscription.renewalTermsAcceptedAt).toBeTruthy();
   });
 });
+
+describe("watching one task change", () => {
+  // Same fixture shape as the voice-message suite above: booking always hands
+  // off in tests, so the task is seeded into the running server's own store.
+  const taskId = "ct_watch1";
+  const assistantId = "asst_watch1";
+
+  beforeEach(() => {
+    store.update((db) => {
+      db.conciergeTasks.push({
+        id: taskId, travelerId: samId, assistantId, category: "grab-something", note: "A coffee",
+        location: { lat: 29.76, lng: -95.37 }, spendCapCents: 1000, serviceFeeCents: 500,
+        assistantPayoutCents: 400, peopleCount: 1, status: "in-progress",
+        provider: "Nearby Aide", providerTaskId: "provider-watch-1",
+        chargeId: "ch_watch", holdId: "hold_watch",
+        createdAt: clock.toISOString(),
+      });
+    });
+  });
+
+  it("serves one task, so an open thread need not pull every other one down", async () => {
+    // The list route carries every task's identity selfies, receipts and
+    // completion photos — all base64. A screen re-reading it every few
+    // seconds would drag all of that along to learn one thing.
+    const res = await call("GET", `/api/concierge/tasks/${taskId}`, undefined, sam);
+    expect(res.status).toBe(200);
+    expect(res.json.task.id).toBe(taskId);
+  });
+
+  it("shows the assistant's selfie once they have taken it", async () => {
+    // What stops "No photo from them yet" being permanent on the customer's
+    // screen: the popup re-reads this route, so the photo arrives without
+    // anyone closing and reopening anything.
+    const before = await call("GET", `/api/concierge/tasks/${taskId}`, undefined, sam);
+    expect(before.json.task.identityPhotos?.assistant).toBeUndefined();
+
+    const { cookie } = await assistantLogin(assistantId);
+    const up = await call("POST", `/api/assistant/tasks/${taskId}/selfie`,
+      { base64: "AAAA", mimeType: "image/png" }, null, cookie);
+    expect(up.status).toBe(200);
+
+    const after = await call("GET", `/api/concierge/tasks/${taskId}`, undefined, sam);
+    expect(after.json.task.identityPhotos.assistant.base64).toBe("AAAA");
+  });
+
+  it("will not hand over somebody else's task, and does not admit it exists", async () => {
+    const res = await call("GET", `/api/concierge/tasks/${taskId}`, undefined, jordan);
+    expect(res.status).toBe(404);
+  });
+
+  it("needs a session like every other read here", async () => {
+    expect((await call("GET", `/api/concierge/tasks/${taskId}`)).status).toBe(401);
+  });
+});

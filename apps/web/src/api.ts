@@ -515,6 +515,10 @@ export const api = {
     request<{ id: string; createdAt: string }>("POST", `/api/concierge/tasks/${taskId}/voice-messages`, clip),
   voiceMessages: (taskId: string) =>
     request<{ messages: VoiceMessage[] }>("GET", `/api/concierge/tasks/${taskId}/voice-messages`),
+  /** One task, for a screen watching it change — see the route's comment for
+   *  why this is not the list call. */
+  conciergeTask: (taskId: string) =>
+    request<{ task: ConciergeTask }>("GET", `/api/concierge/tasks/${taskId}`),
   sendSelfie: (taskId: string, photo: { base64: string; mimeType: string }) =>
     request<{ photo: IdentityPhoto }>("POST", `/api/concierge/tasks/${taskId}/selfie`, photo),
 

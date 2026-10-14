@@ -89,13 +89,21 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   const selfieInput = useRef<HTMLInputElement>(null);
 
   /**
-   * Keeps the thread live while it is open.
+   * Keeps the whole screen live while it is open — messages *and* the task.
    *
    * It used to fetch once and never again, so a reply from the assistant —
    * "I'm outside", "they only had the 10ft one" — never arrived until the
    * customer closed the popup and opened it again. Nobody does that while
    * waiting for an answer, so in practice the chat only ever showed what the
    * customer had said themselves.
+   *
+   * The task matters as much as the messages. Everything the assistant does
+   * from their side lands on it: the selfie that answers "is this the person
+   * at my door", a spend request asking whether to buy the thing in front of
+   * them, a receipt, the completion photo, the status. Polling only the
+   * messages left all of that frozen at whatever it was when the popup
+   * opened — so a customer could be looking at "No photo from them yet"
+   * while their assistant's face sat on the server.
    *
    * Polled rather than pushed because the API has no socket for this, and
    * only while the task can still change: a completed or canceled task's
@@ -111,6 +119,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     const load = () => {
       api.voiceMessages(taskId).then((r) => { if (live) setMessages(r.messages); }).catch(() => {});
       api.taskMessages(taskId).then((r) => { if (live) setTexts(r.messages); }).catch(() => {});
+      api.conciergeTask(taskId).then((r) => { if (live) setTask(r.task); }).catch(() => {});
     };
     load();
     if (!threadIsLive) return () => { live = false; };
