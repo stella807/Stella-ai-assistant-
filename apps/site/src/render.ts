@@ -1,6 +1,6 @@
 import {
-  APP_URL, CONTACT_EMAIL, COPY, ORIGIN, WHATSAPP, money, plansFor, whatsappHref, whatsappLabel,
-  type Lang,
+  APP_URL, CONTACT_EMAIL, COPY, ORIGIN, PHONE, WHATSAPP, formatPhone, money, phoneHref, plansFor,
+  whatsappHref, whatsappLabel, type Lang,
 } from "./content.ts";
 
 /**
@@ -140,7 +140,13 @@ ${head(lang)}
   <section id="contact" class="band">
     <h2>${esc(c.contactHeading)}</h2>
     <p class="lede">${esc(c.contactBody)}</p>
-    <p class="contact-mail"><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+    <p class="contact-phone">
+      <a href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
+    </p>
+    <p class="contact-mail">
+      <span class="contact-kind">${esc(c.emailLabel)}</span>
+      <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
+    </p>
 ${WHATSAPP
   ? `    <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">${esc(c.whatsappLabel)} ${esc(whatsappLabel(WHATSAPP))}</a></p>`
   : ""}
@@ -285,11 +291,25 @@ h2 {
   letter-spacing: -0.025em; margin: 0 0 12px;
 }
 
+/* The number is the loudest thing in the section on purpose. */
+.contact-phone {
+  font-family: var(--display);
+  font-size: clamp(30px, 6.4vw, 48px);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin: 0 0 14px;
+}
+.contact-phone a { text-decoration: none; }
 .contact-mail, .contact-wa {
-  font-family: var(--display); font-size: clamp(20px, 3.4vw, 28px);
-  letter-spacing: -0.02em; margin: 0;
+  font-size: clamp(17px, 2.6vw, 20px); font-weight: 600;
+  letter-spacing: -0.01em; margin: 0;
 }
 .contact-wa { margin-top: 8px; }
+.contact-kind {
+  display: inline-block; min-width: 4.5em;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-soft);
+}
 .contact-mail a, .contact-wa a { text-decoration: none; word-break: break-all; }
 
 /* ---------- Foot ---------- */

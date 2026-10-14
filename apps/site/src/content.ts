@@ -29,6 +29,29 @@ export const APP_URL = "https://safehubby-app-production.up.railway.app";
 export const CONTACT_EMAIL = "ceo@safehubby.com";
 
 /**
+ * The number to call, digits only with country code.
+ *
+ * It leads the contact section rather than following the email, because the
+ * reader this site is written for is often somebody's 78-year-old father who
+ * will phone before he types an address — see the typography note in the
+ * flier playbook.
+ */
+export const PHONE = "19392450171";
+
+/** +1 (939) 245-0171, from 19392450171. Falls back to a plain + form for
+ *  anything that is not a NANP number. */
+export function formatPhone(digits: string): string {
+  const d = digits.replace(/\D/g, "");
+  const m = /^1(\d{3})(\d{3})(\d{4})$/.exec(d);
+  return m ? `+1 (${m[1]}) ${m[2]}-${m[3]}` : `+${d}`;
+}
+
+/** A dialable link, so tapping it on a phone starts the call. */
+export function phoneHref(digits: string): string {
+  return `tel:+${digits.replace(/\D/g, "")}`;
+}
+
+/**
  * The WhatsApp business number, digits only with country code (a Puerto Rico
  * line is `1787…` or `1939…`). Empty until there is a real one, and the
  * contact section simply omits WhatsApp while it is — printing a dead
@@ -45,13 +68,8 @@ export function whatsappHref(digits: string): string {
   return `https://wa.me/${digits.replace(/\D/g, "")}`;
 }
 
-/** +1 (787) 555-0147, from 17875550147. Falls back to a plain + form for
- *  anything that is not a NANP number. */
-export function whatsappLabel(digits: string): string {
-  const d = digits.replace(/\D/g, "");
-  const m = /^1(\d{3})(\d{3})(\d{4})$/.exec(d);
-  return m ? `+1 (${m[1]}) ${m[2]}-${m[3]}` : `+${d}`;
-}
+/** The same formatting as a phone number — it is one. */
+export const whatsappLabel = formatPhone;
 
 export function money(cents: number): string {
   if (cents === 0) return "$0";
@@ -114,6 +132,8 @@ export interface Copy {
 
   contactHeading: string;
   contactBody: string;
+  callLabel: string;
+  emailLabel: string;
   whatsappLabel: string;
 
   disclaimer: string;
@@ -199,6 +219,8 @@ export const COPY: Record<Lang, Copy> = {
 
     contactHeading: "Get in touch",
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
+    callLabel: "Call",
+    emailLabel: "Email",
     whatsappLabel: "WhatsApp",
 
     disclaimer:
@@ -278,6 +300,8 @@ export const COPY: Record<Lang, Copy> = {
 
     contactHeading: "Escríbenos",
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
+    callLabel: "Llama",
+    emailLabel: "Correo",
     whatsappLabel: "WhatsApp",
 
     disclaimer:

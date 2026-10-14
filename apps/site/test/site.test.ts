@@ -3,7 +3,9 @@ import {
   LAUNCH_WINDOW_START, PA_HOURLY_RATE_CENTS, SERVICE_LIVE_AT, findPlan, isPlanReleased,
   releasedPlans,
 } from "@safehubby/core";
-import { LANGS, money, whatsappHref, whatsappLabel, type Lang } from "../src/content.ts";
+import {
+  LANGS, PHONE, formatPhone, money, phoneHref, whatsappHref, whatsappLabel, type Lang,
+} from "../src/content.ts";
 import { renderPage } from "../src/render.ts";
 
 const pages: Record<Lang, string> = { en: renderPage("en"), es: renderPage("es") };
@@ -76,6 +78,21 @@ describe("the marketing site", () => {
     // appears here, the page has stopped being readable before a bundle loads
     // — and stopped being indexable.
     for (const lang of LANGS) expect(pages[lang], lang).not.toContain("<script");
+  });
+
+  it("offers a number to call, dialable, in both languages", () => {
+    for (const lang of LANGS) {
+      expect(pages[lang], lang).toContain(phoneHref(PHONE));
+      expect(pages[lang], lang).toContain(formatPhone(PHONE));
+    }
+  });
+
+  it("formats a Puerto Rico number the way somebody would read it aloud", () => {
+    expect(formatPhone("19392450171")).toBe("+1 (939) 245-0171");
+    expect(phoneHref("+1 (939) 245-0171")).toBe("tel:+19392450171");
+    // Anything that is not a NANP number keeps its digits rather than being
+    // forced into a shape it does not have.
+    expect(formatPhone("34911223344")).toBe("+34911223344");
   });
 
   it("omits WhatsApp entirely until there is a real number", () => {
