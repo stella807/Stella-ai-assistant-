@@ -1,5 +1,5 @@
 import {
-  APP_URL, CONTACT_EMAIL, COPY, ORIGIN, PHONE, WHATSAPP, formatPhone, money, phoneHref, plansFor,
+  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, formatPhone, money, phoneHref, plansFor,
   whatsappHref, whatsappLabel, type Lang,
 } from "./content.ts";
 
@@ -142,10 +142,6 @@ ${head(lang)}
     <p class="lede">${esc(c.contactBody)}</p>
     <p class="contact-phone">
       <a href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
-    </p>
-    <p class="contact-mail">
-      <span class="contact-kind">${esc(c.emailLabel)}</span>
-      <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
     </p>
 ${WHATSAPP
   ? `    <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">${esc(c.whatsappLabel)} ${esc(whatsappLabel(WHATSAPP))}</a></p>`
@@ -297,20 +293,14 @@ h2 {
   font-size: clamp(30px, 6.4vw, 48px);
   line-height: 1.05;
   letter-spacing: -0.03em;
-  margin: 0 0 14px;
+  margin: 0;
 }
 .contact-phone a { text-decoration: none; }
-.contact-mail, .contact-wa {
+.contact-wa {
   font-size: clamp(17px, 2.6vw, 20px); font-weight: 600;
-  letter-spacing: -0.01em; margin: 0;
+  letter-spacing: -0.01em; margin: 10px 0 0;
 }
-.contact-wa { margin-top: 8px; }
-.contact-kind {
-  display: inline-block; min-width: 4.5em;
-  font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--ink-soft);
-}
-.contact-mail a, .contact-wa a { text-decoration: none; word-break: break-all; }
+.contact-wa a { text-decoration: none; word-break: break-all; }
 
 /* ---------- Foot ---------- */
 .site-foot {

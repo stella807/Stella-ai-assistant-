@@ -26,8 +26,6 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-producti
 
 /** Where a visitor goes to actually sign up. The app, not this site. */
 export const APP_URL = "https://safehubby-app-production.up.railway.app";
-export const CONTACT_EMAIL = "ceo@safehubby.com";
-
 /**
  * The number to call, digits only with country code.
  *
@@ -133,7 +131,6 @@ export interface Copy {
   contactHeading: string;
   contactBody: string;
   callLabel: string;
-  emailLabel: string;
   whatsappLabel: string;
 
   disclaimer: string;
@@ -220,7 +217,6 @@ export const COPY: Record<Lang, Copy> = {
     contactHeading: "Get in touch",
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
     callLabel: "Call",
-    emailLabel: "Email",
     whatsappLabel: "WhatsApp",
 
     disclaimer:
@@ -301,7 +297,6 @@ export const COPY: Record<Lang, Copy> = {
     contactHeading: "Escríbenos",
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
     callLabel: "Llama",
-    emailLabel: "Correo",
     whatsappLabel: "WhatsApp",
 
     disclaimer:

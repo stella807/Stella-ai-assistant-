@@ -87,6 +87,14 @@ describe("the marketing site", () => {
     }
   });
 
+  it("offers the phone and nothing else to contact", () => {
+    // Deliberately one route. Two ways to reach somebody is two decisions for
+    // a reader who is already worried about a parent.
+    for (const lang of LANGS) {
+      expect(pages[lang], lang).not.toContain("mailto:");
+    }
+  });
+
   it("formats a Puerto Rico number the way somebody would read it aloud", () => {
     expect(formatPhone("19392450171")).toBe("+1 (939) 245-0171");
     expect(phoneHref("+1 (939) 245-0171")).toBe("tel:+19392450171");
