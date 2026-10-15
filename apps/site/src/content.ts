@@ -123,7 +123,7 @@ export interface Service {
 export function startingPriceCents(category: ConciergeCategory): number {
   const errand = isQuickTaskEligible(category);
   return customerServiceFeeFor({
-    planId: "free",
+    planId: ERRAND_ENTRY_PLAN,
     category,
     quickTask: errand,
     // The smallest errand, at the reference spend below.
@@ -164,8 +164,13 @@ export function errandTierRows(lang: Lang): TierRow[] {
   }));
 }
 
-/** How many no-fee grabs a free account gets a month, for the copy. */
-export const FREE_INCLUDED_GRABS = INCLUDED_GRABS_PER_MONTH.free ?? 0;
+/** The cheapest plan that can order an errand. Free's errands are paused
+ *  (the `free-errands` flag), so the lowest price on this page is a paid
+ *  plan's — and the page says so rather than quoting one nobody can get. */
+export const ERRAND_ENTRY_PLAN: PlanId = "premium-basic";
+
+/** How many no-fee grabs the entry plan gets a month, for the copy. */
+export const INCLUDED_GRABS_ENTRY = INCLUDED_GRABS_PER_MONTH[ERRAND_ENTRY_PLAN] ?? 0;
 
 /** The Wingman Club's dues, as the span they actually move across: a flat
  *  base plus whatever that month's experience costs at the negotiated rate. */
@@ -269,7 +274,7 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. Free to start, all the way up to a full concierge desk.",
     heroCta: "Start free",
-    heroCtaNote: `No contract. Your first ${FREE_INCLUDED_GRABS} runs a month have no service fee — you pay only for what we buy.`,
+    heroCtaNote: "No contract. Free covers check-ins, location and SOS; errands start with Premium.",
 
     whatHeading: "What we do",
     tiersHeading: "Errands, by size",
@@ -278,7 +283,7 @@ export const COPY: Record<Lang, Copy> = {
     whatLede:
       "The person we built this for is in a hospital bed at nine at night, thirsty, with nobody to ask. Everything here starts from that.",
     services: [
-      { title: "Grab something", category: "grab-something", body: `A juice, a charger, a blanket — bought and brought to your room or your door. You pay for the item; ${FREE_INCLUDED_GRABS} a month come with no fee on the free plan, more on every paid one.` },
+      { title: "Grab something", category: "grab-something", body: `A juice, a charger, a blanket — bought and brought to your room or your door. You pay for the item; ${INCLUDED_GRABS_ENTRY} a month come with no service fee on Premium, more on every plan above it.` },
       { title: "Run an errand", category: "run-errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
       { title: "Wait with someone", category: "wait-with-someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
       { title: "Check on someone", category: "check-in-person", body: "Someone goes and looks, then tells you." },
@@ -287,14 +292,14 @@ export const COPY: Record<Lang, Copy> = {
     ],
 
     pricingHeading: "What it costs",
-    pricingLede: "Seven ways in, from a juice brought to your room for the price of the juice, to a desk that answers 24/7. Swipe across.",
+    pricingLede: "Seven ways in, from free safety basics to a desk that answers 24/7. Swipe across.",
     perMonth: "/month",
     seatsOne: "1 person",
     seatsMany: (n) => `Up to ${n} people`,
     freeLabel: "Always free",
     planBlurbs: {
-      free: `Someone brings you one thing — a juice, a charger — up to $20, with no fee on ${FREE_INCLUDED_GRABS} a month. Plus check-ins, SOS and ride booking.`,
-      "premium-basic": "An assistant who runs the errand, waits with someone, or goes to check on them for you.",
+      free: "Check-ins, location sharing, SOS and ride booking. The safety basics are never behind a paywall. Errands start with Premium.",
+      "premium-basic": `Errands from a juice to a shopping trip — ${INCLUDED_GRABS_ENTRY} one-item grabs a month with no service fee — and an assistant who waits with someone or checks on them.`,
       "premium-plus": "Everything Premium does, for two people, with no ceiling on what goes on the card.",
       family: "The same service for a whole household, on one account.",
       elite: "A desk that answers 24/7, a concierge physician's retainer included, and jet, villa and yacht booking.",
@@ -334,7 +339,7 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Empieza gratis, y llega hasta un servicio de concierge completo.",
     heroCta: "Empieza gratis",
-    heroCtaNote: `Sin contrato. Tus primeras ${FREE_INCLUDED_GRABS} al mes no llevan cargo por servicio — pagas solo lo que compramos.`,
+    heroCtaNote: "Sin contrato. Gratis incluye registros, ubicación y SOS; los encargos empiezan con Premium.",
 
     whatHeading: "Lo que hacemos",
     tiersHeading: "Diligencias, por tamaño",
@@ -343,7 +348,7 @@ export const COPY: Record<Lang, Copy> = {
     whatLede:
       "La persona para quien hicimos esto está en una cama de hospital a las nueve de la noche, con sed, y no tiene a quién pedirle. Todo aquí sale de ahí.",
     services: [
-      { title: "Traer algo", category: "grab-something", body: `Un jugo, un cargador, una frisa — comprado y llevado a tu cuarto o a tu puerta. Pagas el artículo; ${FREE_INCLUDED_GRABS} al mes van sin cargo en el plan gratis, y más en cada plan pagado.` },
+      { title: "Traer algo", category: "grab-something", body: `Un jugo, un cargador, una frisa — comprado y llevado a tu cuarto o a tu puerta. Pagas el artículo; ${INCLUDED_GRABS_ENTRY} al mes van sin cargo por servicio en Premium, y más en cada plan superior.` },
       { title: "Hacer una diligencia", category: "run-errand", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
       { title: "Acompañar a alguien", category: "wait-with-someone", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
       { title: "Pasar a ver a alguien", category: "check-in-person", body: "Alguien va, mira, y te dice." },
@@ -352,14 +357,14 @@ export const COPY: Record<Lang, Copy> = {
     ],
 
     pricingHeading: "Cuánto cuesta",
-    pricingLede: "Siete maneras de entrar, desde un jugo llevado a tu cuarto por lo que cuesta el jugo, hasta un servicio que contesta 24/7. Desliza.",
+    pricingLede: "Siete maneras de entrar, desde lo básico de seguridad gratis hasta un servicio que contesta 24/7. Desliza.",
     perMonth: "/mes",
     seatsOne: "1 persona",
     seatsMany: (n) => `Hasta ${n} personas`,
     freeLabel: "Siempre gratis",
     planBlurbs: {
-      free: `Alguien te trae una cosa — un jugo, un cargador — hasta $20, sin cargo ${FREE_INCLUDED_GRABS} veces al mes. Más registros, SOS y viajes.`,
-      "premium-basic": "Un asistente que hace la diligencia, acompaña a alguien, o pasa a verlo por ti.",
+      free: "Registros, ubicación compartida, SOS y viajes. Lo básico de seguridad nunca se cobra. Los encargos empiezan con Premium.",
+      "premium-basic": `Diligencias desde un jugo hasta un viaje de compras — ${INCLUDED_GRABS_ENTRY} compras de un artículo al mes sin cargo por servicio — y un asistente que acompaña a alguien o pasa a verlo.`,
       "premium-plus": "Todo lo de Premium, para dos personas, sin tope en lo que va en la tarjeta.",
       family: "El mismo servicio para todo un hogar, en una sola cuenta.",
       elite: "Un servicio que contesta 24/7, el retainer de un médico concierge incluido, y reservas de jet, villa y yate.",

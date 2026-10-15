@@ -359,7 +359,12 @@ export const PLANS: Plan[] = [
     annualCents: 0,
     seats: 1,
     features: FREE_FEATURES,
-    blurb: "For one person. Location sharing, check-ins, drink count, SOS, ride booking, secure transport at the provider's real rate, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.",
+    // A getter, so the blurb never promises errands while they are paused.
+    get blurb() {
+      return "For one person. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate"
+        + (isEnabled("free-errands") ? ", and quick errands — grab something (up to $20) or run an errand" : "")
+        + ". Always free — safety basics are not a paywall.";
+    },
   },
   {
     id: "premium-basic",
@@ -607,6 +612,11 @@ export function findPlan(id: PlanId): Plan {
 }
 
 export function hasFeature(planId: PlanId, feature: Feature): boolean {
+  // Free's errands are held behind a flag — see `free-errands` in features.ts.
+  // Done here rather than by editing FREE_FEATURES so that turning the flag on
+  // restores exactly what Free was designed to have, with nothing to remember
+  // to put back. The rest of Free (check-ins, location, SOS) is unaffected.
+  if (planId === "free" && feature === "quick-tasks" && !isEnabled("free-errands")) return false;
   return findPlan(planId).features.includes(feature);
 }
 

@@ -26,13 +26,29 @@ describe("plans", () => {
     expect(hasFeature("premium-plus", "venue-menus")).toBe(true);
   });
 
-  it("puts ride booking and quick errands on every tier, including free", () => {
-    // Getting home, and getting one bounded thing grabbed for you, are
-    // treated as safety basics — see FREE_FEATURES in billing.ts.
+  it("puts ride booking on every tier, and quick errands on every paid one", () => {
     expect(hasFeature("free", "ride-booking")).toBe(true);
-    expect(hasFeature("free", "quick-tasks")).toBe(true);
     expect(hasFeature("premium-plus", "ride-booking")).toBe(true);
     expect(hasFeature("premium-plus", "quick-tasks")).toBe(true);
+    expect(hasFeature("premium-basic", "quick-tasks")).toBe(true);
+  });
+
+  it("holds Free's errands back while `free-errands` is off, and only those", () => {
+    // Paused, not removed: the rest of Free is the safety basics, which are
+    // never behind a paywall, so only the errands move.
+    expect(hasFeature("free", "quick-tasks")).toBe(false);
+    for (const f of ["location-sharing", "check-ins", "sos", "ride-booking", "secure-transport"] as const) {
+      expect(hasFeature("free", f), f).toBe(true);
+    }
+    expect(findPlan("free").blurb).not.toMatch(/errand/i);
+    // And turning it on restores exactly what Free was designed to have.
+    setFlag("free-errands", true);
+    try {
+      expect(hasFeature("free", "quick-tasks")).toBe(true);
+      expect(findPlan("free").blurb).toMatch(/errand/i);
+    } finally {
+      resetFlags();
+    }
   });
 
   it("is strictly cumulative as tiers rise", () => {

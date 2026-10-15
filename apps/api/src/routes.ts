@@ -1124,6 +1124,12 @@ function requireConciergeAccess(
   const traveler = ctx.store.data.travelers.find((t) => t.id === travelerId);
   if (!traveler) throw notFound("Traveler");
   if (quickTask && isQuickTaskEligible(category) && hasFeature(traveler.planId, "quick-tasks")) return;
+  // Free's errands are paused, not unavailable for want of a plan feature.
+  // Say that, rather than the generic "upgrade to unlock", which would read
+  // as a price list for something that is simply switched off for now.
+  if (traveler.planId === "free" && isQuickTaskEligible(category) && !isEnabled("free-errands")) {
+    throw new HttpError(402, flagNote("free-errands"));
+  }
   requireFeature(ctx, travelerId, "personal-concierge");
 }
 

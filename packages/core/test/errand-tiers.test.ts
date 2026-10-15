@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resetFlags, setFlag } from "../src/features.ts";
+
+// These exercise the Free plan's errands, which are paused by default — see
+// `free-errands`. The capability is kept and tested; it is switched on here.
+beforeEach(() => setFlag("free-errands", true));
+afterEach(() => resetFlags());
 import {
   CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_PROFIT_FLOOR_CENTS, ERRAND_RATE_PER_HOUR_CENTS,
   ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandPayoutCents, errandProfitCents,

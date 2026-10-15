@@ -1,4 +1,5 @@
 import type { PlanId } from "./billing.ts";
+import { isEnabled } from "./features.ts";
 import {
   isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
 } from "./concierge.ts";
@@ -45,6 +46,10 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
 export const INCLUDED_GRAB_CATEGORY = "grab-something" satisfies ConciergeCategory;
 
 export function includedGrabAllowanceFor(planId: PlanId): number | null {
+  // Free's errands are paused (`free-errands`), and so is its allowance: a
+  // grab nobody on Free can book has nothing to include. The table keeps the
+  // number so turning the flag back on restores it.
+  if (planId === "free" && !isEnabled("free-errands")) return 0;
   return INCLUDED_GRABS_PER_MONTH[planId];
 }
 

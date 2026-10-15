@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resetFlags, setFlag } from "../src/features.ts";
+
+// These exercise the Free plan's errands, which are paused by default — see
+// `free-errands`. The capability is kept and tested; it is switched on here.
+beforeEach(() => setFlag("free-errands", true));
+afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
   customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
@@ -120,5 +126,18 @@ describe("counting the month", () => {
   it("gives a cancelled grab back, and ignores grabs that paid their fee", () => {
     expect(includedGrabsUsedIn([task({ status: "canceled" })], start, end)).toBe(0);
     expect(includedGrabsUsedIn([task({ feeIncluded: false, serviceFeeCents: 500 })], start, end)).toBe(0);
+  });
+});
+
+describe("while Free's errands are paused", () => {
+  it("includes no grabs on Free, and still includes them on a paid plan", () => {
+    setFlag("free-errands", false);
+    expect(includedGrabAllowanceFor("free")).toBe(0);
+    expect(isGrabIncluded(grab("free", 0))).toBe(false);
+    expect(isGrabIncluded(grab("premium-basic", 0))).toBe(true);
+    // The table keeps the number, so switching the flag back on restores it.
+    expect(INCLUDED_GRABS_PER_MONTH.free).toBe(2);
+    setFlag("free-errands", true);
+    expect(includedGrabAllowanceFor("free")).toBe(2);
   });
 });

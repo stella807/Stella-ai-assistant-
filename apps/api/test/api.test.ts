@@ -1402,6 +1402,11 @@ describe("secure transport", () => {
 });
 
 describe("personal concierge", () => {
+  // These exercise the Free plan's errands, which are paused by default (the
+  // `free-errands` flag). The capability is kept and tested; it is switched on.
+  beforeEach(() => setFlag("free-errands", true));
+  afterEach(() => resetFlags());
+
   // Austin, TX — inside a launch market (see service-area.ts), so these
   // tests exercise the partner-network/disclosure logic rather than
   // tripping the launch-market gate itself (covered separately below).
@@ -3365,6 +3370,11 @@ describe("push to the guardian", () => {
 });
 
 describe("push to the assistant", () => {
+  // These exercise the Free plan's errands, which are paused by default (the
+  // `free-errands` flag). The capability is kept and tested; it is switched on.
+  beforeEach(() => setFlag("free-errands", true));
+  afterEach(() => resetFlags());
+
   useAdminKey();
 
   /** Hires an errand runner and signs them into the portal, the same shape
@@ -3830,6 +3840,11 @@ describe("nothing is dispatched before the service is live", () => {
 });
 
 describe("hiring somebody and actually sending them to a job", () => {
+  // These exercise the Free plan's errands, which are paused by default (the
+  // `free-errands` flag). The capability is kept and tested; it is switched on.
+  beforeEach(() => setFlag("free-errands", true));
+  afterEach(() => resetFlags());
+
   useAdminKey();
 
   /** Texas, so the market-indexed pay applies rather than the default. */
@@ -3966,7 +3981,7 @@ describe("hiring somebody and actually sending them to a job", () => {
       const q = await call("POST", "/api/concierge/quote", {
         category: "run-errand", quickTask: true, errandTier: "nearby-store",
         note: "A phone charger.", location: IN_TEXAS, spendCapCents: 2_000,
-      }, jordan);
+      }, sam);
       expect(q.status, JSON.stringify(q.json)).toBe(200);
       expect(q.json.serviceFeeCents).toBe(errandFeeCents("nearby-store", 2_000));
       expect(q.json.totalCents).toBe(2_000 + errandFeeCents("nearby-store", 2_000));
@@ -3974,8 +3989,8 @@ describe("hiring somebody and actually sending them to a job", () => {
 
     it("pays the runner the tier's pay and stamps the tier on the task", async () => {
       const kit = await runner();
-      await withCard(jordan);
-      const r = await book(jordan, kit);
+      await withCard(sam);
+      const r = await book(sam, kit);
       expect(r.status, JSON.stringify(r.json)).toBe(200);
       expect(r.json.task.assistantPayoutCents).toBe(errandPayoutCents("nearby-store"));
       expect(r.json.task.serviceFeeCents).toBe(errandFeeCents("nearby-store", 2_000));
@@ -3984,9 +3999,9 @@ describe("hiring somebody and actually sending them to a job", () => {
 
     it("keeps five cents or more on the booking, from what was actually charged", async () => {
       const kit = await runner();
-      await withCard(jordan);
+      await withCard(sam);
       for (const [tier, cap] of [["in-building", 1_500], ["shopping-trip", 5_000], ["wait-in-line", 2_000]] as const) {
-        const r = await book(jordan, kit, { errandTier: tier, spendCapCents: cap });
+        const r = await book(sam, kit, { errandTier: tier, spendCapCents: cap });
         expect(r.status, `${tier}: ${JSON.stringify(r.json)}`).toBe(200);
         const t = r.json.task;
         if (t.feeIncluded) continue;
@@ -3998,20 +4013,47 @@ describe("hiring somebody and actually sending them to a job", () => {
 
     it("refuses a tier on work that is paid by the hour, and a tier that does not exist", async () => {
       const kit = await runner();
-      await withCard(jordan);
-      const hourly = await book(jordan, kit, { category: "wait-with-someone", hours: 2, quickTask: false });
+      await withCard(sam);
+      const hourly = await book(sam, kit, { category: "wait-with-someone", hours: 2, quickTask: false });
       expect(hourly.status).toBe(400);
-      const bogus = await book(jordan, kit, { errandTier: "teleport" });
+      const bogus = await book(sam, kit, { errandTier: "teleport" });
       expect(bogus.status).toBe(400);
     });
 
-    it("includes only the cheapest tier in the free allowance", async () => {
+    it("includes only the cheapest tier in the monthly allowance", async () => {
       const kit = await runner();
-      await withCard(jordan);
-      const cheap = await book(jordan, kit, { errandTier: "in-building", category: "grab-something", spendCapCents: 500 });
+      await withCard(sam);
+      const cheap = await book(sam, kit, { errandTier: "in-building", category: "grab-something", spendCapCents: 500 });
       expect(cheap.json.task.serviceFeeCents).toBe(0);
-      const dear = await book(jordan, kit, { errandTier: "nearby-store", category: "grab-something", spendCapCents: 500 });
+      const dear = await book(sam, kit, { errandTier: "nearby-store", category: "grab-something", spendCapCents: 500 });
       expect(dear.json.task.serviceFeeCents).toBe(errandFeeCents("nearby-store", 500));
+    });
+  });
+
+  describe("while Free's errands are paused", () => {
+    it("refuses a free account's errand, says why, and leaves Free's safety basics alone", async () => {
+      setFlag("free-errands", false);
+      await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kitp@example.com" });
+      const res = await call("POST", "/api/concierge/quote", {
+        category: "grab-something", quickTask: true, note: "A cold juice.", location: IN_TEXAS, spendCapCents: 500,
+      }, jordan);
+      expect(res.status).toBe(402);
+      expect(res.json.error).toMatch(/paused/i);
+      expect(res.json.error).toMatch(/premium/i);
+      // The rest of Free is untouched: it can still start a night's check-ins.
+      const roster = await call("GET", `/api/concierge/assistants?category=grab-something&quickTask=true&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, jordan);
+      expect(roster.status).toBe(402);
+    });
+
+    it("still prices and books an errand for a paid account", async () => {
+      setFlag("free-errands", false);
+      await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kitq@example.com" });
+      const res = await call("POST", "/api/concierge/quote", {
+        category: "grab-something", quickTask: true, errandTier: "in-building",
+        note: "A cold juice.", location: IN_TEXAS, spendCapCents: 500,
+      }, sam);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      expect(res.json.feeIncluded).toBe(true);
     });
   });
 

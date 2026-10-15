@@ -4,7 +4,7 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  FREE_INCLUDED_GRABS, LANGS, PHONE, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
+  INCLUDED_GRABS_ENTRY, LANGS, PHONE, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
   formatPhone, money, phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
@@ -74,16 +74,17 @@ describe("the marketing site", () => {
     }
   });
 
-  it("prices a grab from $0, because the plan includes it", () => {
-    // Said only because it is true: the app charges no fee on a free account's
-    // first grabs of the month. If the allowance ever goes, this fails rather
+  it("prices a grab from $0, because the entry plan includes it", () => {
+    // Said only because it is true: the app charges no fee on the first grabs
+    // of the month on Premium, the cheapest plan that can order an errand
+    // while Free's are paused. If the allowance ever goes, this fails rather
     // than leaving the page promising a price nobody can get.
     expect(startingPriceCents("grab-something")).toBe(0);
-    expect(FREE_INCLUDED_GRABS).toBeGreaterThan(0);
+    expect(INCLUDED_GRABS_ENTRY).toBeGreaterThan(0);
     for (const lang of LANGS) {
       const fromWord = lang === "en" ? "from" : "desde";
       expect(pages[lang], `grab from $0 in ${lang}`).toContain(`${fromWord} $0`);
-      expect(pages[lang], `allowance in ${lang}`).toContain(String(FREE_INCLUDED_GRABS));
+      expect(pages[lang], `allowance in ${lang}`).toContain(String(INCLUDED_GRABS_ENTRY));
     }
   });
 
@@ -99,6 +100,17 @@ describe("the marketing site", () => {
     const fees = errandTierRows("en").map((r) => r.feeCents);
     expect(fees[1]!).toBeGreaterThan(fees[0]!);
     expect(fees[2]!).toBeGreaterThan(fees[1]!);
+  });
+
+  it("does not offer errands on the Free plan while they are paused", () => {
+    // The Free card must not promise what the app refuses: a free account is
+    // told errands are paused, so the page cannot say they are included.
+    for (const lang of LANGS) {
+      const free = pages[lang].match(/<article class="plan">\s*<h3>Free<\/h3>[\s\S]*?<\/article>/)![0];
+      // It may say where errands start; it may not hold out an errand as part of Free.
+      expect(free, lang).not.toMatch(/juice|jugo|charger|cargador/i);
+      expect(free, lang).toContain("Premium");
+    }
   });
 
   it("never claims an errand is free", () => {
