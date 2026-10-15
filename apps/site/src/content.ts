@@ -1,8 +1,8 @@
 import {
-  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
+  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
   LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
-  SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, isHourlyCategory, isQuickTaskEligible,
-  releasedPlans, type ConciergeCategory, type Plan, type PlanId,
+  SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, isHourlyCategory, isQuickTaskEligible,
+  releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -121,13 +121,47 @@ export interface Service {
  * of reading it from core here.
  */
 export function startingPriceCents(category: ConciergeCategory): number {
+  const errand = isQuickTaskEligible(category);
   return customerServiceFeeFor({
     planId: "free",
     category,
-    quickTask: isQuickTaskEligible(category),
+    quickTask: errand,
+    // The smallest errand, at the reference spend below.
+    ...(errand ? { errandTier: "in-building" as const, spendCapCents: TIER_REFERENCE_CAP_CENTS } : {}),
     hours: isHourlyCategory(category) ? MIN_BOOKED_HOURS : undefined,
     usedThisMonth: 0,
   });
+}
+
+/** The purchase the page quotes errand fees against. The fee rises a little
+ *  with a bigger item — the card charges more on it — so the page says what
+ *  it assumed rather than implying one number fits every purchase. */
+export const TIER_REFERENCE_CAP_CENTS = 2_000;
+
+export interface TierRow { id: ErrandTierId; label: string; example: string; minutes: number; feeCents: number }
+
+const TIER_WORDS: Record<Lang, Record<ErrandTierId, { label: string; example: string }>> = {
+  en: {
+    "in-building": { label: "In the building", example: "A soda or snack from the cafeteria or gift shop" },
+    "nearby-store": { label: "Nearby store", example: "A phone charger, snacks, toiletries" },
+    "shopping-trip": { label: "Shopping trip", example: "A blanket, clothes, a few stops" },
+    "wait-in-line": { label: "Wait in line", example: "A restaurant order or a pharmacy line" },
+  },
+  es: {
+    "in-building": { label: "Dentro del edificio", example: "Un refresco o un bocadillo de la cafetería o la tienda" },
+    "nearby-store": { label: "Tienda cercana", example: "Un cargador, bocadillos, artículos de aseo" },
+    "shopping-trip": { label: "Viaje de compras", example: "Una frisa, ropa, varias paradas" },
+    "wait-in-line": { label: "Hacer fila", example: "Un pedido de restaurante o la fila de la farmacia" },
+  },
+};
+
+/** The four errand sizes with their fees, from the same functions the app
+ *  charges with — never typed in here. */
+export function errandTierRows(lang: Lang): TierRow[] {
+  return ERRAND_TIERS.map((t) => ({
+    id: t.id, minutes: t.minutes, ...TIER_WORDS[lang][t.id],
+    feeCents: errandFeeCents(t.id, TIER_REFERENCE_CAP_CENTS),
+  }));
 }
 
 /** How many no-fee grabs a free account gets a month, for the copy. */
@@ -161,6 +195,9 @@ export interface Copy {
   whatHeading: string;
   /** Who this is actually for, in one sentence, before the list of services. */
   whatLede: string;
+  tiersHeading: string;
+  tiersNote: string;
+  minutesLabel: string;
   services: Service[];
 
   pricingHeading: string;
@@ -235,6 +272,9 @@ export const COPY: Record<Lang, Copy> = {
     heroCtaNote: `No contract. Your first ${FREE_INCLUDED_GRABS} runs a month have no service fee — you pay only for what we buy.`,
 
     whatHeading: "What we do",
+    tiersHeading: "Errands, by size",
+    tiersNote: `The fee covers the runner's time and travel. Shown for a ${money(TIER_REFERENCE_CAP_CENTS)} purchase; it rises slightly with a bigger one, because the card charges more on it. You pay for the item at cost.`,
+    minutesLabel: "min",
     whatLede:
       "The person we built this for is in a hospital bed at nine at night, thirsty, with nobody to ask. Everything here starts from that.",
     services: [
@@ -297,6 +337,9 @@ export const COPY: Record<Lang, Copy> = {
     heroCtaNote: `Sin contrato. Tus primeras ${FREE_INCLUDED_GRABS} al mes no llevan cargo por servicio — pagas solo lo que compramos.`,
 
     whatHeading: "Lo que hacemos",
+    tiersHeading: "Diligencias, por tamaño",
+    tiersNote: `El cargo cubre el tiempo y el viaje de quien lo hace. Se muestra para una compra de ${money(TIER_REFERENCE_CAP_CENTS)}; sube un poco con una compra mayor, porque la tarjeta cobra más. El artículo lo pagas al costo.`,
+    minutesLabel: "min",
     whatLede:
       "La persona para quien hicimos esto está en una cama de hospital a las nueve de la noche, con sed, y no tiene a quién pedirle. Todo aquí sale de ahí.",
     services: [

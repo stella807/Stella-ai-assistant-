@@ -6,10 +6,10 @@ import {
   defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
   isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
   launchMarketNames, minutesFor, serviceFeeFor, customerServiceFeeFor, isGrabIncluded,
-  INCLUDED_GRAB_CATEGORY,
+  ERRAND_MILEAGE_CENTS, ERRAND_RATE_PER_HOUR_CENTS, ERRAND_TIERS, errandPayoutCents, findErrandTier,
 } from "@safehubby/core";
 import type {
-  AssistantProfile, ConciergeCategory, ConciergeTask, FlightInfo, NearbyStore, ProviderStatus, PlanId,
+  AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, FlightInfo, NearbyStore, ProviderStatus, PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { currentFix, type Fix } from "../native/location.ts";
@@ -122,7 +122,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   /** The typed cap, kept as text so a half-entered "40" is not parsed as $40
    *  and snapped away while somebody is still typing "40000". */
   const [capEntry, setCapEntry] = useState("");
-  const [quickTask, setQuickTask] = useState(false);
+  // How much work the errand is. Sets the runner's pay and the fee — see
+  // errand-tiers.ts. Only meaningful for grabbing something or running an errand.
+  const [errandTier, setErrandTier] = useState<ErrandTierId>("in-building");
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   // This month's no-fee grabs. Null until it loads, and treated as "none
   // left" until then: showing a fee and charging none is a pleasant surprise,
@@ -226,7 +228,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // than left to the checkbox below, so there is no way to land on this
   // plan's own combination the server would refuse: pick a category this
   // plan can reach, and it books at the rate that comes with it.
-  const effectiveQuickTask = (quickTask || planId === "free") && quickEligible;
+  // Every errand is booked as a tier now, and a tier is a quick task as far as
+  // access goes — so a free account can reach all of them.
+  const effectiveQuickTask = quickEligible;
+  const tier: ErrandTierId | undefined = quickEligible ? errandTier : undefined;
   // A quick task ("grab something", "run an errand") is meant to be
   // low-friction: type what you need, confirm it with a tap, done — the
   // roster-browsing screen below is the wrong amount of ceremony for a
@@ -263,11 +268,12 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const hourly = isHourlyCategory(category);
   const bookedHours = hourly ? clampHours(hours) : undefined;
   const usedThisMonth = includedGrabs?.used ?? Number.POSITIVE_INFINITY;
-  const feeIncluded = isGrabIncluded({ planId, category, quickTask: effectiveQuickTask, usedThisMonth });
+  const feeIncluded = isGrabIncluded({ planId, category, quickTask: effectiveQuickTask, errandTier: tier, usedThisMonth });
   const serviceFee = customerServiceFeeFor({
-    planId, category, quickTask: effectiveQuickTask, hours: bookedHours, usedThisMonth,
+    planId, category, quickTask: effectiveQuickTask, errandTier: tier, spendCapCents,
+    hours: bookedHours, usedThisMonth,
   });
-  const assistantPayout = assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours);
+  const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours);
   const totalHeld = spendCapCents + serviceFee;
   const resetsOn = includedGrabs
     ? new Date(includedGrabs.resetsAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })
@@ -319,7 +325,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     setError(null);
     try {
       const res = await api.bookConcierge({
-        category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask,
+        category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask, errandTier: tier,
         assistantId: autoAssistant.id,
       });
       onBooked(res.task);
@@ -502,7 +508,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               setRoster(null);
               setConfirming(false);
               setAutoAssistant(null);
-              if (!isQuickTaskEligible(c.id)) setQuickTask(false);
+              
               if (c.id !== "airport-pickup") {
                 setFlightNumber(""); setFlightDate(""); setFlightPreview(null); setFlightError(null);
               }
@@ -515,9 +521,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                 picker has, just for "what does a simple errand cost"
                 instead of "what does a bigger plan cost". */}
             <span className="category-tile-price">
-              from {money(c.id === INCLUDED_GRAB_CATEGORY
-                ? customerServiceFeeFor({ planId, category: c.id, quickTask: true, usedThisMonth })
-                : serviceFeeFor(c.id, isQuickTaskEligible(c.id), 1, defaultHoursFor(c.id)))}
+              from {money(isQuickTaskEligible(c.id)
+                ? customerServiceFeeFor({
+                  planId, category: c.id, quickTask: true, errandTier: "in-building", spendCapCents: 1_000, usedThisMonth,
+                })
+                : serviceFeeFor(c.id, false, 1, defaultHoursFor(c.id)))}
             </span>
           </button>
         ))}
@@ -615,23 +623,39 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         )}
       </div>
 
-      {quickEligible && planId !== "free" && (
-        <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
-          <input type="checkbox" checked={quickTask}
-            onChange={(e) => { setQuickTask(e.target.checked); setRoster(null); }} />
-          <span className="small">
-            This is quick and simple — book at the discounted rate.
-          </span>
-        </label>
-      )}
-      {/* Free books at the quick-task rate always — the checkbox above
-          would let someone switch to the plan they can't reach and hit a
-          402, so it says so instead of offering the choice. */}
-      {quickEligible && planId === "free" && (
-        <p className="tiny muted" style={{ margin: 0 }}>
-          Booked at the discounted rate, free of charge on your plan
-          {hasCapCeiling(category) ? ` — capped at ${dollars(base.maxCents)} spend.` : "."}
-        </p>
+      {/* How much work this is. The price follows the work — a soda from the
+          cafeteria and a blanket from a store across town are not the same
+          errand — and each row says what it will cost at the spend cap
+          chosen below, so nobody finds out at the confirm step. */}
+      {quickEligible && (
+        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 8 }}>
+          <legend className="small"><strong>How big an errand is it?</strong></legend>
+          {ERRAND_TIERS.map((t) => {
+            const fee = customerServiceFeeFor({
+              planId, category, quickTask: true, errandTier: t.id, spendCapCents, usedThisMonth,
+            });
+            return (
+              <label key={t.id} className="card card-quiet row-between" style={{ cursor: "pointer", gap: 10 }}>
+                <span className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+                  <input type="radio" name="errand-tier" checked={errandTier === t.id}
+                    onChange={() => { setErrandTier(t.id); setRoster(null); }} />
+                  <span>
+                    <strong className="small">{t.label}</strong>
+                    <span className="tiny muted" style={{ display: "block" }}>
+                      {t.example} · about {t.minutes} min
+                    </span>
+                  </span>
+                </span>
+                <span className="small charge-amount">{fee === 0 ? "No fee" : money(fee)}</span>
+              </label>
+            );
+          })}
+          {planId === "free" && hasCapCeiling(category) && (
+            <p className="tiny muted" style={{ margin: 0 }}>
+              Capped at {dollars(base.maxCents)} of spending on your plan.
+            </p>
+          )}
+        </fieldset>
       )}
 
       {/* Hours first, then the card. They are the two halves of an hourly
@@ -705,7 +729,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         <p className="tiny muted" style={{ margin: 0 }}>
           {hourly
             ? `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(PA_HOURLY_RATE_CENTS)}/hr.`
-            : `Pays your assistant for about ${minutesFor(category, effectiveQuickTask)} minutes of their time.`}
+            : `Pays your assistant for about ${tier ? findErrandTier(tier).minutes : minutesFor(category, effectiveQuickTask)} minutes of their time.`}
         </p>
         {/* What the person doing the work actually takes home, said plainly to
             the customer paying for it. It is their money, and "service fee" on
@@ -726,9 +750,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                   : `${includedGrabs?.remaining} of ${includedGrabs?.allowance} left this month; they come back on ${resetsOn}.`}
               </>
             : <>
-                {money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr{hourly ? "" : " for this kind of task"}. They
-                {" "}keep all of it — Safehubby's {money(serviceFee - assistantPayout)} is added on top of their rate,
-                {" "}never taken out of it.
+                {tier
+                  ? `${findErrandTier(tier).minutes} minutes at ${money(ERRAND_RATE_PER_HOUR_CENTS)}/hr${findErrandTier(tier).miles ? ` plus ${findErrandTier(tier).miles} miles at ${money(ERRAND_MILEAGE_CENTS)}` : ""}. `
+                  : `${money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr${hourly ? "" : " for this kind of task"}. `}
+                They keep all of it — the rest of the fee ({money(serviceFee - assistantPayout)}) is added on top
+                {" "}of their pay{tier ? ", and covers card processing and a few cents for us" : ""}.
               </>}
         </p>
         <div className="row-between" style={{ marginTop: 6 }}>
@@ -851,6 +877,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           spendCapCents={spendCapCents}
           hours={bookedHours}
           quickTask={effectiveQuickTask}
+          errandTier={tier}
           location={taskLocation}
           flight={isAirportPickup ? { flightNumber: flightNumber.trim(), date: flightDate } : undefined}
           onBooked={onBooked}

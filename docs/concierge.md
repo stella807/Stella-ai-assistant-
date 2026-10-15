@@ -194,6 +194,34 @@ quick job is short, not cheap, and the old $50 ceiling was rationing the
 purchase instead of the time. `validateConciergeRequest` rejects `quickTask: true` outright
 for an ineligible category or a cap above that lower ceiling.
 
+### Errand tiers
+
+Errands are priced by how much work they are (`errand-tiers.ts`), not by a flat
+label. The runner is paid **$16 an hour for the minutes the tier assumes, plus
+$0.70 a mile** (their own car). $16 is about 50% over what Puerto Rico pays
+personal-care aides (median about $10.50 an hour, O*NET/BLS) and inside what
+island families will pay. The fee is the runner's pay, the card processor's cut
+and **5 cents**, worked out from the spend cap chosen:
+
+| Tier | Example | Minutes / miles | Runner | Fee at a $20 purchase |
+|---|---|---|---|---|
+| In the building | Soda or snack from the cafeteria | 15 / 0 | $4.00 | $5.08 |
+| Nearby store | Charger, snacks, toiletries | 35 / 4 | $12.13 | $13.46 |
+| Shopping trip | Blanket, clothes, a few stops | 60 / 10 | $23.00 | $24.65 |
+| Wait in line | Restaurant order, pharmacy line | 50 / 6 | $17.53 | $19.02 |
+
+- **The fee grows with the item.** The card charges 2.9% + 30¢ on the whole hold,
+  so a fee sized for a $2 soda loses money on a $100 shop. At the full cap
+  Safehubby keeps at least 5¢ (a test checks eight caps on every tier); if less
+  is spent, slightly more. `CARD_FEE_*` are U.S. card prices — ATH Móvil and
+  Puerto Rico–issued cards cost differently, and that is the one place to change.
+- **Only the cheapest tier rides the monthly included grab**; a $23 shopping trip
+  is not something an allowance sized for $4 grabs can carry.
+- **Not handled:** parking. The mileage rate does not cover a paid garage, and
+  there is no way yet for a runner to add it to the hold.
+- A booking without an `errandTier` still prices at the older flat quick-task
+  rate, so existing API callers are unaffected; the app always sends one.
+
 ### Grabs included in the plan
 
 A quick grab is the one thing the customer pays no fee for, up to a monthly

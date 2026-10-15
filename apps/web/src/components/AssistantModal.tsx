@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, assistantPayoutFor,
+  CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, assistantPayoutFor, errandPayoutCents,
   describeAssistantCapacity, findRole,
 } from "@safehubby/core";
-import type { AssistantProfile, ConciergeCategory, ConciergeTask, VoiceMessage } from "@safehubby/core";
+import type { AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, VoiceMessage } from "@safehubby/core";
 import type { TaskTextMessage } from "../api.ts";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
@@ -32,7 +32,7 @@ const MESSAGE_POLL_MS = 10_000;
  * talking to the person they just hired would be a strange place to make
  * them re-orient.
  */
-export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, hours, location, flight, existingTask, onBooked, onClose }: {
+export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, errandTier, hours, location, flight, existingTask, onBooked, onClose }: {
   assistant: AssistantProfile;
   category: ConciergeCategory;
   note: string;
@@ -41,6 +41,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   hours?: number;
   /** Whether the subscriber opted into the discounted quick-task fee. */
   quickTask?: boolean;
+  /** How big an errand this is — prices the runner's pay and the fee. */
+  errandTier?: ErrandTierId;
   location: { lat: number; lng: number; label?: string };
   /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
   flight?: { flightNumber: string; date: string };
@@ -136,7 +138,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
   useEffect(() => {
     if (task) return;
-    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, peopleCount, hours })
+    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, errandTier, peopleCount, hours })
       .then((r) => {
         setServiceFeeCents(r.serviceFeeCents);
         setTotalCents(r.totalCents);
@@ -145,7 +147,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         if (r.peopleCount !== peopleCount) setPeopleCount(r.peopleCount);
       })
       .catch(() => {});
-  }, [task, category, note, location, spendCapCents, quickTask, peopleCount, hours]);
+  }, [task, category, note, location, spendCapCents, quickTask, errandTier, peopleCount, hours]);
 
   useEffect(() => () => {
     activeRecording.current?.cancel();
@@ -174,7 +176,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     setError(null);
     try {
       const res = await api.bookConcierge({
-        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, peopleCount, hours, flight,
+        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, errandTier, peopleCount, hours, flight,
       });
       setTask(res.task);
       onBooked(res.task);
@@ -343,7 +345,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
                 numbers don't add up; this line is the one that actually adds up. */}
             <div className="row-between tiny muted">
               <span>Your assistant is paid</span>
-              <span className="charge-amount">{money(assistantPayoutFor(category, quickTask, peopleCount, hours))}</span>
+              <span className="charge-amount">{money(errandTier ? errandPayoutCents(errandTier) : assistantPayoutFor(category, quickTask, peopleCount, hours))}</span>
             </div>
             <div className="row-between small">
               <strong>Held on your card now</strong>

@@ -1,7 +1,7 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
-  EliteBooking, EliteService, EliteServiceId, FlightInfo,
+  EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus,
   RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
@@ -410,7 +410,7 @@ export const api = {
   placeSearch: (query: string, near: { lat: number; lng: number }) =>
     request<{ places: NearbyStore[] }>(
       "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
-  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; peopleCount?: number; hours?: number }) =>
+  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; errandTier?: ErrandTierId; peopleCount?: number; hours?: number }) =>
     request<{
       /** Null when Safehubby's own roster is doing the work — there is no
        *  supplier to quote, the rate card already decided the price. */
@@ -439,7 +439,7 @@ export const api = {
         + `&lat=${location.lat}&lng=${location.lng}${quickTask ? "&quickTask=true" : ""}`),
   bookConcierge: (input: {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
-    spendCapCents: number; assistantId?: string; quickTask?: boolean; peopleCount?: number;
+    spendCapCents: number; assistantId?: string; quickTask?: boolean; errandTier?: ErrandTierId; peopleCount?: number;
     hours?: number;
     /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
     flight?: { flightNumber: string; date: string };

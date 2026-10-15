@@ -1,0 +1,113 @@
+import type { ConciergeCategory } from "./concierge.ts";
+
+/**
+ * Errands priced by how much work they are, with a fee sized so Safehubby
+ * keeps five cents on every one.
+ *
+ * **The runner.** Paid $16 an hour for the minutes the tier assumes, plus
+ * $0.70 a mile because they drive their own car. $16 is deliberately well
+ * above what Puerto Rico pays home-care and personal-care aides — a median of
+ * about $10.50 an hour (BLS/O*NET) — while staying inside the price band the
+ * island's families will actually pay. The old flat quick task paid $4.00 for
+ * ten minutes, which is $24 an hour on paper and under $7 for a real
+ * thirty-five minute charger run; pay by the work, not by the label.
+ *
+ * **The fee.** The customer pays the runner's pay, the card processor's cut,
+ * and five cents. The card cut is a percentage of the *whole* hold — item and
+ * fee together — so a flat fee sized for a $2 soda loses money on a $100
+ * shop. The fee is worked out from the spend cap actually chosen, which also
+ * means somebody buying a larger item pays for the processing of a larger
+ * item, and nobody else does.
+ *
+ * Five cents is what the owner asked for. It is a floor that holds at the
+ * full cap; an errand that costs less than its cap earns slightly more.
+ *
+ * `CARD_FEE_*` are U.S. card pricing. ATH Móvil and Puerto Rico–issued cards
+ * are priced differently; when the processor for a rail is known, this is the
+ * one place to change.
+ */
+
+export const ERRAND_RATE_PER_HOUR_CENTS = 1_600;
+/** IRS standard mileage rate. They drive their own car and are not reimbursed
+ *  for it any other way. */
+export const ERRAND_MILEAGE_CENTS = 70;
+export const CARD_FEE_RATE = 0.029;
+export const CARD_FEE_FIXED_CENTS = 30;
+export const ERRAND_PROFIT_FLOOR_CENTS = 5;
+
+export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "wait-in-line";
+
+export interface ErrandTier {
+  id: ErrandTierId;
+  label: string;
+  /** What this looks like, in words a person in a hospital bed recognises. */
+  example: string;
+  /** The time the tier is priced on, including the parts nobody counts:
+   *  parking, security, a visitor badge, the elevator. */
+  minutes: number;
+  miles: number;
+}
+
+export const ERRAND_TIERS: ErrandTier[] = [
+  { id: "in-building", label: "In the building", example: "A soda or a snack from the cafeteria or gift shop", minutes: 15, miles: 0 },
+  { id: "nearby-store", label: "Nearby store", example: "A phone charger, snacks, toiletries", minutes: 35, miles: 4 },
+  { id: "shopping-trip", label: "Shopping trip", example: "A blanket, clothes, a few stops", minutes: 60, miles: 10 },
+  { id: "wait-in-line", label: "Wait in line", example: "A restaurant order or a pharmacy line", minutes: 50, miles: 6 },
+];
+
+export function findErrandTier(id: string): ErrandTier {
+  const found = ERRAND_TIERS.find((t) => t.id === id);
+  if (!found) throw new Error(`Unknown errand tier: ${id}`);
+  return found;
+}
+
+/** Tiers price a thing somebody fetches. Sitting with a person is by the
+ *  hour, and a tier there would be a second price that disagrees with it. */
+export function validateErrandTier(id: string, category: ConciergeCategory): void {
+  findErrandTier(id);
+  if (category !== "grab-something" && category !== "run-errand") {
+    throw new Error("An errand tier applies only to grabbing something or running an errand.");
+  }
+}
+
+/** What the runner is paid. The same whatever the customer is charged. */
+export function errandPayoutCents(id: ErrandTierId): number {
+  const t = findErrandTier(id);
+  return Math.round((ERRAND_RATE_PER_HOUR_CENTS * t.minutes) / 60 + ERRAND_MILEAGE_CENTS * t.miles);
+}
+
+/** What the card processor takes on a hold of this size, rounded up — against
+ *  us, so the profit floor is never flattered by rounding. */
+export function errandCardCostCents(holdCents: number): number {
+  return Math.ceil(holdCents * CARD_FEE_RATE + CARD_FEE_FIXED_CENTS);
+}
+
+/**
+ * The service fee: the smallest, to the cent, that still leaves
+ * `ERRAND_PROFIT_FLOOR_CENTS` after the runner and the card processor.
+ *
+ * Solved in closed form and then checked, because the processor's cut is
+ * itself a percentage of the fee being solved for, and rounding it up can
+ * push the answer a cent short.
+ */
+export function errandFeeCents(id: ErrandTierId, spendCapCents: number): number {
+  const payout = errandPayoutCents(id);
+  const need = payout + CARD_FEE_FIXED_CENTS + ERRAND_PROFIT_FLOOR_CENTS + CARD_FEE_RATE * spendCapCents;
+  let fee = Math.ceil(need / (1 - CARD_FEE_RATE));
+  while (fee - payout - errandCardCostCents(spendCapCents + fee) < ERRAND_PROFIT_FLOOR_CENTS) fee += 1;
+  return fee;
+}
+
+/** What Safehubby keeps if the whole cap is spent — the worst case. */
+export function errandProfitCents(id: ErrandTierId, spendCapCents: number): number {
+  const fee = errandFeeCents(id, spendCapCents);
+  return fee - errandPayoutCents(id) - errandCardCostCents(spendCapCents + fee);
+}
+
+/** The amount charged for the tier's fee and the whole hold, together. */
+export function errandPricing(id: ErrandTierId, spendCapCents: number): {
+  payoutCents: number; serviceFeeCents: number; totalCents: number;
+} {
+  const serviceFeeCents = errandFeeCents(id, spendCapCents);
+  return { payoutCents: errandPayoutCents(id), serviceFeeCents, totalCents: spendCapCents + serviceFeeCents };
+}

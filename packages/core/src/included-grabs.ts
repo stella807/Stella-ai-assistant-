@@ -2,6 +2,7 @@ import type { PlanId } from "./billing.ts";
 import {
   isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
 } from "./concierge.ts";
+import { errandFeeCents, type ErrandTierId } from "./errand-tiers.ts";
 
 /**
  * Grabs a plan includes every month, with no service fee.
@@ -66,6 +67,9 @@ interface GrabInput {
   planId: PlanId;
   category: ConciergeCategory;
   quickTask?: boolean;
+  /** Only the cheapest tier is included. A shopping trip is $23 of runner pay;
+   *  an allowance sized for $4 grabs cannot carry it. */
+  errandTier?: ErrandTierId;
   /** This month's included grabs already used — see `includedGrabsUsedIn`. */
   usedThisMonth: number;
 }
@@ -80,6 +84,7 @@ interface GrabInput {
 export function isGrabIncluded(input: GrabInput): boolean {
   if (input.category !== INCLUDED_GRAB_CATEGORY) return false;
   if (!(input.quickTask === true && isQuickTaskEligible(input.category))) return false;
+  if (input.errandTier !== undefined && input.errandTier !== "in-building") return false;
   const remaining = remainingIncludedGrabs(includedGrabAllowanceFor(input.planId), input.usedThisMonth);
   return remaining === null || remaining > 0;
 }
@@ -89,8 +94,11 @@ export function isGrabIncluded(input: GrabInput): boolean {
  * much of this month's allowance is used. The server charges this and the app
  * shows it, so the two cannot disagree.
  */
-export function customerServiceFeeFor(input: GrabInput & { peopleCount?: number; hours?: number }): number {
+export function customerServiceFeeFor(
+  input: GrabInput & { peopleCount?: number; hours?: number; spendCapCents?: number },
+): number {
   if (isGrabIncluded(input)) return 0;
+  if (input.errandTier !== undefined) return errandFeeCents(input.errandTier, input.spendCapCents ?? 0);
   return serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours);
 }
 

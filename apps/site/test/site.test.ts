@@ -4,7 +4,7 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  FREE_INCLUDED_GRABS, LANGS, PHONE, clubDuesRangeCents, clubExperiences, featuredPlans,
+  FREE_INCLUDED_GRABS, LANGS, PHONE, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
   formatPhone, money, phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
@@ -85,6 +85,20 @@ describe("the marketing site", () => {
       expect(pages[lang], `grab from $0 in ${lang}`).toContain(`${fromWord} $0`);
       expect(pages[lang], `allowance in ${lang}`).toContain(String(FREE_INCLUDED_GRABS));
     }
+  });
+
+  it("lists the four errand sizes with the fee the app charges for each", () => {
+    for (const lang of LANGS) {
+      for (const row of errandTierRows(lang)) {
+        expect(pages[lang], `${row.id} in ${lang}`).toContain(money(row.feeCents));
+        expect(pages[lang], `${row.label} in ${lang}`).toContain(row.label);
+      }
+      expect(errandTierRows(lang)).toHaveLength(4);
+    }
+    // Dearer work costs more, in the order the list reads.
+    const fees = errandTierRows("en").map((r) => r.feeCents);
+    expect(fees[1]!).toBeGreaterThan(fees[0]!);
+    expect(fees[2]!).toBeGreaterThan(fees[1]!);
   });
 
   it("never claims an errand is free", () => {
@@ -279,14 +293,14 @@ describe("the page stays simple", () => {
     }
   });
 
-  it("stays under seven hundred and fifty words of body copy", () => {
+  it("stays under eight hundred and fifty words of body copy", () => {
     // 810 words was the measurement that started this, for a page that then
-    // sold three tiers and no prices. It now sells seven, the Club, and a
-    // price per task in fewer words than that. The cap moves when real
-    // content arrives and never to make room for prose.
+    // sold three tiers and no prices. It now sells seven, the Club, a
+    // price per task and a priced list of errand sizes. The cap moves when
+    // real content arrives and never to make room for prose.
     for (const lang of LANGS) {
       const words = pages[lang].replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean);
-      expect(words.length, `words in ${lang}`).toBeLessThan(750);
+      expect(words.length, `words in ${lang}`).toBeLessThan(850);
     }
   });
 });

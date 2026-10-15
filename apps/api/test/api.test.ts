@@ -12,7 +12,7 @@ import { revolutCards } from "../src/adapters/cards.ts";
 import {
   ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
   eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
-  settleCharge, setFlag, type CardIssuingPort,
+  errandFeeCents, errandPayoutCents, settleCharge, setFlag, type CardIssuingPort,
 } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
@@ -3948,6 +3948,71 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(res.json.inHouse).toBe(1);
     expect(res.json.assistants[0].name).toBe("Rosa Delgado");
     expect(res.json.available).toBe(1);
+  });
+
+  describe("errand tiers", () => {
+    const book = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
+      call("POST", "/api/concierge/tasks", {
+        category: "run-errand", quickTask: true, errandTier: "nearby-store",
+        note: "A phone charger for room 412.", location: IN_TEXAS, spendCapCents: 2_000,
+        acknowledgedDisclosures: true, assistantId, ...over,
+      }, token);
+    const runner = async () => (await hireOne({
+      role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com`,
+    })).json.assistant.id as string;
+
+    it("quotes the tier's fee, sized to the cap", async () => {
+      await runner();
+      const q = await call("POST", "/api/concierge/quote", {
+        category: "run-errand", quickTask: true, errandTier: "nearby-store",
+        note: "A phone charger.", location: IN_TEXAS, spendCapCents: 2_000,
+      }, jordan);
+      expect(q.status, JSON.stringify(q.json)).toBe(200);
+      expect(q.json.serviceFeeCents).toBe(errandFeeCents("nearby-store", 2_000));
+      expect(q.json.totalCents).toBe(2_000 + errandFeeCents("nearby-store", 2_000));
+    });
+
+    it("pays the runner the tier's pay and stamps the tier on the task", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      const r = await book(jordan, kit);
+      expect(r.status, JSON.stringify(r.json)).toBe(200);
+      expect(r.json.task.assistantPayoutCents).toBe(errandPayoutCents("nearby-store"));
+      expect(r.json.task.serviceFeeCents).toBe(errandFeeCents("nearby-store", 2_000));
+      expect(r.json.task.errandTier).toBe("nearby-store");
+    });
+
+    it("keeps five cents or more on the booking, from what was actually charged", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      for (const [tier, cap] of [["in-building", 1_500], ["shopping-trip", 5_000], ["wait-in-line", 2_000]] as const) {
+        const r = await book(jordan, kit, { errandTier: tier, spendCapCents: cap });
+        expect(r.status, `${tier}: ${JSON.stringify(r.json)}`).toBe(200);
+        const t = r.json.task;
+        if (t.feeIncluded) continue;
+        const charge = store.data.charges.find((c) => c.id === t.chargeId)!;
+        const card = Math.ceil(charge.amountCents * 0.029 + 30);
+        expect(t.serviceFeeCents - t.assistantPayoutCents - card, tier).toBeGreaterThanOrEqual(5);
+      }
+    });
+
+    it("refuses a tier on work that is paid by the hour, and a tier that does not exist", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      const hourly = await book(jordan, kit, { category: "wait-with-someone", hours: 2, quickTask: false });
+      expect(hourly.status).toBe(400);
+      const bogus = await book(jordan, kit, { errandTier: "teleport" });
+      expect(bogus.status).toBe(400);
+    });
+
+    it("includes only the cheapest tier in the free allowance", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      const cheap = await book(jordan, kit, { errandTier: "in-building", category: "grab-something", spendCapCents: 500 });
+      expect(cheap.json.task.serviceFeeCents).toBe(0);
+      const dear = await book(jordan, kit, { errandTier: "nearby-store", category: "grab-something", spendCapCents: 500 });
+      expect(dear.json.task.serviceFeeCents).toBe(errandFeeCents("nearby-store", 500));
+    });
   });
 
   describe("grabs included in the plan", () => {

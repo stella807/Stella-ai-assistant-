@@ -41,6 +41,7 @@ import {
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
   includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs,
+  errandPayoutCents, errandFeeCents, type ErrandTierId,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
@@ -378,6 +379,7 @@ function conciergeInputFrom(body: any): ConciergeTaskInput {
     location: { lat: body?.location?.lat, lng: body?.location?.lng, label: body?.location?.label },
     spendCapCents: Number(body?.spendCapCents),
     quickTask: body?.quickTask === true,
+    ...(body?.errandTier === undefined ? {} : { errandTier: String(body.errandTier) as ErrandTierId }),
     ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
     ...(body?.hours === undefined ? {} : { hours: Number(body.hours) }),
     ...(body?.flight === undefined
@@ -2522,8 +2524,15 @@ export const routes: Record<string, Handler> = {
     const hours = bookedHoursFor(input);
     const planId = planOf(ctx, me);
     const usedThisMonth = includedGrabsUsed(ctx, me);
-    const feeIncluded = isGrabIncluded({ planId, category: input.category, quickTask: input.quickTask, usedThisMonth });
-    const serviceFeeCents = feeIncluded ? 0 : serviceFeeFor(input.category, input.quickTask, people, hours);
+    const feeIncluded = isGrabIncluded({
+      planId, category: input.category, quickTask: input.quickTask, errandTier: input.errandTier, usedThisMonth,
+    });
+    // A tier prices the errand by its work, sized to the cap chosen; without
+    // one the older flat quick-task rate still applies.
+    const serviceFeeCents = feeIncluded ? 0
+      : input.errandTier
+        ? errandFeeCents(input.errandTier, input.spendCapCents)
+        : serviceFeeFor(input.category, input.quickTask, people, hours);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
       serviceFeeCents,
@@ -2587,7 +2596,9 @@ export const routes: Record<string, Handler> = {
     const hoursBooked = bookedHoursFor(input);
     // Paid in full whether or not the customer pays a fee — see
     // included-grabs.ts. The fee itself is decided below, after the awaits.
-    const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked);
+    const assistantPayoutCents = input.errandTier
+      ? errandPayoutCents(input.errandTier)
+      : assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     // Only the partner network gets quoted. Our own roster is not a supplier
@@ -2607,9 +2618,12 @@ export const routes: Record<string, Handler> = {
     // until the task is saved — see `holdIncludedGrab`.
     const feeIncluded = isGrabIncluded({
       planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask,
-      usedThisMonth: includedGrabsUsed(ctx, me),
+      errandTier: input.errandTier, usedThisMonth: includedGrabsUsed(ctx, me),
     });
-    const serviceFeeCents = feeIncluded ? 0 : serviceFeeFor(input.category, input.quickTask, peopleCount, hoursBooked);
+    const serviceFeeCents = feeIncluded ? 0
+      : input.errandTier
+        ? errandFeeCents(input.errandTier, input.spendCapCents)
+        : serviceFeeFor(input.category, input.quickTask, peopleCount, hoursBooked);
     const totalCents = input.spendCapCents + serviceFeeCents;
     const releaseIncludedGrab = feeIncluded ? holdIncludedGrab(me) : () => {};
 
@@ -2678,7 +2692,8 @@ export const routes: Record<string, Handler> = {
           location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
           assistantPayoutCents, peopleCount,
           ...(hoursBooked === undefined ? {} : { hoursBooked }),
-          quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}), status: "in-progress",
+          quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
+          ...(input.errandTier ? { errandTier: input.errandTier } : {}), status: "in-progress",
           ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),
           provider: booked.provider, providerTaskId: booked.taskId, assistantId,
           assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,

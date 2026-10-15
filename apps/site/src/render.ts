@@ -1,5 +1,5 @@
 import {
-  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences,
+  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences, errandTierRows,
   featuredPlans, formatPhone, money, phoneHref, startingPriceCents, whatsappHref,
   whatsappLabel, type Lang,
 } from "./content.ts";
@@ -158,6 +158,13 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
         </li>`;
         }).join("\n        ")}
       </ul>
+      <h3 class="tiers-heading">${esc(c.tiersHeading)}</h3>
+      <ul class="tiers">
+        ${errandTierRows(lang).map((t) => `<li><span><strong>${esc(t.label)}</strong>
+          <span class="tier-eg">${esc(t.example)} · ~${t.minutes} ${esc(c.minutesLabel)}</span></span>
+          <span class="tier-fee">${esc(money(t.feeCents))}</span></li>`).join("\n        ")}
+      </ul>
+      <p class="note">${esc(c.tiersNote)}</p>
     </div>
   </section>
 
@@ -377,6 +384,14 @@ h2 {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px;
 }
 .service h3 { font-family: var(--display); font-size: 18px; letter-spacing: -0.015em; margin: 0 0 2px; }
+.tiers-heading { font-family: var(--display); font-size: 19px; letter-spacing: -0.015em; margin: 26px 0 8px; }
+.tiers { list-style: none; margin: 0; padding: 0; max-width: 640px; }
+.tiers li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
+  padding: 10px 0; border-bottom: 1px solid var(--rule);
+}
+.tier-eg { display: block; color: var(--ink-soft); font-size: 15px; }
+.tier-fee { font-family: var(--display); font-size: 20px; white-space: nowrap; }
 .service-price {
   margin: 0 0 3px !important; font-size: 14px; font-weight: 700;
   letter-spacing: 0.02em; color: var(--amber) !important;
