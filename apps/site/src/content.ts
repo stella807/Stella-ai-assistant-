@@ -32,26 +32,30 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-producti
 export const APP_URL = process.env.APP_URL ?? "https://safehubby-app-production.up.railway.app";
 
 /**
- * The number to call, digits only with country code.
+ * Where to reach a person. An email, not a phone number — chosen by the owner.
  *
  * It sits in the header on every page rather than only in a contact section,
- * because the reader this site is written for is often somebody's 78-year-old
- * father who will phone before he reads — and a daughter who is already
- * worried should not have to scroll a sales page to find a human.
+ * so somebody who is worried does not have to scroll a sales page to find a
+ * human. One route only: two ways to reach somebody is two decisions for a
+ * reader who is already worried about a parent.
+ *
+ * A plain address in a page will be scraped by spam harvesters. That is the
+ * price of it being a link anybody can tap; a contact form would need a
+ * server, which this site deliberately does not have.
  */
-export const PHONE = "19392450171";
+export const CONTACT_EMAIL = "le2596@gmail.com";
 
-/** +1 (939) 245-0171, from 19392450171. Falls back to a plain + form for
- *  anything that is not a NANP number. */
+/** A link that opens the reader's mail app. */
+export function mailtoHref(address: string): string {
+  return `mailto:${address.trim()}`;
+}
+
+/** +1 (787) 555-0147, from 17875550147. Falls back to a plain + form for
+ *  anything that is not a NANP number. Only the WhatsApp line uses it now. */
 export function formatPhone(digits: string): string {
   const d = digits.replace(/\D/g, "");
   const m = /^1(\d{3})(\d{3})(\d{4})$/.exec(d);
   return m ? `+1 (${m[1]}) ${m[2]}-${m[3]}` : `+${d}`;
-}
-
-/** A dialable link, so tapping it on a phone starts the call. */
-export function phoneHref(digits: string): string {
-  return `tel:+${digits.replace(/\D/g, "")}`;
 }
 
 /**
@@ -320,7 +324,7 @@ export const COPY: Record<Lang, Copy> = {
     pricingNote:
       `Sign-ups open ${openDate("en")}. Service goes live ${liveDate("en")}, and nobody is charged a day before that. Sign up early and keep ${discountPercent}% off your first year.`,
 
-    contactHeading: "Talk to a person",
+    contactHeading: "Write to us",
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
 
     workLink: "Work with us",
@@ -385,7 +389,7 @@ export const COPY: Record<Lang, Copy> = {
     pricingNote:
       `Los registros abren el ${openDate("es")}. El servicio arranca el ${liveDate("es")}, y a nadie se le cobra ni un día antes. Regístrate temprano y quédate con ${discountPercent}% de descuento el primer año.`,
 
-    contactHeading: "Habla con una persona",
+    contactHeading: "Escríbenos",
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
 
     workLink: "Trabaja con nosotros",

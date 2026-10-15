@@ -1,6 +1,6 @@
 import {
-  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences, errandTierRows,
-  featuredPlans, formatPhone, money, phoneHref, startingPriceCents, whatsappHref,
+  APP_URL, CONTACT_EMAIL, COPY, ORIGIN, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences, errandTierRows,
+  featuredPlans, mailtoHref, money, startingPriceCents, whatsappHref,
   whatsappLabel, type Lang,
 } from "./content.ts";
 
@@ -79,7 +79,7 @@ function header(lang: Lang, home: string, otherHref: string, label: string): str
   return `<header class="site-head">
   <div class="bar">
     <a class="wordmark" href="${home}">Safehubby<span class="dot">.</span></a>
-    <a class="head-phone" href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
+    <a class="head-contact" href="${mailtoHref(CONTACT_EMAIL)}">${esc(CONTACT_EMAIL)}</a>
     <a class="lang" href="${otherHref}" hreflang="${lang === "en" ? "es" : "en"}">${esc(label)}</a>
   </div>
 </header>`;
@@ -206,8 +206,8 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
     <div class="band">
       <h2>${esc(c.contactHeading)}</h2>
       <p class="lede">${esc(c.contactBody)}</p>
-      <p class="contact-phone">
-        <a href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
+      <p class="contact-email">
+        <a href="${mailtoHref(CONTACT_EMAIL)}">${esc(CONTACT_EMAIL)}</a>
       </p>
 ${WHATSAPP
   ? `      <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">WhatsApp ${esc(whatsappLabel(WHATSAPP))}</a></p>`
@@ -317,8 +317,8 @@ a { color: var(--amber); }
 }
 .dot { color: var(--amber); }
 /* Pushed to the right of the wordmark and left of the language toggle, and
-   never allowed to wrap mid-number. */
-.head-phone {
+   never allowed to wrap mid-address. */
+.head-contact {
   margin-left: auto;
   font-family: var(--display); font-size: clamp(16px, 4.2vw, 20px);
   letter-spacing: -0.02em; text-decoration: none; white-space: nowrap;
@@ -329,13 +329,13 @@ a { color: var(--amber); }
 @media (max-width: 460px) {
   .bar { gap: 10px; padding: 11px 16px; }
   .wordmark { font-size: 20px; }
-  .head-phone { font-size: 16px; }
+  .head-contact { font-size: 16px; }
   .lang { font-size: 14px; }
 }
 @media (max-width: 380px) {
   .bar { gap: 8px; padding: 10px 12px; }
   .wordmark { font-size: 18px; }
-  .head-phone { font-size: 15px; }
+  .head-contact { font-size: 15px; }
   .lang { font-size: 13px; }
 }
 
@@ -464,15 +464,15 @@ h2 {
   letter-spacing: -0.025em; margin: 0 0 12px;
 }
 
-/* The number is the loudest thing in the section on purpose. */
-.contact-phone {
+/* The address is the loudest thing in the section on purpose. */
+.contact-email {
   font-family: var(--display);
-  font-size: clamp(30px, 6.4vw, 48px);
-  line-height: 1.05;
+  font-size: clamp(22px, 5.6vw, 44px);
+  line-height: 1.1; overflow-wrap: anywhere;
   letter-spacing: -0.03em;
   margin: 0;
 }
-.contact-phone a { text-decoration: none; }
+.contact-email a { text-decoration: none; }
 .contact-wa {
   font-size: clamp(17px, 2.6vw, 20px); font-weight: 600;
   letter-spacing: -0.01em; margin: 10px 0 0;

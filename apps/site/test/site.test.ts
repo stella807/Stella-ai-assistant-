@@ -4,8 +4,8 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  INCLUDED_GRABS_ENTRY, LANGS, PHONE, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
-  formatPhone, money, phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
+  CONTACT_EMAIL, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
+  formatPhone, mailtoHref, money, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { HEADERS, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
@@ -204,34 +204,37 @@ describe("the marketing site", () => {
 });
 
 describe("reaching a person", () => {
-  it("puts the number in the header, not only at the foot of the page", () => {
-    // The reader is often somebody's 78-year-old father, or a daughter who is
-    // already worried. Making either scroll the whole page to find a phone
-    // number is the single worst thing this site could do.
+  it("puts the address in the header, not only at the foot of the page", () => {
+    // A worried reader should not have to scroll a sales page to find a human.
     for (const lang of LANGS) {
       const header = pages[lang].slice(0, pages[lang].indexOf("</header>"));
-      expect(header, `phone in ${lang} header`).toContain(phoneHref(PHONE));
+      expect(header, `email in ${lang} header`).toContain(mailtoHref(CONTACT_EMAIL));
     }
   });
 
-  it("offers a number to call, dialable, on every page", () => {
+  it("offers a working email link and the address, on every page", () => {
     for (const [name, body] of Object.entries(every)) {
-      expect(body, name).toContain(phoneHref(PHONE));
-      expect(body, name).toContain(formatPhone(PHONE));
+      expect(body, name).toContain(`href="${mailtoHref(CONTACT_EMAIL)}"`);
+      expect(body, name).toContain(`>${CONTACT_EMAIL}<`);
     }
   });
 
-  it("offers the phone and nothing else to contact", () => {
-    // Deliberately one route. Two ways to reach somebody is two decisions for
-    // a reader who is already worried about a parent.
+  it("offers the email and nothing else to contact", () => {
+    // Deliberately one route. The phone number was removed at the owner's
+    // direction; it must not creep back in as a tel: link or printed digits.
     for (const [name, body] of Object.entries(every)) {
-      expect(body, name).not.toContain("mailto:");
+      expect(body, name).not.toContain("tel:");
+      expect(body, name).not.toMatch(/\(939\)|939-245|9392450171/);
     }
   });
 
-  it("formats a Puerto Rico number the way somebody would read it aloud", () => {
-    expect(formatPhone("19392450171")).toBe("+1 (939) 245-0171");
-    expect(phoneHref("+1 (939) 245-0171")).toBe("tel:+19392450171");
+  it("builds a mailto link from an address", () => {
+    expect(mailtoHref(" a@b.co ")).toBe("mailto:a@b.co");
+    expect(CONTACT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
+  });
+
+  it("formats a NANP number the way somebody would read it aloud, for WhatsApp", () => {
+    expect(formatPhone("17875550147")).toBe("+1 (787) 555-0147");
     // Anything that is not a NANP number keeps its digits rather than being
     // forced into a shape it does not have.
     expect(formatPhone("34911223344")).toBe("+34911223344");
