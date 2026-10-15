@@ -123,30 +123,35 @@ to call 911, and you will never be second-guessed for doing it.
 # 2. Errand runner
 
 **Location:** Puerto Rico · Texas · Los Angeles
-**Pay:** $4.00 per task (roughly 10 minutes of work — $24.00/hr back to back)
+**Pay:** $4.00 to $23.00 per task by size, plus $0.70 a mile — see below
 **Type:** Per-job, flexible hours · [TO CONFIRM: classification]
 **Starts:** 1 December 2026
 
 ## What the job is
 
-Short, bounded pickups. Someone needs water, food, a phone charger, a
-pharmacy item. You get it and bring it to them. One counter and back.
+Bounded pickups and errands: water, food, a phone charger, a blanket, a
+pharmacy item, a restaurant order. Many customers are older people who are
+alone in a hospital. You get it and bring it to them.
 
 This is the quickest way onto the roster and the most flexible thing we
 offer — you take what you want, when you are around.
 
 ## What you get paid
 
-$4.00 per completed task. These are built to take about ten minutes, which is
-$24.00/hr if the jobs come back to back — priced at the top of the real
-errand-running range, not the middle of it: Glassdoor puts the job at ~$20/hr
-and Salary.com at ~$19/hr; Instacart and DoorDash, the closest gig-economy
-comparison, run $15-26/hr net. If a job turns out to be bigger than a quick
-pickup, it should have been booked as a personal assistant job at $35.00/hr,
-and you can say so.
+A fixed amount per task, set by how much work it is and shown before you
+accept. It is **$16.00 an hour for the minutes the task assumes, plus $0.70 a
+mile** for your own car (`errand-tiers.ts` is the source of truth):
 
-The customer's purchase goes on a card we fund, capped at what they set. Your
-own money is never involved.
+| Size | Example | Minutes / miles | You are paid |
+|---|---|---|---|
+| In the building | Cafeteria soda or snack | 15 / 0 | $4.00 |
+| Nearby store | Charger, toiletries | 35 / 4 | $12.13 |
+| Shopping trip | Blanket, clothes, a few stops | 60 / 10 | $23.00 |
+| Wait in line | Restaurant order, pharmacy line | 50 / 6 | $17.53 |
+
+$16 is about 50% above what Puerto Rico pays personal-care aides (median about
+$10.50 an hour). The customer's purchase goes on a card we fund, capped at
+what they set. Your own money is never involved.
 
 Pay runs every two weeks.
 
@@ -165,12 +170,14 @@ Pay runs every two weeks.
 
 ## The honest part
 
-$24.00/hr only holds if the jobs come back to back — a quiet stretch between
-them brings the real average down. Nobody should take this expecting a full
-income from it; it is designed as flexible work you fit around what you are
-already doing, and pretending otherwise would waste your time and ours. If
-you want hours you can plan a week around, apply for personal assistant or
-one of the desk roles instead.
+The hourly figure only holds if tasks come back to back; a quiet stretch
+between them brings the real average down. Nobody should take this expecting
+a full income from it. It is flexible work you fit around what you are already
+doing. If you want hours you can plan a week around, apply for personal
+assistant or one of the desk roles instead.
+
+Parking is not covered by the mileage rate, and there is not yet a way to
+claim it.
 
 **Apply:** Careers → Errand runner, in the app.
 
