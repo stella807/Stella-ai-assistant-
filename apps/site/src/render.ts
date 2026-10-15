@@ -1,6 +1,7 @@
 import {
-  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, WORK_COPY, featuredPlans, formatPhone,
-  money, phoneHref, whatsappHref, whatsappLabel, type Lang,
+  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences,
+  featuredPlans, formatPhone, money, phoneHref, startingPriceCents, whatsappHref,
+  whatsappLabel, type Lang,
 } from "./content.ts";
 
 /**
@@ -143,10 +144,19 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
       <h2>${esc(c.whatHeading)}</h2>
       <p class="lede">${esc(c.whatLede)}</p>
       <ul class="services">
-        ${c.services.map((s) => `<li class="service">
+        ${c.services.map((s) => {
+          /* The price is read from the rate card, not written here. A
+             marketing page quoting a stale number to somebody about to pay
+             is the whole reason this site is generated. */
+          const price = s.category
+            ? `${esc(c.fromLabel)} ${esc(money(startingPriceCents(s.category)))}`
+            : esc(s.priceNote ?? "");
+          return `<li class="service">
           <h3>${esc(s.title)}</h3>
+          ${price ? `<p class="service-price">${price}</p>` : ""}
           <p>${esc(s.body)}</p>
-        </li>`).join("\n        ")}
+        </li>`;
+        }).join("\n        ")}
       </ul>
     </div>
   </section>
@@ -167,6 +177,22 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
     </div>
     <p class="more-plans">${esc(c.morePlans)}</p>
     <p class="note">${esc(c.pricingNote)}</p>
+
+    <!-- An add-on rather than a rung: it sits on top of whatever plan
+         somebody is already on, so it is its own card below the ladder
+         instead of an eighth tile in it. -->
+    <aside class="club">
+      <h3>${esc(c.clubHeading)}</h3>
+      <p class="club-dues">${esc(
+        c.clubDues
+          .replace("{base}", money(clubDuesRangeCents().base))
+          .replace("{low}", money(clubDuesRangeCents().low))
+          .replace("{high}", money(clubDuesRangeCents().high)),
+      )}</p>
+      <p>${esc(c.clubBody)}</p>
+      <p class="club-rotation"><strong>${esc(c.clubRotation)}</strong> ${esc(clubExperiences().join(" · "))}</p>
+      <p class="small club-perk">${esc(c.clubPerk)}</p>
+    </aside>
   </section>
 
   <section class="bleed bleed-accent">
@@ -351,6 +377,10 @@ h2 {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px;
 }
 .service h3 { font-family: var(--display); font-size: 18px; letter-spacing: -0.015em; margin: 0 0 2px; }
+.service-price {
+  margin: 0 0 3px !important; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.02em; color: var(--amber) !important;
+}
 .service p { margin: 0; color: var(--ink-soft); font-size: 16.5px; line-height: 1.45; }
 
 /* ---------- Plans ---------- */
@@ -394,6 +424,21 @@ h2 {
 }
 .plan-blurb { margin: 0; font-size: 16px; color: var(--ink-soft); line-height: 1.45; }
 .more-plans { margin: 16px 0 0; font-size: 16.5px; color: var(--ink-soft); }
+
+/* ---------- The club ---------- */
+.club {
+  margin: 26px 0 0; padding: 22px;
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px;
+}
+.club h3 { font-family: var(--display); font-size: 22px; letter-spacing: -0.02em; margin: 0 0 8px; }
+.club p { margin: 0 0 12px; color: var(--ink-soft); font-size: 16.5px; max-width: 64ch; }
+.club p:last-child { margin-bottom: 0; }
+.club-dues {
+  font-family: var(--display); font-size: clamp(18px, 2.8vw, 22px);
+  letter-spacing: -0.02em; color: var(--ink) !important;
+}
+.club-rotation { font-size: 16px !important; }
+.club-perk { font-size: 15px !important; }
 
 /* ---------- Work ---------- */
 .work-title {

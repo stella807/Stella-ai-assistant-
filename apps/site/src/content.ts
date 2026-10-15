@@ -1,7 +1,8 @@
 import {
-  LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_START, PA_HOURLY_RATE_CENTS,
-  QUICK_TASK_ASSISTANT_PAYOUT_CENTS, SERVICE_LIVE_AT, releasedPlans,
-  type Plan, type PlanId,
+  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_START,
+  MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, QUICK_TASK_ASSISTANT_PAYOUT_CENTS, SERVICE_LIVE_AT,
+  duesForCents, isHourlyCategory, isQuickTaskEligible, releasedPlans, serviceFeeFor,
+  type ConciergeCategory, type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -101,6 +102,41 @@ export function featuredPlans(): Plan[] {
 export interface Service {
   title: string;
   body: string;
+  /** Which concierge category this is, so the price on the page comes from
+   *  the rate card rather than from a number somebody typed into marketing
+   *  copy and forgot to update. Absent where there is no per-task price. */
+  category?: ConciergeCategory;
+  /** What to say instead, where there is no price of ours to quote. */
+  priceNote?: string;
+}
+
+/**
+ * The cheapest this task can be: one person, the shortest bookable length,
+ * and the quick-task rate where the category qualifies for it.
+ *
+ * It is a floor, not a quote — the page says "from". The real number depends
+ * on hours and headcount and is worked out by the same function in the app,
+ * which is the point of reading it from core here.
+ */
+export function startingPriceCents(category: ConciergeCategory): number {
+  return serviceFeeFor(
+    category,
+    isQuickTaskEligible(category),
+    1,
+    isHourlyCategory(category) ? MIN_BOOKED_HOURS : undefined,
+  );
+}
+
+/** The Wingman Club's dues, as the span they actually move across: a flat
+ *  base plus whatever that month's experience costs at the negotiated rate. */
+export function clubDuesRangeCents(): { base: number; low: number; high: number } {
+  const dues = CLUB_EXPERIENCES.map(duesForCents);
+  return { base: CLUB_BASE_DUES_CENTS, low: Math.min(...dues), high: Math.max(...dues) };
+}
+
+/** Every experience in the rotation, newest naming from core. */
+export function clubExperiences(): string[] {
+  return CLUB_EXPERIENCES.map((e) => e.label);
 }
 
 export interface Copy {
@@ -132,6 +168,14 @@ export interface Copy {
   planBlurbs: Partial<Record<PlanId, string>>;
   morePlans: string;
   pricingNote: string;
+  /** "from", as in "from $5" — a floor, never a quote. */
+  fromLabel: string;
+
+  clubHeading: string;
+  clubBody: string;
+  clubDues: string;
+  clubPerk: string;
+  clubRotation: string;
 
   contactHeading: string;
   contactBody: string;
@@ -188,12 +232,12 @@ export const COPY: Record<Lang, Copy> = {
     whatLede:
       "The person we built this for is in a hospital bed at nine at night, thirsty, with nobody to ask. Everything here starts from that.",
     services: [
-      { title: "Grab something", body: "A juice, a charger, a blanket. One thing, bought and brought to your room or your door." },
-      { title: "Run an errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
-      { title: "Arrange a ride", body: "We book it and watch it, at the provider's real rate." },
-      { title: "Wait with someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
-      { title: "Check on someone", body: "Someone goes and looks, then tells you." },
-      { title: "Check-ins and SOS", body: "A guardian is alerted the moment a check-in is missed." },
+      { title: "Grab something", category: "grab-something", body: "A juice, a charger, a blanket. One thing, bought and brought to your room or your door." },
+      { title: "Run an errand", category: "run-errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
+      { title: "Wait with someone", category: "wait-with-someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
+      { title: "Check on someone", category: "check-in-person", body: "Someone goes and looks, then tells you." },
+      { title: "Arrange a ride", priceNote: "At the provider's own rate", body: "We book it and watch it — no markup on the fare." },
+      { title: "Check-ins and SOS", priceNote: "Free on every plan", body: "A guardian is alerted the moment a check-in is missed." },
     ],
 
     pricingHeading: "What it costs",
@@ -212,6 +256,14 @@ export const COPY: Record<Lang, Copy> = {
       "elite-private": "A named team, two hundred hours a month, and a doctor who comes to the house.",
     },
     morePlans: "Every plan cancels in one tap, from the app.",
+    fromLabel: "from",
+
+    clubHeading: "The Wingman Club",
+    clubBody:
+      "An add-on, on top of whichever plan you are on. One membership, and once a month the club's pick is revealed — the same outing for everybody that month, booked as a group at a rate none of you would get at the door.",
+    clubDues: "{base} a month, plus that month's outing at exactly what the venue charges us. In practice {low} to {high}, depending on the pick.",
+    clubPerk: "A cigar and a drink of your choice at every event, whatever the month lands on. Folded into the group rate, never an extra line.",
+    clubRotation: "In the rotation:",
     pricingNote:
       `Sign-ups open ${openDate("en")}. Service goes live ${liveDate("en")}, and nobody is charged a day before that. Sign up early and keep ${discountPercent}% off your first year.`,
 
@@ -242,12 +294,12 @@ export const COPY: Record<Lang, Copy> = {
     whatLede:
       "La persona para quien hicimos esto está en una cama de hospital a las nueve de la noche, con sed, y no tiene a quién pedirle. Todo aquí sale de ahí.",
     services: [
-      { title: "Traer algo", body: "Un jugo, un cargador, una frisa. Una cosa, comprada y llevada a tu cuarto o a tu puerta." },
-      { title: "Hacer una diligencia", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
-      { title: "Coordinar un viaje", body: "Lo reservamos y lo seguimos, a la tarifa real del proveedor." },
-      { title: "Acompañar a alguien", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
-      { title: "Pasar a ver a alguien", body: "Alguien va, mira, y te dice." },
-      { title: "Registros y SOS", body: "Un guardián recibe alerta en el momento en que se falla un registro." },
+      { title: "Traer algo", category: "grab-something", body: "Un jugo, un cargador, una frisa. Una cosa, comprada y llevada a tu cuarto o a tu puerta." },
+      { title: "Hacer una diligencia", category: "run-errand", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
+      { title: "Acompañar a alguien", category: "wait-with-someone", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
+      { title: "Pasar a ver a alguien", category: "check-in-person", body: "Alguien va, mira, y te dice." },
+      { title: "Coordinar un viaje", priceNote: "A la tarifa del proveedor", body: "Lo reservamos y lo seguimos — sin recargo sobre la tarifa." },
+      { title: "Registros y SOS", priceNote: "Gratis en todos los planes", body: "Un guardián recibe alerta en el momento en que se falla un registro." },
     ],
 
     pricingHeading: "Cuánto cuesta",
@@ -266,6 +318,14 @@ export const COPY: Record<Lang, Copy> = {
       "elite-private": "Un equipo asignado, doscientas horas al mes, y un médico que va a la casa.",
     },
     morePlans: "Todos los planes se cancelan con un toque, desde la app.",
+    fromLabel: "desde",
+
+    clubHeading: "El Wingman Club",
+    clubBody:
+      "Un añadido, sobre el plan que ya tengas. Una sola membresía, y una vez al mes se revela la actividad del club — la misma para todos ese mes, reservada en grupo a un precio que ninguno conseguiría por su cuenta.",
+    clubDues: "{base} al mes, más la actividad de ese mes a exactamente lo que nos cobra el lugar. En la práctica entre {low} y {high}, según la que toque.",
+    clubPerk: "Un cigarro y un trago de tu elección en cada evento, sea cual sea la actividad del mes. Va incluido en la tarifa de grupo, nunca como un cargo aparte.",
+    clubRotation: "En la rotación:",
     pricingNote:
       `Los registros abren el ${openDate("es")}. El servicio arranca el ${liveDate("es")}, y a nadie se le cobra ni un día antes. Regístrate temprano y quédate con ${discountPercent}% de descuento el primer año.`,
 

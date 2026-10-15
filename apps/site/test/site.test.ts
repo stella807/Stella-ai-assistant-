@@ -4,8 +4,8 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  LANGS, PHONE, featuredPlans, formatPhone, money, phoneHref,
-  whatsappHref, whatsappLabel, type Lang,
+  LANGS, PHONE, clubDuesRangeCents, clubExperiences, featuredPlans, formatPhone, money,
+  phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
@@ -61,6 +61,35 @@ describe("the marketing site", () => {
       expect(pages[lang], `rail in ${lang}`).toContain('class="plan-rail"');
       // Reachable by keyboard, or it cannot be scrolled by keyboard.
       expect(pages[lang], `rail focusable in ${lang}`).toMatch(/class="plan-rail"[^>]*tabindex="0"/);
+    }
+  });
+
+  it("quotes each task's starting price from the rate card", () => {
+    // Same reason the plan prices come from core: a page that invents its
+    // own numbers is a page that quotes a stale one to somebody about to pay.
+    for (const lang of LANGS) {
+      for (const cat of ["grab-something", "run-errand", "wait-with-someone", "check-in-person"] as const) {
+        expect(pages[lang], `${cat} price in ${lang}`).toContain(money(startingPriceCents(cat)));
+      }
+    }
+  });
+
+  it("sells the Wingman Club as an add-on, with dues that move with the pick", () => {
+    // Dues are a flat base plus that month's experience at cost, so the page
+    // has to show the span rather than one number that is wrong most months.
+    const { base, low, high } = clubDuesRangeCents();
+    expect(low).toBeLessThan(high);
+    for (const lang of LANGS) {
+      expect(pages[lang], `club dues base in ${lang}`).toContain(money(base));
+      expect(pages[lang], `club dues low in ${lang}`).toContain(money(low));
+      expect(pages[lang], `club dues high in ${lang}`).toContain(money(high));
+      // And the rotation itself, so nobody has to guess what they joined for.
+      // Compared as the page renders them: "Steak & cigar night" is escaped
+      // on the way out, which is the behaviour we want rather than a miss.
+      const asRendered = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      for (const label of clubExperiences()) {
+        expect(pages[lang], `${label} in ${lang}`).toContain(asRendered(label));
+      }
     }
   });
 
@@ -228,14 +257,14 @@ describe("the page stays simple", () => {
     }
   });
 
-  it("stays under six hundred words of body copy", () => {
-    // 810 words was the measurement that started this. Seven tiers cost more
-    // words than three did, and the cap moved once to pay for them rather
-    // than quietly going away — the next good paragraph still has to earn its
-    // place by displacing another.
+  it("stays under seven hundred and fifty words of body copy", () => {
+    // 810 words was the measurement that started this, for a page that then
+    // sold three tiers and no prices. It now sells seven, the Club, and a
+    // price per task in fewer words than that. The cap moves when real
+    // content arrives and never to make room for prose.
     for (const lang of LANGS) {
       const words = pages[lang].replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean);
-      expect(words.length, `words in ${lang}`).toBeLessThan(600);
+      expect(words.length, `words in ${lang}`).toBeLessThan(750);
     }
   });
 });
