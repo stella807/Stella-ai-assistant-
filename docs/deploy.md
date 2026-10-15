@@ -125,6 +125,81 @@ encrypted at rest.
 
 ---
 
+---
+
+# The marketing site, and a real domain
+
+`apps/site` is static — plain HTML, no JavaScript, built to `apps/site/dist`.
+It is the one piece that does **not** belong on the app server, and the one
+piece Cloudflare Pages can host for nothing.
+
+Everything else stays where it is. The master dashboard lives at `/master`
+inside `apps/web`, which Railway serves from the same service as the API so
+the session cookie is same-origin (see "Railway" above). Moving it to Pages
+would mean configuring CORS and cross-site cookies to gain nothing.
+
+## How the names divide
+
+| Name | Goes to | Serves |
+|---|---|---|
+| `safehubby.com` | Cloudflare Pages | The marketing site |
+| `www.safehubby.com` | redirect to apex | — |
+| `app.safehubby.com` | Railway | The app, `/master`, and `/api/*` |
+| `ceo@safehubby.com` | Cloudflare Email Routing | Forwards to a real inbox |
+
+## 1. The domain
+
+Register it at Cloudflare Registrar, which sells at wholesale cost with no
+renewal markup — about $10.44/year for a `.com`. A **free** Cloudflare account
+is all this needs; the $20-25/month Pro plan is a website security and image
+optimization product and buys nothing here.
+
+Buying elsewhere works too: point that registrar's nameservers at Cloudflare.
+Registering at Cloudflare means the nameservers are already right.
+
+## 2. Pages, building from this repo
+
+Workers & Pages -> Create -> Pages -> Connect to Git, then:
+
+```
+Build command:      pnpm install && pnpm --filter @safehubby/site build
+Output directory:   apps/site/dist
+```
+
+Building from the repo rather than uploading `dist/` by hand is the whole
+point of generating the site from `packages/core`: a price changes there, the
+push rebuilds the site, and the two cannot drift. An uploaded folder drifts
+the first time somebody forgets.
+
+Add `safehubby.com` as a custom domain on the project. Cloudflare adds the DNS
+record itself.
+
+## 3. The app's subdomain
+
+In Railway, add `app.safehubby.com` as a custom domain on the service. Railway
+gives a CNAME target; add it in Cloudflare DNS, **proxy off (grey cloud)** —
+Railway terminates its own TLS, and proxying it through Cloudflare's orange
+cloud on the free plan puts a second certificate in front of a service that
+already has one.
+
+## 4. Point the code at the new names
+
+Two values, both in `apps/site/src/content.ts`:
+
+- `ORIGIN` — the canonical URL in `<link rel="canonical">` and the sitemap.
+  Reads `SITE_ORIGIN` from the environment, so set it in the Pages project
+  rather than editing the file.
+- `APP_URL` — where "Start free" and "See open roles" send people.
+
+## 5. Email
+
+Email -> Email Routing -> add `ceo@safehubby.com`, forward it to a real inbox.
+Cloudflare adds the MX records. It receives only; to *send* from the address,
+add it in Gmail under Settings -> Accounts -> "Send mail as".
+
+Nothing sends to the newsletter list from here — that is bulk mail and needs
+its own provider with its own DKIM records. See `newsletter.ts`.
+
 # The free path: Render + Neon
 
 Zero cost, no card for the database, good enough to test on a real phone.
