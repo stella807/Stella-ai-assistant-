@@ -7,7 +7,7 @@ import {
   CONTACT_EMAIL, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
   formatPhone, mailtoHref, money, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
-import { HEADERS, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
+import { HEADERS, obfuscate, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
 const pages: Record<Lang, string> = { en: renderPage("en"), es: renderPage("es") };
 const work: Record<Lang, string> = { en: renderWorkPage("en"), es: renderWorkPage("es") };
@@ -204,18 +204,41 @@ describe("the marketing site", () => {
 });
 
 describe("reaching a person", () => {
-  it("puts the address in the header, not only at the foot of the page", () => {
-    // A worried reader should not have to scroll a sales page to find a human.
-    for (const lang of LANGS) {
-      const header = pages[lang].slice(0, pages[lang].indexOf("</header>"));
-      expect(header, `email in ${lang} header`).toContain(mailtoHref(CONTACT_EMAIL));
+  /** The page as a browser reads it: character references decoded. */
+  const decoded = (html: string) =>
+    html.replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)));
+
+  it("keeps the address off the page until somebody asks for it", () => {
+    // Behind a Contact control, and not written out where a harvester
+    // matching `name@domain.tld` in the raw HTML would find it.
+    for (const [name, body] of Object.entries(every)) {
+      expect(body, name).not.toContain(CONTACT_EMAIL);
+      expect(body, name).not.toContain("mailto:");
+      expect(body, name).not.toContain("@");
     }
   });
 
-  it("offers a working email link and the address, on every page", () => {
+  it("still gives a working address once it is opened", () => {
     for (const [name, body] of Object.entries(every)) {
-      expect(body, name).toContain(`href="${mailtoHref(CONTACT_EMAIL)}"`);
-      expect(body, name).toContain(`>${CONTACT_EMAIL}<`);
+      const page = decoded(body);
+      expect(page, name).toContain(`href="${mailtoHref(CONTACT_EMAIL)}"`);
+      expect(page, name).toContain(`>${CONTACT_EMAIL}<`);
+    }
+  });
+
+  it("puts the control in the header, so it is one tap from anywhere", () => {
+    for (const lang of LANGS) {
+      const header = pages[lang].slice(0, pages[lang].indexOf("</header>"));
+      expect(header, lang).toContain("<details");
+      expect(header, lang).toContain(lang === "en" ? "Contact" : "Contacto");
+    }
+  });
+
+  it("reveals it with a native control, so it needs no script and works by keyboard", () => {
+    // `details` and `summary` are focusable and operable without JavaScript.
+    for (const [name, body] of Object.entries(every)) {
+      expect(body, name).toMatch(/<details[^>]*>\s*<summary>/);
+      expect(body, name).not.toContain("<script");
     }
   });
 
@@ -223,13 +246,15 @@ describe("reaching a person", () => {
     // Deliberately one route. The phone number was removed at the owner's
     // direction; it must not creep back in as a tel: link or printed digits.
     for (const [name, body] of Object.entries(every)) {
-      expect(body, name).not.toContain("tel:");
+      expect(decoded(body), name).not.toContain("tel:");
       expect(body, name).not.toMatch(/\(939\)|939-245|9392450171/);
     }
   });
 
   it("builds a mailto link from an address", () => {
     expect(mailtoHref(" a@b.co ")).toBe("mailto:a@b.co");
+    // Encoded as character references, which decode back to exactly the text.
+    expect(obfuscate("a@b.co")).toBe("&#97;&#64;&#98;&#46;&#99;&#111;");
     expect(CONTACT_EMAIL).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
   });
 

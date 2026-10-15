@@ -75,11 +75,33 @@ function head(meta: PageMeta): string {
  * the one action this site exists to produce, and the previous layout put it
  * six thousand pixels down a phone screen.
  */
+/**
+ * An address written as numeric character references. A browser shows and
+ * follows it exactly as it would the plain text; a harvester that matches
+ * `@domain.tld` in the raw HTML does not find it. That is all this does — one
+ * that decodes entities still will — and it needs no script, which this page
+ * does not have. Genuinely hiding an address means not publishing it, which
+ * is what a contact form with a server is for.
+ */
+export function obfuscate(text: string): string {
+  return Array.from(text, (ch) => `&#${ch.codePointAt(0)};`).join("");
+}
+
+/** The address, behind a control that has to be opened. A native `details`
+ *  element, so it works without script, by keyboard and with a screen reader. */
+function revealEmail(label: string, cls: string): string {
+  const addr = obfuscate(CONTACT_EMAIL);
+  return `<details class="reveal ${cls}">
+      <summary>${esc(label)}</summary>
+      <a class="reveal-link" href="${obfuscate(mailtoHref(CONTACT_EMAIL))}">${addr}</a>
+    </details>`;
+}
+
 function header(lang: Lang, home: string, otherHref: string, label: string): string {
   return `<header class="site-head">
   <div class="bar">
     <a class="wordmark" href="${home}">Safehubby<span class="dot">.</span></a>
-    <a class="head-contact" href="${mailtoHref(CONTACT_EMAIL)}">${esc(CONTACT_EMAIL)}</a>
+    ${revealEmail(COPY[lang].contactLabel, "head-contact")}
     <a class="lang" href="${otherHref}" hreflang="${lang === "en" ? "es" : "en"}">${esc(label)}</a>
   </div>
 </header>`;
@@ -206,9 +228,7 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
     <div class="band">
       <h2>${esc(c.contactHeading)}</h2>
       <p class="lede">${esc(c.contactBody)}</p>
-      <p class="contact-email">
-        <a href="${mailtoHref(CONTACT_EMAIL)}">${esc(CONTACT_EMAIL)}</a>
-      </p>
+      ${revealEmail(c.contactShow, "contact-reveal")}
 ${WHATSAPP
   ? `      <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">WhatsApp ${esc(whatsappLabel(WHATSAPP))}</a></p>`
   : ""}
@@ -319,9 +339,32 @@ a { color: var(--amber); }
 /* Pushed to the right of the wordmark and left of the language toggle, and
    never allowed to wrap mid-address. */
 .head-contact {
-  margin-left: auto;
+  margin-left: auto; position: relative;
   font-family: var(--display); font-size: clamp(16px, 4.2vw, 20px);
-  letter-spacing: -0.02em; text-decoration: none; white-space: nowrap;
+  letter-spacing: -0.02em; white-space: nowrap;
+}
+.reveal summary { cursor: pointer; list-style: none; color: var(--amber); }
+.reveal summary::-webkit-details-marker { display: none; }
+.reveal summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+.reveal-link { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+/* In the header the address opens as a small panel under the control, so
+   opening it does not push the page down. */
+.head-contact .reveal-link {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 5;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 12px 16px; font-family: var(--body); font-size: 17px; letter-spacing: 0; font-weight: 600;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+}
+/* In the contact section it is the loud line, once asked for. */
+.contact-reveal summary {
+  display: inline-block; background: var(--ink); color: var(--paper);
+  font-family: var(--display); font-size: 19px; letter-spacing: -0.01em;
+  padding: 15px 30px; border-radius: 10px;
+}
+.contact-reveal .reveal-link {
+  display: block; margin-top: 18px;
+  font-family: var(--display); font-size: clamp(22px, 5.6vw, 44px);
+  line-height: 1.1; letter-spacing: -0.03em; color: var(--amber);
 }
 .lang { font-size: 16px; font-weight: 600; text-decoration: none; }
 /* All three have to share one row on a phone, or the number — the whole
@@ -465,14 +508,6 @@ h2 {
 }
 
 /* The address is the loudest thing in the section on purpose. */
-.contact-email {
-  font-family: var(--display);
-  font-size: clamp(22px, 5.6vw, 44px);
-  line-height: 1.1; overflow-wrap: anywhere;
-  letter-spacing: -0.03em;
-  margin: 0;
-}
-.contact-email a { text-decoration: none; }
 .contact-wa {
   font-size: clamp(17px, 2.6vw, 20px); font-weight: 600;
   letter-spacing: -0.01em; margin: 10px 0 0;

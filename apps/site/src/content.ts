@@ -235,6 +235,10 @@ export interface Copy {
   contactBody: string;
 
   workLink: string;
+  /** The label on the thing that reveals the address, in the header and in
+   *  the contact section. The address itself is not on the page until asked for. */
+  contactLabel: string;
+  contactShow: string;
   disclaimer: string;
   footerNote: string;
 }
@@ -328,6 +332,8 @@ export const COPY: Record<Lang, Copy> = {
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
 
     workLink: "Work with us",
+    contactLabel: "Contact",
+    contactShow: "Show email address",
     disclaimer: DISCLAIMER.en,
     footerNote: "Your location and check-in history are yours. Never sold, never used for ad targeting.",
   },
@@ -393,6 +399,8 @@ export const COPY: Record<Lang, Copy> = {
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
 
     workLink: "Trabaja con nosotros",
+    contactLabel: "Contacto",
+    contactShow: "Mostrar correo electrónico",
     disclaimer: DISCLAIMER.es,
     footerNote: "Tu ubicación y tu historial son tuyos. Nunca se venden, y nunca se usan para publicidad dirigida.",
   },
