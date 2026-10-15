@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } fro
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LANGS, ORIGIN } from "./content.ts";
-import { STYLESHEET, pathFor, renderPage } from "./render.ts";
+import { STYLESHEET, pathFor, renderPage, renderWorkPage, workPathFor } from "./render.ts";
 
 /**
  * Writes the whole site to `dist/`. Plain files, no server — deployable to
@@ -21,8 +21,13 @@ function write(relative: string, body: string): void {
 }
 
 console.log("Building the Safehubby site…");
+/** `/` and `/es/` resolve to the index inside that folder on every static
+ *  host; `/work/` and `/es/trabajo/` do the same. */
+const fileFor = (path: string) => `${path.replace(/^\//, "")}index.html`;
+
 for (const lang of LANGS) {
-  write(lang === "en" ? "index.html" : "es/index.html", renderPage(lang));
+  write(fileFor(pathFor(lang)), renderPage(lang));
+  write(fileFor(workPathFor(lang)), renderWorkPage(lang));
 }
 // The @font-face rules go first so the faces are known before anything that
 // uses them, and the woff2 files ride along next to the stylesheet.
@@ -38,7 +43,8 @@ write("robots.txt", `User-agent: *\nAllow: /\nSitemap: ${ORIGIN}/sitemap.xml\n`)
 write(
   "sitemap.xml",
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    LANGS.map((l) => `  <url><loc>${ORIGIN}${pathFor(l)}</loc></url>`).join("\n") +
+    LANGS.flatMap((l) => [pathFor(l), workPathFor(l)])
+      .map((path) => `  <url><loc>${ORIGIN}${path}</loc></url>`).join("\n") +
     `\n</urlset>\n`,
 );
 console.log(`Done → ${dist}`);

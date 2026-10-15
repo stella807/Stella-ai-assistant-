@@ -1,6 +1,6 @@
 import {
-  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, formatPhone, money, phoneHref, plansFor,
-  whatsappHref, whatsappLabel, type Lang,
+  APP_URL, COPY, ORIGIN, PHONE, WHATSAPP, WORK_COPY, featuredPlans, formatPhone,
+  money, phoneHref, whatsappHref, whatsappLabel, type Lang,
 } from "./content.ts";
 
 /**
@@ -13,153 +13,213 @@ import {
  * That is also what makes it indexable, which the app is not.
  *
  * One page per language rather than a language toggle, so each has a real
- * URL that can be linked, printed and indexed separately.
+ * URL that can be linked, printed and indexed separately. Hiring gets its own
+ * page for the same reason, plus a better one: it is a different audience.
  */
 
 const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** Where a language's page lives. English is the root. */
+/** Where a language's home page lives. English is the root. */
 export function pathFor(lang: Lang): string {
   return lang === "en" ? "/" : "/es/";
 }
 
-function head(lang: Lang): string {
-  const c = COPY[lang];
-  const canonical = `${ORIGIN}${pathFor(lang)}`;
-  return `<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>${esc(c.title)}</title>
-<meta name="description" content="${esc(c.description)}">
-<link rel="canonical" href="${canonical}">
-<link rel="alternate" hreflang="en" href="${ORIGIN}/">
-<link rel="alternate" hreflang="es" href="${ORIGIN}/es/">
-<link rel="alternate" hreflang="x-default" href="${ORIGIN}/">
-<meta property="og:type" content="website">
-<meta property="og:title" content="${esc(c.title)}">
-<meta property="og:description" content="${esc(c.description)}">
-<meta property="og:url" content="${canonical}">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="${lang === "en" ? "" : "../"}site.css">`;
+/** Where a language's hiring page lives. Translated, because a job seeker
+ *  searching in Spanish should land on a Spanish URL. */
+export function workPathFor(lang: Lang): string {
+  return lang === "en" ? "/work/" : "/es/trabajo/";
 }
 
-function planCard(lang: Lang, plan: ReturnType<typeof plansFor>[number]): string {
+/** How far a page sits from the root, for relative asset hrefs. `/es/trabajo/`
+ *  is two levels down; getting this wrong ships an unstyled page. */
+function upTo(path: string): string {
+  return "../".repeat(path.split("/").filter(Boolean).length);
+}
+
+interface PageMeta {
+  lang: Lang;
+  path: string;
+  /** The same page in the other language, for hreflang. */
+  altPath: string;
+  htmlLang: string;
+  title: string;
+  description: string;
+}
+
+function head(meta: PageMeta): string {
+  const canonical = `${ORIGIN}${meta.path}`;
+  const other: Lang = meta.lang === "en" ? "es" : "en";
+  const enHref = `${ORIGIN}${meta.lang === "en" ? meta.path : meta.altPath}`;
+  return `<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${esc(meta.title)}</title>
+<meta name="description" content="${esc(meta.description)}">
+<link rel="canonical" href="${canonical}">
+<link rel="alternate" hreflang="${meta.lang}" href="${canonical}">
+<link rel="alternate" hreflang="${other}" href="${ORIGIN}${meta.altPath}">
+<link rel="alternate" hreflang="x-default" href="${enHref}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${esc(meta.title)}">
+<meta property="og:description" content="${esc(meta.description)}">
+<meta property="og:url" content="${canonical}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="${upTo(meta.path)}site.css">`;
+}
+
+/**
+ * Wordmark, the phone number, the other language. Three things.
+ *
+ * The number lives here rather than only in a contact section because it is
+ * the one action this site exists to produce, and the previous layout put it
+ * six thousand pixels down a phone screen.
+ */
+function header(lang: Lang, home: string, otherHref: string, label: string): string {
+  return `<header class="site-head">
+  <div class="bar">
+    <a class="wordmark" href="${home}">Safehubby<span class="dot">.</span></a>
+    <a class="head-phone" href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
+    <a class="lang" href="${otherHref}" hreflang="${lang === "en" ? "es" : "en"}">${esc(label)}</a>
+  </div>
+</header>`;
+}
+
+function footer(lang: Lang, links: string): string {
+  const c = COPY[lang];
+  return `<footer class="site-foot">
+  <p class="foot-links">${links}</p>
+  <p class="disclaimer">${esc(c.disclaimer)}</p>
+  <p class="privacy">${esc(c.footerNote)}</p>
+  <p class="copy">&copy; ${new Date().getUTCFullYear()} Safehubby</p>
+</footer>`;
+}
+
+function skip(lang: Lang): string {
+  return `<a class="skip" href="#main">${lang === "es" ? "Ir al contenido" : "Skip to content"}</a>`;
+}
+
+function planCard(lang: Lang, plan: ReturnType<typeof featuredPlans>[number]): string {
   const c = COPY[lang];
   const price = plan.monthlyCents === 0
     ? `<span class="plan-free">${esc(c.freeLabel)}</span>`
     : `<span class="plan-price">${esc(money(plan.monthlyCents))}</span><span class="plan-per">${esc(c.perMonth)}</span>`;
   const seats = plan.seats === 1 ? c.seatsOne : c.seatsMany(plan.seats);
+  const blurb = c.planBlurbs[plan.id] ?? "";
   return `<article class="plan">
   <h3>${esc(plan.name)}</h3>
   <p class="plan-cost">${price}</p>
   <p class="plan-seats">${esc(seats)}</p>
-  <p class="plan-blurb">${esc(plan.blurb)}</p>
+  <p class="plan-blurb">${esc(blurb)}</p>
 </article>`;
 }
 
 export function renderPage(lang: Lang): string {
   const c = COPY[lang];
-  const plans = plansFor();
+  const plans = featuredPlans();
 
   return `<!doctype html>
 <html lang="${c.htmlLang}">
 <head>
-${head(lang)}
+${head({
+    lang, path: pathFor(lang), altPath: pathFor(lang === "en" ? "es" : "en"),
+    htmlLang: c.htmlLang, title: c.title, description: c.description,
+  })}
 </head>
 <body>
-<a class="skip" href="#main">${lang === "es" ? "Ir al contenido" : "Skip to content"}</a>
-
-<header class="site-head">
-  <div class="bar">
-    <a class="wordmark" href="${pathFor(lang)}">Safehubby<span class="dot">.</span></a>
-    <nav aria-label="${lang === "es" ? "Principal" : "Main"}">
-      <a href="#what">${esc(c.nav.what)}</a>
-      <a href="#pricing">${esc(c.nav.pricing)}</a>
-      <a href="#work">${esc(c.nav.work)}</a>
-      <a href="#contact">${esc(c.nav.contact)}</a>
-      <a class="lang" href="${c.otherLang.href}" hreflang="${lang === "en" ? "es" : "en"}">${esc(c.otherLang.label)}</a>
-    </nav>
-  </div>
-</header>
+${skip(lang)}
+${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
 
 <main id="main">
   <section class="hero">
     <p class="eyebrow">${esc(c.heroEyebrow)}</p>
     <h1>${esc(c.heroTitle)}</h1>
     <p class="hero-body">${esc(c.heroBody)}</p>
-    <p class="hero-cta">
-      <a class="btn" href="${APP_URL}">${esc(c.heroCta)}</a>
-    </p>
+    <p class="hero-cta"><a class="btn" href="${APP_URL}">${esc(c.heroCta)}</a></p>
     <p class="hero-note">${esc(c.heroCtaNote)}</p>
   </section>
 
-  <section id="what" class="band">
-    <h2>${esc(c.whatHeading)}</h2>
-    <p class="lede">${esc(c.whatLede)}</p>
-    <div class="services">
-      ${c.services.map((s) => `<article class="service">
-        <h3>${esc(s.title)}</h3>
-        <p>${esc(s.body)}</p>
-      </article>`).join("\n      ")}
-    </div>
-  </section>
-
-  <section id="who" class="bleed bleed-quiet">
+  <section class="bleed bleed-quiet">
     <div class="band">
-      <h2>${esc(c.whoHeading)}</h2>
-      ${c.whoBody.map((p) => `<p class="wide">${esc(p)}</p>`).join("\n      ")}
+      <h2>${esc(c.whatHeading)}</h2>
+      <ul class="services">
+        ${c.services.map((s) => `<li class="service">
+          <h3>${esc(s.title)}</h3>
+          <p>${esc(s.body)}</p>
+        </li>`).join("\n        ")}
+      </ul>
     </div>
   </section>
 
-  <section id="pricing" class="band">
+  <section class="band">
     <h2>${esc(c.pricingHeading)}</h2>
-    <p class="lede">${esc(c.pricingLede)}</p>
     <div class="plans">
       ${plans.map((p) => planCard(lang, p)).join("\n      ")}
     </div>
-    <p class="note">${esc(c.discountNote)}</p>
+    <p class="more-plans">${esc(c.morePlans)}</p>
+    <p class="note">${esc(c.pricingNote)}</p>
   </section>
 
-  <section id="work" class="bleed bleed-accent">
+  <section class="bleed bleed-accent">
     <div class="band">
-      <h2>${esc(c.workHeading)}</h2>
-      <p class="lede">${esc(c.workLede)}</p>
-      <p class="rate">${esc(c.workRate)}</p>
-      <p class="wide">${esc(c.workErrand)}</p>
-      <p><a class="btn btn-quiet" href="${APP_URL}">${esc(c.workCta)}</a></p>
-    </div>
-  </section>
-
-  <section id="when" class="bleed bleed-quiet">
-    <div class="band">
-      <h2>${esc(c.whenHeading)}</h2>
-      <p class="wide">${esc(c.whenBody)}</p>
-    </div>
-  </section>
-
-  <section id="contact" class="band">
-    <h2>${esc(c.contactHeading)}</h2>
-    <p class="lede">${esc(c.contactBody)}</p>
-    <p class="contact-phone">
-      <a href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
-    </p>
+      <h2>${esc(c.contactHeading)}</h2>
+      <p class="lede">${esc(c.contactBody)}</p>
+      <p class="contact-phone">
+        <a href="${phoneHref(PHONE)}">${esc(formatPhone(PHONE))}</a>
+      </p>
 ${WHATSAPP
-  ? `    <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">${esc(c.whatsappLabel)} ${esc(whatsappLabel(WHATSAPP))}</a></p>`
+  ? `      <p class="contact-wa"><a href="${whatsappHref(WHATSAPP)}">WhatsApp ${esc(whatsappLabel(WHATSAPP))}</a></p>`
   : ""}
+    </div>
   </section>
 </main>
 
-<footer class="site-foot">
-  <p class="disclaimer">${esc(c.disclaimer)}</p>
-  <p class="privacy">${esc(c.footerNote)}</p>
-  <p class="copy">&copy; ${new Date().getUTCFullYear()} Safehubby</p>
-</footer>
+${footer(lang, `<a href="${c.workHref}">${esc(c.workLink)}</a>`)}
 </body>
 </html>
 `;
 }
 
-/** One stylesheet, shared by both languages. */
+/**
+ * The hiring page.
+ *
+ * Split off the home page because the two audiences want opposite things.
+ * A daughter deciding whether to trust us with her father has no use for our
+ * payroll; somebody looking for work should not have to read a sales pitch to
+ * find the rate. It also gives a job ad a URL to point at.
+ */
+export function renderWorkPage(lang: Lang): string {
+  const w = WORK_COPY[lang];
+  const home = pathFor(lang);
+
+  return `<!doctype html>
+<html lang="${w.htmlLang}">
+<head>
+${head({
+    lang, path: workPathFor(lang), altPath: workPathFor(lang === "en" ? "es" : "en"),
+    htmlLang: w.htmlLang, title: w.title, description: w.description,
+  })}
+</head>
+<body>
+${skip(lang)}
+${header(lang, home, w.otherLang.href, w.otherLang.label)}
+
+<main id="main">
+  <section class="band">
+    <h1 class="work-title">${esc(w.heading)}</h1>
+    <p class="lede">${esc(w.lede)}</p>
+    <p class="rate">${esc(w.rate)}</p>
+    <p class="wide">${esc(w.errand)}</p>
+    <p><a class="btn" href="${APP_URL}">${esc(w.cta)}</a></p>
+  </section>
+</main>
+
+${footer(lang, `<a href="${home}">&larr; ${esc(w.back)}</a>`)}
+</body>
+</html>
+`;
+}
+
+/** One stylesheet, shared by every page. */
 export const STYLESHEET = `:root {
   --paper: #fbf8f3;
   --paper-2: #f2eee5;
@@ -183,8 +243,6 @@ export const STYLESHEET = `:root {
   }
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 body {
   margin: 0;
   background: var(--paper);
@@ -207,23 +265,41 @@ a { color: var(--amber); }
 .site-head { border-bottom: 1px solid var(--rule); background: var(--paper); }
 .bar {
   max-width: 1080px; margin: 0 auto;
-  padding: 14px 20px;
-  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap;
 }
 .wordmark {
-  font-family: var(--display); font-size: 25px; letter-spacing: -0.02em;
+  font-family: var(--display); font-size: 24px; letter-spacing: -0.02em;
   color: var(--ink); text-decoration: none;
 }
 .dot { color: var(--amber); }
-.site-head nav { display: flex; gap: 18px; flex-wrap: wrap; font-size: 16px; font-weight: 600; }
-.site-head nav a { color: var(--ink-soft); text-decoration: none; }
-.site-head nav a:hover { color: var(--ink); }
-.site-head nav a.lang { color: var(--amber); }
+/* Pushed to the right of the wordmark and left of the language toggle, and
+   never allowed to wrap mid-number. */
+.head-phone {
+  margin-left: auto;
+  font-family: var(--display); font-size: clamp(16px, 4.2vw, 20px);
+  letter-spacing: -0.02em; text-decoration: none; white-space: nowrap;
+}
+.lang { font-size: 16px; font-weight: 600; text-decoration: none; }
+/* All three have to share one row on a phone, or the number — the whole
+   reason the header exists — gets pushed down by a language toggle. */
+@media (max-width: 460px) {
+  .bar { gap: 10px; padding: 11px 16px; }
+  .wordmark { font-size: 20px; }
+  .head-phone { font-size: 16px; }
+  .lang { font-size: 14px; }
+}
+@media (max-width: 380px) {
+  .bar { gap: 8px; padding: 10px 12px; }
+  .wordmark { font-size: 18px; }
+  .head-phone { font-size: 15px; }
+  .lang { font-size: 13px; }
+}
 
 /* ---------- Hero ---------- */
-.hero { max-width: 1080px; margin: 0 auto; padding: 56px 20px 48px; }
+.hero { max-width: 1080px; margin: 0 auto; padding: 44px 20px 40px; }
 .eyebrow {
-  margin: 0 0 14px; font-size: 13px; font-weight: 700;
+  margin: 0 0 12px; font-size: 13px; font-weight: 700;
   letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber);
 }
 h1 {
@@ -232,56 +308,63 @@ h1 {
   line-height: 1.02; letter-spacing: -0.028em;
   margin: 0; max-width: 17ch; text-wrap: balance;
 }
-.hero-body { font-size: clamp(18px, 2.3vw, 21px); color: var(--ink-soft); max-width: 58ch; margin: 20px 0 0; }
-.hero-cta { margin: 28px 0 0; }
-.hero-note { margin: 12px 0 0; font-size: 16px; color: var(--ink-soft); max-width: 52ch; }
+.hero-body { font-size: clamp(18px, 2.3vw, 21px); color: var(--ink-soft); max-width: 56ch; margin: 18px 0 0; }
+.hero-cta { margin: 26px 0 0; }
+.hero-note { margin: 10px 0 0; font-size: 16px; color: var(--ink-soft); }
 .btn {
   display: inline-block;
   background: var(--amber); color: #1b1305;
   font-family: var(--display); font-size: 19px; letter-spacing: -0.01em;
   padding: 15px 30px; border-radius: 10px; text-decoration: none;
 }
-.btn-quiet { background: var(--ink); color: var(--paper); }
 
 /* ---------- Bands ---------- */
-.band { max-width: 1080px; margin: 0 auto; padding: 46px 20px; border-top: 1px solid var(--rule); }
+.band { max-width: 1080px; margin: 0 auto; padding: 38px 20px; }
 /* A tinted band runs edge to edge; the .band inside keeps the page's gutter,
    so every section's text starts on the same line whatever the background. */
-.bleed > .band { border-top: none; }
 .bleed-quiet { background: var(--paper-2); }
 .bleed-accent { background: var(--amber-wash); }
 h2 {
   font-family: var(--display);
   font-size: clamp(25px, 3.6vw, 34px); line-height: 1.1; letter-spacing: -0.022em;
-  margin: 0 0 10px; text-wrap: balance;
+  margin: 0 0 18px; text-wrap: balance;
 }
-.lede { font-size: 19px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 26px; }
-.wide { max-width: 64ch; color: var(--ink-soft); margin: 0 0 14px; }
-.note { margin: 24px 0 0; font-size: 16.5px; color: var(--ink-soft); max-width: 64ch; }
+.lede { font-size: 19px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 22px; }
+.wide { max-width: 64ch; color: var(--ink-soft); margin: 0 0 20px; }
+.note { margin: 18px 0 0; font-size: 16px; color: var(--ink-soft); max-width: 64ch; }
 
 /* ---------- Services ---------- */
-.services { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 22px 30px; }
-.service h3 { font-family: var(--display); font-size: 19px; letter-spacing: -0.015em; margin: 0 0 6px; }
-.service p { margin: 0; color: var(--ink-soft); font-size: 17px; }
+/* A list, because it is one. Six short rows read faster than six paragraphs,
+   and the title carries the meaning on its own if the line below is skipped. */
+.services {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px;
+}
+.service h3 { font-family: var(--display); font-size: 18px; letter-spacing: -0.015em; margin: 0 0 2px; }
+.service p { margin: 0; color: var(--ink-soft); font-size: 16.5px; line-height: 1.45; }
 
 /* ---------- Plans ---------- */
-.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
 .plan {
   background: var(--paper); border: 1px solid var(--rule); border-radius: 12px;
-  padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 4px;
+  padding: 20px; display: flex; flex-direction: column; gap: 2px;
 }
-.plan h3 { font-family: var(--display); font-size: 21px; letter-spacing: -0.015em; margin: 0; }
+.plan h3 { font-family: var(--display); font-size: 20px; letter-spacing: -0.015em; margin: 0; }
 .plan-cost { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
-.plan-price { font-family: var(--display); font-size: 34px; letter-spacing: -0.03em; }
+.plan-price { font-family: var(--display); font-size: 32px; letter-spacing: -0.03em; }
 .plan-per { font-size: 16px; color: var(--ink-soft); font-weight: 600; }
-.plan-free { font-family: var(--display); font-size: 25px; color: var(--amber); letter-spacing: -0.02em; }
+.plan-free { font-family: var(--display); font-size: 24px; color: var(--amber); letter-spacing: -0.02em; }
 .plan-seats {
-  margin: 2px 0 10px; font-size: 13px; font-weight: 700;
+  margin: 2px 0 8px; font-size: 13px; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft);
 }
-.plan-blurb { margin: 0; font-size: 16px; color: var(--ink-soft); }
+.plan-blurb { margin: 0; font-size: 16px; color: var(--ink-soft); line-height: 1.45; }
+.more-plans { margin: 16px 0 0; font-size: 16.5px; color: var(--ink-soft); }
 
 /* ---------- Work ---------- */
+.work-title {
+  font-size: clamp(30px, 5vw, 44px); margin: 0 0 16px; max-width: 20ch;
+}
 .rate {
   font-family: var(--display); font-size: clamp(25px, 4.4vw, 36px);
   letter-spacing: -0.025em; margin: 0 0 12px;
@@ -305,9 +388,11 @@ h2 {
 /* ---------- Foot ---------- */
 .site-foot {
   border-top: 1px solid var(--rule);
-  max-width: 1080px; margin: 0 auto; padding: 32px 20px 56px;
-  font-size: 15px; color: var(--ink-soft);
+  max-width: 1080px; margin: 0 auto; padding: 26px 20px 48px;
+  font-size: 14.5px; color: var(--ink-soft);
 }
 .site-foot p { max-width: 74ch; margin: 0 0 10px; }
+.foot-links { font-size: 16px; font-weight: 600; }
+.foot-links a { text-decoration: none; }
 .copy { font-weight: 600; }
 `;

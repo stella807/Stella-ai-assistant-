@@ -133,6 +133,26 @@ encrypted at rest.
 It is the one piece that does **not** belong on the app server, and the one
 piece Cloudflare Pages can host for nothing.
 
+## The pages it builds
+
+| URL | Page |
+|---|---|
+| `/` | Home, English |
+| `/es/` | Home, Spanish |
+| `/work/` | Hiring, English |
+| `/es/trabajo/` | Hiring, Spanish |
+
+Hiring is its own page because it is its own audience — somebody deciding
+whether to trust us with their father has no use for our payroll. It also
+gives a job ad a URL to point at: put `safehubby.com/work/` in a
+ClasificadosOnline listing or an Instagram bio and the pay rate is the first
+thing on screen, with no sales pitch to scroll past.
+
+The home page sells three tiers (`FEATURED_PLAN_IDS` in `content.ts`), not the
+whole seven-rung ladder. Elite is still sold — in the app, to somebody who has
+already said yes to the idea. Changing which three appear is a one-line edit
+there; the prices themselves still come from `packages/core`.
+
 Everything else stays where it is. The master dashboard lives at `/master`
 inside `apps/web`, which Railway serves from the same service as the API so
 the session cookie is same-origin (see "Railway" above). Moving it to Pages

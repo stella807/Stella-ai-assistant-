@@ -1,6 +1,7 @@
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_START, PA_HOURLY_RATE_CENTS,
-  QUICK_TASK_ASSISTANT_PAYOUT_CENTS, SERVICE_LIVE_AT, releasedPlans, type Plan,
+  QUICK_TASK_ASSISTANT_PAYOUT_CENTS, SERVICE_LIVE_AT, releasedPlans,
+  type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -12,8 +13,8 @@ import {
  * here, because marketing language is not the same as an in-app label and
  * pretending otherwise produces a website that reads like a settings screen.
  *
- * Nothing here is rendered for a plan the app has not released: `plansFor`
- * reads `releasedPlans()`, so a tier held behind a flag cannot be advertised
+ * Nothing here is rendered for a plan the app has not released: `featuredPlans`
+ * filters `releasedPlans()`, so a tier held behind a flag cannot be advertised
  * by accident.
  */
 
@@ -26,13 +27,14 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-producti
 
 /** Where a visitor goes to actually sign up. The app, not this site. */
 export const APP_URL = "https://safehubby-app-production.up.railway.app";
+
 /**
  * The number to call, digits only with country code.
  *
- * It leads the contact section rather than following the email, because the
- * reader this site is written for is often somebody's 78-year-old father who
- * will phone before he types an address — see the typography note in the
- * flier playbook.
+ * It sits in the header on every page rather than only in a contact section,
+ * because the reader this site is written for is often somebody's 78-year-old
+ * father who will phone before he reads — and a daughter who is already
+ * worried should not have to scroll a sales page to find a human.
  */
 export const PHONE = "19392450171";
 
@@ -53,11 +55,8 @@ export function phoneHref(digits: string): string {
  * The WhatsApp business number, digits only with country code (a Puerto Rico
  * line is `1787…` or `1939…`). Empty until there is a real one, and the
  * contact section simply omits WhatsApp while it is — printing a dead
- * `wa.me` link is worse than offering only email, because the reader cannot
- * tell it failed.
- *
- * WhatsApp is carried as its own channel rather than as a phone number
- * because in Puerto Rico it is the one most people actually answer.
+ * `wa.me` link is worse than offering only a phone number, because the reader
+ * cannot tell it failed.
  */
 export const WHATSAPP = (process.env.SITE_WHATSAPP ?? "").replace(/\D/g, "");
 
@@ -82,9 +81,23 @@ export function formatDate(iso: string, lang: Lang): string {
   });
 }
 
-/** Released plans only — see the module doc. */
-export function plansFor(): Plan[] {
-  return releasedPlans();
+/**
+ * The three tiers the website sells.
+ *
+ * The ladder has seven rungs and runs to $60,000 a month. All seven are real
+ * and all seven are sold — in the app, to somebody who has already decided
+ * they want this. Printing them side by side on a landing page does not read
+ * as choice, it reads as a different company than the one the headline
+ * describes, and it leaves the reader doing arithmetic instead of calling.
+ *
+ * One free, one paid, one for a household. Everything above that is a
+ * conversation, and the page says so in a line rather than in four cards.
+ */
+export const FEATURED_PLAN_IDS: PlanId[] = ["free", "premium-basic", "family"];
+
+/** Featured tiers, in ladder order, minus anything still behind a flag. */
+export function featuredPlans(): Plan[] {
+  return releasedPlans().filter((p) => FEATURED_PLAN_IDS.includes(p.id));
 }
 
 export interface Service {
@@ -96,45 +109,51 @@ export interface Copy {
   htmlLang: string;
   title: string;
   description: string;
-  nav: { what: string; pricing: string; work: string; contact: string };
+  otherLang: { href: string; label: string };
+  workHref: string;
+
   heroEyebrow: string;
   heroTitle: string;
   heroBody: string;
   heroCta: string;
   heroCtaNote: string;
-  otherLang: { href: string; label: string };
 
   whatHeading: string;
-  whatLede: string;
   services: Service[];
 
-  whoHeading: string;
-  whoBody: string[];
-
   pricingHeading: string;
-  pricingLede: string;
   perMonth: string;
   seatsOne: string;
   seatsMany: (n: number) => string;
   freeLabel: string;
-  discountNote: string;
-
-  workHeading: string;
-  workLede: string;
-  workRate: string;
-  workErrand: string;
-  workCta: string;
-
-  whenHeading: string;
-  whenBody: string;
+  /** Short, site-owned. The core blurbs are in-app feature lists; a landing
+   *  page needs a sentence, not a manifest. Prices still come from core. */
+  planBlurbs: Partial<Record<PlanId, string>>;
+  morePlans: string;
+  pricingNote: string;
 
   contactHeading: string;
   contactBody: string;
-  callLabel: string;
-  whatsappLabel: string;
 
+  workLink: string;
   disclaimer: string;
   footerNote: string;
+}
+
+/** The hiring page. Its own page because it is its own audience: somebody
+ *  deciding whether to trust us with their father has no use for our payroll,
+ *  and somebody looking for work should not have to read a sales pitch. */
+export interface WorkCopy {
+  htmlLang: string;
+  title: string;
+  description: string;
+  otherLang: { href: string; label: string };
+  heading: string;
+  lede: string;
+  rate: string;
+  errand: string;
+  cta: string;
+  back: string;
 }
 
 const liveDate = (lang: Lang) => formatDate(SERVICE_LIVE_AT, lang);
@@ -143,85 +162,57 @@ const discountPercent = Math.round(LAUNCH_DISCOUNT_RATE * 100);
 const paRate = money(PA_HOURLY_RATE_CENTS);
 const quickTask = money(QUICK_TASK_ASSISTANT_PAYOUT_CENTS["grab-something"] ?? 0);
 
+const DISCLAIMER = {
+  en: "Safehubby LLC is in formation. Safehubby is not an emergency service and never tells anyone they are safe to drive. In an emergency, call your local emergency number first.",
+  es: "Safehubby LLC está en proceso de formación. Safehubby no es un servicio de emergencia y nunca le dice a nadie que puede manejar. En una emergencia, llama primero al número de emergencias de tu área.",
+} as const;
+
 export const COPY: Record<Lang, Copy> = {
   en: {
     htmlLang: "en",
     title: "Safehubby — get home safe, never alone",
     description:
       "Someone checks on the people you love. An errand run, a ride arranged, a person who comes and stays. Serving Puerto Rico, Texas and Los Angeles.",
-    nav: { what: "What it is", pricing: "Pricing", work: "Work with us", contact: "Contact" },
+    otherLang: { href: "/es/", label: "Español" },
+    workHref: "/work/",
+
     heroEyebrow: "Puerto Rico · Texas · Los Angeles",
     heroTitle: "Someone is watching out for the people you love.",
     heroBody:
-      "A parent living alone. A husband who drives overnight. Anybody who should not have to face a bad moment by themselves. Safehubby sends a real person — for an errand, for a ride home, or just to sit with someone until they are steady.",
+      "A parent living alone. A husband who drives overnight. Safehubby sends a real person — for an errand, for a ride home, or just to sit with someone until they are steady.",
     heroCta: "Start free",
-    heroCtaNote: "No card. No contract. The safety basics are never behind a paywall.",
-    otherLang: { href: "/es/", label: "Español" },
+    heroCtaNote: "No card. No contract.",
 
-    whatHeading: "What it actually does",
-    whatLede:
-      "Not an app that texts you to be careful. A person who shows up, at a spend limit you set, with the whole thing recorded so you know what happened.",
+    whatHeading: "What we do",
     services: [
-      {
-        title: "Grab something",
-        body: "One named thing, collected and brought over. The coffee somebody cannot go out for. A prescription from the pharmacy counter.",
-      },
-      {
-        title: "Run an errand",
-        body: "The groceries, the bank, the hardware store. An open list within one trip, at a spending cap you decide before anyone leaves.",
-      },
-      {
-        title: "Arrange a ride",
-        body: "We book it and watch it — including secure transport where it runs, at the provider's real rate rather than a markup.",
-      },
-      {
-        title: "Wait with someone",
-        body: "A vetted assistant who comes and stays. For a hospital wait, a bad night, or a day that should not be spent alone.",
-      },
-      {
-        title: "Check on someone",
-        body: "Someone goes and looks, then tells you. For the call that did not get answered and the silence you cannot read from far away.",
-      },
-      {
-        title: "Check-ins and SOS",
-        body: "Scheduled check-ins with a guardian who is alerted the moment one is missed — not the next morning.",
-      },
-    ],
-
-    whoHeading: "Who this is for",
-    whoBody: [
-      "We built it for the widower who has nobody to ask, and for the daughter three time zones away who has run out of ways to be sure.",
-      "Most people find us for one small thing — a coffee, a pharmacy run, a ride — and stay because somebody finally answers.",
+      { title: "Grab something", body: "One thing, collected and brought over. A coffee, a prescription." },
+      { title: "Run an errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
+      { title: "Arrange a ride", body: "We book it and watch it, at the provider's real rate." },
+      { title: "Wait with someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
+      { title: "Check on someone", body: "Someone goes and looks, then tells you." },
+      { title: "Check-ins and SOS", body: "A guardian is alerted the moment a check-in is missed." },
     ],
 
     pricingHeading: "What it costs",
-    pricingLede: "One person, one household, or a full concierge desk. Cancel any time.",
     perMonth: "/month",
     seatsOne: "1 person",
     seatsMany: (n) => `Up to ${n} people`,
     freeLabel: "Always free",
-    discountNote:
-      `Sign up from ${openDate("en")} and keep ${discountPercent}% off your first year. Paying annually saves more.`,
+    planBlurbs: {
+      free: "Location sharing, check-ins, SOS, ride booking and a quick errand. The safety basics are never behind a paywall.",
+      "premium-basic": "Everything Free does, plus an assistant who runs errands, waits with someone, and goes to check on them for you.",
+      family: "The same service for a whole household, on one account.",
+    },
+    morePlans: "Larger households and full concierge tiers are in the app.",
+    pricingNote:
+      `Sign-ups open ${openDate("en")}. Service goes live ${liveDate("en")}, and nobody is charged a day before that. Sign up early and keep ${discountPercent}% off your first year.`,
 
-    workHeading: "Work with us",
-    workLede:
-      "One flat rate in every market we operate in. We do not pay somebody less for the same job because of where they live.",
-    workRate: `${paRate} an hour for a personal assistant`,
-    workErrand: `${quickTask} per quick task for errand runners, and liability insurance for everyone on the roster from day one.`,
-    workCta: "See open roles",
-
-    whenHeading: "When it starts",
-    whenBody:
-      `Sign-ups open ${openDate("en")}. Service goes live ${liveDate("en")}, and nobody is charged for a day before that — the run-up is spent hiring and insuring the people who do the work.`,
-
-    contactHeading: "Get in touch",
+    contactHeading: "Talk to a person",
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
-    callLabel: "Call",
-    whatsappLabel: "WhatsApp",
 
-    disclaimer:
-      "Safehubby LLC is in formation. Safehubby is not an emergency service and never tells anyone they are safe to drive. In an emergency, call your local emergency number first.",
-    footerNote: "Your location and check-in history are yours. They are never sold, and never used for ad targeting.",
+    workLink: "Work with us",
+    disclaimer: DISCLAIMER.en,
+    footerNote: "Your location and check-in history are yours. Never sold, never used for ad targeting.",
   },
 
   es: {
@@ -229,78 +220,76 @@ export const COPY: Record<Lang, Copy> = {
     title: "Safehubby — llega a casa seguro, nunca solo",
     description:
       "Alguien pasa a ver a las personas que quieres. Una diligencia, un viaje coordinado, alguien que se queda un rato. Puerto Rico, Texas y Los Ángeles.",
-    nav: { what: "Qué es", pricing: "Precios", work: "Trabaja con nosotros", contact: "Contacto" },
+    otherLang: { href: "/", label: "English" },
+    workHref: "/es/trabajo/",
+
     heroEyebrow: "Puerto Rico · Texas · Los Ángeles",
     heroTitle: "Alguien está pendiente de las personas que quieres.",
     heroBody:
-      "Un padre que vive solo. Un esposo que maneja de noche. Cualquiera que no debería pasar un mal momento por su cuenta. Safehubby envía a una persona de verdad — para una diligencia, para un viaje a casa, o simplemente para acompañar a alguien hasta que esté bien.",
+      "Un padre que vive solo. Un esposo que maneja de noche. Safehubby envía a una persona de verdad — para una diligencia, para un viaje a casa, o simplemente para acompañar a alguien hasta que esté bien.",
     heroCta: "Empieza gratis",
-    heroCtaNote: "Sin tarjeta. Sin contrato. Lo básico de seguridad nunca se cobra.",
-    otherLang: { href: "/", label: "English" },
+    heroCtaNote: "Sin tarjeta. Sin contrato.",
 
-    whatHeading: "Lo que realmente hace",
-    whatLede:
-      "No es una app que te escribe para que tengas cuidado. Es una persona que llega, con el límite de gasto que tú pongas, y todo queda registrado para que sepas qué pasó.",
+    whatHeading: "Lo que hacemos",
     services: [
-      {
-        title: "Traer algo",
-        body: "Una cosa específica, recogida y entregada. El café por el que alguien no puede salir. Una receta del mostrador de la farmacia.",
-      },
-      {
-        title: "Hacer una diligencia",
-        body: "La compra, el banco, la ferretería. Una lista abierta dentro de un mismo viaje, con un tope de gasto que decides antes de que nadie salga.",
-      },
-      {
-        title: "Coordinar un viaje",
-        body: "Lo reservamos y lo seguimos — incluyendo transporte seguro donde opera, a la tarifa real del proveedor y no a una tarifa inflada.",
-      },
-      {
-        title: "Acompañar a alguien",
-        body: "Un asistente verificado que llega y se queda. Para una espera en el hospital, una mala noche, o un día que no debería pasarse solo.",
-      },
-      {
-        title: "Pasar a ver a alguien",
-        body: "Alguien va, mira, y te dice. Para la llamada que nadie contestó y el silencio que no puedes interpretar desde lejos.",
-      },
-      {
-        title: "Registros y SOS",
-        body: "Registros programados, con un guardián que recibe alerta en el momento en que se falla uno — no a la mañana siguiente.",
-      },
-    ],
-
-    whoHeading: "Para quién es",
-    whoBody: [
-      "Lo hicimos para el viudo que no tiene a quién pedirle, y para la hija a tres husos horarios de distancia que ya no sabe cómo asegurarse.",
-      "La mayoría nos encuentra por algo pequeño — un café, una ida a la farmacia, un viaje — y se queda porque por fin alguien contesta.",
+      { title: "Traer algo", body: "Una cosa, recogida y entregada. Un café, una receta." },
+      { title: "Hacer una diligencia", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
+      { title: "Coordinar un viaje", body: "Lo reservamos y lo seguimos, a la tarifa real del proveedor." },
+      { title: "Acompañar a alguien", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
+      { title: "Pasar a ver a alguien", body: "Alguien va, mira, y te dice." },
+      { title: "Registros y SOS", body: "Un guardián recibe alerta en el momento en que se falla un registro." },
     ],
 
     pricingHeading: "Cuánto cuesta",
-    pricingLede: "Una persona, un hogar, o un servicio de concierge completo. Cancela cuando quieras.",
     perMonth: "/mes",
     seatsOne: "1 persona",
     seatsMany: (n) => `Hasta ${n} personas`,
     freeLabel: "Siempre gratis",
-    discountNote:
-      `Regístrate desde el ${openDate("es")} y quédate con ${discountPercent}% de descuento el primer año. Pagando anual ahorras más.`,
+    planBlurbs: {
+      free: "Ubicación compartida, registros, SOS, viajes y una diligencia rápida. Lo básico de seguridad nunca se cobra.",
+      "premium-basic": "Todo lo de Free, más un asistente que hace diligencias, acompaña, y pasa a ver a alguien por ti.",
+      family: "El mismo servicio para todo un hogar, en una sola cuenta.",
+    },
+    morePlans: "Hogares más grandes y los niveles de concierge completo están en la app.",
+    pricingNote:
+      `Los registros abren el ${openDate("es")}. El servicio arranca el ${liveDate("es")}, y a nadie se le cobra ni un día antes. Regístrate temprano y quédate con ${discountPercent}% de descuento el primer año.`,
 
-    workHeading: "Trabaja con nosotros",
-    workLede:
-      "La misma tarifa en todos los mercados donde operamos. No le pagamos menos a nadie por el mismo trabajo según dónde viva.",
-    workRate: `${paRate} por hora para asistente personal`,
-    workErrand: `${quickTask} por tarea rápida para quienes hacen diligencias, y seguro de responsabilidad civil para todo el equipo desde el primer día.`,
-    workCta: "Ver puestos disponibles",
-
-    whenHeading: "Cuándo empieza",
-    whenBody:
-      `Los registros abren el ${openDate("es")}. El servicio arranca el ${liveDate("es")}, y a nadie se le cobra ni un día antes de eso — esos meses se dedican a contratar y asegurar a las personas que hacen el trabajo.`,
-
-    contactHeading: "Escríbenos",
+    contactHeading: "Habla con una persona",
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
-    callLabel: "Llama",
-    whatsappLabel: "WhatsApp",
 
-    disclaimer:
-      "Safehubby LLC está en proceso de formación. Safehubby no es un servicio de emergencia y nunca le dice a nadie que puede manejar. En una emergencia, llama primero al número de emergencias de tu área.",
+    workLink: "Trabaja con nosotros",
+    disclaimer: DISCLAIMER.es,
     footerNote: "Tu ubicación y tu historial son tuyos. Nunca se venden, y nunca se usan para publicidad dirigida.",
+  },
+};
+
+export const WORK_COPY: Record<Lang, WorkCopy> = {
+  en: {
+    htmlLang: "en",
+    title: "Work with Safehubby — one flat rate, every market",
+    description:
+      `${paRate} an hour for personal assistants in Puerto Rico, Texas and Los Angeles. Liability insurance from day one.`,
+    otherLang: { href: "/es/trabajo/", label: "Español" },
+    heading: "Work with us",
+    lede:
+      "One flat rate in every market we operate in. We do not pay somebody less for the same job because of where they live.",
+    rate: `${paRate} an hour for a personal assistant`,
+    errand: `${quickTask} per quick task for errand runners, and liability insurance for everyone on the roster from day one.`,
+    cta: "See open roles",
+    back: "Safehubby",
+  },
+  es: {
+    htmlLang: "es",
+    title: "Trabaja con Safehubby — la misma tarifa en todos los mercados",
+    description:
+      `${paRate} por hora para asistentes personales en Puerto Rico, Texas y Los Ángeles. Seguro de responsabilidad civil desde el primer día.`,
+    otherLang: { href: "/work/", label: "English" },
+    heading: "Trabaja con nosotros",
+    lede:
+      "La misma tarifa en todos los mercados donde operamos. No le pagamos menos a nadie por el mismo trabajo según dónde viva.",
+    rate: `${paRate} por hora para asistente personal`,
+    errand: `${quickTask} por tarea rápida para quienes hacen diligencias, y seguro de responsabilidad civil para todo el equipo desde el primer día.`,
+    cta: "Ver puestos disponibles",
+    back: "Safehubby",
   },
 };
