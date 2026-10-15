@@ -416,6 +416,11 @@ export const api = {
        *  supplier to quote, the rate card already decided the price. */
       quote: { provider: string; etaMinutes: number; description: string } | null; disclosures: string[];
       serviceFeeCents: number; totalCents: number; quickTaskEligible: boolean;
+      /** True when this rides on the plan's included grabs — no fee, and
+       *  Safehubby pays the runner instead. See included-grabs.ts. */
+      feeIncluded: boolean;
+      /** Null for no limit. */
+      includedGrabsRemaining: number | null;
       /** Clamped to the seats on the signed-in plan, so it can differ from what was asked for. */
       peopleCount: number;
       maxPeopleCount: number;
@@ -442,6 +447,11 @@ export const api = {
     request<{ task: ConciergeTask; booked: { provider: string; etaMinutes: number | null; trackingUrl: string | null } }>(
       "POST", "/api/concierge/tasks", { ...input, acknowledgedDisclosures: true }),
   conciergeTasks: () => request<{ tasks: ConciergeTask[] }>("GET", "/api/concierge/tasks"),
+  /** This month's no-fee grabs — `allowance` and `remaining` are null for no
+   *  limit. Same shape as the desk-task allowance. */
+  includedGrabs: () =>
+    request<{ allowance: number | null; used: number; remaining: number | null; resetsAt: string }>(
+      "GET", "/api/concierge/included-grabs"),
   /** A flight's schedule, status and (while airborne) position — the
    *  preview before booking an airport pickup, and the same call a booked
    *  task's detail screen makes again to refresh. See FlightTrackingPort. */

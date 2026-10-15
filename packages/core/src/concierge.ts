@@ -777,6 +777,12 @@ export interface ConciergeTask {
    *  itself (not re-derived from category) so history stays accurate even if
    *  the eligible-category list changes later. */
   quickTask?: boolean;
+  /** Whether this rode on the plan's included grabs, so the customer paid no
+   *  service fee and Safehubby paid the runner instead — see
+   *  included-grabs.ts. Stamped, for the same reason as `quickTask`: what
+   *  counts against a month is what was decided at the time, not what the
+   *  allowance table says today. */
+  feeIncluded?: boolean;
   /** Stamped from the traveler's plan at booking, not re-derived later — an
    *  Elite member who downgrades mid-task should not have an already-placed
    *  request quietly lose the priority it was booked under. "Priority

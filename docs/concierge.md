@@ -194,6 +194,39 @@ quick job is short, not cheap, and the old $50 ceiling was rationing the
 purchase instead of the time. `validateConciergeRequest` rejects `quickTask: true` outright
 for an ineligible category or a cap above that lower ceiling.
 
+### Grabs included in the plan
+
+A quick grab is the one thing the customer pays no fee for, up to a monthly
+allowance (`INCLUDED_GRABS_PER_MONTH` in `included-grabs.ts`). The fee on a
+juice to a hospital room was more than the juice; now the customer pays for
+what was bought, and Safehubby pays the runner.
+
+| Plan | No-fee grabs a month | Most it can cost us in runner pay |
+|---|---|---|
+| Free | 2 | $8 |
+| Premium | 10 | $40 of $89.99 |
+| Premium Plus | 12 | $48 of $99.99 |
+| Family | 30 | $120 of $539.94 |
+| Elite, Signature, Private | No limit | — |
+
+- **The runner is paid the same $4.00 either way.** Only who pays changes.
+  A test fails if a waived fee ever reduces `assistantPayoutFor`.
+- **Only the quick grab.** An errand is a list and a longer trip and keeps its
+  $5.00 fee; a paid subscriber's standard-rate grab is a choice and keeps its.
+- **Capped, because it has no revenue behind it.** Unlimited on Free is a cost
+  with no ceiling. A test holds every paid plan's allowance under half its
+  dues, and Free's under $10 a month.
+- **Same shape as the desk-task allowance**: calendar month in UTC via
+  `monthBoundsFor`, a cancelled grab gives its slot back, and
+  `GET /api/concierge/included-grabs` returns `{ allowance, used, remaining,
+  resetsAt }`. The task is stamped `feeIncluded` at booking, so a later change
+  to the table never rewrites what a past month counted.
+- **Decided after the last await before the hold, and reserved until saved.**
+  Card issuing awaits Revolut between the fee decision and the save, so two
+  taps landing together could both take the last free grab; an in-process
+  reservation closes that (safe because the store already requires one
+  replica).
+
 ### The customer sees the fee, itemized, before they book
 
 `POST /api/concierge/quote` returns `serviceFeeCents` alongside `totalCents`,

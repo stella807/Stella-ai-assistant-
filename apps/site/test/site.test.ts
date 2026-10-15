@@ -4,8 +4,8 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  LANGS, PHONE, clubDuesRangeCents, clubExperiences, featuredPlans, formatPhone, money,
-  phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
+  FREE_INCLUDED_GRABS, LANGS, PHONE, clubDuesRangeCents, clubExperiences, featuredPlans,
+  formatPhone, money, phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
@@ -71,6 +71,28 @@ describe("the marketing site", () => {
       for (const cat of ["grab-something", "run-errand", "wait-with-someone", "check-in-person"] as const) {
         expect(pages[lang], `${cat} price in ${lang}`).toContain(money(startingPriceCents(cat)));
       }
+    }
+  });
+
+  it("prices a grab from $0, because the plan includes it", () => {
+    // Said only because it is true: the app charges no fee on a free account's
+    // first grabs of the month. If the allowance ever goes, this fails rather
+    // than leaving the page promising a price nobody can get.
+    expect(startingPriceCents("grab-something")).toBe(0);
+    expect(FREE_INCLUDED_GRABS).toBeGreaterThan(0);
+    for (const lang of LANGS) {
+      const fromWord = lang === "en" ? "from" : "desde";
+      expect(pages[lang], `grab from $0 in ${lang}`).toContain(`${fromWord} $0`);
+      expect(pages[lang], `allowance in ${lang}`).toContain(String(FREE_INCLUDED_GRABS));
+    }
+  });
+
+  it("never claims an errand is free", () => {
+    // Only the one-thing grab is included. The hero once said "a $3 errand is
+    // on the free plan", which hid a $5 fee behind the price of the juice.
+    for (const lang of LANGS) {
+      expect(pages[lang], lang).not.toMatch(/\$3 errand|three-dollar errand|diligencia de (\$3|tres d[oó]lares)/i);
+      expect(startingPriceCents("run-errand")).toBeGreaterThan(0);
     }
   });
 

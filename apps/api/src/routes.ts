@@ -36,10 +36,11 @@ import {
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
   canMarkByHand, launchProgress,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
-  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor, totalChargeCents,
+  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor,
   clampHours, defaultHoursFor, isHourlyCategory,
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
+  includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
@@ -1071,6 +1072,36 @@ function requireFeature(ctx: Ctx, travelerId: string, feature: Feature): void {
   if (!hasFeature(traveler.planId, feature)) {
     throw new HttpError(402, `Your plan does not include "${featureLabel(feature)}". Upgrade to unlock it.`);
   }
+}
+
+/**
+ * Included grabs promised to bookings that have not been saved yet, per
+ * traveler.
+ *
+ * Booking decides the fee before it saves the task, and in between it awaits
+ * credentials, a card and sometimes a partner. Two taps landing together
+ * would both see one grab left and both book it free. Holding a reservation
+ * for the length of the request closes that window; in-process is enough
+ * because the store already requires a single replica (see
+ * store-postgres.ts), and a reservation lost to a restart belonged to a
+ * request that died with it.
+ */
+const includedGrabsInFlight = new Map<string, number>();
+
+function holdIncludedGrab(travelerId: string): () => void {
+  includedGrabsInFlight.set(travelerId, (includedGrabsInFlight.get(travelerId) ?? 0) + 1);
+  return () => {
+    const left = (includedGrabsInFlight.get(travelerId) ?? 1) - 1;
+    if (left > 0) includedGrabsInFlight.set(travelerId, left);
+    else includedGrabsInFlight.delete(travelerId);
+  };
+}
+
+/** This month's included grabs: saved ones plus any still being booked. */
+function includedGrabsUsed(ctx: Ctx, travelerId: string): number {
+  const { start, end } = monthBoundsFor(ctx.now());
+  const mine = ctx.store.data.conciergeTasks.filter((t) => t.travelerId === travelerId);
+  return includedGrabsUsedIn(mine, start, end) + (includedGrabsInFlight.get(travelerId) ?? 0);
 }
 
 /**
@@ -2489,10 +2520,16 @@ export const routes: Record<string, Handler> = {
     }
     const people = peopleCountFor(ctx, me, input);
     const hours = bookedHoursFor(input);
+    const planId = planOf(ctx, me);
+    const usedThisMonth = includedGrabsUsed(ctx, me);
+    const feeIncluded = isGrabIncluded({ planId, category: input.category, quickTask: input.quickTask, usedThisMonth });
+    const serviceFeeCents = feeIncluded ? 0 : serviceFeeFor(input.category, input.quickTask, people, hours);
     return {
       quote, disclosures: CONCIERGE_DISCLOSURES,
-      serviceFeeCents: serviceFeeFor(input.category, input.quickTask, people, hours),
-      totalCents: totalChargeCents(input.category, input.spendCapCents, input.quickTask, people, hours),
+      serviceFeeCents,
+      totalCents: input.spendCapCents + serviceFeeCents,
+      feeIncluded,
+      includedGrabsRemaining: remainingIncludedGrabs(includedGrabAllowanceFor(planId), usedThisMonth),
       quickTaskEligible: isQuickTaskEligible(input.category),
       peopleCount: people,
       ...(hours === undefined ? {} : { hoursBooked: hours }),
@@ -2548,9 +2585,9 @@ export const routes: Record<string, Handler> = {
     // work already agreed. One universal rate — see market-pay.ts for why
     // this does not vary by where the task happens.
     const hoursBooked = bookedHoursFor(input);
-    const serviceFeeCents = serviceFeeFor(input.category, input.quickTask, peopleCount, hoursBooked);
+    // Paid in full whether or not the customer pays a fee — see
+    // included-grabs.ts. The fee itself is decided below, after the awaits.
     const assistantPayoutCents = assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked);
-    const totalCents = totalChargeCents(input.category, input.spendCapCents, input.quickTask, peopleCount, hoursBooked);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     // Only the partner network gets quoted. Our own roster is not a supplier
@@ -2566,107 +2603,123 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
     }
 
-    // The hold covers both the reimbursable purchase and the service fee
-    // that pays the assistant — one exact number, never padded, same as
-    // either piece would be on its own.
-    const hold = authorizeExactHold({ id: newId("hold"), travelerId: me, capCents: totalCents, now: ctx.now() });
-    ctx.store.update((db) => void db.holds.push(hold));
-    const charge = addCharge(ctx, {
-      travelerId: me,
-      kind: "concierge",
-      description: `${conciergeCategoryLabel(input.category)} — ${input.note} ($${(serviceFeeCents / 100).toFixed(2)} service fee included)`.slice(0, 160),
-      amountCents: totalCents,
-      holdId: hold.id,
+    // Decided here, after the last await before money moves, and reserved
+    // until the task is saved — see `holdIncludedGrab`.
+    const feeIncluded = isGrabIncluded({
+      planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask,
+      usedThisMonth: includedGrabsUsed(ctx, me),
     });
-
-    // Issuing a card is an add-on, not a precondition for the task itself: the
-    // partner may bill Safehubby directly with no card in the loop at all, so
-    // a Revolut outage or a missing key should not block dispatch. Whether one
-    // was actually issued is independently visible via `cardIssuing.mode` on
-    // `/api/fulfillment/status`, the same "each capability reports for
-    // itself" rule as every other adapter here.
-    let issuedCard: Awaited<ReturnType<typeof revolutCards.issueCard>> | null = null;
-    if (isAutomatic(revolutCards.status)) {
-      try {
-        issuedCard = await revolutCards.issueCard({
-          capCents: input.spendCapCents,
-          currency: "USD",
-          label: `Concierge: ${conciergeCategoryLabel(input.category)}`,
-          // A task that never finishes should not leave a live card behind
-          // indefinitely — 4 hours comfortably covers a bounded, in-person task.
-          expiresAt: new Date(ctx.now().getTime() + 4 * 3_600_000).toISOString(),
-        });
-      } catch {
-        issuedCard = null;
-      }
-    }
+    const serviceFeeCents = feeIncluded ? 0 : serviceFeeFor(input.category, input.quickTask, peopleCount, hoursBooked);
+    const totalCents = input.spendCapCents + serviceFeeCents;
+    const releaseIncludedGrab = feeIncluded ? holdIncludedGrab(me) : () => {};
 
     try {
-      // Dispatching one of our own is not an outbound call to anybody: the
-      // task lands in their portal, which they already sign into, and we pay
-      // them from the rate card. There is no partner to book with and no
-      // provider task id to carry.
-      const booked = ourAssistant
-        ? {
-          provider: "safehubby",
-          taskId: newId("disp"),
-          assistant: { id: ourAssistant.id, name: ourAssistant.name },
-        }
-        : await concierge.book({
-          category: input.category, note: input.note, location: input.location,
-          spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
-          assistantId,
-          ...(portalCredentials?.tempPassword
-            ? { assistantPortalCredentials: { username: portalCredentials.username, tempPassword: portalCredentials.tempPassword } }
-            : {}),
-          // The reveal link goes to the partner's own dispatch system so it
-          // can reach the assistant — never back to the traveler's browser.
-          ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
-        });
-      const task: ConciergeTask = {
-        id: newId("ct"), travelerId: me, category: input.category, note: input.note,
-        location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
-        assistantPayoutCents, peopleCount,
-        ...(hoursBooked === undefined ? {} : { hoursBooked }),
-        quickTask: input.quickTask, status: "in-progress",
-        ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),
-        provider: booked.provider, providerTaskId: booked.taskId, assistantId,
-        assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,
-        createdAt: ctx.now().toISOString(),
-        ...(issuedCard
-          ? { card: { id: issuedCard.id, last4: issuedCard.last4, network: issuedCard.network, expMonth: issuedCard.expMonth, expYear: issuedCard.expYear } }
-          : {}),
-        ...(input.flight ? { flightNumber: input.flight.flightNumber, flightDate: input.flight.date } : {}),
-        ...(flightInfo ? { flight: flightInfo } : {}),
-      };
-      ctx.store.update((db) => void db.conciergeTasks.push(task));
-      ctx.store.update((db) => {
-        (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Sent a concierge instead of going alone"));
+      // The hold covers both the reimbursable purchase and the service fee
+      // that pays the assistant — one exact number, never padded, same as
+      // either piece would be on its own.
+      const hold = authorizeExactHold({ id: newId("hold"), travelerId: me, capCents: totalCents, now: ctx.now() });
+      ctx.store.update((db) => void db.holds.push(hold));
+      const charge = addCharge(ctx, {
+        travelerId: me,
+        kind: "concierge",
+        description: `${conciergeCategoryLabel(input.category)} — ${input.note} (${
+          feeIncluded ? "no service fee — included in your plan" : `$${(serviceFeeCents / 100).toFixed(2)} service fee included`
+        })`.slice(0, 160),
+        amountCents: totalCents,
+        holdId: hold.id,
       });
-      // Only our own roster carries a portal device to reach — a partner
-      // network's assistant is told through their own dispatch system, in
-      // `concierge.book` above, not this app's push devices.
-      if (ourAssistant) {
-        const devices = devicesFor(ctx.store.data.pushDevices, ourAssistant.id);
-        if (devices.length > 0) {
-          const messages = messagesForAssistantTask({
-            taskId: task.id, categoryLabel: conciergeCategoryLabel(task.category), note: task.note, devices,
+
+      // Issuing a card is an add-on, not a precondition for the task itself: the
+      // partner may bill Safehubby directly with no card in the loop at all, so
+      // a Revolut outage or a missing key should not block dispatch. Whether one
+      // was actually issued is independently visible via `cardIssuing.mode` on
+      // `/api/fulfillment/status`, the same "each capability reports for
+      // itself" rule as every other adapter here.
+      let issuedCard: Awaited<ReturnType<typeof revolutCards.issueCard>> | null = null;
+      if (isAutomatic(revolutCards.status)) {
+        try {
+          issuedCard = await revolutCards.issueCard({
+            capCents: input.spendCapCents,
+            currency: "USD",
+            label: `Concierge: ${conciergeCategoryLabel(input.category)}`,
+            // A task that never finishes should not leave a live card behind
+            // indefinitely — 4 hours comfortably covers a bounded, in-person task.
+            expiresAt: new Date(ctx.now().getTime() + 4 * 3_600_000).toISOString(),
           });
-          void push.send(messages).catch((err) => console.error("[safehubby] Assistant task push failed:", err));
+        } catch {
+          issuedCard = null;
         }
       }
-      return { task, booked };
-    } catch (err) {
-      // A card issued for a task that never actually got booked is a live,
-      // spend-capped card sitting around for nothing — kill it, best-effort.
-      if (issuedCard) revolutCards.cancelCard(issuedCard.id).catch(() => {});
-      ctx.store.update((db) => {
-        const target = db.holds.find((h) => h.id === hold.id);
-        if (target) Object.assign(target, releaseHold(target));
-      });
-      updateCharge(ctx, charge.id, (c) =>
-        failCharge(c, err instanceof Error ? err.message : "The task could not be booked.", ctx.now()));
-      throw err;
+
+      try {
+        // Dispatching one of our own is not an outbound call to anybody: the
+        // task lands in their portal, which they already sign into, and we pay
+        // them from the rate card. There is no partner to book with and no
+        // provider task id to carry.
+        const booked = ourAssistant
+          ? {
+            provider: "safehubby",
+            taskId: newId("disp"),
+            assistant: { id: ourAssistant.id, name: ourAssistant.name },
+          }
+          : await concierge.book({
+            category: input.category, note: input.note, location: input.location,
+            spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me), requesterPhone: body?.phone,
+            assistantId,
+            ...(portalCredentials?.tempPassword
+              ? { assistantPortalCredentials: { username: portalCredentials.username, tempPassword: portalCredentials.tempPassword } }
+              : {}),
+            // The reveal link goes to the partner's own dispatch system so it
+            // can reach the assistant — never back to the traveler's browser.
+            ...(issuedCard ? { card: { last4: issuedCard.last4, revealUrl: issuedCard.revealUrl ?? "" } } : {}),
+          });
+        const task: ConciergeTask = {
+          id: newId("ct"), travelerId: me, category: input.category, note: input.note,
+          location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
+          assistantPayoutCents, peopleCount,
+          ...(hoursBooked === undefined ? {} : { hoursBooked }),
+          quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}), status: "in-progress",
+          ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),
+          provider: booked.provider, providerTaskId: booked.taskId, assistantId,
+          assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,
+          createdAt: ctx.now().toISOString(),
+          ...(issuedCard
+            ? { card: { id: issuedCard.id, last4: issuedCard.last4, network: issuedCard.network, expMonth: issuedCard.expMonth, expYear: issuedCard.expYear } }
+            : {}),
+          ...(input.flight ? { flightNumber: input.flight.flightNumber, flightDate: input.flight.date } : {}),
+          ...(flightInfo ? { flight: flightInfo } : {}),
+        };
+        ctx.store.update((db) => void db.conciergeTasks.push(task));
+        ctx.store.update((db) => {
+          (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Sent a concierge instead of going alone"));
+        });
+        // Only our own roster carries a portal device to reach — a partner
+        // network's assistant is told through their own dispatch system, in
+        // `concierge.book` above, not this app's push devices.
+        if (ourAssistant) {
+          const devices = devicesFor(ctx.store.data.pushDevices, ourAssistant.id);
+          if (devices.length > 0) {
+            const messages = messagesForAssistantTask({
+              taskId: task.id, categoryLabel: conciergeCategoryLabel(task.category), note: task.note, devices,
+            });
+            void push.send(messages).catch((err) => console.error("[safehubby] Assistant task push failed:", err));
+          }
+        }
+        return { task, booked };
+      } catch (err) {
+        // A card issued for a task that never actually got booked is a live,
+        // spend-capped card sitting around for nothing — kill it, best-effort.
+        if (issuedCard) revolutCards.cancelCard(issuedCard.id).catch(() => {});
+        ctx.store.update((db) => {
+          const target = db.holds.find((h) => h.id === hold.id);
+          if (target) Object.assign(target, releaseHold(target));
+        });
+        updateCharge(ctx, charge.id, (c) =>
+          failCharge(c, err instanceof Error ? err.message : "The task could not be booked.", ctx.now()));
+        throw err;
+      }
+    } finally {
+      releaseIncludedGrab();
     }
   },
 
@@ -2676,6 +2729,17 @@ export const routes: Record<string, Handler> = {
      card. See desk-tasks.ts for why it is included rather than billed,
      and why the allowance is finite.
      --------------------------------------------------------------- */
+
+  /** How many no-fee grabs this account has left this month, and when they
+   *  come back — said before anything is asked for, like the desk-task
+   *  allowance it is shaped after. */
+  "GET /api/concierge/included-grabs": (ctx) => {
+    const me = actor(ctx);
+    const { end } = monthBoundsFor(ctx.now());
+    const allowance = includedGrabAllowanceFor(planOf(ctx, me));
+    const used = includedGrabsUsed(ctx, me);
+    return { allowance, used, remaining: remainingIncludedGrabs(allowance, used), resetsAt: end.toISOString() };
+  },
 
   "GET /api/desk/tasks": (ctx) => {
     const me = actor(ctx);

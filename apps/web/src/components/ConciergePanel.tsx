@@ -5,7 +5,8 @@ import {
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, conciergeCategoryLabel,
   defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
   isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
-  launchMarketNames, minutesFor, serviceFeeFor, totalChargeCents,
+  launchMarketNames, minutesFor, serviceFeeFor, customerServiceFeeFor, isGrabIncluded,
+  INCLUDED_GRAB_CATEGORY,
 } from "@safehubby/core";
 import type {
   AssistantProfile, ConciergeCategory, ConciergeTask, FlightInfo, NearbyStore, ProviderStatus, PlanId,
@@ -79,7 +80,7 @@ const CATEGORIES_FOR: Record<HiringKind, ConciergeCategory[]> = {
 const STATUS_LABEL: Record<string, string> = {
   "in-progress": "In progress",
   completed: "Completed",
-  cancelled: "Cancelled",
+  canceled: "Cancelled",
 };
 
 /** One row, active or past — tap it to open the full detail screen. */
@@ -123,6 +124,12 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   const [capEntry, setCapEntry] = useState("");
   const [quickTask, setQuickTask] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
+  // This month's no-fee grabs. Null until it loads, and treated as "none
+  // left" until then: showing a fee and charging none is a pleasant surprise,
+  // the other way round is a broken promise.
+  const [includedGrabs, setIncludedGrabs] = useState<
+    { allowance: number | null; used: number; remaining: number | null; resetsAt: string } | null
+  >(null);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
   const [fix, setFix] = useState<Fix | null>(null);
   const [selected, setSelected] = useState<AssistantProfile | null>(null);
@@ -255,9 +262,16 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // priced on hours at all, and passing them would be rejected by the server.
   const hourly = isHourlyCategory(category);
   const bookedHours = hourly ? clampHours(hours) : undefined;
-  const serviceFee = serviceFeeFor(category, effectiveQuickTask, 1, bookedHours);
+  const usedThisMonth = includedGrabs?.used ?? Number.POSITIVE_INFINITY;
+  const feeIncluded = isGrabIncluded({ planId, category, quickTask: effectiveQuickTask, usedThisMonth });
+  const serviceFee = customerServiceFeeFor({
+    planId, category, quickTask: effectiveQuickTask, hours: bookedHours, usedThisMonth,
+  });
   const assistantPayout = assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours);
-  const totalHeld = totalChargeCents(category, spendCapCents, effectiveQuickTask, 1, bookedHours);
+  const totalHeld = spendCapCents + serviceFee;
+  const resetsOn = includedGrabs
+    ? new Date(includedGrabs.resetsAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })
+    : "";
 
   const browse = async () => {
     setBusy(true);
@@ -342,6 +356,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // voice-message thread for the new task, so it closes only when the
   // subscriber taps close, not the instant a request goes out.
   const onBooked = (task: ConciergeTask) => setTasks((t) => [task, ...t]);
+
+  useEffect(() => {
+    api.includedGrabs().then(setIncludedGrabs).catch(() => setIncludedGrabs(null));
+  }, [tasks]);
 
   const closeSelected = () => {
     setSelected(null);
@@ -497,7 +515,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                 picker has, just for "what does a simple errand cost"
                 instead of "what does a bigger plan cost". */}
             <span className="category-tile-price">
-              from {money(serviceFeeFor(c.id, isQuickTaskEligible(c.id), 1, defaultHoursFor(c.id)))}
+              from {money(c.id === INCLUDED_GRAB_CATEGORY
+                ? customerServiceFeeFor({ planId, category: c.id, quickTask: true, usedThisMonth })
+                : serviceFeeFor(c.id, isQuickTaskEligible(c.id), 1, defaultHoursFor(c.id)))}
             </span>
           </button>
         ))}
@@ -680,7 +700,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       <div className="price-breakdown">
         <div className="row-between">
           <span className="small">Service fee</span>
-          <span className="small charge-amount">{money(serviceFee)}</span>
+          <span className="small charge-amount">{feeIncluded ? "Included" : money(serviceFee)}</span>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           {hourly
@@ -697,9 +717,19 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <span className="small charge-amount">{money(assistantPayout)}</span>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
-          {money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr{hourly ? "" : " for this kind of task"}. They
-          keep all of it — Safehubby's {money(serviceFee - assistantPayout)} is added on top of their rate,
-          never taken out of it.
+          {feeIncluded
+            ? <>
+                Included in your plan, so Safehubby pays them instead of you — the same {money(assistantPayout)},
+                {" "}nothing taken off.{" "}
+                {includedGrabs?.remaining === null
+                  ? "No monthly limit on your plan."
+                  : `${includedGrabs?.remaining} of ${includedGrabs?.allowance} left this month; they come back on ${resetsOn}.`}
+              </>
+            : <>
+                {money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr{hourly ? "" : " for this kind of task"}. They
+                {" "}keep all of it — Safehubby's {money(serviceFee - assistantPayout)} is added on top of their rate,
+                {" "}never taken out of it.
+              </>}
         </p>
         <div className="row-between" style={{ marginTop: 6 }}>
           <span className="small"><strong>Held now</strong></span>
@@ -710,9 +740,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             card a stranger carries, the other pays for their time and never
             touches that card. */}
         <p className="tiny muted" style={{ margin: 0 }}>
-          {money(spendCapCents)} onto their card for the purchase, {money(serviceFee)} for their time. The
-          card money is a ceiling, not a price — you are charged for what is actually spent, and never a cent
-          over it. The fee is never on the card.
+          {feeIncluded
+            ? `${money(spendCapCents)} onto their card for the purchase, and nothing for their time. `
+            : `${money(spendCapCents)} onto their card for the purchase, ${money(serviceFee)} for their time. `}
+          The card money is a ceiling, not a price — you are charged for what is actually spent, and never a cent
+          over it.{feeIncluded ? "" : " The fee is never on the card."}
         </p>
       </div>
 
@@ -731,7 +763,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           <strong className="small">Confirm this request?</strong>
           <p className="small" style={{ margin: 0 }}>
             {conciergeCategoryLabel(category)}: "{note}" — up to {money(spendCapCents)} loaded on their card,
-            {" "}{money(totalHeld)} held on yours now.
+            {" "}{money(totalHeld)} held on yours now{feeIncluded ? ", with no service fee" : ""}.
           </p>
           <div className="row">
             <button className="btn grow" disabled={busy} onClick={() => { setConfirming(false); setAutoAssistant(null); }}>

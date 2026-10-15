@@ -1,8 +1,8 @@
 import {
-  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_START,
-  MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, QUICK_TASK_ASSISTANT_PAYOUT_CENTS, SERVICE_LIVE_AT,
-  duesForCents, isHourlyCategory, isQuickTaskEligible, releasedPlans, serviceFeeFor,
-  type ConciergeCategory, type Plan, type PlanId,
+  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
+  LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
+  SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, isHourlyCategory, isQuickTaskEligible,
+  releasedPlans, type ConciergeCategory, type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -112,20 +112,26 @@ export interface Service {
 
 /**
  * The cheapest this task can be: one person, the shortest bookable length,
- * and the quick-task rate where the category qualifies for it.
+ * the quick-task rate where the category qualifies, and a free account's
+ * first grab of the month — which is $0, because the plan includes it.
  *
  * It is a floor, not a quote — the page says "from". The real number depends
- * on hours and headcount and is worked out by the same function in the app,
- * which is the point of reading it from core here.
+ * on plan, hours, headcount and what is left of the month's allowance, and is
+ * worked out by the same function the app charges with, which is the point
+ * of reading it from core here.
  */
 export function startingPriceCents(category: ConciergeCategory): number {
-  return serviceFeeFor(
+  return customerServiceFeeFor({
+    planId: "free",
     category,
-    isQuickTaskEligible(category),
-    1,
-    isHourlyCategory(category) ? MIN_BOOKED_HOURS : undefined,
-  );
+    quickTask: isQuickTaskEligible(category),
+    hours: isHourlyCategory(category) ? MIN_BOOKED_HOURS : undefined,
+    usedThisMonth: 0,
+  });
 }
+
+/** How many no-fee grabs a free account gets a month, for the copy. */
+export const FREE_INCLUDED_GRABS = INCLUDED_GRABS_PER_MONTH.free ?? 0;
 
 /** The Wingman Club's dues, as the span they actually move across: a flat
  *  base plus whatever that month's experience costs at the negotiated rate. */
@@ -226,13 +232,13 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. Free to start, all the way up to a full concierge desk.",
     heroCta: "Start free",
-    heroCtaNote: "No card. No contract. A $3 errand is on the free plan.",
+    heroCtaNote: `No contract. Your first ${FREE_INCLUDED_GRABS} runs a month have no service fee — you pay only for what we buy.`,
 
     whatHeading: "What we do",
     whatLede:
       "The person we built this for is in a hospital bed at nine at night, thirsty, with nobody to ask. Everything here starts from that.",
     services: [
-      { title: "Grab something", category: "grab-something", body: "A juice, a charger, a blanket. One thing, bought and brought to your room or your door." },
+      { title: "Grab something", category: "grab-something", body: `A juice, a charger, a blanket — bought and brought to your room or your door. You pay for the item; ${FREE_INCLUDED_GRABS} a month come with no fee on the free plan, more on every paid one.` },
       { title: "Run an errand", category: "run-errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
       { title: "Wait with someone", category: "wait-with-someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
       { title: "Check on someone", category: "check-in-person", body: "Someone goes and looks, then tells you." },
@@ -241,13 +247,13 @@ export const COPY: Record<Lang, Copy> = {
     ],
 
     pricingHeading: "What it costs",
-    pricingLede: "Seven ways in, from a three-dollar errand to a desk that answers 24/7. Swipe across.",
+    pricingLede: "Seven ways in, from a juice brought to your room for the price of the juice, to a desk that answers 24/7. Swipe across.",
     perMonth: "/month",
     seatsOne: "1 person",
     seatsMany: (n) => `Up to ${n} people`,
     freeLabel: "Always free",
     planBlurbs: {
-      free: "Someone brings you one thing — a juice, a charger — up to $20. Plus check-ins, SOS and ride booking. Never behind a paywall.",
+      free: `Someone brings you one thing — a juice, a charger — up to $20, with no fee on ${FREE_INCLUDED_GRABS} a month. Plus check-ins, SOS and ride booking.`,
       "premium-basic": "An assistant who runs the errand, waits with someone, or goes to check on them for you.",
       "premium-plus": "Everything Premium does, for two people, with no ceiling on what goes on the card.",
       family: "The same service for a whole household, on one account.",
@@ -288,13 +294,13 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Empieza gratis, y llega hasta un servicio de concierge completo.",
     heroCta: "Empieza gratis",
-    heroCtaNote: "Sin tarjeta. Sin contrato. Una diligencia de $3 entra en el plan gratis.",
+    heroCtaNote: `Sin contrato. Tus primeras ${FREE_INCLUDED_GRABS} al mes no llevan cargo por servicio — pagas solo lo que compramos.`,
 
     whatHeading: "Lo que hacemos",
     whatLede:
       "La persona para quien hicimos esto está en una cama de hospital a las nueve de la noche, con sed, y no tiene a quién pedirle. Todo aquí sale de ahí.",
     services: [
-      { title: "Traer algo", category: "grab-something", body: "Un jugo, un cargador, una frisa. Una cosa, comprada y llevada a tu cuarto o a tu puerta." },
+      { title: "Traer algo", category: "grab-something", body: `Un jugo, un cargador, una frisa — comprado y llevado a tu cuarto o a tu puerta. Pagas el artículo; ${FREE_INCLUDED_GRABS} al mes van sin cargo en el plan gratis, y más en cada plan pagado.` },
       { title: "Hacer una diligencia", category: "run-errand", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
       { title: "Acompañar a alguien", category: "wait-with-someone", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
       { title: "Pasar a ver a alguien", category: "check-in-person", body: "Alguien va, mira, y te dice." },
@@ -303,13 +309,13 @@ export const COPY: Record<Lang, Copy> = {
     ],
 
     pricingHeading: "Cuánto cuesta",
-    pricingLede: "Siete maneras de entrar, desde una diligencia de tres dólares hasta un servicio que contesta 24/7. Desliza.",
+    pricingLede: "Siete maneras de entrar, desde un jugo llevado a tu cuarto por lo que cuesta el jugo, hasta un servicio que contesta 24/7. Desliza.",
     perMonth: "/mes",
     seatsOne: "1 persona",
     seatsMany: (n) => `Hasta ${n} personas`,
     freeLabel: "Siempre gratis",
     planBlurbs: {
-      free: "Alguien te trae una cosa — un jugo, un cargador — hasta $20. Más registros, SOS y viajes. Nunca se cobra.",
+      free: `Alguien te trae una cosa — un jugo, un cargador — hasta $20, sin cargo ${FREE_INCLUDED_GRABS} veces al mes. Más registros, SOS y viajes.`,
       "premium-basic": "Un asistente que hace la diligencia, acompaña a alguien, o pasa a verlo por ti.",
       "premium-plus": "Todo lo de Premium, para dos personas, sin tope en lo que va en la tarjeta.",
       family: "El mismo servicio para todo un hogar, en una sola cuenta.",

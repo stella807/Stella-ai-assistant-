@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest";
+import {
+  INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
+  customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
+  monthBoundsFor, releasedPlans, remainingIncludedGrabs, serviceFeeFor,
+  type ConciergeCategory, type ConciergeTask, type PlanId,
+} from "../src/index.ts";
+
+const remaining = (planId: PlanId, used: number) =>
+  remainingIncludedGrabs(includedGrabAllowanceFor(planId), used);
+
+const grab = (
+  planId: PlanId, usedThisMonth: number,
+  over: { category?: ConciergeCategory; quickTask?: boolean } = {},
+): { planId: PlanId; category: ConciergeCategory; quickTask: boolean; usedThisMonth: number } => ({
+  planId, category: INCLUDED_GRAB_CATEGORY, quickTask: true, usedThisMonth, ...over,
+});
+
+describe("grabs a plan includes", () => {
+  it("brings the free plan's first grabs of the month for nothing but the item", () => {
+    // The person this was built for: a juice to a hospital room. A five-dollar
+    // fee on a three-dollar juice made the cheapest help we sell cost more
+    // than the thing itself.
+    const allowance = INCLUDED_GRABS_PER_MONTH.free!;
+    expect(allowance).toBeGreaterThan(0);
+    for (let used = 0; used < allowance; used++) {
+      expect(customerServiceFeeFor(grab("free", used)), `grab ${used + 1}`).toBe(0);
+    }
+  });
+
+  it("charges the ordinary fee once the month's allowance is used", () => {
+    const allowance = INCLUDED_GRABS_PER_MONTH.free!;
+    expect(customerServiceFeeFor(grab("free", allowance)))
+      .toBe(serviceFeeFor(INCLUDED_GRAB_CATEGORY, true, 1));
+    expect(remaining("free", allowance)).toBe(0);
+    expect(remaining("free", allowance + 5)).toBe(0);
+  });
+
+  it("holds only the spend cap on an included grab", () => {
+    expect(customerTotalCents({ ...grab("free", 0), spendCapCents: 300 })).toBe(300);
+  });
+
+  it("never touches what the runner is paid", () => {
+    /**
+     * Waiving the fee moves who pays the assistant — Safehubby, instead of
+     * the customer — and never what they earn. If this ever fails, a free
+     * juice run has quietly become a cheaper one for the person running it.
+     */
+    const payout = assistantPayoutFor(INCLUDED_GRAB_CATEGORY, true, 1);
+    expect(payout).toBeGreaterThan(0);
+    expect(customerServiceFeeFor(grab("free", 0))).toBe(0);
+    expect(assistantPayoutFor(INCLUDED_GRAB_CATEGORY, true, 1)).toBe(payout);
+  });
+
+  it("covers only the one-thing pickup", () => {
+    // An errand is a list and a longer trip, and keeps its rate.
+    expect(isGrabIncluded(grab("free", 0, { category: "run-errand" }))).toBe(false);
+    expect(customerServiceFeeFor(grab("free", 0, { category: "run-errand" })))
+      .toBe(serviceFeeFor("run-errand", true, 1));
+    // So does the standard-rate grab a paid subscriber chooses on purpose —
+    // the longer, open-ended version, not the quick one the allowance is for.
+    expect(isGrabIncluded(grab("premium-basic", 0, { quickTask: false }))).toBe(false);
+  });
+
+  it("gives every paid plan more than free, and the top rungs no limit", () => {
+    const free = INCLUDED_GRABS_PER_MONTH.free!;
+    for (const plan of releasedPlans()) {
+      const n = INCLUDED_GRABS_PER_MONTH[plan.id];
+      if (plan.id === "free") continue;
+      if (n !== null) expect(n, plan.id).toBeGreaterThan(free);
+    }
+    for (const id of ["elite", "elite-signature", "elite-private"] as const) {
+      expect(INCLUDED_GRABS_PER_MONTH[id], id).toBeNull();
+      expect(remaining(id, 10_000)).toBeNull();
+      expect(customerServiceFeeFor(grab(id, 10_000))).toBe(0);
+    }
+  });
+
+  it("never gives away more in a month than a paid plan takes in", () => {
+    // Every included grab is the runner's pay with nothing coming in. On a
+    // paid plan that has to fit inside the dues, with room left over, or the
+    // allowance is a plan that loses money on its heaviest users.
+    const payout = assistantPayoutFor(INCLUDED_GRAB_CATEGORY, true, 1);
+    for (const plan of releasedPlans()) {
+      const n = INCLUDED_GRABS_PER_MONTH[plan.id];
+      if (n === null || plan.monthlyCents === 0) continue;
+      expect(n * payout, plan.id).toBeLessThan(plan.monthlyCents / 2);
+    }
+  });
+
+  it("caps what a free account can cost in a month at a known, small number", () => {
+    // Free has no dues to absorb it, so the ceiling is the whole point. This
+    // is the most a free account can cost Safehubby in runner pay, ever.
+    const payout = assistantPayoutFor(INCLUDED_GRAB_CATEGORY, true, 1);
+    expect(INCLUDED_GRABS_PER_MONTH.free! * payout).toBeLessThanOrEqual(1_000);
+    expect(findPlan("free").monthlyCents).toBe(0);
+  });
+});
+
+describe("counting the month", () => {
+  // Typed, not cast: a cast let a misspelled status through once, and the
+  // test passed against a module that had made the same mistake.
+  const task = (over: Partial<ConciergeTask>): ConciergeTask => {
+    const base: ConciergeTask = {
+      id: "t", travelerId: "u", category: INCLUDED_GRAB_CATEGORY, note: "juice",
+      location: { lat: 0, lng: 0 }, spendCapCents: 300, serviceFeeCents: 0, assistantPayoutCents: 400,
+      peopleCount: 1, status: "completed", provider: "safehubby", feeIncluded: true,
+      chargeId: "c", holdId: "h", createdAt: "2027-01-10T12:00:00.000Z",
+    };
+    return { ...base, ...over };
+  };
+  const { start, end } = monthBoundsFor(new Date("2027-01-15T00:00:00.000Z"));
+
+  it("counts the month's included grabs, the same calendar month desk tasks use", () => {
+    expect(includedGrabsUsedIn([task({}), task({ status: "in-progress" })], start, end)).toBe(2);
+    // Last month's do not carry over.
+    expect(includedGrabsUsedIn([task({ createdAt: "2026-12-31T23:59:00.000Z" })], start, end)).toBe(0);
+  });
+
+  it("gives a cancelled grab back, and ignores grabs that paid their fee", () => {
+    expect(includedGrabsUsedIn([task({ status: "canceled" })], start, end)).toBe(0);
+    expect(includedGrabsUsedIn([task({ feeIncluded: false, serviceFeeCents: 500 })], start, end)).toBe(0);
+  });
+});

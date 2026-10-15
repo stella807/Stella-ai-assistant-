@@ -8,9 +8,11 @@ import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runFlightSweep, runPayroll, type Ctx } from "../src/routes.ts";
+import { revolutCards } from "../src/adapters/cards.ts";
 import {
-  ELITE_LADDER, PLANS, authorizeExactHold, findPlan, assistantPayoutFor, eliteUnlockThresholdCents,
-  previousPayoutPeriod, recordCharge, resetFlags, settleCharge, setFlag,
+  ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
+  eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
+  settleCharge, setFlag, type CardIssuingPort,
 } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
@@ -3946,6 +3948,121 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(res.json.inHouse).toBe(1);
     expect(res.json.assistants[0].name).toBe("Rosa Delgado");
     expect(res.json.available).toBe(1);
+  });
+
+  describe("grabs included in the plan", () => {
+    /** A juice to room 412: the smallest thing we do, booked the way the free
+     *  plan books it. */
+    const bookGrab = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
+      call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, note: "A cold juice to room 412.",
+        location: IN_TEXAS, spendCapCents: 500, acknowledgedDisclosures: true, assistantId, ...over,
+      }, token);
+
+    const runner = async () => {
+      const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` });
+      return hired.json.assistant.id as string;
+    };
+
+    it("brings a free account's first grab with no service fee, and holds only the item", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+
+      const quote = await call("POST", "/api/concierge/quote", {
+        category: "grab-something", quickTask: true, note: "A cold juice to room 412.",
+        location: IN_TEXAS, spendCapCents: 500,
+      }, jordan);
+      expect(quote.status, JSON.stringify(quote.json)).toBe(200);
+      expect(quote.json.serviceFeeCents).toBe(0);
+      expect(quote.json.totalCents).toBe(500);
+      expect(quote.json.feeIncluded).toBe(true);
+      expect(quote.json.includedGrabsRemaining).toBe(INCLUDED_GRABS_PER_MONTH.free);
+
+      const booked = await bookGrab(jordan, kit);
+      expect(booked.status, JSON.stringify(booked.json)).toBe(200);
+      expect(booked.json.task.serviceFeeCents).toBe(0);
+      expect(booked.json.task.feeIncluded).toBe(true);
+      // The runner is paid exactly what they would have been. Safehubby pays
+      // it instead of the customer; nobody earns less for a free juice run.
+      expect(booked.json.task.assistantPayoutCents).toBe(assistantPayoutFor("grab-something", true, 1));
+      const charge = store.data.charges.find((c) => c.id === booked.json.task.chargeId)!;
+      expect(charge.amountCents).toBe(500);
+    });
+
+    it("charges the ordinary fee once the month's allowance is used", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      const allowance = INCLUDED_GRABS_PER_MONTH.free!;
+      for (let i = 0; i < allowance; i++) {
+        const r = await bookGrab(jordan, kit);
+        expect(r.json.task.serviceFeeCents, `grab ${i + 1}`).toBe(0);
+      }
+      const next = await bookGrab(jordan, kit);
+      expect(next.status).toBe(200);
+      expect(next.json.task.serviceFeeCents).toBe(serviceFeeFor("grab-something", true, 1));
+      expect(next.json.task.feeIncluded).toBeFalsy();
+
+      const status = await call("GET", "/api/concierge/included-grabs", undefined, jordan);
+      expect(status.json).toMatchObject({ allowance, used: allowance, remaining: 0 });
+      // Said up front, like the desk-task allowance: when it comes back.
+      expect(Date.parse(status.json.resetsAt)).toBeGreaterThan(clock.getTime());
+    });
+
+    it("gives a cancelled grab back to the month", async () => {
+      // Cancelling should not cost somebody one of their two. Nothing was
+      // brought, so nothing was used.
+      const kit = await runner();
+      await withCard(jordan);
+      const booked = await bookGrab(jordan, kit);
+      expect((await call("GET", "/api/concierge/included-grabs", undefined, jordan)).json.used).toBe(1);
+      await call("POST", `/api/concierge/tasks/${booked.json.task.id}/cancel`, {}, jordan);
+      const after = await call("GET", "/api/concierge/included-grabs", undefined, jordan);
+      expect(after.json.used).toBe(0);
+      expect(after.json.remaining).toBe(INCLUDED_GRABS_PER_MONTH.free);
+    });
+
+    it("lets only one of two simultaneous bookings take the last included grab", async () => {
+      /**
+       * The fee is decided before the task is saved, and in production a card
+       * is issued in between — an await on Revolut. Two taps landing together
+       * would both see one grab left and both book it free.
+       *
+       * Without a card issuer there is no await in that gap at all, so an
+       * earlier version of this test passed with the guard switched off and
+       * proved nothing. This stands in an issuer that takes its time, the way
+       * a real one does, so the two requests genuinely overlap there.
+       */
+      const kit = await runner();
+      await withCard(jordan);
+      const allowance = INCLUDED_GRABS_PER_MONTH.free!;
+      for (let i = 0; i < allowance - 1; i++) await bookGrab(jordan, kit);
+
+      const cards = revolutCards as { status: CardIssuingPort["status"]; issueCard: CardIssuingPort["issueCard"] };
+      const real = { status: cards.status, issueCard: cards.issueCard };
+      cards.status = { ...real.status, mode: "automatic" };
+      cards.issueCard = async () => {
+        await new Promise((r) => setTimeout(r, 150));
+        return { id: `card_${Math.random()}`, last4: "4242", network: "visa", expMonth: 12, expYear: 2030, revealUrl: null };
+      };
+      try {
+        const [a, b] = await Promise.all([bookGrab(jordan, kit), bookGrab(jordan, kit)]);
+        expect(a.status, JSON.stringify(a.json)).toBe(200);
+        expect(b.status, JSON.stringify(b.json)).toBe(200);
+        const free = [a, b].filter((r) => r.json.task.serviceFeeCents === 0);
+        expect(free).toHaveLength(1);
+      } finally {
+        cards.status = real.status;
+        cards.issueCard = real.issueCard;
+      }
+    });
+
+    it("leaves an errand at its rate", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      const errand = await bookGrab(jordan, kit, { category: "run-errand", spendCapCents: 1_000 });
+      expect(errand.status, JSON.stringify(errand.json)).toBe(200);
+      expect(errand.json.task.serviceFeeCents).toBe(serviceFeeFor("run-errand", true, 1));
+    });
   });
 
   it("lets a free plan see who could run its errand without being told it is a quick task", async () => {
