@@ -406,7 +406,7 @@ export const PLANS: Plan[] = [
     seats: 1,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 10,
-    blurb: "For one person. The luxury desk — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately, and ten hours of a personal assistant's time every month.",
+    blurb: "For one person. A desk that answers 24/7 — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately. Ten hours of an assistant's time on the ground each month; more at the usual rate.",
   },
   {
     id: "elite-signature",
@@ -416,7 +416,7 @@ export const PLANS: Plan[] = [
     seats: 2,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 50,
-    blurb: "For two. The same desk and the same included physician's retainer, with fifty hours a month behind it — enough that the assistant knows your household rather than your last request.",
+    blurb: "For two. The same 24/7 desk and the same included physician's retainer, with fifty hours a month of an assistant on the ground behind it — enough that they know your household rather than your last request.",
   },
   {
     id: "elite-private",
@@ -426,7 +426,7 @@ export const PLANS: Plan[] = [
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 200,
-    blurb: "For up to six. Two hundred hours a month with a named team, the physician's retainer included, and at-home doctor visits and evaluation arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
+    blurb: "For up to six. A 24/7 desk and a named team, two hundred hours a month of their time on the ground, the physician's retainer included, and at-home doctor visits arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
   },
 ];
 

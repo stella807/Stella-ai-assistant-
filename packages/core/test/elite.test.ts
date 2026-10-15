@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONCIERGE_DOCTOR_DISCLOSURES, ELITE_DESK_MEMBERSHIP, ELITE_EVENTS, ELITE_SERVICES, JET_TRAVEL_DISCLOSURES,
+  CONCIERGE_DOCTOR_DISCLOSURES, DESK_COVERAGE, ELITE_DESK_MEMBERSHIP, ELITE_EVENTS, ELITE_SERVICES,
+  HOURS_IN_A_MONTH, JET_TRAVEL_DISCLOSURES,
   MAX_ELITE_BRIEF_LENGTH, commissionCentsFor, directMembershipCrossoverCents, disclosuresFor,
   doctorAvailableFor, eliteBreakEvenMembers, eliteDeskAnnualCostCents, eliteDeskIsViable,
   eliteEventHasRoom, findEliteEvent, findEliteService, upcomingEliteEvents, validateEliteRequest,
 } from "../src/elite.ts";
 import { ELITE_LADDER, ELITE_ONLY, eliteSpendingAllowanceCents, findPlan, includedConciergeHours, isElitePlan } from "../src/billing.ts";
-import { serviceFeeFor } from "../src/concierge.ts";
+import { PA_HOURLY_RATE_CENTS, serviceFeeFor } from "../src/concierge.ts";
 import type { EliteBooking } from "../src/elite.ts";
 
 describe("the Elite service catalogue", () => {
@@ -200,6 +201,41 @@ describe("whether the Elite desk pays for itself", () => {
       const plan = findPlan(id);
       const hoursValue = includedConciergeHours(id) * serviceFeeFor("book-and-buy", false, 1, 1);
       expect(hoursValue, `${id} hours vs price`).toBeLessThan(plan.monthlyCents);
+    }
+  });
+
+  it("says the desk is reachable around the clock, on every rung", () => {
+    // What a member at this price actually expects: somebody answers at 3am.
+    // It is stated on each rung rather than once in a footnote because it is
+    // the headline the tier is bought on.
+    for (const id of ELITE_LADDER) {
+      expect(findPlan(id).blurb, `${id} desk coverage`).toContain(DESK_COVERAGE);
+    }
+  });
+
+  it("never promises an assistant present around the clock, which no rung pays for", () => {
+    /**
+     * The guard behind the wording. "The desk answers 24/7" is coverage and
+     * is true. "An assistant is with you 24/7" is labour, and labour has a
+     * wage bill: a month is 730 hours, which at the rate the roster is
+     * actually paid costs more than two of the three rungs take in.
+     *
+     * So a rung may say the desk is always open, and must still state the
+     * hours of an assistant's time it includes. Anything that removed the
+     * hours would be an undisclosed limit on a four-figure subscription.
+     */
+    const roundTheClockWages = HOURS_IN_A_MONTH * PA_HOURLY_RATE_CENTS;
+    expect(roundTheClockWages).toBeGreaterThan(findPlan("elite").monthlyCents);
+    expect(roundTheClockWages).toBeGreaterThan(findPlan("elite-signature").monthlyCents);
+
+    for (const id of ELITE_LADDER) {
+      const plan = findPlan(id);
+      // Every rung still discloses a real allowance...
+      expect(includedConciergeHours(id), `${id} allowance`).toBeGreaterThan(0);
+      // ...and none of them claims that allowance is the whole month.
+      expect(includedConciergeHours(id), `${id} vs a full month`).toBeLessThan(HOURS_IN_A_MONTH);
+      expect(plan.blurb, `${id} must not sell unlimited hours`)
+        .not.toMatch(/unlimited|around the clock assistant|24\/7 assistant/i);
     }
   });
 

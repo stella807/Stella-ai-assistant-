@@ -787,6 +787,15 @@ label:has(> input[type="checkbox"]) {
 
 /* Modal --------------------------------------------------------------- */
 
+/*
+ * Leaflet gives its own panes z-index 200-700 and leaves `.leaflet-container`
+ * at `z-index: auto`, so those panes compete with the page rather than with
+ * each other — a map painted straight over the sheet below, tiles and all,
+ * on any screen that opens a modal above one. Isolating the container keeps
+ * Leaflet's internal layering internal.
+ */
+.leaflet-container { isolation: isolate; }
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

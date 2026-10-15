@@ -108,6 +108,32 @@ export const ELITE_SERVICES: EliteService[] = [
   },
 ];
 
+/** Hours in an average month — 365 days a year, not 30 days a month, so a
+ *  "round the clock" claim is checked against the real number. */
+export const HOURS_IN_A_MONTH = (365 * 24) / 12;
+
+/**
+ * How reachable the desk is: any hour, any day, on every Elite rung.
+ *
+ * This is **coverage, not labour**, and the distinction is the whole reason
+ * it is a named constant rather than a phrase in a marketing sentence. A
+ * member can reach a person at three in the morning — that is what a
+ * concierge desk is, and it is what somebody paying four figures a month
+ * expects. `includedConciergeHours` is the other thing entirely: hours of
+ * an assistant's time *on the ground*, doing the task.
+ *
+ * Conflating them would promise a dedicated assistant present every hour of
+ * every day. That is HOURS_IN_A_MONTH — about 730 — and at
+ * `PA_HOURLY_RATE_CENTS` it is roughly $25,550 a month in wages before the
+ * desk, the insurance, payroll tax or the physician's retainer. It cannot
+ * sit behind the $1,500 rung at any margin, and barely fits the $60,000 one.
+ *
+ * So: the desk is always open, and an assistant's time is an allowance that
+ * every rung has to state. See the guard in elite.test.ts, which fails if
+ * either half of that drifts.
+ */
+export const DESK_COVERAGE = "24/7";
+
 /**
  * The concierge-physician retainer Safehubby now pays on the member's
  * behalf, folded into every Elite rung's price rather than billed to the

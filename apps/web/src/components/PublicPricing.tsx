@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, ELITE_ONLY, PA_HOURLY_RATE_CENTS,
   QUICK_TASK_CATEGORIES, assistantPayoutFor, defaultHoursFor, driverEarningsCents, featureLabel,
-  includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
+  DESK_COVERAGE, includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
   type Plan, type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -173,7 +173,10 @@ function EliteShowcase({ plans, eliteUnlock }: {
 
           <table className="pay-table">
             <thead>
-              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>Concierge hours/mo</th></tr>
+              {/* Two different things, in two columns on purpose: the desk
+                  answers around the clock, and an assistant's time on the
+                  ground is an allowance. See DESK_COVERAGE in elite.ts. */}
+              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>Desk</th><th>Assistant hrs/mo</th></tr>
             </thead>
             <tbody>
               {rungs.map((p) => (
@@ -181,6 +184,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
                   <td>{p.name}</td>
                   <td>{money(p.monthlyCents)}</td>
                   <td>{p.seats}</td>
+                  <td>{DESK_COVERAGE}</td>
                   <td>{includedConciergeHours(p.id)}</td>
                 </tr>
               ))}
