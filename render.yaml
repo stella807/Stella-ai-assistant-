@@ -22,3 +22,13 @@ services:
         sync: false        # paste your Neon connection string
       - key: SAFEHUBBY_ENCRYPTION_KEY
         generateValue: true
+      # Without this there is no way to create the first master account, so
+      # nobody — including you — can reach /master. Render generates it; read
+      # it once from the dashboard and keep it somewhere safe.
+      - key: SAFEHUBBY_ADMIN_KEY
+        generateValue: true
+      # Used to build the referral link a subscriber shares. Set it to the
+      # service's real URL once there is one, or shared links point at a
+      # domain you do not own.
+      - key: SAFEHUBBY_PUBLIC_URL
+        sync: false
