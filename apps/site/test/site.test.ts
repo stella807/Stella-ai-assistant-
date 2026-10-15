@@ -4,7 +4,7 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  FEATURED_PLAN_IDS, LANGS, PHONE, featuredPlans, formatPhone, money, phoneHref,
+  LANGS, PHONE, featuredPlans, formatPhone, money, phoneHref,
   whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
@@ -33,28 +33,42 @@ describe("the marketing site", () => {
     }
   });
 
-  it("shows three plans rather than the whole ladder", () => {
-    // Seven price cards, topping out at $60,000 a month, is not a price list
-    // — it is a decision the reader cannot make. The ladder still exists and
-    // is still sold; it is sold in the app, where somebody has already said
-    // yes to the idea.
-    expect(FEATURED_PLAN_IDS).toHaveLength(3);
+  it("shows every released tier, not a hand-picked few", () => {
+    // The span from a $3 errand to $60,000 a month is the product, not an
+    // embarrassment to hide. An earlier version showed three of seven, which
+    // solved the wrong problem: the wall was vertical, so the fix was to lay
+    // it sideways — see `.plan-rail`.
     for (const lang of LANGS) {
       const cards = pages[lang].match(/class="plan"/g) ?? [];
-      expect(cards, `plan cards in ${lang}`).toHaveLength(featuredPlans().length);
+      expect(cards, `plan cards in ${lang}`).toHaveLength(releasedPlans().length);
+      expect(featuredPlans().map((p) => p.id)).toEqual(releasedPlans().map((p) => p.id));
     }
   });
 
-  it("keeps the Elite ladder's prices off the public page", () => {
-    // Not a secret, but quoting five and six figures a month beside an $89.99
-    // tier reads as a different company to the person this page is for.
+  it("prints the Elite ladder's real prices too", () => {
     for (const lang of LANGS) {
       for (const id of ["elite", "elite-signature", "elite-private"] as const) {
+        if (!isPlanReleased(id)) continue;
         const plan = findPlan(id);
-        expect(pages[lang], `${id} price leaked into ${lang}`)
-          .not.toContain(money(plan.monthlyCents));
+        expect(pages[lang], `${id} price in ${lang}`).toContain(money(plan.monthlyCents));
       }
     }
+  });
+
+  it("lays the tiers out as a rail that scrolls without script", () => {
+    // A carousel that needs JavaScript is a carousel this page cannot have.
+    for (const lang of LANGS) {
+      expect(pages[lang], `rail in ${lang}`).toContain('class="plan-rail"');
+      // Reachable by keyboard, or it cannot be scrolled by keyboard.
+      expect(pages[lang], `rail focusable in ${lang}`).toMatch(/class="plan-rail"[^>]*tabindex="0"/);
+    }
+  });
+
+  it("says who it is really for before it lists what it sells", () => {
+    // The person in a hospital bed at nine at night is the brief. If the page
+    // ever stops naming them, it has drifted into selling a lifestyle app.
+    expect(pages.en.toLowerCase()).toContain("hospital");
+    expect(pages.es.toLowerCase()).toContain("hospital");
   });
 
   it("never advertises a plan the app has not released", () => {
@@ -214,12 +228,14 @@ describe("the page stays simple", () => {
     }
   });
 
-  it("stays under five hundred words of body copy", () => {
-    // 810 words was the measurement that started this. The cap is here so the
-    // next good paragraph has to earn its place by displacing another.
+  it("stays under six hundred words of body copy", () => {
+    // 810 words was the measurement that started this. Seven tiers cost more
+    // words than three did, and the cap moved once to pay for them rather
+    // than quietly going away — the next good paragraph still has to earn its
+    // place by displacing another.
     for (const lang of LANGS) {
       const words = pages[lang].replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean);
-      expect(words.length, `words in ${lang}`).toBeLessThan(500);
+      expect(words.length, `words in ${lang}`).toBeLessThan(600);
     }
   });
 });

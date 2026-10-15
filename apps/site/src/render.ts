@@ -141,6 +141,7 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
   <section class="bleed bleed-quiet">
     <div class="band">
       <h2>${esc(c.whatHeading)}</h2>
+      <p class="lede">${esc(c.whatLede)}</p>
       <ul class="services">
         ${c.services.map((s) => `<li class="service">
           <h3>${esc(s.title)}</h3>
@@ -152,7 +153,16 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
 
   <section class="band">
     <h2>${esc(c.pricingHeading)}</h2>
-    <div class="plans">
+    <p class="lede">${esc(c.pricingLede)}</p>
+    <!--
+      A rail, not a grid. Seven tiers stacked vertically is a wall somebody
+      scrolls past; side by side they are a ladder you can see the shape of.
+      Scroll-snap does it natively — this page ships no JavaScript, and a
+      hand-rolled swipe handler is how carousels end up fighting the scroll.
+      The tabindex is there because a scrollable region has to be reachable
+      by keyboard to be scrollable by keyboard.
+    -->
+    <div class="plan-rail" role="group" aria-label="${esc(c.pricingHeading)}" tabindex="0">
       ${plans.map((p) => planCard(lang, p)).join("\n      ")}
     </div>
     <p class="more-plans">${esc(c.morePlans)}</p>
@@ -344,10 +354,34 @@ h2 {
 .service p { margin: 0; color: var(--ink-soft); font-size: 16.5px; line-height: 1.45; }
 
 /* ---------- Plans ---------- */
-.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; }
+/* The rail bleeds to the page edge so a card is visibly cut off — that is
+   the only affordance saying "there is more this way", and it has to work
+   without script. The gutter is restored as scroll padding so the first
+   card still lines up with every other section's text. */
+.plan-rail {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 20px;
+  margin-inline: -20px;
+  padding: 4px 20px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.plan-rail:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 .plan {
+  flex: 0 0 min(78%, 290px);
+  scroll-snap-align: start;
   background: var(--paper); border: 1px solid var(--rule); border-radius: 12px;
   padding: 20px; display: flex; flex-direction: column; gap: 2px;
+}
+/* Past about five cards' worth of room there is nothing left to scroll, so
+   the rail stops pretending and behaves as a row. */
+@media (min-width: 1240px) {
+  .plan-rail { flex-wrap: nowrap; }
+  .plan { flex-basis: 1fr; }
 }
 .plan h3 { font-family: var(--display); font-size: 20px; letter-spacing: -0.015em; margin: 0; }
 .plan-cost { margin: 6px 0 0; font-variant-numeric: tabular-nums; }

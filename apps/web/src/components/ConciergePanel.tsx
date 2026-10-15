@@ -267,7 +267,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       const at = await currentFix();
       if (!at) throw new Error("Turn on location to browse assistants — they need to know where to go.");
       setFix(at);
-      const res = await api.conciergeAssistants(category, at);
+      const res = await api.conciergeAssistants(category, at, effectiveQuickTask);
       setRoster(res.assistants);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the roster right now");
@@ -287,7 +287,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       const at = await currentFix();
       if (!at) throw new Error("Turn on location to send this — the assistant needs to know where to go.");
       setFix(at);
-      const res = await api.conciergeAssistants(category, selectedPlace ?? at);
+      const res = await api.conciergeAssistants(category, selectedPlace ?? at, effectiveQuickTask);
       const available = res.assistants.find((a) => isAssistantAvailable(a));
       if (!available) throw new Error("No one is available for this right now — try again shortly.");
       setAutoAssistant(available);

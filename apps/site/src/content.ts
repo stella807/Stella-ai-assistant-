@@ -82,22 +82,20 @@ export function formatDate(iso: string, lang: Lang): string {
 }
 
 /**
- * The three tiers the website sells.
+ * Every tier the app has released, in ladder order.
  *
- * The ladder has seven rungs and runs to $60,000 a month. All seven are real
- * and all seven are sold — in the app, to somebody who has already decided
- * they want this. Printing them side by side on a landing page does not read
- * as choice, it reads as a different company than the one the headline
- * describes, and it leaves the reader doing arithmetic instead of calling.
+ * All of them, on purpose. The ladder runs from free to $60,000 a month and
+ * that span *is* the product: the same company brings a $3 juice to a
+ * hospital room and charters a jet, and a reader who only ever sees the
+ * bottom three has been told a smaller story than the true one.
  *
- * One free, one paid, one for a household. Everything above that is a
- * conversation, and the page says so in a line rather than in four cards.
+ * The earlier version of this page showed three and hid the rest, which
+ * solved the wrong problem — seven cards stacked vertically was a wall, but
+ * the fix for a wall is to lay it sideways, not to knock most of it down.
+ * They render as a swipeable rail; see `.plan-rail` in render.ts.
  */
-export const FEATURED_PLAN_IDS: PlanId[] = ["free", "premium-basic", "family"];
-
-/** Featured tiers, in ladder order, minus anything still behind a flag. */
 export function featuredPlans(): Plan[] {
-  return releasedPlans().filter((p) => FEATURED_PLAN_IDS.includes(p.id));
+  return releasedPlans();
 }
 
 export interface Service {
@@ -119,9 +117,12 @@ export interface Copy {
   heroCtaNote: string;
 
   whatHeading: string;
+  /** Who this is actually for, in one sentence, before the list of services. */
+  whatLede: string;
   services: Service[];
 
   pricingHeading: string;
+  pricingLede: string;
   perMonth: string;
   seatsOne: string;
   seatsMany: (n: number) => string;
@@ -177,15 +178,17 @@ export const COPY: Record<Lang, Copy> = {
     workHref: "/work/",
 
     heroEyebrow: "Puerto Rico · Texas · Los Angeles",
-    heroTitle: "Someone is watching out for the people you love.",
+    heroTitle: "Someone will bring it to you.",
     heroBody:
-      "A parent living alone. A husband who drives overnight. Safehubby sends a real person — for an errand, for a ride home, or just to sit with someone until they are steady.",
+      "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. Free to start, all the way up to a full concierge desk.",
     heroCta: "Start free",
-    heroCtaNote: "No card. No contract.",
+    heroCtaNote: "No card. No contract. A $3 errand is on the free plan.",
 
     whatHeading: "What we do",
+    whatLede:
+      "The person we built this for is in a hospital bed at nine at night, thirsty, with nobody to ask. Everything here starts from that.",
     services: [
-      { title: "Grab something", body: "One thing, collected and brought over. A coffee, a prescription." },
+      { title: "Grab something", body: "A juice, a charger, a blanket. One thing, bought and brought to your room or your door." },
       { title: "Run an errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
       { title: "Arrange a ride", body: "We book it and watch it, at the provider's real rate." },
       { title: "Wait with someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
@@ -194,16 +197,21 @@ export const COPY: Record<Lang, Copy> = {
     ],
 
     pricingHeading: "What it costs",
+    pricingLede: "Seven ways in, from a three-dollar errand to a desk that answers 24/7. Swipe across.",
     perMonth: "/month",
     seatsOne: "1 person",
     seatsMany: (n) => `Up to ${n} people`,
     freeLabel: "Always free",
     planBlurbs: {
-      free: "Location sharing, check-ins, SOS, ride booking and a quick errand. The safety basics are never behind a paywall.",
-      "premium-basic": "Everything Free does, plus an assistant who runs errands, waits with someone, and goes to check on them for you.",
+      free: "Someone brings you one thing — a juice, a charger — up to $20. Plus check-ins, SOS and ride booking. Never behind a paywall.",
+      "premium-basic": "An assistant who runs the errand, waits with someone, or goes to check on them for you.",
+      "premium-plus": "Everything Premium does, for two people, with no ceiling on what goes on the card.",
       family: "The same service for a whole household, on one account.",
+      elite: "A desk that answers 24/7, a concierge physician's retainer included, and jet, villa and yacht booking.",
+      "elite-signature": "The same desk for two, with fifty hours a month of an assistant who knows your household.",
+      "elite-private": "A named team, two hundred hours a month, and a doctor who comes to the house.",
     },
-    morePlans: "Larger households and full concierge tiers are in the app.",
+    morePlans: "Every plan cancels in one tap, from the app.",
     pricingNote:
       `Sign-ups open ${openDate("en")}. Service goes live ${liveDate("en")}, and nobody is charged a day before that. Sign up early and keep ${discountPercent}% off your first year.`,
 
@@ -224,15 +232,17 @@ export const COPY: Record<Lang, Copy> = {
     workHref: "/es/trabajo/",
 
     heroEyebrow: "Puerto Rico · Texas · Los Ángeles",
-    heroTitle: "Alguien está pendiente de las personas que quieres.",
+    heroTitle: "Alguien te lo lleva.",
     heroBody:
-      "Un padre que vive solo. Un esposo que maneja de noche. Safehubby envía a una persona de verdad — para una diligencia, para un viaje a casa, o simplemente para acompañar a alguien hasta que esté bien.",
+      "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Empieza gratis, y llega hasta un servicio de concierge completo.",
     heroCta: "Empieza gratis",
-    heroCtaNote: "Sin tarjeta. Sin contrato.",
+    heroCtaNote: "Sin tarjeta. Sin contrato. Una diligencia de $3 entra en el plan gratis.",
 
     whatHeading: "Lo que hacemos",
+    whatLede:
+      "La persona para quien hicimos esto está en una cama de hospital a las nueve de la noche, con sed, y no tiene a quién pedirle. Todo aquí sale de ahí.",
     services: [
-      { title: "Traer algo", body: "Una cosa, recogida y entregada. Un café, una receta." },
+      { title: "Traer algo", body: "Un jugo, un cargador, una frisa. Una cosa, comprada y llevada a tu cuarto o a tu puerta." },
       { title: "Hacer una diligencia", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
       { title: "Coordinar un viaje", body: "Lo reservamos y lo seguimos, a la tarifa real del proveedor." },
       { title: "Acompañar a alguien", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
@@ -241,16 +251,21 @@ export const COPY: Record<Lang, Copy> = {
     ],
 
     pricingHeading: "Cuánto cuesta",
+    pricingLede: "Siete maneras de entrar, desde una diligencia de tres dólares hasta un servicio que contesta 24/7. Desliza.",
     perMonth: "/mes",
     seatsOne: "1 persona",
     seatsMany: (n) => `Hasta ${n} personas`,
     freeLabel: "Siempre gratis",
     planBlurbs: {
-      free: "Ubicación compartida, registros, SOS, viajes y una diligencia rápida. Lo básico de seguridad nunca se cobra.",
-      "premium-basic": "Todo lo de Free, más un asistente que hace diligencias, acompaña, y pasa a ver a alguien por ti.",
+      free: "Alguien te trae una cosa — un jugo, un cargador — hasta $20. Más registros, SOS y viajes. Nunca se cobra.",
+      "premium-basic": "Un asistente que hace la diligencia, acompaña a alguien, o pasa a verlo por ti.",
+      "premium-plus": "Todo lo de Premium, para dos personas, sin tope en lo que va en la tarjeta.",
       family: "El mismo servicio para todo un hogar, en una sola cuenta.",
+      elite: "Un servicio que contesta 24/7, el retainer de un médico concierge incluido, y reservas de jet, villa y yate.",
+      "elite-signature": "El mismo servicio para dos, con cincuenta horas al mes de un asistente que conoce tu hogar.",
+      "elite-private": "Un equipo asignado, doscientas horas al mes, y un médico que va a la casa.",
     },
-    morePlans: "Hogares más grandes y los niveles de concierge completo están en la app.",
+    morePlans: "Todos los planes se cancelan con un toque, desde la app.",
     pricingNote:
       `Los registros abren el ${openDate("es")}. El servicio arranca el ${liveDate("es")}, y a nadie se le cobra ni un día antes. Regístrate temprano y quédate con ${discountPercent}% de descuento el primer año.`,
 

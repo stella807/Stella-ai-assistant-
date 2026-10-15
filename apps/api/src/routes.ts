@@ -2374,7 +2374,21 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     const category = p.category ?? "";
     if (!CONCIERGE_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Unknown task type.");
-    requireConciergeAccess(ctx, me, category as ConciergeCategory, p.quickTask === "true");
+    /*
+     * Listing who could come is not booking, so this works the quick-task
+     * flag out from the plan rather than making the caller prove it. A free
+     * plan can only ever book these categories as a quick task — asking it
+     * to say so in a query parameter meant any caller that forgot got
+     * "upgrade to unlock" for a feature the plan already has, which is
+     * exactly what happened to the auto-assign behind "Send request".
+     *
+     * Deliberately not pushed into `requireConciergeAccess` itself: booking
+     * the same category at the standard rate is a different thing and stays
+     * behind the paid feature, which is the rule that function encodes.
+     */
+    const quickTask = p.quickTask === "true"
+      || (isQuickTaskEligible(category as ConciergeCategory) && planOf(ctx, me) === "free");
+    requireConciergeAccess(ctx, me, category as ConciergeCategory, quickTask);
     const location = coordsFrom(p);
     requireLaunchMarket(location);
 
@@ -2438,13 +2452,41 @@ export const routes: Record<string, Handler> = {
     validateConciergeRequest(input, planOf(ctx, me));
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
-    if (!isAutomatic(concierge.status)) throw new HttpError(503, concierge.status.requires);
 
-    const quote = await concierge.quote({
-      category: input.category, note: input.note, location: input.location,
-      spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
+    /*
+     * Our own roster is not a supplier we ask for a price. The rate card in
+     * concierge.ts already decided it, and `POST /api/concierge/tasks` books
+     * our own staff from that card without calling the partner at all.
+     *
+     * This route used to demand a partner agreement before it would quote
+     * anything, which meant a market staffed entirely by people we hired
+     * could browse the roster, pick somebody, and never see a price — and
+     * the booking button stays disabled until a price arrives. Browse,
+     * choose, dead end. The same bug the roster route already carries a
+     * comment about, one step further along.
+     *
+     * The 503 is still right when nobody can do the work: quoting a task
+     * that cannot be dispatched is worse than saying so.
+     */
+    const ours = rosterFor(ctx.store.data.assistants, {
+      category: input.category,
+      market: payMarketFor(input.location),
+      now: ctx.now(),
     });
-    if (!quote) throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+    const needsPartner = ours.length === 0;
+    if (needsPartner && !isAutomatic(concierge.status)) {
+      throw new HttpError(503, concierge.status.requires);
+    }
+
+    const quote = needsPartner
+      ? await concierge.quote({
+        category: input.category, note: input.note, location: input.location,
+        spendCapCents: input.spendCapCents, requesterName: nameOf(ctx, me),
+      })
+      : null;
+    if (needsPartner && !quote) {
+      throw new HttpError(503, `${concierge.status.name} does not operate where you are right now.`);
+    }
     const people = peopleCountFor(ctx, me, input);
     const hours = bookedHoursFor(input);
     return {

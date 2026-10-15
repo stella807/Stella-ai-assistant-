@@ -3948,6 +3948,76 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(res.json.available).toBe(1);
   });
 
+  it("lets a free plan see who could run its errand without being told it is a quick task", async () => {
+    /**
+     * The free tier's one concierge capability, and it was unreachable.
+     *
+     * The client works out "this is a quick task" from the plan and sends it
+     * when quoting and when booking — but the roster listing is a third call
+     * and did not carry it. So the auto-assign behind "Send request" asked
+     * for the roster without the flag and got back "Your plan does not
+     * include Personal concierge. Upgrade to unlock it." — for the one
+     * category that plan does include.
+     *
+     * Listing who could come is not booking. A free plan can only ever book
+     * these categories as a quick task, so the server works that out from
+     * the plan rather than making the caller prove it.
+     */
+    await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kit2@example.com" });
+    const res = await call(
+      "GET", `/api/concierge/assistants?category=grab-something&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`,
+      undefined, jordan);
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(res.json.inHouse).toBe(1);
+  });
+
+  it("still keeps a free plan out of the categories it does not pay for", async () => {
+    // The leniency above is scoped to the quick-task categories. Waiting with
+    // somebody is open-ended time with a person and stays paid.
+    await hireOne();
+    const res = await call(
+      "GET", `/api/concierge/assistants?category=wait-with-someone&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`,
+      undefined, jordan);
+    expect(res.status).toBe(402);
+  });
+
+  it("prices work our own roster will do, with no partner network configured", async () => {
+    /**
+     * The other half of the regression above, and the one that actually
+     * blocks a launch. Browsing the roster was fixed; quoting was not, so a
+     * market staffed entirely by people we hired could pick an assistant and
+     * never see a price — and the client disables the booking button until a
+     * price arrives. Browse, choose, and then nothing.
+     *
+     * `POST /api/concierge/tasks` already books our own staff without the
+     * partner, and prices them from the rate card in concierge.ts rather
+     * than asking a supplier. Quoting has to follow the same rule or the two
+     * routes disagree about whether the work can happen at all.
+     */
+    await hireOne();
+    const res = await call("POST", "/api/concierge/quote", {
+      category: "wait-with-someone", note: "Stay with my father through his appointment.",
+      location: IN_TEXAS, spendCapCents: 10_000, hours: 2,
+    }, sam);
+
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(res.json.serviceFeeCents).toBeGreaterThan(0);
+    expect(res.json.totalCents).toBeGreaterThan(res.json.serviceFeeCents);
+    // Our own roster is not a supplier we ask for a price, so there is no
+    // partner quote to return — the rate card already decided it.
+    expect(res.json.quote).toBeNull();
+  });
+
+  it("still refuses a quote where neither our roster nor a partner can go", async () => {
+    // The 503 is correct when nobody can actually do the work. Removing it
+    // outright would quote a price for a task that cannot be dispatched.
+    const res = await call("POST", "/api/concierge/quote", {
+      category: "wait-with-someone", note: "Stay with my father through his appointment.",
+      location: IN_TEXAS, spendCapCents: 10_000, hours: 2,
+    }, sam);
+    expect(res.status).toBe(503);
+  });
+
   it("never offers an errand runner for waiting with or checking on someone", async () => {
     await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kit@example.com" });
 

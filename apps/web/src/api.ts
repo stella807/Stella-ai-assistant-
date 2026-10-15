@@ -412,7 +412,9 @@ export const api = {
       "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
   conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; peopleCount?: number; hours?: number }) =>
     request<{
-      quote: { provider: string; etaMinutes: number; description: string }; disclosures: string[];
+      /** Null when Safehubby's own roster is doing the work — there is no
+       *  supplier to quote, the rate card already decided the price. */
+      quote: { provider: string; etaMinutes: number; description: string } | null; disclosures: string[];
       serviceFeeCents: number; totalCents: number; quickTaskEligible: boolean;
       /** Clamped to the seats on the signed-in plan, so it can differ from what was asked for. */
       peopleCount: number;
@@ -422,9 +424,14 @@ export const api = {
       hoursBooked?: number;
     }>(
       "POST", "/api/concierge/quote", input),
-  conciergeAssistants: (category: ConciergeCategory, location: { lat: number; lng: number }) =>
+  /** `quickTask` is what the free tier books these categories as — send it,
+   *  or a free account is told to upgrade for a feature it already has. */
+  conciergeAssistants: (
+    category: ConciergeCategory, location: { lat: number; lng: number }, quickTask?: boolean,
+  ) =>
     request<{ assistants: AssistantProfile[]; available: number }>(
-      "GET", `/api/concierge/assistants?category=${encodeURIComponent(category)}&lat=${location.lat}&lng=${location.lng}`),
+      "GET", `/api/concierge/assistants?category=${encodeURIComponent(category)}`
+        + `&lat=${location.lat}&lng=${location.lng}${quickTask ? "&quickTask=true" : ""}`),
   bookConcierge: (input: {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
     spendCapCents: number; assistantId?: string; quickTask?: boolean; peopleCount?: number;
