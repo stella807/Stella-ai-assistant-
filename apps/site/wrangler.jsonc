@@ -1,0 +1,14 @@
+{
+  // The site, as Cloudflare Workers static assets. Nothing runs on a request:
+  // Cloudflare serves the files in ./dist, which `pnpm build` writes.
+  // `_headers` in that folder sets the security and cache headers.
+  "name": "safehubby-site",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "./dist",
+    // /work/ and /es/trabajo/ are folders holding an index.html, so no
+    // rewrite is needed; an unknown path gets a real 404, not the home page.
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

@@ -490,3 +490,33 @@ h2 {
 .foot-links a { text-decoration: none; }
 .copy { font-weight: 600; }
 `;
+
+/**
+ * Response headers for Cloudflare's static hosting (`_headers` is read by
+ * both Pages and Workers static assets).
+ *
+ * The page ships no script and no inline style, so the policy can be as
+ * tight as it looks: nothing loads from anywhere but this origin, and
+ * nothing can be framed, submitted or based elsewhere. A policy this strict
+ * is only honest because the tests elsewhere in this package already hold
+ * the page to it — see "needs no JavaScript" and "asks no third party for
+ * anything". Add a third-party asset and those fail before this one does.
+ *
+ * Fonts are content-hashed by nobody, so they cache for a year but not as
+ * `immutable`; a changed font would otherwise never reach a returning
+ * visitor. The HTML revalidates every time, which is what lets a price change
+ * reach the page on the next deploy rather than the next cache expiry.
+ */
+export const HEADERS = `/*
+  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Cache-Control: public, max-age=0, must-revalidate
+
+/fonts/*
+  Cache-Control: public, max-age=31536000
+
+/site.css
+  Cache-Control: public, max-age=3600
+`;

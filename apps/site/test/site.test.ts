@@ -7,7 +7,7 @@ import {
   INCLUDED_GRABS_ENTRY, LANGS, PHONE, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
   formatPhone, money, phoneHref, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
-import { renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
+import { HEADERS, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
 const pages: Record<Lang, string> = { en: renderPage("en"), es: renderPage("es") };
 const work: Record<Lang, string> = { en: renderWorkPage("en"), es: renderWorkPage("es") };
@@ -340,6 +340,44 @@ describe("privacy of the page itself", () => {
       // Plan blurbs contain em-dashes and apostrophes; none of them should
       // have produced a stray unescaped angle bracket in an attribute.
       expect(body, name).not.toMatch(/content="[^"]*<[^"]*"/);
+    }
+  });
+});
+
+describe("serving it from Cloudflare", () => {
+  it("locks the page to its own origin, which it can afford because it loads nothing else", () => {
+    const csp = /Content-Security-Policy: (.+)/.exec(HEADERS)![1]!;
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).not.toContain("unsafe-inline");
+    expect(csp).not.toContain("unsafe-eval");
+    expect(csp).not.toMatch(/https?:\/\//);
+    expect(csp).toContain("frame-ancestors 'none'");
+  });
+
+  it("holds the pages to the policy it sends", () => {
+    // A policy with 'unsafe-inline' left out blocks inline style attributes.
+    // Fail here, not in a visitor's browser.
+    for (const [name, body] of Object.entries(every)) {
+      expect(body, name).not.toMatch(/\sstyle="/);
+      expect(body, name).not.toMatch(/<style[\s>]/);
+    }
+  });
+
+  it("revalidates the HTML so a price change shows on the next deploy", () => {
+    expect(HEADERS).toMatch(/\/\*\n[\s\S]*?Cache-Control: public, max-age=0, must-revalidate/);
+  });
+
+  it("points the sign-up buttons at wherever the app runs, not a fixed address", async () => {
+    // Set at build time, because the address changes when the domain arrives.
+    const prior = process.env.APP_URL;
+    process.env.APP_URL = "https://app.example.test";
+    try {
+      const { vi } = await import("vitest");
+      vi.resetModules();
+      const { renderPage: fresh } = await import("../src/render.ts");
+      expect(fresh("en")).toContain('href="https://app.example.test"');
+    } finally {
+      if (prior === undefined) delete process.env.APP_URL; else process.env.APP_URL = prior;
     }
   });
 });

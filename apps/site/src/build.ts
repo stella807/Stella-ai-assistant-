@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } fro
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LANGS, ORIGIN } from "./content.ts";
-import { STYLESHEET, pathFor, renderPage, renderWorkPage, workPathFor } from "./render.ts";
+import { HEADERS, STYLESHEET, pathFor, renderPage, renderWorkPage, workPathFor } from "./render.ts";
 
 /**
  * Writes the whole site to `dist/`. Plain files, no server — deployable to
@@ -39,6 +39,7 @@ for (const file of readdirSync(fontDir).filter((f) => f.endsWith(".woff2"))) {
   copyFileSync(join(fontDir, file), join(dist, "fonts", file));
 }
 console.log(`  fonts/  ${readdirSync(fontDir).filter((f) => f.endsWith(".woff2")).length} files, self-hosted`);
+write("_headers", HEADERS);
 write("robots.txt", `User-agent: *\nAllow: /\nSitemap: ${ORIGIN}/sitemap.xml\n`);
 write(
   "sitemap.xml",

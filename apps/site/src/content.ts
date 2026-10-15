@@ -26,8 +26,10 @@ export const LANGS: Lang[] = ["en", "es"];
  *  SITE_ORIGIN once a real domain exists. */
 export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-production.up.railway.app";
 
-/** Where a visitor goes to actually sign up. The app, not this site. */
-export const APP_URL = "https://safehubby-app-production.up.railway.app";
+/** Where a visitor goes to actually sign up. The app, not this site. Set
+ *  `APP_URL` at build time to point it at wherever the app is running — the
+ *  address is not baked in, because it changes when the domain arrives. */
+export const APP_URL = process.env.APP_URL ?? "https://safehubby-app-production.up.railway.app";
 
 /**
  * The number to call, digits only with country code.
