@@ -103,15 +103,22 @@ describe("the marketing site", () => {
     expect(fees[2]!).toBeGreaterThan(fees[1]!);
   });
 
-  it("does not offer errands on the Free plan while they are paused", () => {
-    // The Free card must not promise what the app refuses: a free account is
-    // told errands are paused, so the page cannot say they are included.
+  it("does not offer the Free plan while it is held back", () => {
+    // The page sells what the app offers. With `free-tier` off the app refuses
+    // a Free sign-up, so no card, no "Start free" button, no "always free".
     for (const lang of LANGS) {
-      const free = pages[lang].match(/<article class="plan">\s*<h3>Free<\/h3>[\s\S]*?<\/article>/)![0];
-      // It may say where errands start; it may not hold out an errand as part of Free.
-      expect(free, lang).not.toMatch(/juice|jugo|charger|cargador/i);
-      expect(free, lang).toContain("Premium");
+      expect(pages[lang], lang).not.toMatch(/<h3>Free<\/h3>/);
+      expect(pages[lang], lang).not.toMatch(/Start free|Empieza gratis|Always free|Siempre gratis/);
+      const cards = pages[lang].match(/class="plan"/g) ?? [];
+      expect(cards, lang).toHaveLength(releasedPlans().length);
     }
+    expect(releasedPlans().map((p) => p.id)).not.toContain("free");
+  });
+
+  it("says how many plans there are from what is actually on offer", () => {
+    expect(pages.en).toContain(["Six"][0]! + " plans");
+    expect(pages.es).toContain("Seis planes");
+    expect(releasedPlans()).toHaveLength(6);
   });
 
   it("never claims an errand is free", () => {

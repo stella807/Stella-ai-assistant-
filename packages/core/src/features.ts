@@ -26,6 +26,7 @@
 
 export type FeatureFlag =
   | "elite-tier"
+  | "free-tier"
   | "free-errands"
   | "party-supply"
   | "ride-booking-api"
@@ -44,6 +45,11 @@ export const FLAGS: FlagDefinition[] = [
     id: "elite-tier",
     enabled: true,
     note: "The Elite ladder is live. The desk reports per service rather than per plan: with no charter operator or physician practice configured, a request is taken and answered by a person instead of quoted automatically — the same honesty rule every other adapter here follows. The legal duties do not ride on this flag: Part 295 disclosures are attached to every jet quote, medical commission is zero and cannot be set otherwise, and the doctor disappears entirely when the assessment says call emergency services.",
+  },
+  {
+    id: "free-tier",
+    enabled: false,
+    note: "The Free plan is not being offered right now. Check-ins, location sharing and SOS still work on an account with no paid plan; the plans to choose from start with Premium.",
   },
   {
     id: "free-errands",

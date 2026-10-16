@@ -587,6 +587,11 @@ export function eliteUnlockProgressPercent(trailingRevenueCents: number): number
 }
 
 export function isPlanReleased(id: PlanId): boolean {
+  // Free is held back from what is *offered* — the catalog, the website, the
+  // plan picker. It is not deleted: an account with no paid plan is still on
+  // it, which is what keeps check-ins, location and SOS working for somebody
+  // who has not subscribed or who has cancelled. See `free-tier`.
+  if (id === "free") return isEnabled("free-tier");
   return isElitePlan(id) ? isEnabled("elite-tier") : true;
 }
 

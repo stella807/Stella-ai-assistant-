@@ -175,8 +175,10 @@ describe("API basics", () => {
     expect((await call("GET", "/api/health")).json.ok).toBe(true);
     const catalog = (await call("GET", "/api/catalog")).json;
     expect(catalog.drinks.length).toBeGreaterThan(5);
-    // Four everyday tiers plus the three Elite rungs.
-    expect(catalog.plans.length).toBe(4 + ELITE_LADDER.length);
+    // Three paid everyday tiers plus the three Elite rungs. Free is not offered
+    // while `free-tier` is off, so it is not in what a visitor can choose from.
+    expect(catalog.plans.length).toBe(3 + ELITE_LADDER.length);
+    expect(catalog.plans.map((p: { id: string }) => p.id)).not.toContain("free");
   });
 
   it("404s an unknown route and 400s bad JSON", async () => {
@@ -5022,10 +5024,34 @@ describe("the renewal-terms gate", () => {
     expect(after.json.subscription?.planId ?? "free").toBe("free");
   });
 
-  it("lets the free plan through without one", async () => {
-    const res = await call("POST", "/api/subscription",
-      { planId: "free", renewalConsent: null }, jordan);
-    expect(res.status).toBe(200);
+  it("lets the free plan through without one, once it is on offer", async () => {
+    setFlag("free-tier", true);
+    try {
+      const res = await call("POST", "/api/subscription", { planId: "free", renewalConsent: null }, jordan);
+      expect(res.status).toBe(200);
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("does not let anybody sign up for Free while it is not offered", async () => {
+    // Nothing paid, nothing subscribed: there is nothing to cancel, so this is
+    // a sign-up for a plan that is off the shelf.
+    const res = await call("POST", "/api/subscription", { planId: "free", renewalConsent: null }, jordan);
+    expect(res.status).toBe(404);
+    expect(res.json.error).toMatch(/not being offered/i);
+  });
+
+  it("still lets a paid subscriber stop paying by moving down to Free", async () => {
+    // Cancelling has to stay one tap however the shelf is arranged. A plan
+    // being withdrawn from sale must never trap somebody who already pays.
+    const terms = await call("GET", "/api/billing/renewal-terms?planId=premium-basic&cadence=monthly", undefined, jordan);
+    const joined = await call("POST", "/api/subscription", {
+      planId: "premium-basic", cadence: "monthly", renewalConsent: { priceCents: terms.json.priceCents },
+    }, jordan);
+    expect(joined.status, JSON.stringify(joined.json)).toBe(200);
+    const stopped = await call("POST", "/api/subscription", { planId: "free" }, jordan);
+    expect(stopped.status, JSON.stringify(stopped.json)).toBe(200);
   });
 
   it("refuses an agreement to a price that is not the price", async () => {

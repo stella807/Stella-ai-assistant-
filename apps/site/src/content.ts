@@ -278,6 +278,13 @@ const DISCLAIMER = {
   es: "Safehubby LLC está en proceso de formación. Safehubby no es un servicio de emergencia y nunca le dice a nadie que puede manejar. En una emergencia, llama primero al número de emergencias de tu área.",
 } as const;
 
+/** The number of plans on offer, in words — the page says "Six plans", and the
+ *  count follows whatever is on the shelf rather than being typed. */
+const PLAN_COUNT_WORDS: Record<Lang, string[]> = {
+  en: ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"],
+  es: ["Ningún", "Un", "Dos", "Tres", "Cuatro", "Cinco", "Seis", "Siete", "Ocho", "Nueve", "Diez"],
+};
+
 export const COPY: Record<Lang, Copy> = {
   en: {
     htmlLang: "en",
@@ -290,9 +297,9 @@ export const COPY: Record<Lang, Copy> = {
     heroEyebrow: "Puerto Rico · Texas · Los Angeles",
     heroTitle: "Someone will bring it to you.",
     heroBody:
-      "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. Free to start, all the way up to a full concierge desk.",
-    heroCta: "Start free",
-    heroCtaNote: "No contract. Free covers check-ins, location and SOS; errands start with Premium.",
+      "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. From one errand to a full concierge desk.",
+    heroCta: "Get started",
+    heroCtaNote: `No contract. Nobody is charged before ${liveDate("en")}.`,
 
     whatHeading: "What we do",
     tiersHeading: "Errands, by size",
@@ -306,11 +313,11 @@ export const COPY: Record<Lang, Copy> = {
       { title: "Wait with someone", category: "wait-with-someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
       { title: "Check on someone", category: "check-in-person", body: "Someone goes and looks, then tells you." },
       { title: "Arrange a ride", priceNote: "At the provider's own rate", body: "We book it and watch it — no markup on the fare." },
-      { title: "Check-ins and SOS", priceNote: "Free on every plan", body: "A guardian is alerted the moment a check-in is missed." },
+      { title: "Check-ins and SOS", priceNote: "On every plan", body: "A guardian is alerted the moment a check-in is missed." },
     ],
 
     pricingHeading: "What it costs",
-    pricingLede: "Seven ways in, from free safety basics to a desk that answers 24/7. Swipe across.",
+    pricingLede: `${PLAN_COUNT_WORDS.en[releasedPlans().length]} plans, from everyday help to a desk that answers 24/7. Swipe across.`,
     perMonth: "/month",
     seatsOne: "1 person",
     seatsMany: (n) => `Up to ${n} people`,
@@ -357,9 +364,9 @@ export const COPY: Record<Lang, Copy> = {
     heroEyebrow: "Puerto Rico · Texas · Los Ángeles",
     heroTitle: "Alguien te lo lleva.",
     heroBody:
-      "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Empieza gratis, y llega hasta un servicio de concierge completo.",
-    heroCta: "Empieza gratis",
-    heroCtaNote: "Sin contrato. Gratis incluye registros, ubicación y SOS; los encargos empiezan con Premium.",
+      "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Desde una diligencia hasta un servicio de concierge completo.",
+    heroCta: "Empezar",
+    heroCtaNote: `Sin contrato. A nadie se le cobra antes del ${liveDate("es")}.`,
 
     whatHeading: "Lo que hacemos",
     tiersHeading: "Diligencias, por tamaño",
@@ -373,11 +380,11 @@ export const COPY: Record<Lang, Copy> = {
       { title: "Acompañar a alguien", category: "wait-with-someone", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
       { title: "Pasar a ver a alguien", category: "check-in-person", body: "Alguien va, mira, y te dice." },
       { title: "Coordinar un viaje", priceNote: "A la tarifa del proveedor", body: "Lo reservamos y lo seguimos — sin recargo sobre la tarifa." },
-      { title: "Registros y SOS", priceNote: "Gratis en todos los planes", body: "Un guardián recibe alerta en el momento en que se falla un registro." },
+      { title: "Registros y SOS", priceNote: "En todos los planes", body: "Un guardián recibe alerta en el momento en que se falla un registro." },
     ],
 
     pricingHeading: "Cuánto cuesta",
-    pricingLede: "Siete maneras de entrar, desde lo básico de seguridad gratis hasta un servicio que contesta 24/7. Desliza.",
+    pricingLede: `${PLAN_COUNT_WORDS.es[releasedPlans().length]} planes, desde la ayuda de todos los días hasta un servicio que contesta 24/7. Desliza.`,
     perMonth: "/mes",
     seatsOne: "1 persona",
     seatsMany: (n) => `Hasta ${n} personas`,

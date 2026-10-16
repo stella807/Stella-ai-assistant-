@@ -2065,7 +2065,9 @@ export const routes: Record<string, Handler> = {
     const cadence: Cadence = body?.cadence === "annual" ? "annual" : "monthly";
     const platform = platformFrom(body?.platform);
     const plan = findPlan(planId);
-    if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
+    // Free is the one plan whose release is decided below, because choosing it
+    // is sometimes a cancellation rather than a sign-up.
+    if (plan.id !== "free" && !isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
     if (isElitePlan(plan.id) && !eliteUnlockedByRevenue(trailingRevenueCents(ctx))) {
       throw new HttpError(
         404,
@@ -2074,6 +2076,15 @@ export const routes: Record<string, Handler> = {
     }
     catchUpBilling(ctx);
     const existing = subscriptionOf(ctx, me);
+
+    // While Free is not offered (`free-tier`), nobody can sign up for it. Moving
+    // a paid subscriber *down to* it still works: that is how cancelling is
+    // one tap, which California's auto-renewal law asks for, and a subscriber
+    // must never be unable to stop paying because a plan was taken off the
+    // shelf. See `requiresHelpDeskToDowngrade`.
+    if (plan.id === "free" && !isPlanReleased("free") && !(existing && existing.planId !== "free")) {
+      throw new HttpError(404, flagNote("free-tier"));
+    }
 
     // A downgrade between two still-paid tiers goes through the help desk
     // instead of this route — see `requiresHelpDeskToDowngrade`. Checked

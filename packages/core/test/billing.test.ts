@@ -33,6 +33,26 @@ describe("plans", () => {
     expect(hasFeature("premium-basic", "quick-tasks")).toBe(true);
   });
 
+  it("does not offer the Free plan while `free-tier` is off, without deleting it", () => {
+    expect(isPlanReleased("free")).toBe(false);
+    expect(releasedPlans().map((p) => p.id)).not.toContain("free");
+    // Still a real plan: an account with nothing paid sits on it, and that is
+    // what keeps check-ins, location and SOS working for somebody who has not
+    // subscribed or who has cancelled.
+    expect(findPlan("free").monthlyCents).toBe(0);
+    for (const f of ["location-sharing", "check-ins", "sos"] as const) expect(hasFeature("free", f), f).toBe(true);
+    // The paid plans are all still offered.
+    for (const id of ["premium-basic", "premium-plus", "family"] as const) {
+      expect(releasedPlans().map((p) => p.id)).toContain(id);
+    }
+    setFlag("free-tier", true);
+    try {
+      expect(releasedPlans().map((p) => p.id)).toContain("free");
+    } finally {
+      resetFlags();
+    }
+  });
+
   it("holds Free's errands back while `free-errands` is off, and only those", () => {
     // Paused, not removed: the rest of Free is the safety basics, which are
     // never behind a paywall, so only the errands move.
@@ -130,7 +150,8 @@ describe("plans", () => {
       expect(isPlanReleased(id), id).toBe(true);
       expect(releasedPlans().map((p) => p.id)).toContain(id);
     }
-    for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id))) {
+    // Every paid, non-Elite plan is always on offer. Free has its own flag.
+    for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id) && p.id !== "free")) {
       expect(isPlanReleased(plan.id)).toBe(true);
       expect(releasedPlans().map((p) => p.id)).toContain(plan.id);
     }
@@ -141,7 +162,7 @@ describe("plans", () => {
       expect(releasedPlans().map((p) => p.id)).not.toContain(id);
     }
     // Pulling the ladder must never take an everyday tier with it.
-    for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id))) {
+    for (const plan of PLANS.filter((p) => !ELITE_LADDER.includes(p.id) && p.id !== "free")) {
       expect(isPlanReleased(plan.id), plan.id).toBe(true);
     }
     resetFlags();

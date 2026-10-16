@@ -61,7 +61,7 @@ const COPY_FOR: Record<HiringKind, { heading: string; blurb: string; locked: str
   errand: {
     heading: "Small errand",
     blurb: "One short, specific job — grab a thing, run an errand — capped at exactly what you set below, never more.",
-    locked: "🔒 Send someone for a quick pickup or errand, at a spend cap you set. Included with every paid plan — errands on Free are paused for now.",
+    locked: "🔒 Send someone for a quick pickup or errand, at a spend cap you set. Included with every paid plan.",
   },
   concierge: {
     heading: "Personal concierge",
