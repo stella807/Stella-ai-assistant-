@@ -68,7 +68,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
-  withholdingFor,
+  withholdingFor, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
@@ -96,8 +96,8 @@ import { athMovilProcessor, athPublicToken, findAthPayment, refundAthPayment } f
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
-import { email } from "./adapters/email.ts";
-import { guardianMessages, guardianTexts, textKey, textTo } from "./notify.ts";
+import { email, type OutboundEmail } from "./adapters/email.ts";
+import { emailTo, guardianEmails, guardianMessages, guardianTexts, textKey, textTo } from "./notify.ts";
 import { sms } from "./adapters/sms.ts";
 import { renewDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
@@ -1228,6 +1228,7 @@ function notifyGuardians(ctx: Ctx, alerts: Alert[]): void {
   if (alerts.length === 0) return;
   void push.send(guardianMessages(ctx.store.data, alerts, ctx.now())).catch(() => {});
   sendTexts(guardianTexts(ctx.store.data, alerts, ctx.now()));
+  sendEmails(guardianEmails(ctx.store.data, alerts, ctx.now()));
 }
 
 /**
@@ -1238,6 +1239,19 @@ function notifyGuardians(ctx: Ctx, alerts: Alert[]): void {
 function sendTexts(messages: SmsMessage[]): void {
   if (messages.length === 0) return;
   void sms.send(messages).catch(() => {});
+}
+
+/** Email alerts, fire and forget for the same reason. With no mail provider
+ *  configured `send` refuses, which is caught here: nothing is claimed sent. */
+function sendEmails(messages: OutboundEmail[]): void {
+  if (messages.length === 0) return;
+  void email.send(messages).catch(() => {});
+}
+
+/** One alert, on every channel the person has agreed to: text and email. */
+function sendAlert(ctx: Ctx, key: string, kind: TextAlertKind, name?: string): void {
+  sendTexts(textTo(ctx.store.data, key, kind, name));
+  sendEmails(emailTo(ctx.store.data, key, kind, name));
 }
 
 /** A chat can fire many messages in a minute; one text per conversation per
@@ -1255,6 +1269,11 @@ const CHAT_TEXT_WINDOW_MS = 5 * 60_000;
 /** A new application is worth a text to whoever hires — `OWNER_ALERT_PHONE`,
  *  a single number set on the server, not anyone's account. */
 function textOwnerOfApplication(): void {
+  const ownerEmail = String(process.env.OWNER_ALERT_EMAIL ?? "").trim();
+  if (ownerEmail && isValidNewsletterEmail(ownerEmail)) {
+    const { subject, body } = composeEmail("owner-application", {}, "en");
+    sendEmails([{ to: ownerEmail, subject, body }]);
+  }
   const phone = normalizePhone(process.env.OWNER_ALERT_PHONE ?? "");
   if (!phone) return;
   sendTexts([{ to: phone, body: composeText("owner-application", {}, "en") }]);
@@ -1277,6 +1296,36 @@ function saveTextContact(ctx: Ctx, key: string, body: any): { enabled: boolean; 
   }
   ctx.store.update((db) => { db.textContacts[key] = contact; });
   return { enabled: true, phoneLast4: contact.phone.slice(-4) };
+}
+
+function saveEmailContact(ctx: Ctx, key: string, body: any): { enabled: boolean; emailHint?: string } {
+  const existing = ctx.store.data.emailContacts?.[key];
+  if (body?.consent === false) {
+    if (existing) ctx.store.update((db) => { (db.emailContacts ??= {})[key] = optOutEmail(existing, ctx.now()); });
+    return { enabled: false };
+  }
+  let contact;
+  try {
+    contact = registerEmailContact({
+      email: String(body?.email ?? ""), consent: body?.consent === true,
+      language: body?.language === "es" ? "es" : "en", now: ctx.now(),
+    });
+  } catch (e) {
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not save those email alerts.");
+  }
+  ctx.store.update((db) => { (db.emailContacts ??= {})[key] = contact; });
+  return { enabled: true, emailHint: emailHint(contact.email) };
+}
+
+/** Enough to recognise your own address, not enough to read it back to someone else. */
+function emailHint(address: string): string {
+  const [local = "", domain = ""] = address.split("@");
+  return `${local.slice(0, 1)}•••@${domain}`;
+}
+
+function emailState(ctx: Ctx, key: string) {
+  const c = ctx.store.data.emailContacts?.[key];
+  return { enabled: canEmail(c), ...(canEmail(c) ? { emailHint: emailHint(c.email), language: c.language } : {}), providerReady: isAutomatic(email.status) };
 }
 
 function photoUrlFrom(raw: unknown): string | undefined {
@@ -1797,6 +1846,11 @@ export const routes: Record<string, Handler> = {
     const key = textKey("assistant", assistantActor(ctx));
     return saveTextContact(ctx, key, body);
   },
+
+  "GET /api/account/email-alerts": (ctx) => emailState(ctx, textKey("traveler", actor(ctx))),
+  "POST /api/account/email-alerts": (ctx, _p, body) => saveEmailContact(ctx, textKey("traveler", actor(ctx)), body),
+  "GET /api/assistant/email-alerts": (ctx) => emailState(ctx, textKey("assistant", assistantActor(ctx))),
+  "POST /api/assistant/email-alerts": (ctx, _p, body) => saveEmailContact(ctx, textKey("assistant", assistantActor(ctx)), body),
 
   "POST /api/account/payment-method/remove": (ctx) => {
     const me = actor(ctx);
@@ -3024,7 +3078,7 @@ export const routes: Record<string, Handler> = {
         // network's assistant is told through their own dispatch system, in
         // `concierge.book` above, not this app's push devices.
         if (ourAssistant) {
-          sendTexts(textTo(ctx.store.data, textKey("assistant", ourAssistant.id), "assistant-new-task"));
+          sendAlert(ctx, textKey("assistant", ourAssistant.id), "assistant-new-task");
           const devices = devicesFor(ctx.store.data.pushDevices, ourAssistant.id);
           if (devices.length > 0) {
             const messages = messagesForAssistantTask({
@@ -4081,7 +4135,7 @@ export const routes: Record<string, Handler> = {
     });
     ctx.store.update((db) => void db.textMessages.push(message));
     if (textOnce(ctx, `to-customer:${task.id}`, CHAT_TEXT_WINDOW_MS)) {
-      sendTexts(textTo(ctx.store.data, textKey("traveler", task.travelerId), "customer-reply", task.assistantName));
+      sendAlert(ctx, textKey("traveler", task.travelerId), "customer-reply", task.assistantName);
     }
     return { message };
   },
@@ -4195,7 +4249,7 @@ export const routes: Record<string, Handler> = {
       (t.spendRequests ??= []).push(request);
     });
     const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
-    sendTexts(textTo(ctx.store.data, textKey("traveler", task.travelerId), "customer-spend-request", task.assistantName));
+    sendAlert(ctx, textKey("traveler", task.travelerId), "customer-spend-request", task.assistantName);
     return { request, remainingSpendCents: remainingSpendCents(updated) };
   },
 
@@ -4358,7 +4412,7 @@ export const routes: Record<string, Handler> = {
       const t = db.conciergeTasks.find((x) => x.id === task.id)!;
       t.runnerId = runner.id; t.runnerName = runner.name;
     });
-    sendTexts(textTo(ctx.store.data, textKey("assistant", runner.id), "assistant-new-task"));
+    sendAlert(ctx, textKey("assistant", runner.id), "assistant-new-task");
     return { runnerId: runner.id, runnerName: runner.name };
   },
 
@@ -4366,7 +4420,7 @@ export const routes: Record<string, Handler> = {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     const settled = settleConciergeTask(ctx, task, body?.billedCents);
-    sendTexts(textTo(ctx.store.data, textKey("traveler", task.travelerId), "customer-task-done", task.assistantName));
+    sendAlert(ctx, textKey("traveler", task.travelerId), "customer-task-done", task.assistantName);
     return { task: settled };
   },
 
@@ -4457,7 +4511,7 @@ export const routes: Record<string, Handler> = {
     });
     ctx.store.update((db) => void db.textMessages.push(message));
     if (task.assistantId && textOnce(ctx, `to-assistant:${task.id}`, CHAT_TEXT_WINDOW_MS)) {
-      sendTexts(textTo(ctx.store.data, textKey("assistant", task.assistantId), "assistant-message", nameOf(ctx, me)));
+      sendAlert(ctx, textKey("assistant", task.assistantId), "assistant-message", nameOf(ctx, me));
     }
     return { message };
   },

@@ -45,6 +45,7 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `SAFEHUBBY_PUBLIC_URL` | recommended | Your app's address, e.g. `https://app.yourdomain.com`. Used to build invite links; without it they point at a placeholder. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | for text alerts | See `docs/text-alerts.md`. Without them nothing is texted. |
 | `OWNER_ALERT_PHONE` | optional | Your number, texted when a job application comes in. |
+| `OWNER_ALERT_EMAIL` | optional | Your address, emailed when a job application comes in (needs the email provider settings above). |
 | `PORT` | no | Railway injects it. |
 | `WEB_ROOT` | no | Set by the Dockerfile. |
 | `ALLOWED_ORIGINS` | no | Only needed if you serve the web app from a second origin. |

@@ -4585,6 +4585,30 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("email alerts", () => {
+    it("needs a session, and refuses without agreement or with a bad address", async () => {
+      expect((await call("GET", "/api/account/email-alerts")).status).toBe(401);
+      expect((await call("POST", "/api/account/email-alerts", { email: "a@b.co" }, sam)).status).toBe(400);
+      expect((await call("POST", "/api/account/email-alerts", { email: "nope", consent: true }, sam)).status).toBe(400);
+      expect((await call("GET", "/api/account/email-alerts", undefined, sam)).json.enabled).toBe(false);
+    });
+
+    it("turns on, shows only a hint of the address, and turns off at once", async () => {
+      const on = await call("POST", "/api/account/email-alerts", { email: "Maria@Example.com", consent: true }, sam);
+      expect(on.json).toEqual({ enabled: true, emailHint: "m•••@example.com" });
+      const read = await call("GET", "/api/account/email-alerts", undefined, sam);
+      expect(read.json.enabled).toBe(true);
+      expect(JSON.stringify(read.json)).not.toContain("maria@");
+      expect((await call("POST", "/api/account/email-alerts", { consent: false }, sam)).json.enabled).toBe(false);
+      expect((await call("GET", "/api/account/email-alerts", undefined, sam)).json.enabled).toBe(false);
+    });
+
+    it("keeps one customer's choice from showing on another's account", async () => {
+      await call("POST", "/api/account/email-alerts", { email: "sam@example.com", consent: true }, sam);
+      expect((await call("GET", "/api/account/email-alerts", undefined, jordan)).json.enabled).toBe(false);
+    });
+  });
+
   describe("text alerts", () => {
     /** Twilio, stood in for. Only its own host is intercepted. */
     const realFetch = globalThis.fetch;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Alert } from "@safehubby/core";
-import { guardianMessages, guardianTexts } from "../src/notify.ts";
+import { emailTo, guardianEmails, guardianMessages, guardianTexts } from "../src/notify.ts";
 import { SEED } from "../src/seed.ts";
 import type { Db } from "../src/store.ts";
 
@@ -137,5 +137,33 @@ describe("who actually gets texted", () => {
     expect(guardianTexts(withNumber(db({ revokedAt: NOW.toISOString() })), [sos()], NOW)).toEqual([]);
     expect(guardianTexts(withNumber(db({ expiresAt: iso(-1) })), [sos()], NOW)).toEqual([]);
     expect(guardianTexts(withNumber(db({ claimed: false })), [sos()], NOW)).toEqual([]);
+  });
+});
+
+describe("who actually gets emailed", () => {
+  const withEmail = (base: Db, optedOut = false): Db => {
+    (base.emailContacts ??= {})["traveler:jordan"] = {
+      email: "jordan@example.com", language: "en", consentedAt: NOW.toISOString(),
+      ...(optedOut ? { optedOutAt: NOW.toISOString() } : {}),
+    };
+    return base;
+  };
+  const sos = () => alert({ id: "n1:sos", kind: "sos", severity: "urgent", message: "SOS at 18.4655, -66.1057" });
+
+  it("emails a watching guardian who agreed, about an SOS, without the location", () => {
+    const mail = guardianEmails(withEmail(db()), [sos()], NOW);
+    expect(mail).toHaveLength(1);
+    expect(mail[0]).toMatchObject({ to: "jordan@example.com" });
+    expect(mail[0]!.body).toContain("Sam");
+    expect(mail[0]!.body).not.toMatch(/18\.4655|-66\./);
+  });
+  it("emails nobody who never agreed, who turned it off, or whose grant is revoked", () => {
+    expect(guardianEmails(db(), [sos()], NOW)).toEqual([]);
+    expect(guardianEmails(withEmail(db(), true), [sos()], NOW)).toEqual([]);
+    expect(guardianEmails(withEmail(db({ revokedAt: NOW.toISOString() })), [sos()], NOW)).toEqual([]);
+  });
+  it("emails one person directly only when they agreed", () => {
+    expect(emailTo(db(), "traveler:jordan", "customer-reply", "Camila")).toEqual([]);
+    expect(emailTo(withEmail(db()), "traveler:jordan", "customer-reply", "Camila")[0]!.body).toContain("Camila");
   });
 });

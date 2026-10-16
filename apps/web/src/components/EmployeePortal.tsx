@@ -15,6 +15,7 @@ import { readFileAsBase64 } from "../native/camera.ts";
 import { TaskCardVisual } from "./TaskCardVisual.tsx";
 import { PushArmPanel } from "./PushArmPanel.tsx";
 import { TextAlertsCard } from "./TextAlertsCard.tsx";
+import { EmailAlertsCard } from "./EmailAlertsCard.tsx";
 
 import { dollars as moneyRound, money } from "../money.ts";
 
@@ -469,6 +470,7 @@ function PortalHome({ onSignedOut }: { onSignedOut: () => void }) {
           />
 
           <TextAlertsCard scope="assistant" language="en" />
+          <EmailAlertsCard scope="assistant" language="en" />
 
           {active.length === 0 && past.length === 0 && (
             <p className="small muted">Nothing assigned to you right now.</p>

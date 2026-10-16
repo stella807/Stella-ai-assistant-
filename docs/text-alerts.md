@@ -28,3 +28,9 @@ With none of that set, nothing is sent and the Account screen says so.
 ## What it costs, honestly
 
 No text provider is free for real use. Twilio's free trial credit can only text numbers you verify in its console and marks every message as a trial, so it is for trying this out. Real use is a paid number (about $1 a month) plus roughly a cent or two per text, and a US number also needs Twilio's short sender registration before carriers deliver at volume. Free "email to text" gateways exist, but carriers have been shutting them down and they are not reliable enough for an SOS.
+
+## Email instead of (or as well as) text
+
+The same alerts can go to an inbox. It is its own card beside the text one (Account screen, employee portal), with the same rule: nobody is emailed until they turn it on themselves and tick that they agree, and turning it off takes effect immediately. An account's own email address is pre-filled but is not used until they agree. The message is the text's own wording plus a one-line footer, so it never carries a place, an amount or what was bought.
+
+Email is sent through the mail provider configured for the launch announcement: set `EMAIL_API_URL`, `EMAIL_API_KEY` and `EMAIL_FROM` (see `adapters/email.ts` — Postmark, SES, Resend or any relay). Until then nothing is sent and the card says so. To be emailed about applications, set `OWNER_ALERT_EMAIL` to your own address.

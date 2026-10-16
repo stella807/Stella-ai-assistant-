@@ -135,6 +135,8 @@ export type PayBrand =
 
 export interface TextAlertsState { enabled: boolean; phoneLast4?: string; language?: "en" | "es"; providerReady: boolean }
 
+export interface EmailAlertsState { enabled: boolean; emailHint?: string; language?: "en" | "es"; providerReady: boolean }
+
 export interface BalanceSummary {
   loadedCents: number; refundedCents: number; heldCents: number; spentCents: number; availableCents: number;
 }
@@ -345,6 +347,10 @@ export const api = {
     request<TextAlertsState>("GET", `/api/${scope}/text-alerts`),
   saveTextAlerts: (scope: "account" | "assistant", input: { phone?: string; consent: boolean; language: "en" | "es" }) =>
     request<{ enabled: boolean; phoneLast4?: string }>("POST", `/api/${scope}/text-alerts`, input),
+  emailAlerts: (scope: "account" | "assistant") =>
+    request<EmailAlertsState>("GET", `/api/${scope}/email-alerts`),
+  saveEmailAlerts: (scope: "account" | "assistant", input: { email?: string; consent: boolean; language: "en" | "es" }) =>
+    request<{ enabled: boolean; emailHint?: string }>("POST", `/api/${scope}/email-alerts`, input),
   balance: () => request<BalanceInfo>("GET", "/api/balance"),
   startBalanceLoad: (amountCents: number) =>
     request<{ nonce: string; total: string; metadata1: string; metadata2: string }>(
