@@ -148,6 +148,8 @@ export interface PaymentMethod {
   payWith?: PayBrand;
   brand: string;
   last4: string;
+  /** Masked account name where there are no digits, e.g. a PayPal email. */
+  accountLabel?: string;
   /** Absent on an account-based method — see PaymentMethodOnFile in core. */
   expMonth?: number;
   expYear?: number;
@@ -333,6 +335,10 @@ export const api = {
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
+  paypalConfig: () => request<{ ready: true; clientId: string } | { ready: false; note: string }>("GET", "/api/payment/paypal/config"),
+  paypalSetupToken: () => request<{ id: string }>("POST", "/api/payment/paypal/setup-token", {}),
+  paypalPaymentToken: (setupToken: string) =>
+    request<{ token: string }>("POST", "/api/payment/paypal/payment-token", { setupToken }),
   balance: () => request<BalanceInfo>("GET", "/api/balance"),
   startBalanceLoad: (amountCents: number) =>
     request<{ nonce: string; total: string; metadata1: string; metadata2: string }>(

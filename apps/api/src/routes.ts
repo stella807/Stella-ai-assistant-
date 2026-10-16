@@ -89,7 +89,7 @@ import { revolutPayouts } from "./adapters/payouts.ts";
 import { createSetupIntent, ensureStripeCustomer, stripeProcessor } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
-import { paypalProcessor } from "./adapters/paypal.ts";
+import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { athMovilProcessor, athPublicToken, findAthPayment, refundAthPayment } from "./adapters/ath-movil.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
@@ -1500,6 +1500,35 @@ export const routes: Record<string, Handler> = {
     return { method, live: hasLivePaymentMethod(ctx, me) };
   },
 
+  /** What the browser needs to draw PayPal's own button. */
+  "GET /api/payment/paypal/config": (ctx) => {
+    actor(ctx);
+    return isAutomatic(paypalProcessor.status)
+      ? { ready: true as const, clientId: paypalClientId() }
+      : { ready: false as const, note: paypalProcessor.status.requires };
+  },
+
+  /** Step one of saving a PayPal account: a setup token for the button to ask
+   *  the customer to approve. Nothing is charged. */
+  "POST /api/payment/paypal/setup-token": async (ctx) => {
+    actor(ctx);
+    if (!isAutomatic(paypalProcessor.status)) throw new HttpError(503, paypalProcessor.status.requires);
+    const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
+    try { return { id: await createSetupToken(`${base}/#payments`) }; }
+    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "PayPal could not be reached."); }
+  },
+
+  /** Step two, once the customer approved: the durable token the normal
+   *  attach route then verifies with PayPal before anything is stored. */
+  "POST /api/payment/paypal/payment-token": async (ctx, _p, body) => {
+    actor(ctx);
+    if (!isAutomatic(paypalProcessor.status)) throw new HttpError(503, paypalProcessor.status.requires);
+    const setupToken = String(body?.setupToken ?? "");
+    if (!setupToken) throw new HttpError(400, "Missing PayPal approval.");
+    try { return { token: await exchangeSetupToken(setupToken) }; }
+    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "PayPal could not be reached."); }
+  },
+
   "POST /api/account/payment-method": async (ctx, _p, body) => {
     const me = actor(ctx);
     const processor: PaymentProcessor =
@@ -1516,6 +1545,7 @@ export const routes: Record<string, Handler> = {
     let last4 = String(body?.last4 ?? "");
     let expMonth = body?.expMonth === undefined ? undefined : Number(body.expMonth);
     let expYear = body?.expYear === undefined ? undefined : Number(body.expYear);
+    let accountLabel: string | undefined;
 
     // When the real processor is configured, trust only what it reports back
     // for a token the browser's own SDK produced — never the brand/last4/expiry
@@ -1530,6 +1560,7 @@ export const routes: Record<string, Handler> = {
       last4 = verified.last4;
       expMonth = verified.expMonth;
       expYear = verified.expYear;
+      accountLabel = verified.accountLabel;
     }
 
     const method = attachPaymentMethod({
@@ -1538,6 +1569,7 @@ export const routes: Record<string, Handler> = {
       ...(payWith ? { payWith } : {}),
       brand,
       last4,
+      ...(accountLabel ? { accountLabel } : {}),
       ...(expMonth === undefined ? {} : { expMonth }),
       ...(expYear === undefined ? {} : { expYear }),
       now: ctx.now(),

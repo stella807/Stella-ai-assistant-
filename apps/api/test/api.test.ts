@@ -3102,6 +3102,94 @@ describe("payment method on file", () => {
   });
 });
 
+describe("saving a PayPal account with PayPal's own button", () => {
+  /** PayPal, stood in for. Only its own host is intercepted. */
+  const realFetch = globalThis.fetch;
+  let calls: { url: string; body: unknown }[];
+  let vaulted: { email: string | null };
+
+  beforeEach(() => {
+    process.env.PAYPAL_CLIENT_ID = "client-id-123";
+    process.env.PAYPAL_CLIENT_SECRET = "secret-456";
+    calls = [];
+    vaulted = { email: "jordan.lee@gmail.com" };
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = String(input);
+      if (!url.startsWith("https://api-m.paypal.com")) return realFetch(input, init);
+      const raw = init?.body ? String(init.body) : undefined;
+      // The OAuth token request is form-encoded; everything else is JSON.
+      const body = raw && !url.endsWith("/v1/oauth2/token") ? JSON.parse(raw) : raw;
+      calls.push({ url, body });
+      if (url.endsWith("/v1/oauth2/token")) return Response.json({ access_token: "at" });
+      if (url.endsWith("/v3/vault/setup-tokens")) return Response.json({ id: "SETUP-1", status: "PAYER_ACTION_REQUIRED" });
+      if (url.endsWith("/v3/vault/payment-tokens")) return Response.json({ id: "PAYTOKEN-1" });
+      if (url.includes("/v3/vault/payment-tokens/PAYTOKEN-1")) {
+        return Response.json({ payment_source: vaulted.email ? { paypal: { email_address: vaulted.email } } : {} });
+      }
+      return new Response("{}", { status: 404 });
+    }) as typeof fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env.PAYPAL_CLIENT_ID;
+    delete process.env.PAYPAL_CLIENT_SECRET;
+  });
+
+  it("needs a session", async () => {
+    expect((await call("GET", "/api/payment/paypal/config")).status).toBe(401);
+    expect((await call("POST", "/api/payment/paypal/setup-token", {})).status).toBe(401);
+    expect((await call("POST", "/api/payment/paypal/payment-token", {})).status).toBe(401);
+  });
+
+  it("hands the browser the public client id and never the secret", async () => {
+    const res = await call("GET", "/api/payment/paypal/config", undefined, sam);
+    expect(res.json).toEqual({ ready: true, clientId: "client-id-123" });
+    expect(JSON.stringify(res.json)).not.toContain("secret-456");
+  });
+
+  it("says plainly when PayPal is not set up", async () => {
+    delete process.env.PAYPAL_CLIENT_SECRET;
+    expect((await call("GET", "/api/payment/paypal/config", undefined, sam)).json.ready).toBe(false);
+    expect((await call("POST", "/api/payment/paypal/setup-token", {}, sam)).status).toBe(503);
+  });
+
+  it("asks PayPal for a setup token to approve, charging nothing", async () => {
+    const res = await call("POST", "/api/payment/paypal/setup-token", {}, sam);
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(res.json.id).toBe("SETUP-1");
+    const setup = calls.find((c) => c.url.endsWith("/v3/vault/setup-tokens"))!;
+    expect(setup.body).toMatchObject({ payment_source: { paypal: { usage_type: "MERCHANT" } } });
+    expect(calls.some((c) => c.url.includes("/v2/checkout/orders"))).toBe(false);
+  });
+
+  it("turns the approved setup token into a payment token", async () => {
+    const res = await call("POST", "/api/payment/paypal/payment-token", { setupToken: "SETUP-1" }, sam);
+    expect(res.json.token).toBe("PAYTOKEN-1");
+    expect(calls.find((c) => c.url.endsWith("/v3/vault/payment-tokens"))!.body)
+      .toEqual({ payment_source: { token: { id: "SETUP-1", type: "SETUP_TOKEN" } } });
+    expect((await call("POST", "/api/payment/paypal/payment-token", {}, sam)).status).toBe(400);
+  });
+
+  it("keeps the account by its masked email, read back from PayPal rather than the browser's claim", async () => {
+    const res = await call("POST", "/api/account/payment-method", {
+      processor: "paypal", token: "PAYTOKEN-1",
+      // What a tampered client might send — none of it is believed.
+      brand: "Visa", last4: "0000", accountLabel: "boss@safehubby.com",
+    }, sam);
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(res.json.method).toMatchObject({ processor: "paypal", brand: "PayPal", last4: "", accountLabel: "j***@gmail.com" });
+    expect(res.json.method.expMonth).toBeUndefined();
+    const stored = await call("GET", "/api/account/payment-method", undefined, sam);
+    expect(stored.json.live).toBe(true);
+  });
+
+  it("refuses a token PayPal does not recognise", async () => {
+    const res = await call("POST", "/api/account/payment-method", { processor: "paypal", token: "NOPE" }, sam);
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect((await call("GET", "/api/account/payment-method", undefined, sam)).json.method).toBeNull();
+  });
+});
+
 describe("the SetupIntent behind the Payment Element", () => {
   it("requires a session", async () => {
     expect((await call("POST", "/api/payment/setup-intent", { brand: "klarna" })).status).toBe(401);

@@ -124,6 +124,9 @@ export interface PaymentMethodOnFile {
   /** Last four of the card, or of the linked phone number for an
    *  account-based method like ATH Móvil. */
   last4: string;
+  /** What a person recognises an account by when there are no card digits —
+   *  a masked PayPal email. Display only. */
+  accountLabel?: string;
   /** Absent on a method with no card behind it — an ATH Móvil account, a
    *  PayPal or Cash App balance. There is nothing to expire, and treating a
    *  missing expiry as "expired" would lock those methods out permanently.
@@ -139,13 +142,17 @@ export interface AttachMethodInput {
   payWith?: PayBrand;
   brand: string;
   last4: string;
+  accountLabel?: string;
   expMonth?: number;
   expYear?: number;
   now: Date;
 }
 
 export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFile {
-  if (!/^\d{4}$/.test(input.last4)) throw new Error("Card number is not right.");
+  // A PayPal account has no digits to keep, so it is the one method allowed to
+  // have none — everything else must show the last four of something.
+  const digitless = input.processor === "paypal" && input.last4 === "" && Boolean(input.accountLabel);
+  if (!digitless && !/^\d{4}$/.test(input.last4)) throw new Error("Card number is not right.");
   if (!input.brand.trim()) throw new Error("Missing card brand.");
   if (input.payWith && PROCESSOR_FOR_BRAND[input.payWith] !== input.processor) {
     throw new Error(`${PAY_BRAND_LABEL[input.payWith]} settles through ${PROCESSOR_FOR_BRAND[input.payWith]}, not ${input.processor}.`);
@@ -166,6 +173,7 @@ export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFi
     ...(input.payWith ? { payWith: input.payWith } : {}),
     brand: input.brand.trim(),
     last4: input.last4,
+    ...(input.accountLabel ? { accountLabel: input.accountLabel } : {}),
     ...(hasExpiry ? { expMonth: input.expMonth!, expYear: input.expYear! } : {}),
     addedAt: input.now.toISOString(),
   };

@@ -248,3 +248,22 @@ describe("authorizeExactHold", () => {
     expect(releaseHold(hold).status).toBe("released");
   });
 });
+
+describe("a PayPal account has no card digits", () => {
+  const paypal = (over: Record<string, unknown> = {}) => attachPaymentMethod({
+    id: "p", processor: "paypal", brand: "PayPal", last4: "", accountLabel: "j***@gmail.com", now: T0, ...over,
+  });
+  it("is kept by its masked email, with no digits and no expiry", () => {
+    const m = paypal();
+    expect(m).toMatchObject({ processor: "paypal", last4: "", accountLabel: "j***@gmail.com" });
+    expect(m.expMonth).toBeUndefined();
+    expect(isMethodExpired(m, at(24 * 365 * 20))).toBe(false);
+  });
+  it("still needs something to recognise it by", () => {
+    expect(() => paypal({ accountLabel: undefined })).toThrow(/card number/i);
+  });
+  it("is the only method allowed to have no digits", () => {
+    expect(() => attachPaymentMethod({ id: "c", processor: "stripe", brand: "Visa", last4: "", accountLabel: "x", now: T0 }))
+      .toThrow(/card number/i);
+  });
+});

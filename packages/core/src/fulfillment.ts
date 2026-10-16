@@ -278,7 +278,10 @@ export interface PayoutPort {
  */
 export interface VerifiedMethod {
   brand: string;
+  /** Empty for a PayPal account, which has no digits — see `accountLabel`. */
   last4: string;
+  /** Masked account name where there are no digits, e.g. `j***@gmail.com`. */
+  accountLabel?: string;
   /** Absent where the processor has no card behind the method — an ATH Móvil
    *  account has nothing to expire. See `PaymentMethodOnFile` in payment.ts. */
   expMonth?: number;

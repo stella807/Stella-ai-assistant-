@@ -403,8 +403,13 @@ Stated plainly, because the code says the same thing where it matters:
   SetupIntent from `POST /api/payment/setup-intent`. Still pending, tracked
   as `wiring: "sdk-pending"` in `TABS` in `PaymentMethodCard.tsx`, and each
   saying so on its own tab rather than offering a button that would fail:
-  - **PayPal and Venmo** need PayPal's own checkout SDK, which needs a real
-    PayPal REST app's client id.
+  - **Venmo** still needs its own PayPal SDK wiring (its tab says so).
+  - **PayPal** is wired: PayPal's own button saves the customer's PayPal
+    account without charging (setup token -> payment token, `/api/payment/paypal/*`),
+    and the server reads the account back from PayPal's Vault before storing
+    its masked email. Verified here only against a stand-in for PayPal's servers
+    and script; try it in PayPal's sandbox first (`PAYPAL_API_BASE=https://api-m.sandbox.paypal.com`,
+    sandbox client id and secret), with *Save payment methods* enabled on the app.
   - **ATH Móvil** is wired as a balance load (see above), not as a saved
     method. Verified here only against a stand-in for Evertec's servers and
     script, since Evertec offers no sandbox: try a small real load first.

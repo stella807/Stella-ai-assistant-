@@ -6,6 +6,7 @@ import {
   availableWallets, confirmSetup, isStripeConfigured, mountPaymentElement, stripe, walletRequest,
   type StripeCardElement, type StripeElements,
 } from "../native/stripe.ts";
+import { PayPalButton } from "./PayPalButton.tsx";
 
 type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
 
@@ -27,7 +28,7 @@ type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
  * support them on SetupIntents at all, so they cannot be a method on file.
  * See `PayBrandSpec.savable` in core's payment.ts.
  */
-type Wiring = "card" | "payment-request" | "payment-element" | "sdk-pending";
+type Wiring = "card" | "payment-request" | "payment-element" | "paypal-button" | "sdk-pending";
 
 /**
  * Every option the screen offers, and what sits behind each one.
@@ -52,7 +53,7 @@ const TABS: { id: Tab; label: string; processor: PaymentProcessor; brand?: PayBr
   { id: "amazon-pay", label: "Amazon Pay", processor: "stripe", brand: "amazon-pay", wiring: "payment-element" },
   { id: "cashapp", label: "Cash App Pay", processor: "stripe", brand: "cashapp", wiring: "payment-element" },
   { id: "link", label: "Link", processor: "stripe", brand: "link", wiring: "payment-element" },
-  { id: "paypal", label: "PayPal", processor: "paypal", wiring: "sdk-pending" },
+  { id: "paypal", label: "PayPal", processor: "paypal", wiring: "paypal-button" },
   { id: "venmo", label: "Venmo", processor: "paypal", brand: "venmo", wiring: "sdk-pending" },
   // ATH Móvil is not here on purpose: it debits on the spot and cannot be saved
   // or held, so it loads the balance above this card instead (BalanceCard.tsx).
@@ -329,7 +330,7 @@ export function PaymentMethodCard() {
           <div className="row-between">
             <span className="small">
               {method.payWith ? `${TAB[method.payWith]?.label ?? method.payWith} — ` : ""}
-              {method.brand} ···· {method.last4}
+              {method.accountLabel ? `${method.brand} — ${method.accountLabel}` : `${method.brand} ···· ${method.last4}`}
             </span>
             {/* An account-based method has no card behind it and so no
                 expiry — see PaymentMethodOnFile in core's payment.ts. */}
@@ -432,6 +433,25 @@ export function PaymentMethodCard() {
               </button>
               <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
             </>
+          )}
+
+          {active.wiring === "paypal-button" && !blocked && (
+            <>
+              <PayPalButton
+                key={tab}
+                onToken={(token) => {
+                  setBusy(true); setError(null);
+                  save({ processor: "paypal", token })
+                    .catch((e) => setError(e instanceof Error ? e.message : "Could not save that account"))
+                    .finally(() => setBusy(false));
+                }}
+                onError={setError}
+              />
+              <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
+            </>
+          )}
+          {active.wiring === "paypal-button" && blocked && (
+            <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
           )}
 
           {active.wiring === "payment-element" && (
