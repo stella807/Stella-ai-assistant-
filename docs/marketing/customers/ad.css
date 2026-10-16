@@ -2,3 +2,5 @@
 .n{font-family:'Archivo Black';color:var(--amber);margin-right:16px}
 .wm{font-family:'Archivo Black';font-size:130px;text-align:center;background:linear-gradient(90deg,var(--amber),var(--coral));-webkit-background-clip:text;color:transparent}
 .roomy{gap:22px;margin-top:44px}.roomy li{font-size:42px;padding:34px 36px;border-radius:26px}.roomy li small{font-size:30px;margin-top:8px}.items.roomy li{font-size:40px;padding:50px 36px}
+
+.hero-logo{display:block;margin:0 auto 10px;border-radius:22%;box-shadow:0 0 60px rgba(110,160,255,.35)}

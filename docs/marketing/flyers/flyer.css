@@ -32,3 +32,6 @@ li small{display:block;font-size:24px;font-weight:400;color:var(--soft);margin-t
 .where{margin-top:20px;font-size:26px;color:var(--soft);letter-spacing:.06em;text-align:center}
 .wordmark{font-family:'Archivo Black';font-size:64px;text-align:center;margin-top:26px;letter-spacing:.01em;background:linear-gradient(90deg,var(--amber),var(--coral));-webkit-background-clip:text;color:transparent}
 .where{margin-top:12px!important}
+
+.brand .logo{width:64px;height:64px;border-radius:14px}
+.brand{gap:16px}

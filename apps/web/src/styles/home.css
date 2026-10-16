@@ -57,3 +57,6 @@
 .balance-amount { font-size: 1.6rem; font-weight: 700; }
 .balance-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .balance-presets .btn { padding-inline: 4px; white-space: nowrap; }
+
+.brand-mark { display: flex; align-items: center; gap: 10px; }
+.brand-mark img { border-radius: 10px; flex: none; }

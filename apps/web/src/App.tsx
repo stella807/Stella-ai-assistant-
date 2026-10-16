@@ -64,7 +64,10 @@ export function App() {
   return (
     <div className="app stack">
       <header className="row-between">
-        <h1>Safehubby</h1>
+        <h1 className="brand-mark">
+          <img src="/favicon.png" alt="" width={38} height={38} />
+          Safehubby
+        </h1>
         <div className="row" style={{ gap: 6, alignItems: "center" }}>
           {account ? (
             <>
