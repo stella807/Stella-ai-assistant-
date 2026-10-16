@@ -1,3 +1,4 @@
+import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
 import { hasFeature, isElitePlan, type Feature, type PlanId } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
@@ -101,12 +102,9 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
 
   return (
     <div className="stack">
-      <div>
-        <h2>Get help</h2>
-        <p className="small muted">
-          A vetted person for one job, at a limit you set. You are never charged past it.
-        </p>
-      </div>
+      <ScreenCover photo="jet" kicker="Your assistant" title="Get help">
+        A vetted person — in person if you want — at a limit you set.
+      </ScreenCover>
 
       <div className="tabs tabs-scroll" role="tablist" aria-label="What you need">
         {tabs.map((tab) => (

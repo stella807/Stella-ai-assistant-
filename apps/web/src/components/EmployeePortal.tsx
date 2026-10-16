@@ -1,3 +1,4 @@
+import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
@@ -49,9 +50,9 @@ export function EmployeePortal() {
 function Shell({ children, onSignOut }: { children: React.ReactNode; onSignOut?: () => void }) {
   return (
     <div className="app stack">
+      <ScreenCover photo="suv" kicker="Safehubby" title="Assistants' portal" />
       <div className="row-between">
         <div>
-          <h1>Safehubby</h1>
           <p className="tiny muted">Employee portal — not the app customers use.</p>
         </div>
         {onSignOut && <button className="btn btn-sm btn-ghost" onClick={onSignOut}>Sign out</button>}

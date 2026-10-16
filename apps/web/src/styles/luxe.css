@@ -1,0 +1,32 @@
+/* The ad look, carried into the app: serif headlines, gold, photographs and
+   the shield badge in a gold ring. Loaded last so it sits over the base theme. */
+h1, h2, h3, .wm-title { font-family: Georgia, "Times New Roman", serif; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 28px; }
+h3 { color: #f3e2b3; }
+
+.badge, .brand-mark img {
+  border-radius: 14px;
+  box-shadow: 0 0 0 2px #c99a4c, 0 8px 26px rgba(0, 0, 0, .55), 0 0 30px rgba(230, 200, 140, .25);
+}
+.brand-mark { font-family: Georgia, serif; letter-spacing: .08em; text-transform: uppercase; font-size: 20px; }
+
+.card { border-color: rgba(201, 154, 76, .28); background: linear-gradient(180deg, rgba(26, 36, 56, .92), rgba(18, 26, 44, .96)); }
+.btn-primary { background: linear-gradient(135deg, #f3e2b3, #c99a4c); color: #17130a; }
+.tabs-bottom { border-top-color: rgba(201, 154, 76, .45); background: rgba(10, 14, 26, .96); backdrop-filter: blur(8px); }
+
+.screen-cover {
+  position: relative; min-height: 190px; padding: 18px; border-radius: var(--r-card);
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; overflow: hidden;
+  border: 1px solid rgba(201, 154, 76, .45);
+  background-size: cover; background-position: center;
+}
+.screen-cover::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,14,26,.15), rgba(10,14,26,.9)); }
+.screen-cover > * { position: relative; }
+.screen-cover .badge { position: absolute; top: 14px; left: 14px; width: 48px; height: 48px; }
+.screen-cover h2 { font-size: 30px; text-shadow: 0 3px 20px rgba(0, 0, 0, .6); }
+.screen-cover-kicker { font: 600 11px system-ui; letter-spacing: .2em; text-transform: uppercase; color: #e6cf9d; }
+.screen-cover-sub { color: #e8dcc0; font-size: 14px; }
+.screen-cover-hero { background-image: url(/img/hero-luxury.jpg); }
+.screen-cover-jet { background-image: url(/img/jet.jpg); }
+.screen-cover-suv { background-image: url(/img/suv.jpg); }
+.screen-cover-bourbon { background-image: url(/img/wingman-bourbon-cigar.jpg); }

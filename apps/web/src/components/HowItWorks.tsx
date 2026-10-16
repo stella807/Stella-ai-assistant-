@@ -1,3 +1,4 @@
+import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
 import {
   ARRANGE_RIDE_FEE_CENTS, ERRAND_TIERS, deskTaskAllowanceFor, errandFeeCents, hasFeature,
@@ -38,10 +39,7 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
 
   return (
     <div className="stack how">
-      <section className="how-hero">
-        <h2>How Safehubby works</h2>
-        <p className="muted">A person you choose, doing one thing, at a limit you set.</p>
-      </section>
+      <ScreenCover photo="hero" kicker="Safehubby" title="How it works">A person you choose, doing one thing, at a limit you set.</ScreenCover>
 
       <ol className="how-steps">
         {STEPS.map((s, i) => (

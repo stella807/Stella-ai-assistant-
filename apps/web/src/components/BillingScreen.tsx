@@ -1,3 +1,4 @@
+import { ScreenCover } from "./ScreenCover.tsx";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Billing } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -72,10 +73,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
 
   return (
     <div className="stack">
-      <div>
-        <h2>{t("billing.heading")}</h2>
-        <p className="small muted">{t("billing.subtitle")}</p>
-      </div>
+      <ScreenCover photo="suv" kicker="Safehubby" title={t("billing.heading")}>{t("billing.subtitle")}</ScreenCover>
 
       {/* The single number the screen exists to answer. */}
       <section className="card stack">

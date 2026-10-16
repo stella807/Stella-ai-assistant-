@@ -1,3 +1,4 @@
+import { ScreenCover } from "./ScreenCover.tsx";
 import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
@@ -38,9 +39,9 @@ export function MasterScreen() {
 function Shell({ children, onSignOut }: { children: React.ReactNode; onSignOut?: () => void }) {
   return (
     <div className="app stack">
+      <ScreenCover photo="hero" kicker="Safehubby" title="Owner's portal" />
       <div className="row-between">
         <div>
-          <h1>Safehubby</h1>
           <p className="tiny muted">Master access — not the app customers or assistants use.</p>
         </div>
         {onSignOut && <button className="btn btn-sm btn-ghost" onClick={onSignOut}>Sign out</button>}
