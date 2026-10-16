@@ -32,6 +32,8 @@ does not count against egress.
 # 32 random bytes, hex. Generate it once and keep it safe.
 railway variables --set "SAFEHUBBY_ENCRYPTION_KEY=$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')"
 railway variables --set "NODE_ENV=production"
+railway variables --set "SAFEHUBBY_ADMIN_KEY=$(node -e 'console.log(require("crypto").randomBytes(24).toString("hex"))')"
+railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 ```
 
 | Variable | Required | Notes |
@@ -39,6 +41,8 @@ railway variables --set "NODE_ENV=production"
 | `DATABASE_URL` | yes | Set by the Postgres plugin. |
 | `SAFEHUBBY_ENCRYPTION_KEY` | yes | 64 hex chars. Encrypts location history, and required before any assistant payout destination (bank account) can be stored at all — see `docs/concierge.md`. |
 | `NODE_ENV` | yes | `production` — turns on `Secure` cookies and the boot checks. |
+| `SAFEHUBBY_ADMIN_KEY` | yes, to use the owner screen | A long random secret. It is how you sign in as owner to review applications and download résumés. Generate it like the encryption key and keep it in a password manager. |
+| `SAFEHUBBY_PUBLIC_URL` | recommended | Your app's address, e.g. `https://app.yourdomain.com`. Used to build invite links; without it they point at a placeholder. |
 | `PORT` | no | Railway injects it. |
 | `WEB_ROOT` | no | Set by the Dockerfile. |
 | `ALLOWED_ORIGINS` | no | Only needed if you serve the web app from a second origin. |
