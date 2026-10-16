@@ -282,50 +282,80 @@ ${footer(lang, `<a href="${home}">&larr; ${esc(w.back)}</a>`)}
 `;
 }
 
+/**
+ * The colours, as data, so a test can hold them to a contrast floor.
+ *
+ * Dark and a little neon, on purpose — but the reader this page is written for
+ * is often over seventy, so every text pair here is checked against the WCAG
+ * contrast ratios in the tests rather than judged by eye. A futuristic look
+ * that cannot be read is a worse page, not a braver one.
+ */
+export const THEME = {
+  paper: "#070b16",
+  paper2: "#0d1428",
+  ink: "#eef3ff",
+  inkSoft: "#aab7d6",
+  amber: "#ffb547",
+  cyan: "#6ee7ff",
+  violet: "#9b8cff",
+  coral: "#ff7a59",
+  /** Text on the amber-to-coral button. */
+  onAccent: "#1a0f00",
+  rule: "#1f2d4d",
+} as const;
+
 /** One stylesheet, shared by every page. */
 export const STYLESHEET = `:root {
-  --paper: #fbf8f3;
-  --paper-2: #f2eee5;
-  --ink: #14203a;
-  --ink-soft: #4a5570;
-  --amber: #b9791a;
-  --amber-wash: #f7eeda;
-  --rule: #ddd6c8;
+  color-scheme: dark;
+  --paper: ${THEME.paper};
+  --paper-2: ${THEME.paper2};
+  --ink: ${THEME.ink};
+  --ink-soft: ${THEME.inkSoft};
+  --amber: ${THEME.amber};
+  --cyan: ${THEME.cyan};
+  --violet: ${THEME.violet};
+  --coral: ${THEME.coral};
+  --on-accent: ${THEME.onAccent};
+  --rule: ${THEME.rule};
+  --glass: rgb(255 255 255 / 4.5%);
+  --glass-line: rgb(120 170 255 / 20%);
   --display: "Archivo Black", "Arial Black", Impact, system-ui, sans-serif;
   --body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #0f1828;
-    --paper-2: #162034;
-    --ink: #f3efe7;
-    --ink-soft: #a7b1c7;
-    --amber: #e2a641;
-    --amber-wash: #241c0d;
-    --rule: #2a3450;
-  }
-}
 * { box-sizing: border-box; }
+html { background: var(--paper); }
 body {
   margin: 0;
-  background: var(--paper);
   color: var(--ink);
   font-family: var(--body);
   /* Larger than a typical site on purpose: a lot of these readers are over 70. */
   font-size: 18px;
   line-height: 1.55;
   -webkit-text-size-adjust: 100%;
+  /* A faint grid under two soft glows. Gradients only: no image to fetch, and
+     the page still loads nothing but itself. */
+  background:
+    radial-gradient(900px 520px at 12% -6%, rgb(110 231 255 / 16%), transparent 62%),
+    radial-gradient(760px 480px at 92% 4%, rgb(155 140 255 / 15%), transparent 60%),
+    linear-gradient(rgb(120 170 255 / 5%) 1px, transparent 1px) 0 0 / 56px 56px,
+    linear-gradient(90deg, rgb(120 170 255 / 5%) 1px, transparent 1px) 0 0 / 56px 56px,
+    var(--paper);
 }
 .skip {
   position: absolute; left: -9999px;
-  background: var(--ink); color: var(--paper); padding: 10px 16px; z-index: 10;
+  background: var(--ink); color: var(--paper); padding: 10px 16px; z-index: 30;
 }
 .skip:focus { left: 8px; top: 8px; }
-a { color: var(--amber); }
-:where(a, .btn):focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+a { color: var(--cyan); }
+:where(a, .btn, summary):focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 
 /* ---------- Head ---------- */
-.site-head { border-bottom: 1px solid var(--rule); background: var(--paper); }
+.site-head {
+  position: sticky; top: 0; z-index: 20;
+  border-bottom: 1px solid var(--glass-line);
+  background: rgb(7 11 22 / 78%);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
 .bar {
   max-width: 1080px; margin: 0 auto;
   padding: 12px 20px;
@@ -335,7 +365,7 @@ a { color: var(--amber); }
   font-family: var(--display); font-size: 24px; letter-spacing: -0.02em;
   color: var(--ink); text-decoration: none;
 }
-.dot { color: var(--amber); }
+.dot { color: var(--cyan); text-shadow: 0 0 14px rgb(110 231 255 / 80%); }
 /* Pushed to the right of the wordmark and left of the language toggle, and
    never allowed to wrap mid-address. */
 .head-contact {
@@ -343,31 +373,33 @@ a { color: var(--amber); }
   font-family: var(--display); font-size: clamp(16px, 4.2vw, 20px);
   letter-spacing: -0.02em; white-space: nowrap;
 }
-.reveal summary { cursor: pointer; list-style: none; color: var(--amber); }
+.reveal summary { cursor: pointer; list-style: none; color: var(--cyan); }
 .reveal summary::-webkit-details-marker { display: none; }
-.reveal summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
 .reveal-link { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
 /* In the header the address opens as a small panel under the control, so
    opening it does not push the page down. */
 .head-contact .reveal-link {
-  position: absolute; right: 0; top: calc(100% + 10px); z-index: 5;
-  background: var(--paper); border: 1px solid var(--rule); border-radius: 10px;
+  position: absolute; right: 0; top: calc(100% + 12px); z-index: 25;
+  background: var(--paper-2); border: 1px solid var(--glass-line); border-radius: 12px;
   padding: 12px 16px; font-family: var(--body); font-size: 17px; letter-spacing: 0; font-weight: 600;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+  box-shadow: 0 10px 34px rgb(0 0 0 / 55%), 0 0 22px rgb(110 231 255 / 14%);
 }
 /* In the contact section it is the loud line, once asked for. */
 .contact-reveal summary {
-  display: inline-block; background: var(--ink); color: var(--paper);
+  display: inline-block; color: var(--ink);
   font-family: var(--display); font-size: 19px; letter-spacing: -0.01em;
-  padding: 15px 30px; border-radius: 10px;
+  padding: 15px 30px; border-radius: 12px;
+  background: var(--glass); border: 1px solid var(--cyan);
+  box-shadow: 0 0 24px rgb(110 231 255 / 22%), inset 0 0 18px rgb(110 231 255 / 8%);
 }
 .contact-reveal .reveal-link {
   display: block; margin-top: 18px;
   font-family: var(--display); font-size: clamp(22px, 5.6vw, 44px);
   line-height: 1.1; letter-spacing: -0.03em; color: var(--amber);
+  text-shadow: 0 0 26px rgb(255 181 71 / 35%);
 }
-.lang { font-size: 16px; font-weight: 600; text-decoration: none; }
-/* All three have to share one row on a phone, or the number — the whole
+.lang { font-size: 16px; font-weight: 600; text-decoration: none; color: var(--amber); }
+/* All three have to share one row on a phone, or the control — the whole
    reason the header exists — gets pushed down by a language toggle. */
 @media (max-width: 460px) {
   .bar { gap: 10px; padding: 11px 16px; }
@@ -383,38 +415,91 @@ a { color: var(--amber); }
 }
 
 /* ---------- Hero ---------- */
-.hero { max-width: 1080px; margin: 0 auto; padding: 44px 20px 40px; }
-.eyebrow {
-  margin: 0 0 12px; font-size: 13px; font-weight: 700;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--amber);
+.hero { max-width: 1080px; margin: 0 auto; padding: 56px 20px 48px; position: relative; isolation: isolate; }
+/* A radar: concentric rings under a slowly sweeping beam. Pure gradients, and
+   only where there is room beside the text — on a phone it would sit behind
+   the words, so it is not drawn there. Decorative; nothing depends on it. */
+@media (min-width: 900px) {
+  .hero::after {
+    content: ""; position: absolute; z-index: -1; pointer-events: none;
+    right: 0; top: 34px; width: 400px; height: 400px; border-radius: 50%;
+    background:
+      conic-gradient(from 0deg, transparent 0 62%, rgb(110 231 255 / 38%) 100%),
+      repeating-radial-gradient(circle, transparent 0 41px, rgb(110 231 255 / 22%) 42px 43px);
+    -webkit-mask-image: radial-gradient(circle, #000 58%, transparent 72%);
+    mask-image: radial-gradient(circle, #000 58%, transparent 72%);
+    box-shadow: 0 0 80px rgb(110 231 255 / 10%);
+    animation: sweep 14s linear infinite;
+  }
 }
+@keyframes sweep { to { transform: rotate(360deg); } }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: 0 0 16px; padding: 7px 14px; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan);
+  background: var(--glass); border: 1px solid var(--glass-line); border-radius: 999px;
+}
+/* A live-signal dot. It pulses, and only for people who have not asked for
+   less motion. */
+.eyebrow::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cyan); box-shadow: 0 0 12px var(--cyan);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: .35; transform: scale(.7); } }
 h1 {
   font-family: var(--display);
-  font-size: clamp(34px, 6.2vw, 62px);
+  font-size: clamp(36px, 6.4vw, 66px);
   line-height: 1.02; letter-spacing: -0.028em;
   margin: 0; max-width: 17ch; text-wrap: balance;
+  /* Falls back to plain white where gradient text is not supported. */
+  color: var(--ink);
+  background: linear-gradient(100deg, #fff 8%, var(--cyan) 58%, var(--violet) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
-.hero-body { font-size: clamp(18px, 2.3vw, 21px); color: var(--ink-soft); max-width: 56ch; margin: 18px 0 0; }
-.hero-cta { margin: 26px 0 0; }
-.hero-note { margin: 10px 0 0; font-size: 16px; color: var(--ink-soft); }
+.hero-body { font-size: clamp(18px, 2.3vw, 21px); color: var(--ink-soft); max-width: 56ch; margin: 20px 0 0; }
+.hero-cta { margin: 28px 0 0; }
+.hero-note { margin: 12px 0 0; font-size: 16px; color: var(--ink-soft); }
 .btn {
-  display: inline-block;
-  background: var(--amber); color: #1b1305;
+  display: inline-block; position: relative;
+  background: linear-gradient(135deg, var(--amber), var(--coral)); color: var(--on-accent);
   font-family: var(--display); font-size: 19px; letter-spacing: -0.01em;
-  padding: 15px 30px; border-radius: 10px; text-decoration: none;
+  padding: 16px 32px; border-radius: 12px; text-decoration: none;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 18%) inset, 0 8px 32px rgb(255 140 80 / 32%);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+@media (hover: hover) {
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px rgb(255 255 255 / 30%) inset, 0 12px 42px rgb(255 140 80 / 52%); }
 }
 
 /* ---------- Bands ---------- */
-.band { max-width: 1080px; margin: 0 auto; padding: 38px 20px; }
+.band { max-width: 1080px; margin: 0 auto; padding: 44px 20px; }
 /* A tinted band runs edge to edge; the .band inside keeps the page's gutter,
    so every section's text starts on the same line whatever the background. */
-.bleed-quiet { background: var(--paper-2); }
-.bleed-accent { background: var(--amber-wash); }
+.bleed-quiet {
+  background: linear-gradient(180deg, rgb(13 20 40 / 85%), rgb(10 16 32 / 85%));
+  border-block: 1px solid var(--glass-line);
+}
+.bleed-accent {
+  background:
+    radial-gradient(640px 280px at 85% 20%, rgb(255 181 71 / 16%), transparent 70%),
+    radial-gradient(560px 260px at 8% 90%, rgb(110 231 255 / 13%), transparent 70%),
+    var(--paper-2);
+  border-block: 1px solid var(--glass-line);
+}
 h2 {
   font-family: var(--display);
-  font-size: clamp(25px, 3.6vw, 34px); line-height: 1.1; letter-spacing: -0.022em;
+  font-size: clamp(26px, 3.6vw, 36px); line-height: 1.1; letter-spacing: -0.022em;
   margin: 0 0 18px; text-wrap: balance;
 }
+/* A short neon rule under each section heading. */
+h2::after {
+  content: ""; display: block; width: 56px; height: 3px; margin-top: 12px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 14px rgb(110 231 255 / 55%);
+}
+.work-title::after { display: none; }
 .lede { font-size: 19px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 22px; }
 .wide { max-width: 64ch; color: var(--ink-soft); margin: 0 0 20px; }
 .note { margin: 18px 0 0; font-size: 16px; color: var(--ink-soft); max-width: 64ch; }
@@ -424,20 +509,29 @@ h2 {
    and the title carries the meaning on its own if the line below is skipped. */
 .services {
   list-style: none; margin: 0; padding: 0;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;
+}
+.service {
+  padding: 18px 20px; border-radius: 16px;
+  background: var(--glass); border: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+@media (hover: hover) {
+  .service:hover, .plan:hover { border-color: rgb(110 231 255 / 60%); box-shadow: 0 0 26px rgb(110 231 255 / 16%), inset 0 1px 0 rgb(255 255 255 / 8%); }
 }
 .service h3 { font-family: var(--display); font-size: 18px; letter-spacing: -0.015em; margin: 0 0 2px; }
-.tiers-heading { font-family: var(--display); font-size: 19px; letter-spacing: -0.015em; margin: 26px 0 8px; }
+.tiers-heading { font-family: var(--display); font-size: 19px; letter-spacing: -0.015em; margin: 30px 0 8px; }
 .tiers { list-style: none; margin: 0; padding: 0; max-width: 640px; }
 .tiers li {
   display: flex; justify-content: space-between; align-items: baseline; gap: 14px;
-  padding: 10px 0; border-bottom: 1px solid var(--rule);
+  padding: 12px 0; border-bottom: 1px solid var(--rule);
 }
 .tier-eg { display: block; color: var(--ink-soft); font-size: 15px; }
-.tier-fee { font-family: var(--display); font-size: 20px; white-space: nowrap; }
+.tier-fee { font-family: var(--display); font-size: 20px; white-space: nowrap; color: var(--amber); }
 .service-price {
   margin: 0 0 3px !important; font-size: 14px; font-weight: 700;
-  letter-spacing: 0.02em; color: var(--amber) !important;
+  letter-spacing: 0.04em; color: var(--amber) !important;
 }
 .service p { margin: 0; color: var(--ink-soft); font-size: 16.5px; line-height: 1.45; }
 
@@ -454,16 +548,19 @@ h2 {
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 20px;
   margin-inline: -20px;
-  padding: 4px 20px 14px;
+  padding: 6px 20px 16px;
   scrollbar-width: thin;
-  scrollbar-color: var(--rule) transparent;
+  scrollbar-color: var(--glass-line) transparent;
 }
-.plan-rail:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+.plan-rail:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 .plan {
   flex: 0 0 min(78%, 290px);
   scroll-snap-align: start;
-  background: var(--paper); border: 1px solid var(--rule); border-radius: 12px;
-  padding: 20px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--glass); border: 1px solid var(--glass-line); border-radius: 18px;
+  padding: 22px; display: flex; flex-direction: column; gap: 2px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  transition: border-color .2s ease, box-shadow .2s ease;
 }
 /* Past about five cards' worth of room there is nothing left to scroll, so
    the rail stops pretending and behaves as a row. */
@@ -475,18 +572,22 @@ h2 {
 .plan-cost { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
 .plan-price { font-family: var(--display); font-size: 32px; letter-spacing: -0.03em; }
 .plan-per { font-size: 16px; color: var(--ink-soft); font-weight: 600; }
-.plan-free { font-family: var(--display); font-size: 24px; color: var(--amber); letter-spacing: -0.02em; }
+.plan-free { font-family: var(--display); font-size: 24px; color: var(--cyan); letter-spacing: -0.02em; text-shadow: 0 0 18px rgb(110 231 255 / 40%); }
 .plan-seats {
   margin: 2px 0 8px; font-size: 13px; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--violet);
 }
 .plan-blurb { margin: 0; font-size: 16px; color: var(--ink-soft); line-height: 1.45; }
 .more-plans { margin: 16px 0 0; font-size: 16.5px; color: var(--ink-soft); }
 
 /* ---------- The club ---------- */
 .club {
-  margin: 26px 0 0; padding: 22px;
-  background: var(--paper-2); border: 1px solid var(--rule); border-radius: 12px;
+  margin: 28px 0 0; padding: 24px;
+  background:
+    linear-gradient(135deg, rgb(155 140 255 / 14%), rgb(110 231 255 / 8%)),
+    var(--glass);
+  border: 1px solid rgb(155 140 255 / 38%); border-radius: 18px;
+  box-shadow: 0 0 34px rgb(155 140 255 / 12%), inset 0 1px 0 rgb(255 255 255 / 7%);
 }
 .club h3 { font-family: var(--display); font-size: 22px; letter-spacing: -0.02em; margin: 0 0 8px; }
 .club p { margin: 0 0 12px; color: var(--ink-soft); font-size: 16.5px; max-width: 64ch; }
@@ -504,7 +605,8 @@ h2 {
 }
 .rate {
   font-family: var(--display); font-size: clamp(25px, 4.4vw, 36px);
-  letter-spacing: -0.025em; margin: 0 0 12px;
+  letter-spacing: -0.025em; margin: 0 0 12px; color: var(--amber);
+  text-shadow: 0 0 26px rgb(255 181 71 / 30%);
 }
 
 /* The address is the loudest thing in the section on purpose. */
@@ -516,14 +618,20 @@ h2 {
 
 /* ---------- Foot ---------- */
 .site-foot {
-  border-top: 1px solid var(--rule);
-  max-width: 1080px; margin: 0 auto; padding: 26px 20px 48px;
+  border-top: 1px solid var(--glass-line);
+  max-width: 1080px; margin: 0 auto; padding: 28px 20px 52px;
   font-size: 14.5px; color: var(--ink-soft);
 }
 .site-foot p { max-width: 74ch; margin: 0 0 10px; }
 .foot-links { font-size: 16px; font-weight: 600; }
 .foot-links a { text-decoration: none; }
 .copy { font-weight: 600; }
+
+/* Everything that moves stops for anyone who has asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .btn:hover { transform: none; }
+}
 `;
 
 /**

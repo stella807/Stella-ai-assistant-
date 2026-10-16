@@ -8,7 +8,7 @@ import {
   CONTACT_EMAIL, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
   formatPhone, mailtoHref, money, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
-import { HEADERS, obfuscate, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
+import { HEADERS, STYLESHEET, THEME, obfuscate, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
 const pages: Record<Lang, string> = { en: renderPage("en"), es: renderPage("es") };
 const work: Record<Lang, string> = { en: renderWorkPage("en"), es: renderWorkPage("es") };
@@ -444,5 +444,58 @@ describe("applying for a job", () => {
     } finally {
       if (prior === undefined) delete process.env.APP_URL; else process.env.APP_URL = prior;
     }
+  });
+});
+
+describe("the look", () => {
+  // WCAG 2.x relative luminance and contrast ratio.
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+  };
+  const contrast = (a: string, b: string) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi! + 0.05) / (lo! + 0.05);
+  };
+
+  it("keeps body text at AAA contrast, because many readers are over seventy", () => {
+    // 7:1 is WCAG's enhanced level. A futuristic page that a 78-year-old cannot
+    // read is a worse page; this fails the build before it fails him.
+    for (const bg of [THEME.paper, THEME.paper2]) {
+      expect(contrast(THEME.ink, bg), `ink on ${bg}`).toBeGreaterThanOrEqual(7);
+      expect(contrast(THEME.inkSoft, bg), `soft ink on ${bg}`).toBeGreaterThanOrEqual(7);
+    }
+  });
+
+  it("keeps the accent colours legible as text", () => {
+    for (const accent of [THEME.amber, THEME.cyan]) {
+      expect(contrast(accent, THEME.paper), accent).toBeGreaterThanOrEqual(7);
+      expect(contrast(accent, THEME.paper2), accent).toBeGreaterThanOrEqual(7);
+    }
+    // Violet is used for small uppercase labels only.
+    expect(contrast(THEME.violet, THEME.paper2)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("keeps the button's text readable across its whole gradient", () => {
+    for (const end of [THEME.amber, THEME.coral]) {
+      expect(contrast(THEME.onAccent, end), end).toBeGreaterThanOrEqual(7);
+    }
+  });
+
+  it("builds its colours from the tokens, so the test is about what ships", () => {
+    for (const hex of Object.values(THEME)) expect(STYLESHEET.toLowerCase()).toContain(hex.toLowerCase());
+  });
+
+  it("stops moving for anyone who has asked for less motion", () => {
+    expect(STYLESHEET).toContain("prefers-reduced-motion: reduce");
+    // Any animation has to be switched off by that rule.
+    expect(STYLESHEET).toMatch(/prefers-reduced-motion: reduce\)\s*\{[^}]*animation: none/);
+  });
+
+  it("loads nothing from anywhere else, however it looks", () => {
+    // Gradients only. No image, no remote font, no url() to another origin.
+    expect(STYLESHEET).not.toMatch(/url\(\s*["']?https?:/);
+    expect(STYLESHEET).not.toContain("@import");
   });
 });
