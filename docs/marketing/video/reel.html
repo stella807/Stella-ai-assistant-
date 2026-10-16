@@ -1,0 +1,55 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><link rel="stylesheet" href="../flyers/flyer.css">
+<style>
+body{width:1080px;height:1920px}
+.scene{position:absolute;inset:0;padding:120px 84px;display:flex;flex-direction:column;justify-content:center;opacity:0}
+.logo{width:150px;height:150px;border-radius:26%;box-shadow:0 0 70px rgba(110,160,255,.4)}
+.top{position:absolute;top:120px;left:84px;display:flex;align-items:center;gap:22px;font-family:'Archivo Black';font-size:48px}
+.top .logo{width:84px;height:84px;border-radius:20px;box-shadow:none}
+h1{font-size:118px;line-height:1.04;margin-top:0}
+.en{font-size:44px;margin-top:26px}
+.pill{border:2px solid rgba(120,170,255,.3);background:rgba(255,255,255,.06);border-radius:30px;padding:34px 42px;font-size:56px;font-weight:700;margin-top:26px;opacity:0}
+.pill small{display:block;font-size:34px;color:var(--soft);font-weight:400;margin-top:6px}
+.meter{margin-top:60px;border-radius:34px;border:2px solid rgba(120,170,255,.3);background:rgba(255,255,255,.06);padding:50px}
+.meter .amt{font-family:'Archivo Black';font-size:170px;background:linear-gradient(90deg,var(--amber),var(--coral));-webkit-background-clip:text;color:transparent}
+.bar{height:28px;border-radius:14px;background:rgba(255,255,255,.1);margin-top:26px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber),var(--coral))}
+.meter p{font-size:38px;color:var(--soft);margin-top:22px}
+.cta2{margin-top:auto;border-radius:34px;background:linear-gradient(90deg,var(--amber),var(--coral));color:#1a0f00;padding:44px 52px}
+.cta2 b{font-family:'Archivo Black';font-size:84px;display:block;font-weight:400}
+.cta2 span{font-size:46px;font-weight:700}
+.center{align-items:center;justify-content:center;text-align:center}
+.center .wm{font-size:190px;margin-top:40px}
+</style><body><div class="glow"></div><div class="grid"></div>
+
+<div class="scene" id="s1"><div class="top"><img class="logo" src="../../../apps/web/public/favicon.png" alt="">Safehubby</div>
+<h1>¿Tu familiar está <em>solo en el hospital?</em></h1><p class="en" style="color:var(--soft)">Is someone you love alone in the hospital?</p></div>
+
+<div class="scene" id="s2"><div class="top"><img class="logo" src="../../../apps/web/public/favicon.png" alt="">Safehubby</div>
+<h1 style="margin-top:0;font-size:100px">Una persona de confianza le lleva <em>lo que necesite</em></h1>
+<div class="pill">Agua y comida<small>Water and food</small></div><div class="pill">Un cargador<small>A charger</small></div><div class="pill">Una cobija<small>A blanket</small></div></div>
+
+<div class="scene" id="s3"><div class="top"><img class="logo" src="../../../apps/web/public/favicon.png" alt="">Safehubby</div>
+<h1 style="margin-top:0">Tú pones <em>el límite</em></h1><p class="en" style="color:var(--soft)">You set the limit. Never charged past it.</p>
+<div class="meter"><div class="amt" id="amt">$0</div><div class="bar"><i id="bar"></i></div><p>Límite de gasto · Spending limit</p></div></div>
+
+<div class="scene" id="s4"><div class="top"><img class="logo" src="../../../apps/web/public/favicon.png" alt="">Safehubby</div>
+<h1 style="margin-top:0">Así de <em>fácil</em></h1><p class="en" style="color:var(--soft)">It is that simple</p>
+<div class="pill">1 · Pide lo que necesitan<small>Ask for what they need</small></div><div class="pill">2 · Tu asistente lo lleva<small>Your assistant brings it</small></div><div class="pill">3 · Tú lo sigues desde tu teléfono<small>You follow it from your phone</small></div></div>
+
+<div class="scene center" id="s5"><img class="logo" style="width:340px;height:340px" src="../../../apps/web/public/favicon.png" alt=""><p class="wm">Safe Hubby</p>
+<div class="cta2" style="width:100%;margin-top:120px;text-align:left"><b>safehubby.com</b><span>contact@safehubby.com</span></div><p class="where" style="font-size:40px;margin-top:34px">PUERTO RICO</p></div>
+
+<script>
+const clamp=(x)=>Math.max(0,Math.min(1,x)),ease=(x)=>1-Math.pow(1-clamp(x),3);
+const S=[0,4,8,12,16],D=4,FADE=0.45;
+window.setT=(t)=>{
+ S.forEach((start,i)=>{const el=document.getElementById('s'+(i+1));const l=t-start;
+  const inn=ease(l/FADE),out=i<4?1-ease((l-(D-FADE))/FADE):1;
+  el.style.opacity=l<0||l>D+0.05?0:Math.min(inn,out);
+  el.style.transform='translateY('+(1-inn)*40+'px)';
+  el.querySelectorAll('.pill').forEach((p,k)=>{const q=ease((l-0.5-k*0.55)/0.5);p.style.opacity=q;p.style.transform='translateX('+(1-q)*-60+'px)'});
+ });
+ const l3=t-8,q=ease((l3-0.6)/2.2);document.getElementById('amt').textContent='$'+Math.round(q*25);document.getElementById('bar').style.width=(q*68)+'%';
+};
+setT(0);
+</script></body></html>
