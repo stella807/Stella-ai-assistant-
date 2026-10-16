@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { defaultCapFor } from "@safehubby/core";
 import type { PickupRequest, PlanId } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 import { LiveMap } from "./LiveMap.tsx";
+import { TripMapPopup } from "./TripMapPopup.tsx";
 import { money } from "../money.ts";
 
 const FALLBACK_HOME_LABEL = "Home";
@@ -91,6 +92,17 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
     setHomeAddress(saved.address);
   });
 
+  // Opens by itself the moment a driver is assigned, once per request, and
+  // can be brought back with the button on the banner.
+  const [mapOpen, setMapOpen] = useState(false);
+  const announced = useRef<string | null>(null);
+  useEffect(() => {
+    if (request?.status === "coordinated" && announced.current !== request.id) {
+      announced.current = request.id;
+      setMapOpen(true);
+    }
+  }, [request?.status, request?.id]);
+
   const coordinatePickup = () => run(async () => {
     const res = await api.coordinatePickup(
       { lat: at.lat, lng: at.lng, label: "Pickup" },
@@ -174,9 +186,30 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
               : `${money(request.rideCostCents)} fare${request.bookedOn ? ` on ${request.bookedOn}` : ""} + ${money(request.arrangeFeeCents)} arranging = ${money(request.rideCostCents + request.arrangeFeeCents)}.`}
           </div>
           <div style={{ marginTop: 8 }}>
+            <button className="btn btn-sm" onClick={() => setMapOpen(true)}>Show map</button>{" "}
             <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel</button>
           </div>
         </div>
+      )}
+
+      {mapOpen && request?.status === "coordinated" && (
+        <TripMapPopup
+          kind="ride"
+          title={`${request.driverName ?? "Your driver"} is coming`}
+          status="On the way"
+          points={[
+            { lat: at.lat, lng: at.lng, label: "Pickup" },
+            { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel },
+          ]}
+          lines={[`To ${dropoff.label ?? homeLabel}.`]}
+          actions={request.driverPhone ? (
+            <>
+              <a className="btn btn-primary" href={`tel:${request.driverPhone}`}>Call</a>
+              <a className="btn" href={`sms:${request.driverPhone}`}>Text</a>
+            </>
+          ) : undefined}
+          onClose={() => setMapOpen(false)}
+        />
       )}
 
       {secure && (

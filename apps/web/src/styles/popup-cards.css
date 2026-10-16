@@ -86,3 +86,8 @@
 @media (prefers-reduced-motion: reduce) {
   .popup-backdrop, .popup-card, .popup-event, .popup-status-live::before { animation: none; }
 }
+
+/* The ride / flight map pop-up */
+.trip-mark { font-size: 26px; line-height: 1; }
+.trip-map { margin: -4px -4px 0; border-radius: 16px; overflow: hidden; border: 1px solid var(--line-strong); }
+.popup-foot a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; flex: 1; min-height: 44px; }

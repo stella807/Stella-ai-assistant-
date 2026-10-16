@@ -1,5 +1,7 @@
 import { bestTimeFor, describeFlightStatus, type FlightInfo } from "@safehubby/core";
+import { useEffect, useState } from "react";
 import { LiveMap } from "./LiveMap.tsx";
+import { TripMapPopup } from "./TripMapPopup.tsx";
 
 const STATUS_CLASS: Record<FlightInfo["status"], string> = {
   scheduled: "",
@@ -24,6 +26,11 @@ const STATUS_CLASS: Record<FlightInfo["status"], string> = {
  */
 export function FlightCard({ flight, showMap = true }: { flight: FlightInfo; showMap?: boolean }) {
   const now = new Date();
+  const inAir = flight.status === "active" && Boolean(flight.position)
+    && flight.arrival.lat !== undefined && flight.arrival.lng !== undefined;
+  // Comes up once when the plane is in the air, then only when asked for.
+  const [popup, setPopup] = useState(false);
+  useEffect(() => { if (showMap && inAir) setPopup(true); }, [flight.flightNumber, showMap, inAir]);
   const arrivalLabel = flight.arrival.name ?? flight.arrival.iata;
   const departureLabel = flight.departure.name ?? flight.departure.iata;
 
@@ -70,6 +77,23 @@ export function FlightCard({ flight, showMap = true }: { flight: FlightInfo; sho
           </li>
         )}
       </ul>
+
+      {popup && inAir && flight.position && (
+        <TripMapPopup
+          kind="flight"
+          title={`${flight.airlineName} ${flight.flightNumber}`}
+          status={describeFlightStatus(flight, now)}
+          points={[
+            { lat: flight.position.lat, lng: flight.position.lng, label: `${flight.flightNumber} — in the air` },
+            { lat: flight.arrival.lat!, lng: flight.arrival.lng!, label: arrivalLabel },
+          ]}
+          lines={[`Lands at ${arrivalLabel} around ${new Date(bestTimeFor(flight.arrival)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`]}
+          onClose={() => setPopup(false)}
+        />
+      )}
+      {showMap && inAir && !popup && (
+        <button className="btn btn-sm" onClick={() => setPopup(true)}>Open the map</button>
+      )}
 
       {showMap && flight.position && flight.arrival.lat !== undefined && flight.arrival.lng !== undefined && (
         <>
