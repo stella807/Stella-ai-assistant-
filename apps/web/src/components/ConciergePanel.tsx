@@ -935,10 +935,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             return (
               <button key={a.id} role="listitem" className="assistant-tile" disabled={!available}
                 aria-pressed={selected?.id === a.id} onClick={() => setSelected(a)}>
-                <div className="assistant-avatar assistant-avatar-lg">
+                <div className="assistant-avatar assistant-avatar-lg assistant-photo">
                   {a.photoUrl ? <img src={a.photoUrl} alt="" /> : a.name.slice(0, 1)}
                 </div>
-                <strong className="small">{a.name}</strong>
+                <strong className="assistant-name">{a.name}</strong>
                 {/* The role, not just the person — an errand runner and a
                     personal assistant are different jobs with a different
                     duty of care (see ROLE_CATEGORIES in roster.ts), and a
@@ -946,7 +946,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                     one this is, not just a name and a photo. Absent for a
                     partner-network professional, who carries no StaffRole. */}
                 {a.role && <span className="pill">{findRole(a.role).label}</span>}
-                {facts.length > 0 && <span className="tiny muted">{facts.join(" · ")}</span>}
+                {facts.length > 0 && (
+                  <span className="assistant-facts">{facts.map((f) => <span key={String(f)} className="assistant-fact">{f}</span>)}</span>
+                )}
                 {/* Self-reported, same as the facts above — a couple of lines,
                     not the assistant's full application bio, since the tile
                     is a comparison at a glance and the modal opens onto the

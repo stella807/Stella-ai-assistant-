@@ -1,0 +1,38 @@
+/* Pictures and the "how it works" screen. */
+.plan-art { display: grid; place-items: center; height: 110px; margin: -4px -4px 8px; border-radius: 16px;
+  background: radial-gradient(80% 90% at 50% 100%, rgba(255, 181, 71, .16), transparent), rgba(255, 255, 255, .03); overflow: hidden; }
+.plan-art svg { height: 100px; width: auto; max-width: 100%; animation: art-float 6s ease-in-out infinite; }
+@keyframes art-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+.how-hero h2 { margin: 0; }
+.how-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.how-step { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; animation: art-up .6s ease both; animation-delay: calc(var(--i) * 90ms); }
+.how-art { display: grid; place-items: center; }
+.how-art svg { width: 84px; height: auto; max-height: 84px; }
+.how-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; background: var(--accent, #ffb547); color: #1a0f00; font-weight: 700; font-size: .8rem; }
+@keyframes art-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+.how-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.how-chips::-webkit-scrollbar { display: none; }
+.how-chip { flex: none; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(120, 170, 255, .3); background: transparent; color: inherit; cursor: pointer; }
+.how-chip[aria-selected="true"] { background: var(--accent, #ffb547); color: #1a0f00; border-color: transparent; font-weight: 700; }
+.how-plan-head { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
+.how-plan-head .plan-art { margin: 0; height: 90px; }
+.how-rows { margin: 0; display: grid; gap: 10px; }
+.how-row { display: grid; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid rgba(120, 170, 255, .14); }
+.how-row dt { font-size: .85rem; opacity: .8; }
+.how-row dd { margin: 0; display: grid; gap: 2px; }
+.how-portals { display: grid; gap: 10px; }
+.portal-card { display: grid; gap: 6px; }
+.portal-card .how-art { justify-content: start; }
+@media (prefers-reduced-motion: reduce) { .plan-art svg, .how-step { animation: none !important; } }
+
+/* the choose-your-assistant tiles */
+.assistant-tile { flex: 0 0 168px; padding: 16px 12px 14px; border-radius: 20px; gap: 6px; position: relative; overflow: hidden;
+  background: linear-gradient(165deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02)); transition: transform .3s cubic-bezier(.2, .8, .2, 1), border-color .3s; }
+.assistant-tile:not(:disabled):hover { transform: translateY(-4px); border-color: var(--accent, #ffb547); }
+.assistant-photo.assistant-avatar-lg { width: 92px; height: 92px; border-radius: 26px; font-size: 34px;
+  background: linear-gradient(150deg, #ffd478, #ff7a59); color: #1a0f00; box-shadow: 0 0 0 3px rgba(255, 181, 71, .45), 0 10px 24px rgba(0, 0, 0, .4); }
+.assistant-name { font-size: 1.05rem; }
+.assistant-facts { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.assistant-fact { font-size: .72rem; padding: 3px 8px; border-radius: 999px; background: rgba(255, 181, 71, .14); border: 1px solid rgba(255, 181, 71, .3); }

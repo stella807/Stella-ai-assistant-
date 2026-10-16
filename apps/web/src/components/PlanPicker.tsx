@@ -5,6 +5,7 @@ import { useLanguage } from "../i18n.tsx";
 import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { PlanComparison } from "./PlanComparison.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
+import { PlanArt } from "./art/PlanArt.tsx";
 
 import { dollars, money } from "../money.ts";
 
@@ -67,6 +68,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
     return (
       <section key={p.id} className={`card plan${current ? " plan-on" : ""}${featured ? " plan-featured" : ""}`}>
+        <PlanArt planId={p.id} />
         {featured && <span className="plan-tag">{t("plans.mostPicked")}</span>}
         {locked && <span className="plan-tag">{t("plans.comingSoon")}</span>}
         <div className="row-between">

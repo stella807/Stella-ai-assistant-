@@ -4,6 +4,7 @@ import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
 import { CigarArt, FlagArt } from "./CigarArt.tsx";
+import { BourbonGlassArt, ParachuteArt } from "./art/Art.tsx";
 
 /**
  * The Wingman Club: shown as its own folded section, the same treatment
@@ -53,6 +54,11 @@ export function WingmanClub() {
       <p className="wm-tagline">{t("wingman.tagline")}</p>
 
       <div className="wm-hero"><CigarArt /></div>
+      <div className="wm-trio" aria-hidden="true">
+        <div className="wm-pic"><BourbonGlassArt /><span>Bourbon</span></div>
+        <div className="wm-pic wm-pic-sky"><ParachuteArt /><span>The sky</span></div>
+        <div className="wm-pic"><FlagArt /><span>The track</span></div>
+      </div>
 
       <div className="wm-month">
         <div className="wm-month-top">

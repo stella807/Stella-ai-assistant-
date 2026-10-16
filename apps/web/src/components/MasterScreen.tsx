@@ -1,3 +1,4 @@
+import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
@@ -398,6 +399,12 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [market, setMarket] = useState("puerto-rico");
+  // What a customer sees when choosing this person. All optional, all the
+  // owner's to fill in from the interview.
+  const [bio, setBio] = useState("");
+  const [age, setAge] = useState("");
+  const [years, setYears] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
   // Shown once and never again: the server does not store this readably, so
   // if it scrolls past unread the person needs a fresh provisioning.
   const [issued, setIssued] = useState<{ username: string; tempPassword?: string } | null>(null);
@@ -420,7 +427,12 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   // destroyed the credential the moment it was issued. The refresh happens
   // when the owner dismisses the banner, having read it.
   const hire = () => run(async () => {
-    const res = await api.masterHireStaffApplication(app.id, market);
+    const res = await api.masterHireStaffApplication(app.id, market, {
+      ...(bio.trim() ? { bio: bio.trim() } : {}),
+      ...(age ? { age: Number(age) } : {}),
+      ...(years ? { yearsExperience: Number(years) } : {}),
+      ...(photo ? { photoUrl: photo } : {}),
+    });
     setIssued(res.credentials);
   });
 
@@ -470,6 +482,24 @@ function ApplicationRow({ app, canWrite, onChanged }: {
                 <option value="texas">Texas</option>
                 <option value="los-angeles">Los Angeles</option>
               </select>
+              <div className="stack" style={{ gap: 6, width: "100%" }}>
+                <span className="tiny muted">What customers see when choosing them (optional)</span>
+                <div className="row" style={{ gap: 6 }}>
+                  <input aria-label="Years of experience" inputMode="numeric" placeholder="Years" value={years} onChange={(e) => setYears(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                  <input aria-label="Age" inputMode="numeric" placeholder="Age" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                </div>
+                <input aria-label="A line about them" placeholder="A line about them" maxLength={160} value={bio} onChange={(e) => setBio(e.target.value)} />
+                <label className="btn btn-sm btn-ghost" style={{ cursor: "pointer" }}>
+                  {photo ? "Photo added — change" : "Add their photo"}
+                  <input type="file" accept="image/*" hidden onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try { setPhoto(await photoToDataUrl(file)); setError(null); }
+                    catch (err) { setError(err instanceof Error ? err.message : "That photo could not be used."); }
+                  }} />
+                </label>
+                {photo && <img src={photo} alt="" width={64} height={64} style={{ borderRadius: 14, objectFit: "cover" }} />}
+              </div>
               <button className="btn btn-sm btn-primary" disabled={busy} onClick={hire}>
                 Hire onto the roster
               </button>

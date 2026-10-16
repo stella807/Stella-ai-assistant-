@@ -800,9 +800,9 @@ export const api = {
   /** Hire an approved applicant onto the roster. Returns the portal
    *  credentials **once** — they are not stored readably and cannot be
    *  shown again, so the caller has to surface them immediately. */
-  masterHireStaffApplication: (id: string, market: string) =>
+  masterHireStaffApplication: (id: string, market: string, profile?: { bio?: string; age?: number; yearsExperience?: number; photoUrl?: string }) =>
     request<{ assistant: { id: string; name: string }; credentials: { username: string; tempPassword?: string } }>(
-      "POST", `/api/staff/applications/${id}/hire`, { market }),
+      "POST", `/api/staff/applications/${id}/hire`, { market, ...profile }),
   /** Tick one of the launch steps the app cannot observe for itself. The
    *  server refuses an observed step outright — see launch-plan.ts. */
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>

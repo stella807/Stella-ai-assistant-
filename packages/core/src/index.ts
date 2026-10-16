@@ -36,6 +36,7 @@ export * from "./subscription.ts";
 export * from "./payment.ts";
 export * from "./balance.ts";
 export * from "./sms.ts";
+export * from "./profile-photo.ts";
 export * from "./driver-applications.ts";
 export * from "./driver-pay.ts";
 export * from "./concierge.ts";

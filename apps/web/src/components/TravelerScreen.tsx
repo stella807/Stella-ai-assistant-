@@ -19,11 +19,12 @@ import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } 
 /** Only used when the device refuses a fix, and the UI says so when it is. */
 const FALLBACK_POINT = { lat: 40.714, lng: -74.003 };
 
-export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans }: {
+export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onOpenHow }: {
   drinks: DrinkDefinition[];
   account: Account;
   onOpenHiring: (tab: HiringTab) => void;
   onOpenPlans: () => void;
+  onOpenHow: () => void;
 }) {
   const TRAVELER_ID = account.id;
   const HOME_LABEL = account.homeLabel || "Home";
@@ -140,7 +141,7 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans }: {
   if (!summary) {
     return (
       <div className="stack">
-        <HomeHelp account={account} onOpenHelp={onOpenHiring} onOpenPlans={onOpenPlans} />
+        <HomeHelp account={account} onOpenHelp={onOpenHiring} onOpenPlans={onOpenPlans} onOpenHow={onOpenHow} />
 
         {/* The night out is still here — it is just no longer the first thing
             somebody who came for help has to scroll past. */}

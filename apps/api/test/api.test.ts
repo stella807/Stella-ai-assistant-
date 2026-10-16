@@ -4406,6 +4406,34 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("what a customer sees when choosing an assistant", () => {
+    const hireWith = async (profile: Record<string, unknown>) => {
+      const { json } = await apply({ email: `p${Math.random()}@example.com` });
+      await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+      await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+      return callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas", maxConcurrentCustomers: 2, ...profile });
+    };
+
+    it("keeps their photo, experience, age and a line about them, and shows them on the roster", async () => {
+      const photo = `data:image/jpeg;base64,${Buffer.from("a small photo").toString("base64")}`;
+      const hired = await hireWith({ photoUrl: photo, yearsExperience: 6, age: 34, bio: "Six years as a home health aide." });
+      expect(hired.status, JSON.stringify(hired.json)).toBe(200);
+      const roster = await call("GET", `/api/concierge/assistants?category=wait-with-someone&lat=${IN_TEXAS.lat}&lng=${IN_TEXAS.lng}`, undefined, sam);
+      const found = roster.json.assistants.find((a: { id: string }) => a.id === hired.json.assistant.id);
+      expect(found).toMatchObject({ photoUrl: photo, yearsExperience: 6, age: 34, bio: "Six years as a home health aide." });
+    });
+
+    it("refuses a photo that is not an image the app can safely show", async () => {
+      for (const photoUrl of ["javascript:alert(1)", "data:image/svg+xml;base64,AAAA", "http://example.com/a.jpg"]) {
+        expect((await hireWith({ photoUrl })).status, photoUrl).toBe(400);
+      }
+    });
+
+    it("hires with no photo at all", async () => {
+      expect((await hireWith({})).status).toBe(200);
+    });
+  });
+
   describe("text alerts", () => {
     /** Twilio, stood in for. Only its own host is intercepted. */
     const realFetch = globalThis.fetch;

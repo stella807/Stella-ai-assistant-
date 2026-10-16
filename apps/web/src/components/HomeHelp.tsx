@@ -4,6 +4,14 @@ import type { HiringTab } from "./HiringScreen.tsx";
 import { api, type Account } from "../api.ts";
 import { activeRequests, firstName, helpTabFor, homeActions } from "../app/home-actions.ts";
 import { money } from "../money.ts";
+import { AssistantArt, DeskArt, ErrandArt, RideArt, WingmanIcon } from "./art/Art.tsx";
+
+const ACTION_ART: Record<string, () => JSX.Element> = {
+  assistant: () => <AssistantArt />,
+  errand: () => <ErrandArt />,
+  ride: () => <RideArt />,
+  desk: () => <DeskArt />,
+};
 
 /**
  * The front door: who is on the job right now, and what to ask for next.
@@ -12,10 +20,11 @@ import { money } from "../money.ts";
  * a juice to arrive, or for news from a parent's hospital room — so what is
  * already happening comes first, above the things they could start.
  */
-export function HomeHelp({ account, onOpenHelp, onOpenPlans }: {
+export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
   account: Account;
   onOpenHelp: (tab: HiringTab) => void;
   onOpenPlans: () => void;
+  onOpenHow: () => void;
 }) {
   const planId = account.planId as PlanId;
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
@@ -41,12 +50,24 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans }: {
           <div className="home-actions">
             {actions.map((a) => (
               <button key={a.id} className="home-action" onClick={() => onOpenHelp(a.tab)}>
+                <span className="home-action-art">{ACTION_ART[a.id]?.()}</span>
                 <strong>{a.title}</strong>
                 <span className="tiny muted">{a.hint}</span>
               </button>
             ))}
           </div>
         ) : null}
+
+        <div className="home-extras">
+          <button className="home-extra home-extra-club" onClick={() => onOpenHelp("club")}>
+            <WingmanIcon size={44} />
+            <span><strong>Wingman Club</strong><span className="tiny muted">One evening a month, arranged — cigars, bourbon, the track.</span></span>
+          </button>
+          <button className="home-extra" onClick={onOpenHow}>
+            <span className="home-extra-mark">?</span>
+            <span><strong>How it works</strong><span className="tiny muted">What it costs, plan by plan, and who does what.</span></span>
+          </button>
+        </div>
 
         {/* An account with no paid plan has no assistants or errands to offer.
             Say where they start, rather than showing doors that are locked. */}

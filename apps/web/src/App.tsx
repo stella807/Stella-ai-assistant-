@@ -15,13 +15,14 @@ import { StaffSignupScreen } from "./components/StaffSignupScreen.tsx";
 import { entryRoleFromUrl, entryRouteFromUrl, hashForEntryRoute, pathAfterLeaving } from "./app/entry-route.ts";
 import { HiringScreen, type HiringTab } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
+import { HowItWorks } from "./components/HowItWorks.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
 import { IconBriefcase, IconCard, IconConfetti, IconDice, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
 type Role =
   | "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account"
-  | "drive" | "work";
+  | "drive" | "work" | "how";
 
 export function App() {
   // A link can open the job application directly — see entry-route.ts.
@@ -134,7 +135,8 @@ export function App() {
           {role === "out" && (
             <TravelerScreen drinks={drinks} account={account}
               onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}
-              onOpenPlans={() => setRole("plans")} />
+              onOpenPlans={() => setRole("plans")}
+              onOpenHow={() => setRole("how")} />
           )}
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
@@ -151,6 +153,7 @@ export function App() {
           )}
           {role === "hiring" && <HiringScreen account={account} initialTab={hiringTab} />}
           {role === "about" && <AboutScreen />}
+          {role === "how" && <HowItWorks onOpenPlans={() => setRole("plans")} />}
         </>
       )}
 

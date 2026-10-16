@@ -5,6 +5,7 @@ import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
 import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
 import { GetHomePanel } from "./GetHomePanel.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
+import { WingmanIcon } from "./art/Art.tsx";
 import { currentFix, type Fix } from "../native/location.ts";
 import type { Account } from "../api.ts";
 
@@ -107,6 +108,7 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
       <div className="tabs tabs-scroll" role="tablist" aria-label="What you need">
         {tabs.map((tab) => (
           <button key={tab.id} role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)}>
+            {tab.id === "club" && <WingmanIcon size={18} style={{ marginRight: 6, verticalAlign: "-3px" }} />}
             {tab.label}
           </button>
         ))}

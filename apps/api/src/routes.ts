@@ -32,7 +32,7 @@ import {
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
-  canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
+  validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
   BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
@@ -1252,6 +1252,11 @@ function saveTextContact(ctx: Ctx, key: string, body: any): { enabled: boolean; 
   }
   ctx.store.update((db) => { db.textContacts[key] = contact; });
   return { enabled: true, phoneLast4: contact.phone.slice(-4) };
+}
+
+function photoUrlFrom(raw: unknown): string | undefined {
+  try { return validateProfilePhotoUrl(raw === undefined || raw === null ? undefined : String(raw)); }
+  catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That photo cannot be used."); }
 }
 
 /** Recomputes derived state (missed check-ins, new alerts) before any read. */
@@ -5144,7 +5149,7 @@ export const routes: Record<string, Handler> = {
       maxConcurrentCustomers: body?.maxConcurrentCustomers !== undefined
         ? Number(body.maxConcurrentCustomers) : undefined,
       bio: body?.bio ? String(body.bio) : undefined,
-      photoUrl: body?.photoUrl ? String(body.photoUrl) : undefined,
+      photoUrl: photoUrlFrom(body?.photoUrl),
       yearsExperience: body?.yearsExperience !== undefined ? Number(body.yearsExperience) : undefined,
       gender: body?.gender ? String(body.gender) : undefined,
       age: body?.age !== undefined ? Number(body.age) : undefined,

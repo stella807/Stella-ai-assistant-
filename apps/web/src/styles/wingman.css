@@ -134,3 +134,10 @@
   .wm-card, .wm-eyebrow, .wm-title, .wm-tagline, .wm-hero, .wm-month, .wm-perk { opacity: 1 !important; transform: none !important; }
   .cigar-smoke path { opacity: .35; stroke-dashoffset: 0; }
 }
+
+/* three pictures under the cigar */
+.wm-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; animation: wm-up .9s .25s ease both; }
+.wm-pic { display: grid; justify-items: center; gap: 6px; padding: 12px 6px 10px; border-radius: 18px; border: 1px solid rgba(232, 193, 112, .25); background: rgba(255, 255, 255, .04); }
+.wm-pic svg { height: 74px; width: auto; max-width: 100%; }
+.wm-pic span { font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--wm-soft); }
+.wm-pic-sky svg { border-radius: 12px; }
