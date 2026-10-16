@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DrinkDefinition, Feature, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
-import { hasFeature, hasMovedVenue } from "@safehubby/core";
+import type { DrinkDefinition, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
+import { hasMovedVenue } from "@safehubby/core";
 import type { HiringTab } from "./HiringScreen.tsx";
 import { api, type Account, type NightSummary } from "../api.ts";
 import { BacCard } from "./BacCard.tsx";
+import { HomeHelp } from "./HomeHelp.tsx";
 import { CheckInPrompt } from "./CheckInPrompt.tsx";
 import { DrinkLogger } from "./DrinkLogger.tsx";
 import { GetHomePanel } from "./GetHomePanel.tsx";
@@ -18,69 +19,11 @@ import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } 
 /** Only used when the device refuses a fix, and the UI says so when it is. */
 const FALLBACK_POINT = { lat: 40.714, lng: -74.003 };
 
-/**
- * The things this plan can do right now, without starting a night first.
- *
- * Everything below used to be reachable only by finding the Hiring tab and
- * then the right sub-tab inside it — a word that reads like recruitment, over
- * a screen whose whole first fold asks about a night out and a drink limit.
- * For the member this product is actually built around, who wants someone to
- * bring them a coffee or drive them somewhere and is never going to start a
- * night, that made the plan's own contents effectively unreachable.
- *
- * Each row is gated on the real `Feature`, so this states what the member has
- * rather than advertising something the next screen would refuse — and it is
- * not Free-specific: these are on every tier, Free just had the least else to
- * find.
- */
-const INCLUDED_NOW: { feature: Feature; tab: HiringTab; label: string; hint: string }[] = [
-  {
-    feature: "quick-tasks", tab: "errand",
-    label: "Have someone bring you something",
-    hint: "A coffee, milk, a prescription — one thing brought to you, at a spend cap you set.",
-  },
-  {
-    feature: "quick-tasks", tab: "errand",
-    label: "Send someone on an errand",
-    hint: "One short, specific job. No spend ceiling — you decide what goes on the card.",
-  },
-  {
-    feature: "ride-booking", tab: "ride",
-    label: "Get a ride",
-    hint: "We book the ride for you and tell you the price before it's confirmed.",
-  },
-];
-
-function IncludedNow({ planId, onOpenHiring }: {
-  planId: PlanId;
-  onOpenHiring: (tab: HiringTab) => void;
-}) {
-  const rows = INCLUDED_NOW.filter((r) => hasFeature(planId, r.feature));
-  if (rows.length === 0) return null;
-
-  return (
-    <section className="card stack" aria-label="Included on your plan">
-      <div>
-        <h2>What you can ask for</h2>
-        <p className="small muted" style={{ margin: 0 }}>
-          Included on your plan. Nothing to start first.
-        </p>
-      </div>
-      {rows.map((r) => (
-        <button key={r.label} className="btn btn-block" style={{ textAlign: "left" }}
-          onClick={() => onOpenHiring(r.tab)}>
-          <strong className="small">{r.label}</strong>
-          <div className="tiny muted">{r.hint}</div>
-        </button>
-      ))}
-    </section>
-  );
-}
-
-export function TravelerScreen({ drinks, account, onOpenHiring }: {
+export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans }: {
   drinks: DrinkDefinition[];
   account: Account;
   onOpenHiring: (tab: HiringTab) => void;
+  onOpenPlans: () => void;
 }) {
   const TRAVELER_ID = account.id;
   const HOME_LABEL = account.homeLabel || "Home";
@@ -197,7 +140,13 @@ export function TravelerScreen({ drinks, account, onOpenHiring }: {
   if (!summary) {
     return (
       <div className="stack">
-        <IncludedNow planId={account.planId as PlanId} onOpenHiring={onOpenHiring} />
+        <HomeHelp account={account} onOpenHelp={onOpenHiring} onOpenPlans={onOpenPlans} />
+
+        {/* The night out is still here — it is just no longer the first thing
+            somebody who came for help has to scroll past. */}
+        <details className="night-out">
+          <summary>Out for the night? Crews and check-ins</summary>
+          <div className="stack" style={{ marginTop: 12 }}>
         <CrewPanel travelerId={TRAVELER_ID} />
         <section className="card stack">
           <h2>Heading out tonight?</h2>
@@ -229,6 +178,8 @@ export function TravelerScreen({ drinks, account, onOpenHiring }: {
             Weight is used for a rough alcohol estimate. It stays on your account and is never sold or shared with advertisers.
           </p>
         </section>
+          </div>
+        </details>
       </div>
     );
   }

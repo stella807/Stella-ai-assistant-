@@ -3954,24 +3954,38 @@ describe("hiring somebody and actually sending them to a job", () => {
   it("tells applicants what each role pays and how many we are looking for", async () => {
     const res = await call("GET", "/api/staff/roles");
     expect(res.status).toBe(200);
-    const runner = res.json.roles.find((r: { id: string }) => r.id === "errand-runner");
+    const roles = res.json.roles as { id: string; pay: string; openings: number; hiring: boolean }[];
+    const assistant = roles.find((r) => r.id === "personal-assistant")!;
+    expect(assistant.pay).toContain("$35.00");
+    expect(assistant.openings).toBe(OPEN_POSITIONS["personal-assistant"]);
+    expect(assistant.hiring).toBe(true);
+    // Errand runners are on hold: the pay is still stated, and it says so.
+    const runner = roles.find((r) => r.id === "errand-runner")!;
     expect(runner.pay).toContain(`$${(errandPayoutCents("in-building") / 100).toFixed(2)}`);
-    expect(runner.openings).toBe(OPEN_POSITIONS["errand-runner"]);
-    expect(runner.hiring).toBe(true);
-    const physician = res.json.roles.find((r: { id: string }) => r.id === "physician");
-    expect(physician.openings).toBe(0);
+    expect(runner.openings).toBe(0);
+    expect(runner.hiring).toBe(false);
+    const physician = roles.find((r) => r.id === "physician")!;
     expect(physician.hiring).toBe(false);
     // Every role says what it pays; none is left blank.
-    for (const r of res.json.roles) expect(String(r.pay).length, r.id).toBeGreaterThan(5);
+    for (const r of roles) expect(String(r.pay).length, r.id).toBeGreaterThan(5);
     // Drivers apply through their own screen.
-    expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
+    expect(roles.some((r) => r.id === "driver")).toBe(false);
+  });
+
+  it("lists the roles we are hiring for first", async () => {
+    // An applicant should see the open jobs before the closed ones.
+    const roles = (await call("GET", "/api/staff/roles")).json.roles as { id: string; hiring: boolean }[];
+    const firstClosed = roles.findIndex((r) => !r.hiring);
+    expect(firstClosed).toBeGreaterThan(0);
+    for (const r of roles.slice(firstClosed)) expect(r.hiring, r.id).toBe(false);
   });
 
   it("counts an opening down when somebody is hired, so a filled role stops advertising", async () => {
-    const before = (await call("GET", "/api/staff/roles")).json.roles.find((r: { id: string }) => r.id === "errand-runner").openings;
-    await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kitopen@example.com" });
-    const after = (await call("GET", "/api/staff/roles")).json.roles.find((r: { id: string }) => r.id === "errand-runner").openings;
-    expect(after).toBe(before - 1);
+    const find = async () => (await call("GET", "/api/staff/roles")).json.roles
+      .find((r: { id: string }) => r.id === "personal-assistant").openings as number;
+    const before = await find();
+    await hireOne({ role: "personal-assistant", fullName: "Rosa Open", email: "rosaopen@example.com" });
+    expect(await find()).toBe(before - 1);
   });
 
   it("lets the owner open a résumé the dashboard says is attached", async () => {

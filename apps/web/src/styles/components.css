@@ -954,6 +954,12 @@ label:has(> input[type="checkbox"]) {
   white-space: nowrap;
 }
 
+/* Let the controls wrap under the title rather than push the page wider than
+   the screen. At 390pt the bar was about 50pt too wide, so the whole page
+   scrolled sideways and the language toggle sat half off the edge. */
+.app > header { flex-wrap: wrap; row-gap: 8px; }
+.app > header > .row { flex-wrap: wrap; justify-content: flex-end; }
+
 @media (max-width: 420px) {
   .app > header h1 {
     font-size: 1.35rem;

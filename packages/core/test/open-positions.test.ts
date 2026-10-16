@@ -48,14 +48,18 @@ describe("how many people we are looking for", () => {
     }
   });
 
-  it("is hiring for the two field roles the launch needs", () => {
-    expect(OPEN_POSITIONS["errand-runner"]).toBeGreaterThan(0);
+  it("is hiring personal assistants, and has errand runners on hold", () => {
+    // Assistants cover errands as well as staying with somebody, so they are the
+    // hire that opens the service; a dedicated runner waits for the volume.
     expect(OPEN_POSITIONS["personal-assistant"]).toBeGreaterThan(0);
+    expect(OPEN_POSITIONS["errand-runner"]).toBe(0);
   });
 
   it("counts down as people are hired, and never goes below zero", () => {
-    expect(openingsFor("errand-runner", 0)).toBe(OPEN_POSITIONS["errand-runner"]);
-    expect(openingsFor("errand-runner", 1)).toBe(OPEN_POSITIONS["errand-runner"] - 1);
-    expect(openingsFor("errand-runner", 99)).toBe(0);
+    expect(openingsFor("personal-assistant", 0)).toBe(OPEN_POSITIONS["personal-assistant"]);
+    expect(openingsFor("personal-assistant", 1)).toBe(OPEN_POSITIONS["personal-assistant"] - 1);
+    expect(openingsFor("personal-assistant", 99)).toBe(0);
+    // A role on hold stays at zero however many are hired.
+    expect(openingsFor("errand-runner", 0)).toBe(0);
   });
 });

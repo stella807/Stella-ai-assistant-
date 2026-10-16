@@ -106,6 +106,10 @@ function TaskRow({ task, onOpen }: { task: ConciergeTask; onOpen: () => void }) 
   );
 }
 
+function tierSuggestion(id: ErrandTierId): number {
+  return findErrandTier(id).suggestedCapCents;
+}
+
 export function ConciergePanel({ account, kind = "concierge" }: { account: Account; kind?: HiringKind }) {
   const planId = account.planId as PlanId;
   // Small errands (grab-something, run-errand) are gated on `quick-tasks`,
@@ -119,11 +123,13 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   const [category, setCategory] = useState<ConciergeCategory>(allowed[0] ?? "grab-something");
   const [note, setNote] = useState("");
-  const [capCents, setCapCents] = useState(() => defaultCapFor(allowed[0] ?? "grab-something", planId));
+  const [capCents, setCapCents] = useState(() => kind === "errand" ? ERRAND_TIERS[0]!.suggestedCapCents : defaultCapFor(allowed[0] ?? "grab-something", planId));
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
   /** The typed cap, kept as text so a half-entered "40" is not parsed as $40
    *  and snapped away while somebody is still typing "40000". */
   const [capEntry, setCapEntry] = useState("");
+  // Once the customer picks their own limit, changing the errand size must not overwrite it.
+  const [capTouched, setCapTouched] = useState(false);
   // How much work the errand is. Sets the runner's pay and the fee — see
   // errand-tiers.ts. Only meaningful for grabbing something or running an errand.
   const [errandTier, setErrandTier] = useState<ErrandTierId>("in-building");
@@ -529,7 +535,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               // The cap follows the category rather than carrying over. A $100
               // ceiling means nothing on a hotel booking, and a $500 one is not
               // a number anybody meant to authorize for a coffee run.
-              setCapCents(defaultCapFor(c.id, planId));
+              setCapCents(kind === "errand" ? tierSuggestion(errandTier) : defaultCapFor(c.id, planId));
+              setCapTouched(false);
               setHours(defaultHoursFor(c.id));
               setCapEntry("");
               setRoster(null);
@@ -713,7 +720,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
               <label key={t.id} className="card card-quiet row-between" style={{ cursor: "pointer", gap: 10 }}>
                 <span className="row" style={{ gap: 8, alignItems: "flex-start" }}>
                   <input type="radio" name="errand-tier" checked={errandTier === t.id}
-                    onChange={() => { setErrandTier(t.id); setRoster(null); }} />
+                    onChange={() => {
+                      setErrandTier(t.id); setRoster(null);
+                      if (!capTouched) setCapCents(t.suggestedCapCents);
+                    }} />
                   <span>
                     <strong className="small">{t.label}</strong>
                     <span className="tiny muted" style={{ display: "block" }}>
@@ -753,6 +763,12 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         />
       )}
 
+      <details className={quickEligible ? "cap-change" : "cap-change cap-open"} open={!quickEligible}>
+      {quickEligible && (
+        <summary className="small">
+          Up to {money(spendCapCents)} for what is bought · <span className="linklike">Change</span>
+        </summary>
+      )}
       <AmountStepper
         id="concierge-cap"
         label="Loaded on their card to spend"
@@ -760,7 +776,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         valueCents={spendCapCents}
         scale={capScale}
         presetsCents={capPresetsFor(category, planId)}
-        onChange={(cents) => { setCapCents(cents); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
+        onChange={(cents) => { setCapTouched(true); setCapCents(cents); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
       />
 
       {/* Where Safehubby sets no ceiling, the ladder cannot be the only way
@@ -777,6 +793,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             placeholder={dollars(spendCapCents).replace("$", "")}
             onChange={(e) => {
               setCapEntry(e.target.value);
+              setCapTouched(true);
+              setCapTouched(true);
               const parsed = Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) * 100);
               if (Number.isFinite(parsed) && parsed >= CONCIERGE_MIN_CAP_CENTS) {
                 setCapCents(parsed);
@@ -790,6 +808,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           </p>
         </div>
       )}
+      </details>
 
       {/* What this costs, before agreeing to it rather than after.
           Everything here comes from the same core functions the server

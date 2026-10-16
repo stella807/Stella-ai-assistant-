@@ -105,3 +105,12 @@ describe("tiers and the included grab", () => {
       .toBe(fee("nearby-store", 2_000));
   });
 });
+
+describe("suggested caps", () => {
+  it("start small for small errands and grow with the work", async () => {
+    const { ERRAND_TIERS } = await import("../src/errand-tiers.ts");
+    const caps = ERRAND_TIERS.map((t) => t.suggestedCapCents);
+    expect(Math.min(...caps)).toBeGreaterThanOrEqual(500);
+    expect(ERRAND_TIERS[0]!.suggestedCapCents).toBeLessThan(ERRAND_TIERS[2]!.suggestedCapCents);
+  });
+});

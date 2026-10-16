@@ -19,8 +19,12 @@ import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
  */
 export const OPEN_POSITIONS: Record<StaffRole, number> = {
   driver: 0,
-  "personal-assistant": 3,
-  "errand-runner": 4,
+  // Personal assistants are the go: they cover errands as well as sitting with
+  // somebody and checking on them, so they are the hire that opens the service.
+  // Errand runners are on hold until there is volume that a dedicated runner
+  // would be busy for.
+  "personal-assistant": 5,
+  "errand-runner": 0,
   secretary: 0,
   "social-media-manager": 0,
   lawyer: 1,

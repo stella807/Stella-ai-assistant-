@@ -1,5 +1,5 @@
 import {
-  APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ORIGIN, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences, errandTierRows,
+  APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences, errandTierRows,
   featuredPlans, mailtoHref, money, startingPriceCents, whatsappHref,
   whatsappLabel, type Lang,
 } from "./content.ts";
@@ -271,7 +271,7 @@ ${header(lang, home, w.otherLang.href, w.otherLang.label)}
     <h1 class="work-title">${esc(w.heading)}</h1>
     <p class="lede">${esc(w.lede)}</p>
     <p class="rate">${esc(w.rate)}</p>
-    <p class="wide">${esc(w.errand)}</p>
+    ${ERRAND_RUNNERS_HIRING ? `<p class="wide">${esc(w.errand)}</p>` : ""}
     <p><a class="btn" href="${CAREERS_URL}">${esc(w.cta)}</a></p>
   </section>
 </main>

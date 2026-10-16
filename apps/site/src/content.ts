@@ -2,7 +2,7 @@ import {
   CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
   LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
-  isEnabled, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
+  OPEN_POSITIONS, isEnabled, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -272,6 +272,12 @@ const tierPays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
 /** What an errand runner is paid per task, as the span the four sizes cover. */
 const errandPayRange = `${money(Math.min(...tierPays))} to ${money(Math.max(...tierPays))}`;
 const errandMileage = money(ERRAND_MILEAGE_CENTS);
+
+/** Whether errand runners are being hired. The hiring page advertises a job
+ *  only while it is open: with runners on hold, its pay line would pull in
+ *  applicants for a role nobody is hiring. Personal assistants, who cover
+ *  errands too, are the role to point people at. */
+export const ERRAND_RUNNERS_HIRING = OPEN_POSITIONS["errand-runner"] > 0;
 
 /**
  * The insurance promise, said only when it is true. Liability cover for the

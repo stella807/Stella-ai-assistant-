@@ -84,24 +84,6 @@ export function App() {
         </div>
       )}
 
-      {/* Applying to drive or to a non-driving role needs no rider account.
-          While signed out, the landing carousel's fifth slide has both — so
-          these would just be the same buttons twice there. They appear here
-          for signed-in riders, who have no carousel to find them on: without
-          this, StaffSignupScreen ("work" role) had no way in at all once
-          somebody had an account, since onWorkWithUs is a LandingIntro prop
-          and LandingIntro only renders while signed out. */}
-      {role !== "drive" && role !== "work" && account && (
-        <div className="row" style={{ gap: 6, alignSelf: "flex-start" }}>
-          <button className="btn btn-sm btn-ghost" onClick={() => setRole("drive")}>
-            {t("app.drive")}
-          </button>
-          <button className="btn btn-sm btn-ghost" onClick={() => setRole("work")}>
-            {t("app.careers")}
-          </button>
-        </div>
-      )}
-
       {role === "drive" ? (
         <DriveSignupScreen onBack={() => setRole("out")} />
       ) : role === "work" ? (
@@ -145,7 +127,8 @@ export function App() {
           <PendingOrderPrompt />
           {role === "out" && (
             <TravelerScreen drinks={drinks} account={account}
-              onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }} />
+              onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}
+              onOpenPlans={() => setRole("plans")} />
           )}
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
@@ -167,6 +150,16 @@ export function App() {
 
       <footer className="tiny muted" style={{ paddingTop: 8 }}>
         {t("app.footer")}
+        {/* Jobs are for people who want to work for Safehubby, not for the
+            customers using it, so they live down here rather than in the header
+            every customer sees. Signed out, the landing carries both already. */}
+        {account && role !== "drive" && role !== "work" && (
+          <span style={{ display: "block", marginTop: 8 }}>
+            <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
+            {" · "}
+            <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>
+          </span>
+        )}
       </footer>
     </div>
   );

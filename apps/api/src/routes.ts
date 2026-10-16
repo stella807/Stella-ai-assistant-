@@ -4771,7 +4771,10 @@ export const routes: Record<string, Handler> = {
       const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
       const openings = openingsFor(r.id, hired);
       return { ...r, pay: payLabelFor(r.id), openings, hiring: openings > 0 };
-    }),
+    })
+      // The jobs that are open come first. The sort is stable, so within each
+      // group the roles keep the order the owner set them in.
+      .sort((a, b) => Number(b.hiring) - Number(a.hiring)),
     benefits: publicBenefits(),
   }),
 

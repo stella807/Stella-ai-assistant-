@@ -5,7 +5,7 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  CONTACT_EMAIL, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
+  CONTACT_EMAIL, ERRAND_RUNNERS_HIRING, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
   formatPhone, mailtoHref, money, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { HEADERS, STYLESHEET, THEME, obfuscate, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
@@ -429,21 +429,29 @@ describe("what the hiring pages promise", () => {
   });
 
   it("still reads as whole sentences without it", () => {
-    expect(work.en).toMatch(/a mile\.</);
-    expect(work.es).toMatch(/por milla\.</);
-    expect(work.en).not.toMatch(/,\s*\.|\s\.\s\./);
+    // The two sentences the insurance promise used to sit in must still end
+    // properly with it gone, whichever roles are open.
+    expect(work.en).toContain("Texas and Los Angeles.");
+    expect(work.es).toContain("Texas y Los Ángeles.");
+    for (const lang of LANGS) expect(work[lang], lang).not.toMatch(/,\s*\.|\s\.\s\./);
   });
 });
 
 describe("applying for a job", () => {
-  it("quotes errand runners' pay from the tiers, not the old flat task", () => {
-    // The page once said "$4 per quick task". Pay is by size now, and a page
-    // that advertises the wrong number to somebody deciding whether to apply
-    // is the most expensive kind of stale.
+  it("advertises the jobs that are open and leaves out the ones on hold", () => {
+    // Personal assistants are the hire; errand runners are on hold. A page that
+    // still quoted a runner's pay would pull in applicants for a job nobody is
+    // hiring. If runners reopen, the pay must come from the tiers, not a typed
+    // number — checked here too.
     for (const lang of LANGS) {
+      expect(work[lang], lang).toContain(money(PA_HOURLY_RATE_CENTS));
       const rates = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
-      expect(work[lang], lang).toContain(money(Math.min(...rates)));
-      expect(work[lang], lang).toContain(money(Math.max(...rates)));
+      if (ERRAND_RUNNERS_HIRING) {
+        expect(work[lang], lang).toContain(money(Math.min(...rates)));
+        expect(work[lang], lang).toContain(money(Math.max(...rates)));
+      } else {
+        expect(work[lang], lang).not.toMatch(/per errand|por diligencia/i);
+      }
       expect(work[lang], lang).not.toMatch(/per quick task|por tarea rápida/);
     }
   });

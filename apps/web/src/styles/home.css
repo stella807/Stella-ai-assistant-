@@ -1,0 +1,55 @@
+/* Home: the front door ---------------------------------------------------
+   Big doors to the things people come here for, with whatever is already
+   happening above them. Tap targets are generous on purpose: the person
+   using this may be older, may be on a hospital chair, and may be in a hurry. */
+
+.home-hero h2 { font-size: 24px; line-height: 1.15; letter-spacing: -0.02em; }
+
+.home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.home-action {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  min-height: 104px; padding: 14px; text-align: left;
+  background: var(--fill); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r-card);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.home-action strong { font-size: 17px; line-height: 1.2; }
+/* The first door is the one the launch rests on, so it gets the gold edge. */
+.home-action:last-child:nth-child(even) { grid-column: 1 / -1; min-height: 80px; }
+.home-action:first-child { border-color: var(--accent-bright); background: var(--accent-soft); grid-column: 1 / -1; min-height: 88px; }
+@media (hover: hover) {
+  .home-action:hover { border-color: var(--accent-bright); transform: translateY(-1px); }
+}
+.home-action:focus-visible { outline: 3px solid var(--accent-bright); outline-offset: 2px; }
+
+.home-running {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 12px 14px; text-align: left;
+  background: var(--fill); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r-btn); cursor: pointer;
+}
+.home-running:focus-visible { outline: 3px solid var(--accent-bright); outline-offset: 2px; }
+
+/* The night out, folded away until it is wanted. */
+.night-out {
+  border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface);
+  padding: 4px 14px;
+}
+.night-out > summary {
+  cursor: pointer; list-style: none; padding: 14px 0; font-weight: 600; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.night-out > summary::-webkit-details-marker { display: none; }
+.night-out > summary::after { content: "+"; font-size: 22px; line-height: 1; color: var(--accent-bright); }
+.night-out[open] > summary::after { content: "–"; }
+.night-out[open] { padding-bottom: 14px; }
+
+.linklike {
+  background: none; border: 0; padding: 0; font: inherit; color: var(--accent); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+.cap-change > summary { cursor: pointer; padding: 10px 0; list-style: none; }
+.cap-change > summary::-webkit-details-marker { display: none; }
+.cap-change > summary .linklike { text-decoration: underline; color: var(--gold, inherit); }

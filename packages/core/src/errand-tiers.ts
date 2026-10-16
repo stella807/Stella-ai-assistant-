@@ -46,13 +46,15 @@ export interface ErrandTier {
    *  parking, security, a visitor badge, the elevator. */
   minutes: number;
   miles: number;
+  /** A sensible card limit to start from, so nobody opens the form to a $100 default for a soda. */
+  suggestedCapCents: number;
 }
 
 export const ERRAND_TIERS: ErrandTier[] = [
-  { id: "in-building", label: "In the building", example: "A soda or a snack from the cafeteria or gift shop", minutes: 15, miles: 0 },
-  { id: "nearby-store", label: "Nearby store", example: "A phone charger, snacks, toiletries", minutes: 35, miles: 4 },
-  { id: "shopping-trip", label: "Shopping trip", example: "A blanket, clothes, a few stops", minutes: 60, miles: 10 },
-  { id: "wait-in-line", label: "Wait in line", example: "A restaurant order or a pharmacy line", minutes: 50, miles: 6 },
+  { id: "in-building", label: "In the building", example: "A soda or a snack from the cafeteria or gift shop", minutes: 15, miles: 0, suggestedCapCents: 1000 },
+  { id: "nearby-store", label: "Nearby store", example: "A phone charger, snacks, toiletries", minutes: 35, miles: 4, suggestedCapCents: 2500 },
+  { id: "shopping-trip", label: "Shopping trip", example: "A blanket, clothes, a few stops", minutes: 60, miles: 10, suggestedCapCents: 7500 },
+  { id: "wait-in-line", label: "Wait in line", example: "A restaurant order or a pharmacy line", minutes: 50, miles: 6, suggestedCapCents: 4000 },
 ];
 
 export function findErrandTier(id: string): ErrandTier {

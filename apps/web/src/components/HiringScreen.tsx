@@ -31,23 +31,23 @@ const TAB_FEATURE: Partial<Record<HiringTab, Feature>> = {
 
 const TABS: { id: HiringTab; label: string; blurb: string }[] = [
   {
-    id: "desk",
-    label: "Ask an assistant",
-    blurb: "Appointments, reminders, emails, admin — the half of the job that happens at a desk. Included in your plan, with nothing to set and nothing to agree to.",
-  },
-  {
-    id: "errand",
-    label: "Small errands",
-    blurb: "Something short and specific — grab one thing, run one errand. Lower rate, and you set the spend cap: an errand has no ceiling at all, and grabbing something has one you'll see on its own screen.",
-  },
-  {
     id: "concierge",
-    label: "Concierge",
+    label: "Send an assistant",
     blurb: "A personal assistant: wait with a friend who should not be alone, check on someone in person, or book and buy something for you — tickets, a hotel, a table — on a card funded from your account.",
   },
   {
+    id: "errand",
+    label: "Errands",
+    blurb: "Something short and specific — grab one thing, run one errand. You set the spend cap and you are only charged for what is spent.",
+  },
+  {
+    id: "desk",
+    label: "Handle a task",
+    blurb: "Appointments, reminders, emails, admin — the half of the job that happens at a desk. Included in your plan, with nothing to set and nothing to agree to.",
+  },
+  {
     id: "ride",
-    label: "Get a ride",
+    label: "Rides",
     blurb: "Somebody on our side books the ride for you — not a link for you to tap. You pay the fare it comes to, plus a small fee for arranging it.",
   },
   {
@@ -98,9 +98,9 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
   return (
     <div className="stack">
       <div>
-        <h2>Hiring</h2>
+        <h2>Get help</h2>
         <p className="small muted">
-          A vetted assistant for one bounded task, at a spend cap you set that's never exceeded.
+          A vetted person for one job, at a limit you set. You are never charged past it.
         </p>
       </div>
 
