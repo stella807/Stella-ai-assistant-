@@ -6,7 +6,7 @@
  */
 export function CigarArt({ className = "" }: { className?: string }) {
   return (
-    <svg className={`cigar-art ${className}`} viewBox="0 0 420 180" role="img" aria-label="A lit cigar" xmlns="http://www.w3.org/2000/svg">
+    <svg className={`cigar-art ${className}`} viewBox="-10 -26 450 210" role="img" aria-label="A lit cigar" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="cg-body" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#8a5a34" />
