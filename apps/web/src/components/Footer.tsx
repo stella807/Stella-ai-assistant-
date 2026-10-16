@@ -32,6 +32,7 @@ export function Footer() {
         <a className="btn btn-sm btn-ghost" href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
         {/* A real link, not a router push: /employee is its own area with its own sign-in. */}
         <a className="btn btn-sm btn-ghost" href="/employee">{t("footer.employeePortal")}</a>
+        <a className="btn btn-sm btn-ghost" href="/master">{t("footer.ownerPortal")}</a>
         <button
           className="btn btn-sm btn-ghost" aria-expanded={open === "press"}
           onClick={() => setOpen((o) => (o === "press" ? null : "press"))}

@@ -156,6 +156,8 @@ export function App() {
             {" · "}
             <a className="linklike" href="/employee">{t("footer.employeePortal")}</a>
             {" · "}
+            <a className="linklike" href="/master">{t("footer.ownerPortal")}</a>
+            {" · "}
             <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
             {" · "}
             <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
