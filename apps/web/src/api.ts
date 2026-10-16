@@ -1,7 +1,7 @@
 import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
-  EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo,
+  EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus,
   RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
@@ -415,7 +415,7 @@ export const api = {
   placeSearch: (query: string, near: { lat: number; lng: number }) =>
     request<{ places: NearbyStore[] }>(
       "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
-  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; errandTier?: ErrandTierId; peopleCount?: number; hours?: number }) =>
+  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; errandTier?: ErrandTierId; onBehalfOf?: OnBehalfOf; peopleCount?: number; hours?: number }) =>
     request<{
       /** Null when Safehubby's own roster is doing the work — there is no
        *  supplier to quote, the rate card already decided the price. */
@@ -445,6 +445,9 @@ export const api = {
   bookConcierge: (input: {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
     spendCapCents: number; assistantId?: string; quickTask?: boolean; errandTier?: ErrandTierId; peopleCount?: number;
+    /** For somebody other than the customer. The server takes the location from
+     *  the market named here, and refuses the booking without the agreement. */
+    onBehalfOf?: OnBehalfOf; acknowledgedOnBehalf?: boolean;
     hours?: number;
     /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
     flight?: { flightNumber: string; date: string };

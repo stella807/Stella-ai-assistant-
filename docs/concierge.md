@@ -194,6 +194,27 @@ quick job is short, not cheap, and the old $50 ceiling was rationing the
 purchase instead of the time. `validateConciergeRequest` rejects `quickTask: true` outright
 for an ineligible category or a cap above that lower ceiling.
 
+### Ordering for somebody else
+
+A daughter in Orlando can send a runner to her father in a San Juan hospital
+(`on-behalf.ts`). The customer ticks "This is for someone else", chooses the
+market and types who it is for, the hospital or address, and the room.
+
+- **The place is words, not a pin.** There is no geocoder yet. The task's
+  coordinates are the middle of the chosen market — enough to pick a roster —
+  and the screens show the typed place instead of a map marker, because a
+  marker there would point at nothing.
+- **The server decides the location**, from the market named, never from
+  coordinates the client sends, so an order for somewhere outside the launch
+  markets cannot be smuggled in by typing a latitude. The customer's own
+  location plays no part.
+- **A separate agreement is required to book**: tell them it is coming; the
+  runner checks with the nurse before handing over food or drink; entry to a
+  room is not guaranteed; no medical advice, no handing over medication. The
+  assistant's portal shows the recipient, the place and the same nurse reminder.
+- Not done: a notification to the recipient (there is none to send), and a
+  map pin until place search exists.
+
 ### Errand tiers
 
 Errands are priced by how much work they are (`errand-tiers.ts`), not by a flat

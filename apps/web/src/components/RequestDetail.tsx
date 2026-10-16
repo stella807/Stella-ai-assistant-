@@ -124,7 +124,18 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
           </div>
         )}
 
-        <LiveMap points={[{ lat: task.location.lat, lng: task.location.lng, label: task.location.label ?? "Task location" }]} />
+        {/* No pin for an order placed for somebody else: its coordinates are only
+            the middle of the area, and drawing a marker there would point at
+            nothing. The words are the destination. */}
+        {task.onBehalfOf ? (
+          <div className="card card-quiet stack" style={{ gap: 2 }}>
+            <span className="tiny muted">Going to</span>
+            <strong className="small">{task.onBehalfOf.recipientName}</strong>
+            <span className="small">{task.location.label}</span>
+          </div>
+        ) : (
+          <LiveMap points={[{ lat: task.location.lat, lng: task.location.lng, label: task.location.label ?? "Task location" }]} />
+        )}
 
         <ul className="timeline">
           <li className="row-between">

@@ -4021,6 +4021,80 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(res.json.available).toBe(1);
   });
 
+  describe("ordering for somebody else", () => {
+    const FOR_RAMON = {
+      marketId: "puerto-rico", recipientName: "Ramón Torres", place: "Auxilio Mutuo Hospital", room: "412",
+    };
+    const order = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
+      call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice and a phone charger.",
+        // Her phone says Orlando. It must not matter.
+        location: { lat: 28.54, lng: -81.38, label: "Orlando" },
+        spendCapCents: 1_500, acknowledgedDisclosures: true, acknowledgedOnBehalf: true,
+        assistantId, onBehalfOf: FOR_RAMON, ...over,
+      }, sam);
+    const runner = async () => (await hireOne({
+      role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com`,
+    }, "puerto-rico")).json.assistant.id as string;
+
+    it("lets a customer far away order for somebody in the launch market", async () => {
+      const kit = await runner();
+      await withCard(sam);
+      const res = await order(sam, kit);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const task = res.json.task;
+      expect(task.onBehalfOf).toMatchObject({ recipientName: "Ramón Torres", room: "412" });
+      // Placed by the market named, not by the Orlando phone.
+      expect(task.location.label).toContain("Auxilio Mutuo");
+      expect(task.location.lat).toBeCloseTo(18.225, 2);
+    });
+
+    it("never trusts coordinates the client sent for somebody else's order", async () => {
+      // A destination outside every launch market, typed as coordinates, must
+      // not get a dispatch. The market named decides, and an unknown one fails.
+      const kit = await runner();
+      await withCard(sam);
+      const res = await order(sam, kit, { onBehalfOf: { ...FOR_RAMON, marketId: "mars" } });
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/area/i);
+    });
+
+    it("needs the extra agreement, and says why", async () => {
+      const kit = await runner();
+      await withCard(sam);
+      const res = await order(sam, kit, { acknowledgedOnBehalf: undefined });
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/somebody else/i);
+    });
+
+    it("needs a name and a place", async () => {
+      const kit = await runner();
+      await withCard(sam);
+      expect((await order(sam, kit, { onBehalfOf: { ...FOR_RAMON, recipientName: "" } })).status).toBe(400);
+      expect((await order(sam, kit, { onBehalfOf: { ...FOR_RAMON, place: "" } })).status).toBe(400);
+    });
+
+    it("shows the assistant where they are going and for whom", async () => {
+      const kit = await runner();
+      await withCard(sam);
+      const booked = await order(sam, kit);
+      expect(booked.status, JSON.stringify(booked.json)).toBe(200);
+      const { cookie } = await assistantLogin(kit, "a-fine-assistant-password", false);
+      const portal = await call("GET", "/api/assistant/portal", undefined, null, cookie);
+      const task = portal.json.tasks.find((t: { id: string }) => t.id === booked.json.task.id);
+      expect(task.onBehalfOf).toMatchObject({ recipientName: "Ramón Torres", place: "Auxilio Mutuo Hospital", room: "412" });
+    });
+
+    it("quotes an order for somebody else without a location of the customer's own", async () => {
+      await runner();
+      const q = await call("POST", "/api/concierge/quote", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+        spendCapCents: 1_500, onBehalfOf: FOR_RAMON,
+      }, sam);
+      expect(q.status, JSON.stringify(q.json)).toBe(200);
+    });
+  });
+
   describe("errand tiers", () => {
     const book = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
       call("POST", "/api/concierge/tasks", {

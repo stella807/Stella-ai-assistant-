@@ -3,7 +3,7 @@ import {
   CONCIERGE_DISCLOSURES, MAX_TEXT_MESSAGE_LENGTH, MAX_VOICE_MESSAGE_SECONDS, assistantPayoutFor, errandPayoutCents,
   describeAssistantCapacity, findRole,
 } from "@safehubby/core";
-import type { AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, VoiceMessage } from "@safehubby/core";
+import type { AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, OnBehalfOf, VoiceMessage } from "@safehubby/core";
 import type { TaskTextMessage } from "../api.ts";
 import { api } from "../api.ts";
 import { startRecording, type ActiveRecording } from "../native/audio.ts";
@@ -36,7 +36,7 @@ const MESSAGE_POLL_MS = 10_000;
  * talking to the person they just hired would be a strange place to make
  * them re-orient.
  */
-export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, errandTier, hours, location, flight, existingTask, onBooked, onClose }: {
+export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, errandTier, onBehalfOf, acknowledgedOnBehalf, hours, location, flight, existingTask, onBooked, onClose }: {
   assistant: AssistantProfile;
   category: ConciergeCategory;
   note: string;
@@ -47,6 +47,10 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   quickTask?: boolean;
   /** How big an errand this is — prices the runner's pay and the fee. */
   errandTier?: ErrandTierId;
+  /** For somebody other than the customer, and that the customer has agreed
+   *  to the notes about it — agreed on the screen before this one. */
+  onBehalfOf?: OnBehalfOf;
+  acknowledgedOnBehalf?: boolean;
   location: { lat: number; lng: number; label?: string };
   /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
   flight?: { flightNumber: string; date: string };
@@ -141,7 +145,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
   useEffect(() => {
     if (task) return;
-    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, errandTier, peopleCount, hours })
+    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, errandTier, onBehalfOf, peopleCount, hours })
       .then((r) => {
         setServiceFeeCents(r.serviceFeeCents);
         setTotalCents(r.totalCents);
@@ -150,7 +154,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         if (r.peopleCount !== peopleCount) setPeopleCount(r.peopleCount);
       })
       .catch(() => {});
-  }, [task, category, note, location, spendCapCents, quickTask, errandTier, peopleCount, hours]);
+  }, [task, category, note, location, spendCapCents, quickTask, errandTier, onBehalfOf, peopleCount, hours]);
 
   useEffect(() => () => {
     activeRecording.current?.cancel();
@@ -172,6 +176,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     try {
       const res = await api.bookConcierge({
         category, note, location, spendCapCents, assistantId: assistant.id, quickTask, errandTier, peopleCount, hours, flight,
+        ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf } : {}),
       });
       setTask(res.task);
       onBooked(res.task);
@@ -328,6 +333,11 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       }>
         {assistant.bio && <p className="small muted" style={{ margin: 0 }}>{assistant.bio}</p>}
         <p className="tiny muted" style={{ margin: 0 }}>{describeAssistantCapacity(assistant)}</p>
+        {onBehalfOf && (
+          <p className="small" style={{ margin: 0 }}>
+            <strong>For:</strong> {onBehalfOf.recipientName} — {onBehalfOf.place}{onBehalfOf.room ? `, ${onBehalfOf.room}` : ""}
+          </p>
+        )}
         <p className="small" style={{ margin: 0 }}><strong>Request:</strong> {note}</p>
 
         {maxPeopleCount > 1 && (

@@ -41,7 +41,8 @@ import {
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
   includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs,
-  errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, type ErrandTierId,
+  errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
+  type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
@@ -373,10 +374,26 @@ function billingState(ctx: Ctx, userId: string) {
 /** Reads a concierge task request out of an untrusted body. Validated by the
  *  caller via `validateConciergeRequest` right after — this only shapes it. */
 function conciergeInputFrom(body: any): ConciergeTaskInput {
+  // For somebody else, the location comes from the market the customer named,
+  // computed here — never from coordinates the client sent. An order for
+  // somewhere outside the launch markets cannot be smuggled in by typing a
+  // latitude. A malformed one is left for validation to refuse in words.
+  const onBehalfOf: OnBehalfOf | undefined = body?.onBehalfOf && typeof body.onBehalfOf === "object"
+    ? {
+      marketId: String(body.onBehalfOf.marketId ?? "") as LaunchMarketId,
+      recipientName: String(body.onBehalfOf.recipientName ?? ""),
+      place: String(body.onBehalfOf.place ?? ""),
+      ...(body.onBehalfOf.room ? { room: String(body.onBehalfOf.room) } : {}),
+      ...(body.onBehalfOf.phone ? { phone: String(body.onBehalfOf.phone) } : {}),
+    }
+    : undefined;
+  let remoteLocation: { lat: number; lng: number; label: string } | undefined;
+  try { remoteLocation = onBehalfOf ? locationForOnBehalf(onBehalfOf) : undefined; } catch { remoteLocation = undefined; }
   return {
     category: body?.category,
     note: String(body?.note ?? ""),
-    location: { lat: body?.location?.lat, lng: body?.location?.lng, label: body?.location?.label },
+    location: remoteLocation ?? { lat: body?.location?.lat, lng: body?.location?.lng, label: body?.location?.label },
+    ...(onBehalfOf ? { onBehalfOf } : {}),
     spendCapCents: Number(body?.spendCapCents),
     quickTask: body?.quickTask === true,
     ...(body?.errandTier === undefined ? {} : { errandTier: String(body.errandTier) as ErrandTierId }),
@@ -2587,6 +2604,12 @@ export const routes: Record<string, Handler> = {
     if (body?.acknowledgedDisclosures !== true) {
       throw new HttpError(400, "The disclosures have to be acknowledged before booking.");
     }
+    // Sending a stranger to somebody who has not asked for it carries its own
+    // terms — tell them it is coming, the nurse check, no guaranteed entry — and
+    // they are agreed to separately, not folded into the general ones.
+    if (input.onBehalfOf && body?.acknowledgedOnBehalf !== true) {
+      throw new HttpError(400, "Because this is for somebody else, you have to agree to the notes about sending someone to them first.");
+    }
     const assistantId = body?.assistantId ? String(body.assistantId) : undefined;
 
     // Booking one of our own people needs no partner network — they are on
@@ -2710,7 +2733,8 @@ export const routes: Record<string, Handler> = {
           assistantPayoutCents, peopleCount,
           ...(hoursBooked === undefined ? {} : { hoursBooked }),
           quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
-          ...(input.errandTier ? { errandTier: input.errandTier } : {}), status: "in-progress",
+          ...(input.errandTier ? { errandTier: input.errandTier } : {}),
+          ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}), status: "in-progress",
           ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),
           provider: booked.provider, providerTaskId: booked.taskId, assistantId,
           assistantName: booked.assistant?.name, chargeId: charge.id, holdId: hold.id,

@@ -6,10 +6,12 @@ import {
   defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
   isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
   launchMarketNames, minutesFor, serviceFeeFor, customerServiceFeeFor, isGrabIncluded,
-  ERRAND_MILEAGE_CENTS, ERRAND_RATE_PER_HOUR_CENTS, ERRAND_TIERS, errandPayoutCents, findErrandTier,
+  ERRAND_MILEAGE_CENTS, ERRAND_RATE_PER_HOUR_CENTS, ERRAND_TIERS, LAUNCH_MARKETS, ON_BEHALF_DISCLOSURES,
+  errandPayoutCents, findErrandTier, locationForOnBehalf, validateOnBehalfOf,
 } from "@safehubby/core";
 import type {
-  AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, FlightInfo, NearbyStore, ProviderStatus, PlanId,
+  AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, FlightInfo, NearbyStore, OnBehalfOf, ProviderStatus, PlanId,
+  LaunchMarketId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { currentFix, type Fix } from "../native/location.ts";
@@ -125,6 +127,15 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // How much work the errand is. Sets the runner's pay and the fee — see
   // errand-tiers.ts. Only meaningful for grabbing something or running an errand.
   const [errandTier, setErrandTier] = useState<ErrandTierId>("in-building");
+  // Sending somebody to a person other than the one ordering — a parent alone
+  // in a hospital, ordered for from another city. See on-behalf.ts.
+  const [forSomeoneElse, setForSomeoneElse] = useState(false);
+  const [obMarket, setObMarket] = useState<LaunchMarketId>("puerto-rico");
+  const [obName, setObName] = useState("");
+  const [obPlace, setObPlace] = useState("");
+  const [obRoom, setObRoom] = useState("");
+  const [obPhone, setObPhone] = useState("");
+  const [obAgreed, setObAgreed] = useState(false);
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
   // This month's no-fee grabs. Null until it loads, and treated as "none
   // left" until then: showing a fee and charging none is a pleasant surprise,
@@ -219,7 +230,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // Null while the fix is still being fetched or was refused: unknown is not
   // the same as uncovered, and greying out the form on a permission prompt
   // that has not been answered yet would be its own bug.
-  const covered = fix ? isInLaunchMarket(fix) : null;
+  // For somebody else the place is the one typed in, and the customer's own
+  // location — Orlando, say — has no bearing on whether it can be served.
+  const covered = forSomeoneElse ? true : fix ? isInLaunchMarket(fix) : null;
 
   const quickEligible = isQuickTaskEligible(category);
   // Free can only ever book a quick task — `requireConciergeAccess` on the
@@ -284,9 +297,11 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     setError(null);
     setRoster(null);
     try {
-      const at = await currentFix();
+      // For somebody else the place is the one typed, not wherever the
+      // customer's phone is.
+      const at = onBehalfOf ? locationForOnBehalf(onBehalfOf) : await currentFix();
       if (!at) throw new Error("Turn on location to browse assistants — they need to know where to go.");
-      setFix(at);
+      if (!onBehalfOf) setFix(at as Fix);
       const res = await api.conciergeAssistants(category, at, effectiveQuickTask);
       setRoster(res.assistants);
     } catch (e) {
@@ -304,10 +319,10 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
     setBusy(true);
     setError(null);
     try {
-      const at = await currentFix();
+      const at = onBehalfOf ? locationForOnBehalf(onBehalfOf) : await currentFix();
       if (!at) throw new Error("Turn on location to send this — the assistant needs to know where to go.");
-      setFix(at);
-      const res = await api.conciergeAssistants(category, selectedPlace ?? at, effectiveQuickTask);
+      if (!onBehalfOf) setFix(at as Fix);
+      const res = await api.conciergeAssistants(category, selectedPlace && !onBehalfOf ? selectedPlace : at, effectiveQuickTask);
       const available = res.assistants.find((a) => isAssistantAvailable(a));
       if (!available) throw new Error("No one is available for this right now — try again shortly.");
       setAutoAssistant(available);
@@ -327,6 +342,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       const res = await api.bookConcierge({
         category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask, errandTier: tier,
         assistantId: autoAssistant.id,
+        ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf: obAgreed } : {}),
       });
       onBooked(res.task);
       setConfirming(false);
@@ -402,9 +418,20 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   // Where the task actually happens: the named place once one is picked,
   // otherwise the subscriber's own location — the same default as before
   // place search existed.
-  const taskLocation = selectedPlace
-    ? { lat: selectedPlace.lat, lng: selectedPlace.lng, label: selectedPlace.name }
-    : fix;
+  const onBehalfOf: OnBehalfOf | undefined = forSomeoneElse
+    ? { marketId: obMarket, recipientName: obName, place: obPlace, ...(obRoom ? { room: obRoom } : {}), ...(obPhone ? { phone: obPhone } : {}) }
+    : undefined;
+  // Valid only when everything needed is there; the same check the server makes.
+  const onBehalfProblem = (() => {
+    if (!onBehalfOf) return null;
+    try { validateOnBehalfOf(onBehalfOf); return null; } catch (e) { return e instanceof Error ? e.message : "Check the details."; }
+  })();
+  const onBehalfReady = !onBehalfOf || (onBehalfProblem === null && obAgreed);
+  const taskLocation = onBehalfOf && onBehalfProblem === null
+    ? locationForOnBehalf(onBehalfOf)
+    : selectedPlace
+      ? { lat: selectedPlace.lat, lng: selectedPlace.lng, label: selectedPlace.name }
+      : fix;
 
   const cancel = (taskId: string) => api.cancelConcierge(taskId)
     .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
@@ -566,6 +593,54 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           {flightError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{flightError}</p>}
           {flightPreview && <FlightCard flight={flightPreview} />}
         </div>
+      )}
+
+      {/* For a parent alone in a hospital, ordered for from another city. The
+          place is words, not a pin — there is no geocoder yet — and the
+          customer's own location plays no part. */}
+      <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
+        <input type="checkbox" checked={forSomeoneElse}
+          onChange={(e) => { setForSomeoneElse(e.target.checked); setRoster(null); setObAgreed(false); }} />
+        <span className="small"><strong>This is for someone else</strong> — a parent in a hospital, for example.</span>
+      </label>
+      {forSomeoneElse && (
+        <section className="card card-quiet stack" style={{ gap: 10 }}>
+          <div className="field">
+            <label htmlFor="ob-market">Which area?</label>
+            <select id="ob-market" value={obMarket} onChange={(e) => { setObMarket(e.target.value as LaunchMarketId); setRoster(null); }}>
+              {LAUNCH_MARKETS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="ob-name">Who is it for?</label>
+            <input id="ob-name" value={obName} maxLength={120} autoComplete="off"
+              onChange={(e) => setObName(e.target.value)} placeholder="Ramón Torres" />
+          </div>
+          <div className="field">
+            <label htmlFor="ob-place">Hospital or address</label>
+            <input id="ob-place" value={obPlace} maxLength={120} autoComplete="off"
+              onChange={(e) => setObPlace(e.target.value)} placeholder="Auxilio Mutuo Hospital, Hato Rey" />
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <div className="field grow">
+              <label htmlFor="ob-room">Room or unit</label>
+              <input id="ob-room" value={obRoom} maxLength={120} autoComplete="off"
+                onChange={(e) => setObRoom(e.target.value)} placeholder="412" />
+            </div>
+            <div className="field grow">
+              <label htmlFor="ob-phone">Their phone (optional)</label>
+              <input id="ob-phone" type="tel" value={obPhone} maxLength={20} autoComplete="off"
+                onChange={(e) => setObPhone(e.target.value)} />
+            </div>
+          </div>
+          <ul className="timeline">
+            {ON_BEHALF_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
+          </ul>
+          <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
+            <input type="checkbox" checked={obAgreed} onChange={(e) => setObAgreed(e.target.checked)} />
+            <span className="small">I understand, and I will let them know someone is coming.</span>
+          </label>
+        </section>
       )}
 
       <div className="field">
@@ -779,7 +854,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           just without waiting for the notification to actually land since
           the customer is already looking at the screen that would send it. */}
       {useConfirmFlow && !confirming && (
-        <button className="btn btn-block" disabled={busy || !note.trim() || covered === false} onClick={startConfirm}>
+        <button className="btn btn-block" disabled={busy || !note.trim() || covered === false || !onBehalfReady} onClick={startConfirm}>
           Send request
         </button>
       )}
@@ -802,7 +877,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
       {!useConfirmFlow && roster === null && (
         <button className="btn btn-block"
-          disabled={busy || !note.trim() || covered === false || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
+          disabled={busy || !note.trim() || covered === false || !onBehalfReady || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
           onClick={browse}>
           Browse assistants
         </button>
@@ -878,6 +953,8 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
           hours={bookedHours}
           quickTask={effectiveQuickTask}
           errandTier={tier}
+          onBehalfOf={onBehalfOf}
+          acknowledgedOnBehalf={obAgreed}
           location={taskLocation}
           flight={isAirportPickup ? { flightNumber: flightNumber.trim(), date: flightDate } : undefined}
           onBooked={onBooked}

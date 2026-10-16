@@ -907,7 +907,19 @@ function TaskDetail({ task, onBack, onChanged, aiAssist }: {
           <span className={`pill${!ended ? " pill-safe" : ""}`}>{task.status}</span>
         </div>
         <p className="small">{task.note}</p>
-        {task.location.label && <p className="tiny muted">Near {task.location.label}</p>}
+        {task.onBehalfOf ? (
+          // The destination is the words, not a pin: the coordinates are only the
+          // middle of the area.
+          <div className="card card-quiet stack" style={{ gap: 2 }}>
+            <span className="tiny muted">Deliver to</span>
+            <strong className="small">{task.onBehalfOf.recipientName}</strong>
+            <span className="small">{task.onBehalfOf.place}{task.onBehalfOf.room ? ` — room ${task.onBehalfOf.room}` : ""}</span>
+            {task.onBehalfOf.phone && <span className="tiny muted">Phone: {task.onBehalfOf.phone}</span>}
+            <span className="tiny muted">Check with the nurse before handing over any food or drink.</span>
+          </div>
+        ) : (
+          task.location.label && <p className="tiny muted">Near {task.location.label}</p>
+        )}
 
         <div className="row-between tiny muted">
           <span>

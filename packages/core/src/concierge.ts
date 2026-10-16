@@ -48,6 +48,7 @@ import type { StaffRole } from "./staffing.ts";
 import type { FlightInfo } from "./flight-tracking.ts";
 import type { PlanId } from "./billing.ts";
 import { validateErrandTier, type ErrandTierId } from "./errand-tiers.ts";
+import { validateOnBehalfOf, type OnBehalfOf } from "./on-behalf.ts";
 
 
 export type ConciergeCategory =
@@ -638,6 +639,10 @@ export interface ConciergeTaskInput {
    *  the runner's pay and the fee, in place of the flat quick-task rate.
    *  Only for grabbing something or running an errand. */
   errandTier?: ErrandTierId;
+  /** Present when this is for somebody other than the person ordering — see
+   *  on-behalf.ts. The task's location then comes from here, not from the
+   *  customer's phone. */
+  onBehalfOf?: OnBehalfOf;
   /** How many hours of the assistant's time this books, for the categories
    *  paid by the hour (`HOURLY_CATEGORIES`). Ignored for an errand, which is
    *  priced per task; `validateConciergeRequest` rejects the combination
@@ -667,6 +672,7 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
     throw new Error(`${conciergeCategoryLabel(input.category)} isn't eligible for the quick-task discount.`);
   }
   if (input.errandTier !== undefined) validateErrandTier(input.errandTier, input.category);
+  if (input.onBehalfOf !== undefined) validateOnBehalfOf(input.onBehalfOf);
   if (input.hours !== undefined) {
     if (!isHourlyCategory(input.category)) {
       // Silently dropping the hours would charge a per-task price for a
@@ -789,6 +795,10 @@ export interface ConciergeTask {
    *  counts against a month is what was decided at the time, not what the
    *  allowance table says today. */
   feeIncluded?: boolean;
+  /** Who this was sent to, when it was for somebody other than the customer —
+   *  stamped, so the assistant and the customer both see the same words. The
+   *  task's coordinates are only the middle of the market; see on-behalf.ts. */
+  onBehalfOf?: OnBehalfOf;
   /** Which errand tier priced this, stamped so a past errand's pay stays
    *  explainable after the tiers change. Absent on the older flat-rate tasks
    *  and on anything paid by the hour. */
