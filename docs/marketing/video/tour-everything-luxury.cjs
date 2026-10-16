@@ -1,0 +1,64 @@
+const {chromium}=require('/opt/node22/lib/node_modules/playwright');
+const S='/tmp/claude-0/-home-user/b366c905-7c9d-592d-a31a-1615a07829a4/scratchpad/';
+const keys=require(S+'keys.json');
+const B='http://localhost:5173';
+(async()=>{
+const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
+const ctx=await b.newContext({viewport:{width:450,height:800},geolocation:{latitude:18.4655,longitude:-66.1057},permissions:['geolocation'],recordVideo:{dir:S+'tour2/',size:{width:450,height:800}}});
+const p=await ctx.newPage();
+p.on('pageerror',e=>console.log('PAGEERR',e.message));
+const log=[];
+const wait=ms=>p.waitForTimeout(ms);
+const cap=async(t,sub='')=>{await p.evaluate(([t,sub])=>{let d=document.getElementById('cap');if(!d){d=document.createElement('div');d.id='cap';d.style.cssText='position:fixed;left:70px;right:10px;top:10px;z-index:99998;padding:8px 12px;border-radius:14px;background:rgba(10,14,26,.9);border:1px solid #c99a4c;color:#fbf6ea;font:700 15px Georgia,serif;text-align:center;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.5)';document.body.appendChild(d)}d.innerHTML=t+(sub?'<div style="font:400 12px system-ui;color:#d9bd8a;margin-top:2px">'+sub+'</div>':'')},[t,sub]).catch(()=>{});};
+const card=async(kicker,title,photo,ms=2600)=>{await p.evaluate(([k,t,ph])=>{const d=document.createElement('div');d.id='chapter';d.style.cssText="position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:0 28px 120px;text-align:center;color:#fbf6ea;font-family:Georgia,serif;background:linear-gradient(180deg,rgba(10,14,26,.35),#0a0e1a 78%),url(/img/"+ph+") center top/cover;opacity:0;transition:opacity .5s";d.innerHTML='<img src=\"/favicon.png\" style=\"width:84px;border-radius:22px;box-shadow:0 0 0 2px #c99a4c,0 0 50px rgba(230,200,140,.4);margin-bottom:22px\"><div style=\"font:600 12px system-ui;letter-spacing:.2em;text-transform:uppercase;color:#e6cf9d\">'+k+'</div><div style=\"font-size:38px;font-weight:700;line-height:1.1;margin-top:10px\">'+t+'</div>';document.body.appendChild(d);requestAnimationFrame(()=>d.style.opacity=1)},[kicker,title,photo]);await wait(ms);await p.evaluate(()=>{const d=document.getElementById('chapter');if(d){d.style.opacity=0;setTimeout(()=>d.remove(),500)}});await wait(550);};
+const step=async(name,fn)=>{try{await fn();log.push('ok '+name)}catch(e){log.push('FAIL '+name+': '+e.message.split('\n')[0]);}};
+const scroll=async(y,ms=1100)=>{await p.evaluate(y=>window.scrollTo({top:y,behavior:'smooth'}),y);await wait(ms)};
+const crawl=async(to,steps,each=1300)=>{for(let i=1;i<=steps;i++){await scroll(Math.round(to*i/steps),each)}};
+const logout=async()=>{await ctx.clearCookies();};
+const signInMaria=async()=>{await p.goto(B);await wait(900);await p.locator('#email').fill('maria@example.com');await p.locator('#pw').fill('Correct-Horse-9281');await p.getByRole('button',{name:/^sign in$/i}).click();await p.waitForSelector('.tabs-bottom',{timeout:15000});await wait(900);};
+
+await p.goto(B);await wait(800);
+await step('intro',async()=>{await card('Safehubby','Real people.<br>For anything.','hero-luxury.jpg',3200);});
+await step('ch1',async()=>{await card('Chapter 1','You, the customer','jet.jpg',2200);});
+await step('landing',async()=>{await cap('Welcome','Puerto Rico · 24/7');await wait(2000);await crawl(1500,3,1500);await scroll(0,700);});
+await step('signin',async()=>{await cap('Sign in');await p.locator('#email').fill('maria@example.com');await p.locator('#pw').fill('Correct-Horse-9281');await wait(700);await p.getByRole('button',{name:/^sign in$/i}).click();await p.waitForSelector('.tabs-bottom',{timeout:15000});await wait(1000);});
+await step('home',async()=>{await cap('Your home','One big ask. A few simple doors.');await wait(2800);});
+await step('can-do',async()=>{await cap('Everything your assistant can do','In person, errands, bookings, rides, desk work');await p.locator('summary:has-text("Everything your assistant")').click();await wait(900);await scroll(480,1200);await crawl(1000,3,1500);await scroll(0,800);});
+await step('inprogress',async()=>{await cap('What\'s happening now','Your assistant is already on it');await scroll(99999,1800);await wait(1500);await scroll(0,700);});
+await step('help',async()=>{await cap('Speak with your assistant','A real person. Ask for anything.');await p.getByRole('button',{name:/speak with your assistant/i}).click();await wait(2500);await scroll(500,1500);await scroll(0,600);});
+await step('errands',async()=>{await cap('Errands','Short and specific — you set the limit');await p.getByRole('tab',{name:/^errands$/i}).click();await wait(2600);await scroll(500,1500);await scroll(0,500);});
+await step('desk',async()=>{await cap('Handle a task','Appointments, reminders, calls, emails');await p.getByRole('tab',{name:/handle a task/i}).click();await wait(2800);});
+await step('rides',async()=>{await cap('Rides','We book it and tell you the price first');await p.getByRole('tab',{name:/^rides$/i}).click();await wait(3000);});
+await step('how',async()=>{await p.getByRole('tab',{name:/^home$/i}).click();await wait(900);await p.getByRole('button',{name:/how it works/i}).click();await wait(1200);await cap('How it works','What each plan costs, and who does what');await wait(1500);await crawl(2600,6,1700);await scroll(0,700);});
+await step('billing',async()=>{await cap('Payments','Your balance, your card, your plan');await p.getByRole('tab',{name:/payments/i}).click();await wait(2600);await scroll(450,1400);});
+await step('plans',async()=>{await cap('Choose a plan','Swipe through every plan and its monthly price');await scroll(0,500);await p.getByRole('button',{name:/see plans|change plan/i}).click();await wait(1600);await scroll(700,1200);const dots=p.locator('.slide-dots button');const n=await dots.count();for(let i=0;i<n;i++){await dots.nth(i).click().catch(()=>{});await wait(2300);}await crawl(2200,5,1700);});
+await step('account',async()=>{await cap('Alerts your way','Text, email, or both');await p.getByRole('button',{name:/^account$/i}).click();await wait(2400);await scroll(550,1600);await wait(1200);});
+
+await logout();
+await step('ch2',async()=>{await p.goto(B+'/master');await wait(500);await card('Chapter 2','The Wingman Club<br><span style="font-size:20px;color:#e6cf9d">by invitation only</span>','wingman-bourbon-cigar.jpg',2800);});
+await step('club-signin',async()=>{await cap('The club assistant','Signs in with its own key');await p.locator('#mst-key').fill(keys.clubKey);await wait(800);await p.getByRole('button',{name:/sign in|continue/i}).first().click();await p.waitForSelector('text=Club desk',{timeout:15000});await wait(1200);});
+await step('club-desk',async()=>{await cap('Club desk','How the business is doing, at a glance');await wait(3200);});
+await step('invite',async()=>{await cap('Invite a customer','Nobody sees the club unless invited');await p.locator('.row-between',{hasText:'Maria Torres'}).first().getByRole('button',{name:/invite/i}).click();await wait(2400);});
+await logout();
+await step('member',async()=>{await signInMaria();await cap('You\'ve been invited','The club now appears on your home');await scroll(520,1500);await wait(1800);});
+await step('club-open',async()=>{await p.getByRole('button',{name:/wingman club/i}).first().click();await wait(1800);await cap('The Wingman Club','Cigars, bourbon, events, the sky');await crawl(1500,3,1700);});
+await step('club-join',async()=>{await p.getByRole('button',{name:/join the club/i}).click();await wait(1400);await scroll(99999,1200);await cap('Ask your club assistant','Anything, arranged for you');await p.getByLabel('Ask your club assistant').fill('A table for six at the cigar lounge on Friday, and a car there');await wait(900);await p.getByRole('button',{name:/^ask$/i}).click();await wait(2400);});
+await logout();
+await step('arrange',async()=>{await p.goto(B+'/master');await wait(700);await p.locator('#mst-key').fill(keys.clubKey);await p.getByRole('button',{name:/sign in|continue/i}).first().click();await p.waitForSelector('text=Club desk',{timeout:15000});await cap('The assistant arranges it','Books everything and tells the member');await wait(1800);await p.getByLabel(/reply to/i).first().fill('Table for six booked at 8pm, car at 7:30.');await wait(1200);await p.getByRole('button',{name:/^arranged$/i}).first().click();await wait(2400);});
+
+await logout();
+await step('ch3',async()=>{await p.goto(B+'/employee');await wait(500);await card('Chapter 3','Your assistants\' portal','suv.jpg',2600);});
+await step('emp-signin',async()=>{await cap('Each assistant has their own sign-in');await p.locator('#emp-username').fill('asst_camila');await p.locator('#emp-password').fill('demo-assistant-pass-1');await wait(700);await p.getByRole('button',{name:/sign in/i}).click();await wait(2800);});
+await step('emp-tasks',async()=>{await cap('Requests from customers','Waiting with someone · a cold juice');await wait(2600);await scroll(450,1400);await scroll(0,500);});
+await step('emp-task',async()=>{await cap('Open a request','Photos, the spend card, chat with the customer');await p.locator('.card-quiet', {hasText:'Wait'}).first().click();await wait(2400);await scroll(500,1500);await scroll(0,600);});
+await step('emp-runner',async()=>{await cap('Send a runner','The assistant hands the legwork on — the customer never sees it');await p.getByRole('button',{name:/^assign$/i}).first().click();await wait(2600);});
+await step('emp-back',async()=>{await p.getByRole('button',{name:/all tasks/i}).click();await wait(1000);await p.getByRole('button',{name:/pay|paid/i}).first().click().catch(()=>{});await cap('How they are paid','Every 14 days. Puerto Rico: 10% held back for Hacienda');await wait(3200);await scroll(500,1500);});
+
+await logout();
+await step('ch4',async()=>{await p.goto(B+'/master');await wait(500);await card('Chapter 4','Your portal<br><span style="font-size:20px;color:#e6cf9d">the owner</span>','hero-luxury.jpg',2600);});
+await step('owner',async()=>{await cap('Owner sign-in','Everything — and an access log');await p.locator('#mst-key').fill(keys.ownerKey);await p.getByRole('button',{name:/sign in|continue/i}).first().click();await p.waitForSelector('text=Club desk',{timeout:15000});await wait(2400);});
+await step('owner-crawl',async()=>{await cap('The whole business','Customers · club · errands · hiring · money · prices');await crawl(4200,9,1700);});
+await step('outro',async()=>{await card('safehubby.com','Real people.<br>For anything.','hero-luxury.jpg',3200);});
+console.log(log.join('\n'));
+await ctx.close();await b.close();
+})().catch(e=>{console.log('ERR',e.message.slice(0,300));process.exit(1)});
