@@ -113,3 +113,7 @@
 .home-speak .tiny { color: rgba(23,19,10,.75); }
 .home-speak > span:nth-child(2) strong { color: var(--on-primary); }
 .home-tile-art svg { width: 48px; height: 48px; }
+/* With the assistant taking errands and desk work, a ride may be the only
+   tile left; give it the row rather than a lonely third of one. */
+.home-tile:only-child { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; gap: 14px; min-height: 76px; padding: 12px 16px; }
+.home-tile:only-child strong { font-size: 16px; }

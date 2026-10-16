@@ -28,11 +28,6 @@ const ALL_ACTIONS: HomeAction[] = [
     title: "Get a ride",
     hint: "We book it and tell you the price before it is confirmed.",
   },
-  {
-    id: "desk", tab: "desk", feature: "desk-tasks",
-    title: "Handle something for me",
-    hint: "Appointments, reminders, calls and emails.",
-  },
 ];
 
 /** The doors this plan can actually open, assistants first. */

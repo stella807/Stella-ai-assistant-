@@ -15,6 +15,10 @@ describe("what the home screen offers", () => {
     expect(ids).toContain("ride");
   });
 
+  it("has no desk-task door either: your assistant handles appointments and calls when you ask", () => {
+    expect(homeActions("premium-basic").map((a) => a.id)).not.toContain("desk");
+  });
+
   it("has no errands door: errands are asked of your assistant, who sends a runner", () => {
     expect(homeActions("premium-basic").map((a) => a.id)).not.toContain("errand");
   });

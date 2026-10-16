@@ -38,11 +38,6 @@ const TABS: { id: HiringTab; label: string; blurb: string }[] = [
     blurb: "A personal assistant: wait with a friend who should not be alone, check on someone in person, or book and buy something for you — tickets, a hotel, a table — on a card funded from your account.",
   },
   {
-    id: "desk",
-    label: "Handle a task",
-    blurb: "Appointments, reminders, emails, admin — the half of the job that happens at a desk. Included in your plan, with nothing to set and nothing to agree to.",
-  },
-  {
     id: "ride",
     label: "Rides",
     blurb: "Somebody on our side books the ride for you — not a link for you to tap. You pay the fare it comes to, plus a small fee for arranging it.",
