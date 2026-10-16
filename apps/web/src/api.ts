@@ -808,6 +808,10 @@ export const api = {
       "POST", "/api/master/auth/login", { key }),
   masterLogout: () => request<{ ok: true }>("POST", "/api/master/auth/logout", {}),
   masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
+  masterRevolut: () =>
+    request<{ configured: boolean; connected: boolean; connectUrl?: string; requires?: string }>("GET", "/api/master/revolut"),
+  masterRevolutConnect: (code: string, state: string) =>
+    request<{ connected: boolean }>("POST", "/api/master/revolut/connect", { code, state }),
   masterWithholding: () =>
     request<{ year: string; totalWithheldCents: number; workers: { assistantId: string; name: string; paidCents: number; withheldCents: number }[] }>(
       "GET", "/api/master/withholding"),

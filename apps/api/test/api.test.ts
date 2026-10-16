@@ -5298,6 +5298,27 @@ describe("desk tasks — the assistant's job that does not need feet", () => {
   });
 });
 
+describe("connecting Revolut Business from the owner portal", () => {
+  useAdminKey();
+  const master = async (role: string, email: string) => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", { name: "M", email, role });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    return { Cookie: `sh_master_session=${token}` };
+  };
+
+  it("is owner-only, and says what is missing when the server has no Revolut keys", async () => {
+    expect((await call("GET", "/api/master/revolut")).status).toBe(401);
+    const sec = await master("secretary", "rsec@example.com");
+    expect((await call("GET", "/api/master/revolut", undefined, null, sec)).status).toBe(401);
+    const owner = await master("owner", "rown@example.com");
+    const res = await call("GET", "/api/master/revolut", undefined, null, owner);
+    expect(res.json).toMatchObject({ configured: false, connected: false });
+    expect(res.json.requires).toMatch(/REVOLUT_CLIENT_ID/);
+    expect((await call("POST", "/api/master/revolut/connect", { code: "x", state: "y" }, null, owner)).status).toBe(503);
+  });
+});
+
 describe("the Wingman Club is by invitation, run by the club assistant", () => {
   useAdminKey();
   const keyed = async (role: string, email: string) => {

@@ -1,6 +1,10 @@
 import type { CardIssuingPort, IssuedCard } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
 import { postJson } from "./fulfillment.ts";
+import { revolutReady, revolutRequest } from "./revolut-auth.ts";
+import type { ProviderStatus } from "@safehubby/core";
+
+let statusOverride: ProviderStatus | undefined;
 
 /**
  * Single-use, spend-capped virtual cards for concierge tasks, issued through
@@ -38,21 +42,25 @@ import { postJson } from "./fulfillment.ts";
  * have to sit in front of this file in a real deployment.
  */
 
-const REVOLUT_BASE = process.env.REVOLUT_API_BASE;
-const REVOLUT_KEY = process.env.REVOLUT_API_KEY;
 
 export const revolutCards: CardIssuingPort = {
-  status: statusFor(
-    "revolut-cards", "Revolut Business", Boolean(REVOLUT_BASE && REVOLUT_KEY),
-    "A Revolut Business account with its OAuth2 client-credentials flow completed for the card-issuing scope (see the adapter's doc comment for why this isn't a bare API key), then REVOLUT_API_BASE and REVOLUT_API_KEY.",
-  ),
+  // A getter because connecting Revolut happens while the server runs; the
+  // setter lets tests stand a status in.
+  get status() {
+    return statusOverride ?? statusFor(
+      "revolut-cards", "Revolut Business", revolutReady(),
+      "A Revolut Business account, connected: set REVOLUT_CLIENT_ID, REVOLUT_PRIVATE_KEY and REVOLUT_ISSUER, then approve it once from the owner portal (or, as before, REVOLUT_API_BASE and REVOLUT_API_KEY).",
+    );
+  },
+  set status(value) { statusOverride = value; },
 
   async issueCard(input): Promise<IssuedCard> {
-    if (!REVOLUT_BASE || !REVOLUT_KEY) throw new Error("Revolut Business is not configured.");
+    const r = await revolutRequest();
+    if (!r) throw new Error("Revolut Business is not configured.");
 
     const data = await postJson(
-      `${REVOLUT_BASE.replace(/\/$/, "")}/1.0/cards`,
-      { authorization: `Bearer ${REVOLUT_KEY}` },
+      `${r.base}/1.0/cards`,
+      { authorization: r.authorization },
       {
         // A single-use, one-transaction limit — the cap is exact, not a
         // ceiling this card can be swiped against twice.
@@ -81,10 +89,11 @@ export const revolutCards: CardIssuingPort = {
    * live sandbox.
    */
   async revealCard(cardId: string): Promise<string | null> {
-    if (!REVOLUT_BASE || !REVOLUT_KEY) return null;
+    const r = await revolutRequest();
+    if (!r) return null;
     const res = await fetch(
-      `${REVOLUT_BASE.replace(/\/$/, "")}/1.0/cards/${encodeURIComponent(cardId)}/sensitive-details`,
-      { method: "POST", headers: { authorization: `Bearer ${REVOLUT_KEY}` } },
+      `${r.base}/1.0/cards/${encodeURIComponent(cardId)}/sensitive-details`,
+      { method: "POST", headers: { authorization: r.authorization } },
     );
     // A cancelled or expired card has no details to show. That is a normal
     // answer, not a failure — the caller says so instead of showing a dead link.
@@ -95,10 +104,11 @@ export const revolutCards: CardIssuingPort = {
   },
 
   async cancelCard(cardId: string): Promise<void> {
-    if (!REVOLUT_BASE || !REVOLUT_KEY) return;
-    const res = await fetch(`${REVOLUT_BASE.replace(/\/$/, "")}/1.0/cards/${encodeURIComponent(cardId)}`, {
+    const r = await revolutRequest();
+    if (!r) return;
+    const res = await fetch(`${r.base}/1.0/cards/${encodeURIComponent(cardId)}`, {
       method: "DELETE",
-      headers: { authorization: `Bearer ${REVOLUT_KEY}` },
+      headers: { authorization: r.authorization },
     });
     // A card that already expired or was already terminated is not a failure
     // to cancel again — that would turn routine cleanup into a false alarm.

@@ -97,6 +97,7 @@ import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
 import { email, type OutboundEmail } from "./adapters/email.ts";
+import { revolutAuth } from "./adapters/revolut-auth.ts";
 import { emailTo, guardianEmails, guardianMessages, guardianTexts, textKey, textTo } from "./notify.ts";
 import { sms } from "./adapters/sms.ts";
 import { renewDueSubscriptions } from "./billing.ts";
@@ -896,6 +897,14 @@ function requireElite(ctx: Ctx): void {
 /** The signed-in master account for this request, or null — resolved from
  *  `ctx.masterActorId`, which the server layer already checked against a
  *  live, unexpired session. */
+/** The owner, signed in, with permission to change things. */
+function ownerWriter(ctx: Ctx): MasterAccount {
+  const account = masterAccountOf(ctx);
+  const now = ctx.now();
+  if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "write", now)) throw unauthorized();
+  return account;
+}
+
 /** The owner, or the owner's club assistant — nobody else runs the club. */
 function clubAccount(ctx: Ctx): MasterAccount {
   const account = masterAccountOf(ctx);
@@ -4091,6 +4100,36 @@ export const routes: Record<string, Handler> = {
 
   /* What was held back from each worker in a year — the figures behind the
      year-end return and the payment to Hacienda. Money scope only. */
+  /* Connecting Revolut Business (cards and payouts). The owner opens
+     Revolut's consent page from here; Revolut sends them back to /master with
+     a one-time code, which the portal posts below while they are signed in. */
+  "GET /api/master/revolut": (ctx) => {
+    ownerWriter(ctx);
+    if (!revolutAuth) {
+      return { configured: false, connected: false,
+        requires: "Set REVOLUT_CLIENT_ID, REVOLUT_PRIVATE_KEY and REVOLUT_ISSUER on the server first." };
+    }
+    const value = newSessionToken();
+    ctx.store.update((db) => {
+      db.revolutOAuthState = { value, expiresAt: new Date(ctx.now().getTime() + 15 * 60_000).toISOString() };
+    });
+    return { configured: true, connected: revolutAuth.connected(), connectUrl: revolutAuth.consentUrl(value) };
+  },
+
+  "POST /api/master/revolut/connect": async (ctx, _p, body) => {
+    ownerWriter(ctx);
+    if (!revolutAuth) throw new HttpError(503, "Revolut Business is not set up on this server.");
+    const state = ctx.store.data.revolutOAuthState;
+    if (!state || state.value !== String(body?.state ?? "") || new Date(state.expiresAt) < ctx.now()) {
+      throw new HttpError(400, "That Revolut approval is out of date. Start again from the owner portal.");
+    }
+    const code = String(body?.code ?? "");
+    if (!code) throw new HttpError(400, "Revolut did not send a code back.");
+    ctx.store.update((db) => { delete db.revolutOAuthState; });
+    await revolutAuth.exchangeCode(code);
+    return { connected: revolutAuth.connected() };
+  },
+
   "GET /api/master/withholding": (ctx, p) => {
     const account = masterAccountOf(ctx);
     const now = ctx.now();

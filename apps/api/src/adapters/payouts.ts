@@ -1,6 +1,10 @@
 import type { PayoutPort } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
 import { postJson } from "./fulfillment.ts";
+import { revolutReady, revolutRequest } from "./revolut-auth.ts";
+import type { ProviderStatus } from "@safehubby/core";
+
+let statusOverride: ProviderStatus | undefined;
 
 /**
  * Biweekly payouts to assistants, through Revolut Business — the same
@@ -21,21 +25,25 @@ import { postJson } from "./fulfillment.ts";
  * split out first if a real sandbox shows a different shape.
  */
 
-const REVOLUT_BASE = process.env.REVOLUT_API_BASE;
-const REVOLUT_KEY = process.env.REVOLUT_API_KEY;
 
 export const revolutPayouts: PayoutPort = {
-  status: statusFor(
-    "revolut-payouts", "Revolut Business", Boolean(REVOLUT_BASE && REVOLUT_KEY),
-    "The same Revolut Business account used for card issuing (see cards.ts), then REVOLUT_API_BASE and REVOLUT_API_KEY.",
-  ),
+  // A getter because connecting Revolut happens while the server runs; the
+  // setter lets tests stand a status in.
+  get status() {
+    return statusOverride ?? statusFor(
+      "revolut-payouts", "Revolut Business", revolutReady(),
+      "A Revolut Business account, connected: set REVOLUT_CLIENT_ID, REVOLUT_PRIVATE_KEY and REVOLUT_ISSUER, then approve it once from the owner portal (or, as before, REVOLUT_API_BASE and REVOLUT_API_KEY).",
+    );
+  },
+  set status(value) { statusOverride = value; },
 
   async payOut(input): Promise<{ payoutId: string }> {
-    if (!REVOLUT_BASE || !REVOLUT_KEY) throw new Error("Revolut Business is not configured.");
+    const r = await revolutRequest();
+    if (!r) throw new Error("Revolut Business is not configured.");
 
     const data = await postJson(
-      `${REVOLUT_BASE.replace(/\/$/, "")}/1.0/pay`,
-      { authorization: `Bearer ${REVOLUT_KEY}` },
+      `${r.base}/1.0/pay`,
+      { authorization: r.authorization },
       {
         request_id: input.reference,
         amount: input.amountCents / 100,
