@@ -53,7 +53,10 @@ export function WingmanClub() {
       <h3 className="wm-title">{t("wingman.title")}</h3>
       <p className="wm-tagline">{t("wingman.tagline")}</p>
 
-      <div className="wm-hero"><CigarArt /></div>
+      <div className="wm-photo">
+        <img src="/img/wingman-bourbon-cigar.jpg" alt="A glass of bourbon over ice and a cigar resting on an oak barrel" width={1100} height={864} />
+        <div className="wm-photo-haze" aria-hidden="true" />
+      </div>
       <div className="wm-trio" aria-hidden="true">
         <div className="wm-pic"><BourbonGlassArt /><span>Bourbon</span></div>
         <div className="wm-pic wm-pic-sky"><ParachuteArt /><span>The sky</span></div>

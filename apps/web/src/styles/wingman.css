@@ -141,3 +141,13 @@
 .wm-pic svg { height: 74px; width: auto; max-width: 100%; }
 .wm-pic span { font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--wm-soft); }
 .wm-pic-sky svg { border-radius: 12px; }
+
+/* the real photograph at the top of the club */
+.wm-photo { position: relative; margin: 10px -6px 4px; border-radius: 22px; overflow: hidden; aspect-ratio: 1100 / 864; max-height: 300px;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, .55), 0 0 0 1px rgba(232, 193, 112, .35); animation: wm-up .9s .2s ease both; }
+.wm-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.04); animation: wm-kenburns 18s ease-in-out infinite alternate; }
+.wm-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18, 10, 9, .25), transparent 35%, rgba(18, 10, 9, .7)); }
+.wm-photo-haze { position: absolute; inset: 0; z-index: 1; background: radial-gradient(60% 50% at 70% 30%, rgba(210, 225, 255, .22), transparent 70%); mix-blend-mode: screen; animation: wm-haze 7s ease-in-out infinite; }
+@keyframes wm-kenburns { from { transform: scale(1.04) translate(0, 0); } to { transform: scale(1.14) translate(-2%, -1%); } }
+@keyframes wm-haze { 0%, 100% { opacity: .35; transform: translateY(6px); } 50% { opacity: .9; transform: translateY(-10px); } }
+@media (prefers-reduced-motion: reduce) { .wm-photo img, .wm-photo-haze { animation: none !important; } }
