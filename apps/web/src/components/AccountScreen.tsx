@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { findPlan, isElitePlan, type PlanId } from "@safehubby/core";
 import { api, type Account } from "../api.ts";
-import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { TextAlertsCard } from "./TextAlertsCard.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { ShareCard } from "./ShareCard.tsx";
@@ -85,8 +84,6 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
         </p>
         <button className="btn btn-primary btn-block" onClick={onManagePlan}>Manage plan</button>
       </section>
-
-      <PaymentMethodCard />
 
       <TextAlertsCard scope="account" language={language === "es" ? "es" : "en"} />
 
