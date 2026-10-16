@@ -1,0 +1,22 @@
+/* Luxury treatment for every ad: navy and gold, a photograph, a serif, and the
+   Safehubby shield large — loaded last so it overrides the older neon styling. */
+:root{--paper:#0a0e1a;--ink:#fbf6ea;--soft:#d9c9a6;--amber:#f3e2b3;--cyan:#d9bd8a;--coral:#c99a4c;--rule:#3a3220}
+body{background:#0a0e1a!important;font-family:Georgia,'Times New Roman',serif!important}
+body::before{content:"";position:absolute;inset:0;background:var(--shade),var(--photo) center/cover no-repeat;filter:saturate(1.05)}
+body{--shade:linear-gradient(180deg,rgba(10,14,26,.55) 0%,rgba(10,14,26,.78) 45%,rgba(10,14,26,.96) 100%)}
+.ph-hero{--photo:url(../../apps/web/public/img/hero-luxury.jpg)}
+.ph-jet{--photo:url(../../apps/web/public/img/jet.jpg)}
+.ph-suv{--photo:url(../../apps/web/public/img/suv.jpg)}
+.ph-bourbon{--photo:url(../../apps/web/public/img/wingman-bourbon-cigar.jpg)}
+.glow{background:radial-gradient(900px 500px at 50% 0,rgba(230,200,140,.18),transparent 65%)!important}
+.grid{display:none!important}
+.brand,h1,.big,.cta b,.wm,.n{font-family:Georgia,'Times New Roman',serif!important;font-weight:700!important}
+.brand{letter-spacing:.12em;text-transform:uppercase;font-size:30px!important}
+.brand .logo{width:104px!important;height:104px!important;border-radius:24px!important;box-shadow:0 0 0 2px #c99a4c,0 10px 40px rgba(0,0,0,.6)}
+.tag{color:#e6cf9d!important;font-family:Georgia,serif!important}
+h1{letter-spacing:-.01em!important;text-shadow:0 4px 30px rgba(0,0,0,.6)}
+h1 em,.big,.wm{background:linear-gradient(90deg,#fff3cf,#e8c477)!important;-webkit-background-clip:text!important;color:transparent!important}
+li{background:rgba(10,14,26,.62)!important;border:1.5px solid rgba(201,154,76,.55)!important;font-family:Georgia,serif!important}
+.cta{background:linear-gradient(135deg,#f3e2b3,#c99a4c)!important;color:#17130a!important}
+.hero-logo{border-radius:26%!important;box-shadow:0 0 0 3px #c99a4c,0 0 90px rgba(230,200,140,.45)!important}
+.where{color:#e6cf9d!important;letter-spacing:.2em!important}
