@@ -186,7 +186,7 @@ export const INCLUDED_GRABS_ENTRY = INCLUDED_GRABS_PER_MONTH[ERRAND_ENTRY_PLAN] 
 /** The Wingman Club's dues, as the span they actually move across: a flat
  *  base plus whatever that month's experience costs at the negotiated rate. */
 export function clubDuesRangeCents(): { base: number; low: number; high: number } {
-  const dues = CLUB_EXPERIENCES.map(duesForCents);
+  const dues = CLUB_EXPERIENCES.map((e) => duesForCents(e));
   return { base: CLUB_BASE_DUES_CENTS, low: Math.min(...dues), high: Math.max(...dues) };
 }
 

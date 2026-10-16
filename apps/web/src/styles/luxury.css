@@ -1,12 +1,12 @@
 /* The first screen, in the register of a private concierge: a photograph,
    thin gold type, and plenty of dark. */
 .lux { --gold: #d9b26a; --gold-soft: #b99650; color: #f3ecdf; }
-.lux-hero { position: relative; overflow: hidden; border-radius: 26px; min-height: 470px; display: flex; align-items: flex-end;
+.lux-hero { position: relative; overflow: hidden; border-radius: 26px; display: flex; flex-direction: column; background: #0a0807;
   box-shadow: 0 30px 70px rgba(0, 0, 0, .55), 0 0 0 1px rgba(217, 178, 106, .28); }
-.lux-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 4% 30%; transform: scale(1.04); animation: lux-drift 22s ease-in-out infinite alternate; }
-@keyframes lux-drift { from { transform: scale(1.04) translateX(0); } to { transform: scale(1.12) translateX(-2.5%); } }
-.lux-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 6, 5, .3) 0%, rgba(8, 6, 5, .35) 30%, rgba(8, 6, 5, .92) 72%); }
-.lux-copy { position: relative; padding: 28px 22px 24px; display: grid; gap: 12px; animation: lux-up 1s .15s ease both; }
+.lux-photo { position: relative; width: 100%; height: auto; aspect-ratio: 976 / 560; object-fit: cover; display: block; transform-origin: 40% 60%; -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent 100%); mask-image: linear-gradient(180deg, #000 62%, transparent 100%); animation: lux-drift 22s ease-in-out infinite alternate; }
+@keyframes lux-drift { from { transform: scale(1); } to { transform: scale(1.06); } }
+.lux-shade { display: none; position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 976 / 560; background: linear-gradient(180deg, rgba(8, 6, 5, .1) 0%, rgba(8, 6, 5, 0) 55%, rgba(8, 6, 5, .9) 100%); pointer-events: none; }
+.lux-copy { position: relative; margin-top: -46px; background: transparent; padding: 0 22px 26px; display: grid; gap: 12px; animation: lux-up 1s .15s ease both; }
 .lux-eyebrow { text-shadow: 0 1px 8px rgba(0,0,0,.7); font-size: .7rem; letter-spacing: .38em; text-transform: uppercase; color: var(--gold); }
 .lux-title { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 2.35rem; line-height: 1.08; letter-spacing: .005em; color: #fff; text-align: left; }
 .lux-sub { margin: 0; font-size: .98rem; line-height: 1.5; color: #e7dfcf; max-width: 34ch; }

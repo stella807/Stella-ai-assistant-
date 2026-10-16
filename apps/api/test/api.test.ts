@@ -5135,6 +5135,12 @@ describe("the Wingman Club — modeled economics, no billing wired to it yet", (
     expect(res.json.disclosures.length).toBeGreaterThan(0);
   });
 
+  it("prices a lone member at the venue's regular price, so the first experience is covered", async () => {
+    const res = await call("GET", "/api/club/status", undefined, sam);
+    expect(res.json.memberCount).toBe(0);
+    expect(res.json.thisMonth.duesCents).toBeGreaterThanOrEqual(res.json.thisMonth.experience.retailPerPersonCents);
+  });
+
   it("charges more for a pricier pick than a cheaper one, in the same due", async () => {
     const res = await call("GET", "/api/club/status", undefined, sam);
     expect(res.json.thisMonth.duesCents).toBeGreaterThan(res.json.thisMonth.experience.negotiatedPerPersonCents);

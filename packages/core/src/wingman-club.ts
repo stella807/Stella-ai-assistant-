@@ -117,9 +117,26 @@ export const CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH = 800_000;
  * markup, no averaging. This is the number that goes up for an expensive
  * pick and down for a cheap one.
  */
-export function duesForCents(experience: ClubExperience): number {
-  return CLUB_BASE_DUES_CENTS + experience.negotiatedPerPersonCents;
+export function duesForCents(experience: ClubExperience, memberCount: number = 1): number {
+  const perPerson = memberCount >= CLUB_GROUP_RATE_MIN_MEMBERS
+    ? experience.negotiatedPerPersonCents
+    : experience.retailPerPersonCents;
+  return CLUB_BASE_DUES_CENTS + perPerson;
 }
+
+/**
+ * How many members it takes before a venue will quote the group rate.
+ *
+ * The negotiated per-person rates only exist because a whole roster books
+ * together. One member alone — which is where the club starts — is a single
+ * booking at the venue's own list price, so charging them the group rate
+ * would leave the club paying the difference out of its own pocket on the
+ * very first experience. Below this size, dues are built on the retail price,
+ * which covers the first event even with a single member; from here up they
+ * drop to the group rate, and members are told that up front
+ * (`CLUB_DISCLOSURES`).
+ */
+export const CLUB_GROUP_RATE_MIN_MEMBERS = 10;
 
 /** The base-due revenue a roster of this size produces — the part that
  *  funds fixed overhead, independent of whichever experience got picked
@@ -194,5 +211,6 @@ export const CLUB_DISCLOSURES = [
   "A reveal is not a booking. Safehubby confirms dates and capacity with the venue afterward, and multiple dates may be offered so one facility does not need the whole roster at once.",
   "Attendance is optional. Skipping a month is not a credit toward a future one — dues fund the month's pick for whoever comes, not a personal balance.",
   "Dues track the pick, not a rotation average — a pricier month costs more, a simple one costs less, and that due is the same for every member whether or not they attend.",
+  "Venues only give a group rate to a group. Until the club has 10 members, dues are built on the venue's regular price, so the first events are covered; once it reaches 10 they drop to the group rate.",
   "The cigar and drink of your choice at the event are included in the due above — never a separate charge at the venue.",
 ] as const;

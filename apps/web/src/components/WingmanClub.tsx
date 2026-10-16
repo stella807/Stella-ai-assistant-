@@ -88,7 +88,7 @@ export function WingmanClub() {
               : e.id === "cigar-night" ? <CigarArt className="cigar-mini" />
               : <span className="em" aria-hidden="true">{e.emoji}</span>}
             <b>{e.label}</b>
-            <span className="p">{money(duesForCents(e))}</span>
+            <span className="p">{money(duesForCents(e, status.memberCount))}</span>
           </div>
         ))}
       </div>

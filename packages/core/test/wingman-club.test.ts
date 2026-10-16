@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLUB_BASE_DUES_CENTS, CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH,
-  CLUB_PERKS, clubBaseRevenueCents, clubMonthKey, duesForCents, findClubExperience,
+  CLUB_GROUP_RATE_MIN_MEMBERS, CLUB_PERKS, clubBaseRevenueCents, clubMonthKey, duesForCents, findClubExperience,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience,
 } from "../src/wingman-club.ts";
 
@@ -27,10 +27,32 @@ describe("perks", () => {
 });
 
 describe("dues track the month's pick", () => {
-  it("is the flat base plus that experience's own negotiated cost, exactly", () => {
+  it("is the flat base plus the group rate once the club is big enough to get one", () => {
     for (const e of CLUB_EXPERIENCES) {
-      expect(duesForCents(e)).toBe(CLUB_BASE_DUES_CENTS + e.negotiatedPerPersonCents);
+      expect(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS)).toBe(CLUB_BASE_DUES_CENTS + e.negotiatedPerPersonCents);
+      expect(duesForCents(e, 500)).toBe(CLUB_BASE_DUES_CENTS + e.negotiatedPerPersonCents);
     }
+  });
+
+  it("is built on the venue's regular price below that size, so one member covers the first experience", () => {
+    for (const e of CLUB_EXPERIENCES) {
+      for (const members of [0, 1, 2, CLUB_GROUP_RATE_MIN_MEMBERS - 1]) {
+        expect(duesForCents(e, members), `${e.id} with ${members}`).toBe(CLUB_BASE_DUES_CENTS + e.retailPerPersonCents);
+      }
+      // A lone member pays at least what the venue itself would charge one person.
+      expect(duesForCents(e)).toBeGreaterThanOrEqual(e.retailPerPersonCents);
+    }
+  });
+
+  it("drops the price, never raises it, when the roster reaches the group size", () => {
+    for (const e of CLUB_EXPERIENCES) {
+      expect(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS)).toBeLessThan(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS - 1));
+    }
+  });
+
+  it("tells members about the group-size rule before they join", () => {
+    expect(CLUB_DISCLOSURES.join(" ")).toMatch(/group rate/i);
+    expect(CLUB_DISCLOSURES.join(" ")).toContain(String(CLUB_GROUP_RATE_MIN_MEMBERS));
   });
 
   it("goes up for a pricier pick and down for a cheaper one", () => {

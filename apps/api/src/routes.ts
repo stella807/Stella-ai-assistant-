@@ -3134,7 +3134,7 @@ export const routes: Record<string, Handler> = {
       duesCoveredBySafehubby: isElitePlan(traveler.planId as PlanId),
       thisMonth: {
         experience: pick,
-        duesCents: duesForCents(pick),
+        duesCents: duesForCents(pick, memberCount),
       },
     };
   },
