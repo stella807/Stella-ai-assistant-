@@ -30,6 +30,8 @@ export function Footer() {
 
       <nav className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "center" }} aria-label={t("footer.contact")}>
         <a className="btn btn-sm btn-ghost" href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
+        {/* A real link, not a router push: /employee is its own area with its own sign-in. */}
+        <a className="btn btn-sm btn-ghost" href="/employee">{t("footer.employeePortal")}</a>
         <button
           className="btn btn-sm btn-ghost" aria-expanded={open === "press"}
           onClick={() => setOpen((o) => (o === "press" ? null : "press"))}

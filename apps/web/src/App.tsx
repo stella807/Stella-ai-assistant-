@@ -152,6 +152,10 @@ export function App() {
             every customer sees. Signed out, the landing carries both already. */}
         {account && role !== "drive" && role !== "work" && (
           <span style={{ display: "block", marginTop: 8 }}>
+            <a className="linklike" href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
+            {" · "}
+            <a className="linklike" href="/employee">{t("footer.employeePortal")}</a>
+            {" · "}
             <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
             {" · "}
             <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>

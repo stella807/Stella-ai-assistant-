@@ -219,6 +219,7 @@ const EN = {
   "invest.cta": "Get in touch about investing →",
 
   "footer.contact": "Contact",
+  "footer.employeePortal": "Employee portal",
   "footer.press": "Press",
   "footer.terms": "Terms of Service",
   "footer.privacy": "Privacy Policy",
@@ -493,6 +494,7 @@ const ES: Record<TranslationKey, string> = {
   "invest.cta": "Contáctanos sobre invertir →",
 
   "footer.contact": "Contacto",
+  "footer.employeePortal": "Portal de empleados",
   "footer.press": "Prensa",
   "footer.terms": "Términos de servicio",
   "footer.privacy": "Política de privacidad",

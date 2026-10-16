@@ -35,3 +35,5 @@ h3 { color: #f3e2b3; }
    the rest in the chat or in person. Prices and anything you agree to stay. */
 .help-simple p.small.muted, .help-simple p.tiny.muted { display: none; }
 .simple-hide { display: none !important; }
+/* Links styled as buttons (Contact, Employee portal) sit level with real ones. */
+a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
