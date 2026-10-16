@@ -41,7 +41,7 @@ import {
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
   includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs,
-  errandPayoutCents, errandFeeCents, type ErrandTierId,
+  errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, type ErrandTierId,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
@@ -4727,8 +4727,16 @@ export const routes: Record<string, Handler> = {
 
   /** What roles are open, and the two things everyone hired gets. Public: this
    *  is a job post, and a job post behind a login is not a job post. */
-  "GET /api/staff/roles": () => ({
-    roles: STAFF_ROLES.filter((r) => r.id !== "driver"),
+  "GET /api/staff/roles": (ctx) => ({
+    // What each role pays and how many people we are looking for, worked out
+    // here from the same constants the money moves with. `openings` is the
+    // target minus who is already on the roster, so it falls as people are
+    // hired and a role that is full says so instead of advertising a job.
+    roles: STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => {
+      const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
+      const openings = openingsFor(r.id, hired);
+      return { ...r, pay: payLabelFor(r.id), openings, hiring: openings > 0 };
+    }),
     benefits: HIRING_BENEFITS,
   }),
 

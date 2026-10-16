@@ -12,7 +12,7 @@ import { revolutCards } from "../src/adapters/cards.ts";
 import {
   ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
   eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
-  errandFeeCents, errandPayoutCents, settleCharge, setFlag, type CardIssuingPort,
+  OPEN_POSITIONS, errandFeeCents, errandPayoutCents, settleCharge, setFlag, type CardIssuingPort,
 } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
@@ -3939,6 +3939,29 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(hired.status).toBe(200);
     // Shown once, and the dashboard has to surface it immediately.
     expect(hired.json.credentials.tempPassword).toBeTruthy();
+  });
+
+  it("tells applicants what each role pays and how many we are looking for", async () => {
+    const res = await call("GET", "/api/staff/roles");
+    expect(res.status).toBe(200);
+    const runner = res.json.roles.find((r: { id: string }) => r.id === "errand-runner");
+    expect(runner.pay).toContain(`$${(errandPayoutCents("in-building") / 100).toFixed(2)}`);
+    expect(runner.openings).toBe(OPEN_POSITIONS["errand-runner"]);
+    expect(runner.hiring).toBe(true);
+    const physician = res.json.roles.find((r: { id: string }) => r.id === "physician");
+    expect(physician.openings).toBe(0);
+    expect(physician.hiring).toBe(false);
+    // Every role says what it pays; none is left blank.
+    for (const r of res.json.roles) expect(String(r.pay).length, r.id).toBeGreaterThan(5);
+    // Drivers apply through their own screen.
+    expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
+  });
+
+  it("counts an opening down when somebody is hired, so a filled role stops advertising", async () => {
+    const before = (await call("GET", "/api/staff/roles")).json.roles.find((r: { id: string }) => r.id === "errand-runner").openings;
+    await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: "kitopen@example.com" });
+    const after = (await call("GET", "/api/staff/roles")).json.roles.find((r: { id: string }) => r.id === "errand-runner").openings;
+    expect(after).toBe(before - 1);
   });
 
   it("lets the owner open a résumé the dashboard says is attached", async () => {

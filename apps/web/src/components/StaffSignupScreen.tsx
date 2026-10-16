@@ -130,6 +130,15 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
               aria-pressed={r.id === role} onClick={() => setRole(r.id)}>
               <strong>{r.label}</strong>
               <span className="tiny">{r.description}</span>
+              {/* What it pays and how many we want, on the card itself: an
+                  applicant choosing a role should not have to apply to find
+                  out whether the job exists or what it is worth. */}
+              <span className="small"><strong>{r.pay}</strong></span>
+              <span className={`tiny ${r.hiring ? "" : "muted"}`}>
+                {r.hiring
+                  ? `Hiring now: ${r.openings} ${r.openings === 1 ? "person" : "people"}`
+                  : "Not hiring right now — you can still apply to be considered later."}
+              </span>
             </button>
           ))}
         </div>

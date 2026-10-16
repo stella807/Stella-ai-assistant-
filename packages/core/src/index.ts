@@ -39,6 +39,7 @@ export * from "./driver-pay.ts";
 export * from "./concierge.ts";
 export * from "./relay.ts";
 export * from "./errand-tiers.ts";
+export * from "./open-positions.ts";
 export * from "./included-grabs.ts";
 export * from "./elite.ts";
 export * from "./voice-messages.ts";

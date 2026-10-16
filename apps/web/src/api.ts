@@ -246,6 +246,11 @@ export interface StaffRoleInfo {
   label: string;
   description: string;
   drives: boolean;
+  /** What it pays, in a sentence — built on the server from the real rates. */
+  pay: string;
+  /** How many people we are still looking for. Zero means not hiring yet. */
+  openings: number;
+  hiring: boolean;
 }
 
 export interface HiringBenefit {
