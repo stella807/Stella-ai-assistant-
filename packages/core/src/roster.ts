@@ -99,6 +99,9 @@ export interface HiredAssistant {
    *  a past assistant is still attached to the tasks they worked. */
   activeUntil?: Iso8601;
   bio?: string;
+  /** Hacienda exemption certificate number: with one, nothing is withheld.
+   *  Set by the owner after seeing the certificate. */
+  withholdingExemptionCertificate?: string;
 }
 
 export function isOnRoster(assistant: HiredAssistant, now: Date): boolean {

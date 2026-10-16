@@ -2514,6 +2514,79 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("Puerto Rico withholding", () => {
+    const worker = (market: string, extra: object = {}) => store.update((db) => {
+      db.assistants.push({
+        id: assistantId, applicationId: "app_x", name: "Pay Test", role: "personal-assistant", market: market as any,
+        categories: ["grab-something"], maxConcurrentCustomers: 2, hiredAt: "2026-01-01T00:00:00.000Z", ...extra,
+      } as any);
+    });
+
+    it("holds back 10% of a Puerto Rico worker's pay and records it", async () => {
+      worker("puerto-rico");
+      await runPayroll(ctx);
+      const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+      expect(payout.withheldCents).toBe(90);
+      expect(payout.totalCents).toBe(810);
+    });
+
+    it("holds nothing back with an exemption certificate on file", async () => {
+      worker("puerto-rico", { withholdingExemptionCertificate: "SC-2888-1" });
+      await runPayroll(ctx);
+      const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+      expect(payout.withheldCents).toBe(0);
+      expect(payout.totalCents).toBe(900);
+    });
+
+    it("holds nothing back in Texas", async () => {
+      worker("texas");
+      await runPayroll(ctx);
+      const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+      expect(payout.withheldCents).toBe(0);
+    });
+
+    it("pays an errand runner the task was handed to, not only the assistant", async () => {
+      store.update((db) => {
+        const t = db.conciergeTasks.find((x) => x.id === taskId)!;
+        t.assistantId = "asst_boss"; t.runnerId = "asst_runner_pay";
+      });
+      await runPayroll(ctx);
+      expect(store.data.payouts.some((p) => p.assistantId === "asst_runner_pay")).toBe(true);
+      expect(store.data.payouts.some((p) => p.assistantId === "asst_boss")).toBe(false);
+    });
+  });
+
+  describe("recording an exemption certificate and the year's totals", () => {
+    useAdminKey();
+    const master = async (role: string, email: string) => {
+      const created = await callAdmin("POST", "/api/admin/master-accounts", { name: "M", email, role });
+      const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+      const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+      return { Cookie: `sh_master_session=${token}` };
+    };
+
+    it("lets only the owner record a certificate, and reports what was withheld", async () => {
+      store.update((db) => {
+        db.assistants.push({ id: assistantId, applicationId: "a", name: "Pay Test", role: "personal-assistant", market: "puerto-rico",
+          categories: [], maxConcurrentCustomers: 1, hiredAt: "2026-01-01T00:00:00.000Z" } as any);
+        db.payouts.push({ id: "po1", assistantId, periodStart: "x", periodEnd: "y", taskIds: [], totalCents: 810, withheldCents: 90,
+          status: "paid", createdAt: clock.toISOString(), paidAt: clock.toISOString() });
+      });
+      const club = await master("club-assistant", "nocert@example.com");
+      expect((await call("POST", `/api/master/assistants/${assistantId}/withholding-exemption`, { certificate: "C1" }, null, club)).status).toBe(401);
+      const owner = await master("owner", "cert@example.com");
+      const report = await call("GET", "/api/master/withholding", undefined, null, owner);
+      expect(report.json.totalWithheldCents).toBe(90);
+      expect(report.json.workers[0]).toMatchObject({ assistantId, withheldCents: 90, paidCents: 810 });
+      const set = await call("POST", `/api/master/assistants/${assistantId}/withholding-exemption`, { certificate: "C1" }, null, owner);
+      expect(set.json.certificate).toBe("C1");
+      expect(store.data.assistants.find((a) => a.id === assistantId)?.withholdingExemptionCertificate).toBe("C1");
+      const { cookie } = await assistantLogin(assistantId);
+      const mine = await call("GET", "/api/assistant/payouts", undefined, null, cookie);
+      expect(mine.json.withheldThisYearCents).toBe(90);
+    });
+  });
+
   it("never pays out a task still inside the current, open period", async () => {
     store.update((db) => {
       db.conciergeTasks.find((t) => t.id === taskId)!.completedAt = clock.toISOString();

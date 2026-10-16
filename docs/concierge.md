@@ -765,8 +765,18 @@ which, for the most recently *closed* period:
 **This does not make Safehubby anyone's employer.** Paying a contractor on a
 schedule is a different thing from employing them — Uber, DoorDash, and
 Instacart all pay independent contractors this way. Nothing here creates
-withholding, benefits, or an employment relationship; it only moves *when*
-money already owed for a completed task actually arrives.
+benefits or an employment relationship; it only moves *when* money already
+owed for a completed task actually arrives.
+
+**Puerto Rico withholding.** A Puerto Rico worker's payout has 10% held back
+for Hacienda (`withholdingFor`, `packages/core/src/withholding.ts`), after any
+clawback, unless the owner has recorded their Hacienda exemption certificate
+(`POST /api/master/assistants/:id/withholding-exemption`). The held-back share
+is stored on the payout (`withheldCents`), shown to the worker, and totalled
+per worker per year at `GET /api/master/withholding` for the year-end return.
+Safehubby does not yet *remit* it to Hacienda or file the informative return —
+that is still a manual step. The rate was set by the owner; confirm it, the
+annual threshold, and contractor status with a Puerto Rico CPA.
 
 **Bank details are encrypted before they're ever stored**
 (`sealPayoutDestination`/`openPayoutDestination` in `crypto.ts`, the same

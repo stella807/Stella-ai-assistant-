@@ -683,9 +683,22 @@ function LaunchSection({ launch, canWrite, onChanged }: {
 }
 
 function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }) {
+  const [held, setHeld] = useState<Awaited<ReturnType<typeof api.masterWithholding>> | null>(null);
+  useEffect(() => { api.masterWithholding().then(setHeld).catch(() => {}); }, []);
   return (
     <section className="card stack">
       <h3>Money</h3>
+      {held && (
+        <div className="card card-quiet stack" style={{ gap: 2 }}>
+          <strong className="small">Held back for Hacienda, {held.year}</strong>
+          <span className="small">${(held.totalWithheldCents / 100).toFixed(2)}</span>
+          {held.workers.map((w) => (
+            <span key={w.assistantId} className="tiny muted">
+              {w.name}: ${(w.withheldCents / 100).toFixed(2)} held back of ${((w.paidCents + w.withheldCents) / 100).toFixed(2)}
+            </span>
+          ))}
+        </div>
+      )}
       <ul className="timeline">
         <li className="row-between">
           <span className="tiny muted">Settled charges</span>

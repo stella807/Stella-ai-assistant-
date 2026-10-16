@@ -173,8 +173,7 @@ function PayRates({ onBack }: { onBack: () => void }) {
       <section className="card stack">
         <h3>Pay rates</h3>
         <p className="tiny muted">
-          What you take home per task, before nothing — this is the full amount that reaches you, not a
-          figure Safehubby's cut still comes out of. The customer pays more than this; the difference is
+          What you earn per task — Safehubby's cut is never taken out of it. In Puerto Rico, 10% of what you're paid is held back for Hacienda unless you give us your exemption certificate. The customer pays more than this; the difference is
           Safehubby's margin and is added on top of your rate, never taken out of it (see
           docs/concierge.md). You're paid per task, not by the hour; the hourly figure is only a
           reference, using the typical time a task like this takes.
@@ -268,9 +267,10 @@ function PayRates({ onBack }: { onBack: () => void }) {
 function PayoutSettings({ onBack }: { onBack: () => void }) {
   const [destination, setDestination] = useState<{ accountHolderName: string; accountNumberLast4: string } | null | undefined>(undefined);
   const [payouts, setPayouts] = useState<{
-    id: string; periodStart: string; periodEnd: string; totalCents: number;
+    id: string; periodStart: string; periodEnd: string; totalCents: number; withheldCents?: number;
     status: "pending" | "paid" | "failed"; paidAt?: string; failureReason?: string;
   }[]>([]);
+  const [withheldYear, setWithheldYear] = useState(0);
   const [unpaid, setUnpaid] = useState(0);
   const [owed, setOwed] = useState(0);
   const [editing, setEditing] = useState(false);
@@ -286,6 +286,7 @@ function PayoutSettings({ onBack }: { onBack: () => void }) {
       setPayouts(r.payouts);
       setUnpaid(r.unpaidEarningsCents);
       setOwed(r.outstandingClawbackCents);
+      setWithheldYear(r.withheldThisYearCents);
     }).catch(() => {});
   };
   useEffect(load, []);
@@ -371,6 +372,12 @@ function PayoutSettings({ onBack }: { onBack: () => void }) {
 
       <section className="card stack">
         <h3>Payout history</h3>
+        {withheldYear > 0 && (
+          <p className="tiny muted">
+            Held back for Hacienda this year: {money(withheldYear)}. Puerto Rico requires 10% on pay for services
+            unless you give us your Hacienda exemption certificate.
+          </p>
+        )}
         {payouts.length === 0 && <p className="tiny muted">Nothing paid out yet.</p>}
         {payouts.length > 0 && (
           <ul className="timeline">
@@ -383,6 +390,9 @@ function PayoutSettings({ onBack }: { onBack: () => void }) {
                   <strong className="charge-amount">{money(p.totalCents)}</strong>
                 </div>
                 <span className={`pill${p.status === "paid" ? " pill-safe" : ""}`}>{p.status}</span>
+                {(p.withheldCents ?? 0) > 0 && (
+                  <p className="tiny muted">{money(p.withheldCents!)} held back for Hacienda (10%).</p>
+                )}
                 {p.status === "failed" && p.failureReason && <p className="tiny muted">{p.failureReason}</p>}
               </li>
             ))}

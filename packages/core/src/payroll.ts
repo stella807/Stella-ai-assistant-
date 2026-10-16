@@ -112,7 +112,10 @@ export interface AssistantPayout {
   periodStart: string;
   periodEnd: string;
   taskIds: string[];
+  /** What was actually sent: earnings after clawbacks and after withholding. */
   totalCents: number;
+  /** Held back for Hacienda and not sent to the worker. */
+  withheldCents?: number;
   status: PayoutStatus;
   createdAt: string;
   paidAt?: string;

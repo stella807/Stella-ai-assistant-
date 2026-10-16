@@ -618,9 +618,10 @@ export const api = {
   assistantPayouts: () =>
     request<{
       payouts: {
-        id: string; periodStart: string; periodEnd: string; totalCents: number;
+        id: string; periodStart: string; periodEnd: string; totalCents: number; withheldCents?: number;
         status: "pending" | "paid" | "failed"; paidAt?: string; failureReason?: string;
       }[];
+      withheldThisYearCents: number;
       unpaidEarningsCents: number; outstandingClawbackCents: number;
     }>("GET", "/api/assistant/payouts"),
   assistantVoiceMessages: (taskId: string) =>
@@ -801,6 +802,9 @@ export const api = {
       "POST", "/api/master/auth/login", { key }),
   masterLogout: () => request<{ ok: true }>("POST", "/api/master/auth/logout", {}),
   masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
+  masterWithholding: () =>
+    request<{ year: string; totalWithheldCents: number; workers: { assistantId: string; name: string; paidCents: number; withheldCents: number }[] }>(
+      "GET", "/api/master/withholding"),
   masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
 
   /** Move a staff application through review. Owner only — `write` is not a

@@ -68,6 +68,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
+  withholdingFor,
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
@@ -555,7 +556,7 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
   const period = previousPayoutPeriod(ctx.now());
   const cipher = cipherFromEnv();
   const assistantIds = new Set(
-    ctx.store.data.conciergeTasks.map((t) => t.assistantId).filter((id): id is string => Boolean(id)),
+    ctx.store.data.conciergeTasks.flatMap((t) => [t.assistantId, t.runnerId]).filter((id): id is string => Boolean(id)),
   );
 
   let paid = 0;
@@ -573,12 +574,18 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
     const openAdjustments = ctx.store.data.assistantAdjustments.filter(
       (a) => a.assistantId === assistantId && a.remainingCents > 0,
     );
-    const { payableCents, consumed } = applyAdjustments(earnedCents, openAdjustments);
+    const { payableCents: afterClawback, consumed } = applyAdjustments(earnedCents, openAdjustments);
+    // Puerto Rico pay has 10% held back for Hacienda unless the worker has an
+    // exemption certificate. The held-back share is recorded, not sent.
+    const worker = ctx.store.data.assistants.find((a) => a.id === assistantId);
+    const { withheldCents, netCents: payableCents } = withholdingFor({
+      market: worker?.market, payableCents: afterClawback, exempt: Boolean(worker?.withholdingExemptionCertificate),
+    });
 
     const payoutId = newId("payout");
     const base = {
       id: payoutId, assistantId, periodStart: period.start.toISOString(), periodEnd: period.end.toISOString(),
-      taskIds, totalCents: payableCents, createdAt: ctx.now().toISOString(),
+      taskIds, totalCents: payableCents, withheldCents, createdAt: ctx.now().toISOString(),
     };
     const applyConsumed = (db: typeof ctx.store.data) => {
       for (const c of consumed) {
@@ -3985,12 +3992,55 @@ export const routes: Record<string, Handler> = {
       .filter((p) => p.assistantId === assistantId)
       .slice()
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const year = String(ctx.now().getUTCFullYear());
+    const withheldThisYearCents = payouts
+      .filter((x) => x.status === "paid" && (x.paidAt ?? x.createdAt).startsWith(year))
+      .reduce((sum, x) => sum + (x.withheldCents ?? 0), 0);
     return {
-      payouts, unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId),
+      payouts, withheldThisYearCents, unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId),
       outstandingClawbackCents: outstandingClawbackCents(
         ctx.store.data.assistantAdjustments.filter((a) => a.assistantId === assistantId),
       ),
     };
+  },
+
+  /* Owner: record that a worker showed a Hacienda exemption certificate (or
+     take it back off). With one on file, nothing is withheld from their pay. */
+  "POST /api/master/assistants/:id/withholding-exemption": (ctx, p, body) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "write", now)) throw unauthorized();
+    const id = req(p, "id");
+    if (!ctx.store.data.assistants.some((a) => a.id === id)) throw notFound("Assistant");
+    const certificate = body?.certificate === null ? "" : String(body?.certificate ?? "").trim().slice(0, 40);
+    if (body?.certificate !== null && !certificate) throw new HttpError(400, "Enter the certificate number.");
+    ctx.store.update((db) => {
+      const a = db.assistants.find((x) => x.id === id);
+      if (a) a.withholdingExemptionCertificate = certificate || undefined;
+    });
+    return { assistantId: id, certificate: certificate || null };
+  },
+
+  /* What was held back from each worker in a year — the figures behind the
+     year-end return and the payment to Hacienda. Money scope only. */
+  "GET /api/master/withholding": (ctx, p) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "money", now)) throw unauthorized();
+    const year = String(p.year ?? now.getUTCFullYear());
+    const rows = new Map<string, { assistantId: string; name: string; paidCents: number; withheldCents: number }>();
+    for (const x of ctx.store.data.payouts) {
+      if (x.status !== "paid" || !(x.paidAt ?? x.createdAt).startsWith(year)) continue;
+      const row = rows.get(x.assistantId) ?? {
+        assistantId: x.assistantId, name: ctx.store.data.assistants.find((a) => a.id === x.assistantId)?.name ?? x.assistantId,
+        paidCents: 0, withheldCents: 0,
+      };
+      row.paidCents += x.totalCents;
+      row.withheldCents += x.withheldCents ?? 0;
+      rows.set(x.assistantId, row);
+    }
+    const workers = [...rows.values()];
+    return { year, workers, totalWithheldCents: workers.reduce((s, w) => s + w.withheldCents, 0) };
   },
 
   "GET /api/assistant/tasks/:taskId/voice-messages": (ctx, p) => {
