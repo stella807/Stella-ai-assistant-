@@ -40,7 +40,7 @@ export function MasterScreen() {
 function Shell({ children, onSignOut }: { children: React.ReactNode; onSignOut?: () => void }) {
   return (
     <div className="app stack">
-      <ScreenCover photo="hero" kicker="Safehubby" title="Owner's portal" />
+      <ScreenCover photo="hero" kicker="Safehubby" title="Management portal" />
       <div className="row-between">
         <div>
           <p className="tiny muted">Master access — not the app customers or assistants use.</p>

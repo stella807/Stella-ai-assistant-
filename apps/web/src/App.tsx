@@ -151,24 +151,21 @@ export function App() {
             customers using it, so they live down here rather than in the header
             every customer sees. Signed out, the landing carries both already. */}
         {account && role !== "drive" && role !== "work" && (
-          <span style={{ display: "block", marginTop: 8 }}>
-            <a className="linklike" href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
-            {" · "}
-            <a className="linklike" href="/employee">{t("footer.employeePortal")}</a>
-            {" · "}
-            <a className="linklike" href="/master">{t("footer.ownerPortal")}</a>
-            {" · "}
-            <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
-            {" · "}
-            <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
-            {" · "}
-            <button className="linklike" onClick={() => setRole("games")}>{t("nav.games")}</button>
-            {isEnabled("party-supply") && (<>{" · "}<button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button></>)}
-            {" · "}
-            <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
-            {" · "}
-            <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>
-          </span>
+          <div className="stack" style={{ gap: 6, marginTop: 10 }}>
+            <nav className="footer-links" aria-label="More">
+              <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
+              <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
+              <button className="linklike" onClick={() => setRole("games")}>{t("nav.games")}</button>
+              {isEnabled("party-supply") && <button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button>}
+              <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
+            </nav>
+            <nav className="footer-links footer-portals" aria-label="Work with us">
+              <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
+              <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>
+              <a href="/employee">{t("footer.employeePortal")}</a>
+              <a href="/master">{t("footer.ownerPortal")}</a>
+            </nav>
+          </div>
         )}
       </footer>
     </div>

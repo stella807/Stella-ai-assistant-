@@ -28,29 +28,18 @@ export function Footer() {
         <a className="btn btn-ghost btn-block" href="mailto:contact@safehubby.com?subject=Investing">{t("invest.cta")}</a>
       </section>
 
-      <nav className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "center" }} aria-label={t("footer.contact")}>
-        <a className="btn btn-sm btn-ghost" href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
-        {/* A real link, not a router push: /employee is its own area with its own sign-in. */}
-        <a className="btn btn-sm btn-ghost" href="/employee">{t("footer.employeePortal")}</a>
-        <a className="btn btn-sm btn-ghost" href="/master">{t("footer.ownerPortal")}</a>
-        <button
-          className="btn btn-sm btn-ghost" aria-expanded={open === "press"}
-          onClick={() => setOpen((o) => (o === "press" ? null : "press"))}
-        >
-          {t("footer.press")}
-        </button>
-        <button
-          className="btn btn-sm btn-ghost" aria-expanded={open === "terms"}
-          onClick={() => setOpen((o) => (o === "terms" ? null : "terms"))}
-        >
-          {t("footer.terms")}
-        </button>
-        <button
-          className="btn btn-sm btn-ghost" aria-expanded={open === "privacy"}
-          onClick={() => setOpen((o) => (o === "privacy" ? null : "privacy"))}
-        >
-          {t("footer.privacy")}
-        </button>
+      {/* Plain links rather than a wall of buttons: the people who need these
+          know to look for them, and nobody else should have to read past them. */}
+      <nav className="footer-links" aria-label={t("footer.contact")}>
+        <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
+        <button className="linklike" aria-expanded={open === "press"} onClick={() => setOpen((o) => (o === "press" ? null : "press"))}>{t("footer.press")}</button>
+        <button className="linklike" aria-expanded={open === "terms"} onClick={() => setOpen((o) => (o === "terms" ? null : "terms"))}>{t("footer.terms")}</button>
+        <button className="linklike" aria-expanded={open === "privacy"} onClick={() => setOpen((o) => (o === "privacy" ? null : "privacy"))}>{t("footer.privacy")}</button>
+      </nav>
+      {/* Real links, not router pushes: each portal is its own area with its own sign-in. */}
+      <nav className="footer-links footer-portals" aria-label="Portals">
+        <a href="/employee">{t("footer.employeePortal")}</a>
+        <a href="/master">{t("footer.ownerPortal")}</a>
       </nav>
 
       {open === "press" && <PressRelease />}
@@ -61,47 +50,10 @@ export function Footer() {
         </p>
       )}
 
-      <PaymentBadges />
-
       <p className="tiny muted" style={{ textAlign: "center" }}>
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}
       </p>
     </footer>
-  );
-}
-
-/**
- * The trust-badge row most sites put at the bottom — real methods the
- * payment screen offers (see `TABS` in PaymentMethodCard.tsx), not logos
- * borrowed for the look of legitimacy. Plain text rather than brand marks:
- * the actual Visa/Mastercard/Apple/PayPal logos are trademarked assets this
- * app has no license to reproduce, and a lookalike icon reads worse than an
- * honest label once anyone looks closely.
- *
- * The card networks come first because they are the path that is fully
- * wired; the rest are offered on the payment screen, which states per
- * method what is still needed before it can be completed. A badge here is a
- * claim about what Safehubby takes, so it must not run ahead of that screen
- * — if an option is ever dropped there, drop it here too.
- */
-function PaymentBadges() {
-  const { t } = useLanguage();
-  const methods = [
-    "Visa", "Mastercard", "Amex", "Discover",
-    "Apple Pay", "Google Pay", "Link",
-    "Klarna", "Amazon Pay", "Cash App Pay",
-    "PayPal", "Venmo", "ATH Móvil",
-  ];
-  return (
-    <div className="stack" style={{ gap: 6, alignItems: "center" }}>
-      <p className="tiny muted" style={{ margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-        {t("footer.paymentsAccepted")}
-      </p>
-      <div className="row" style={{ gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
-        {methods.map((m) => <span key={m} className="pill payment-badge">{m}</span>)}
-      </div>
-      <p className="tiny muted" style={{ margin: 0 }}>{t("footer.paymentsSecured")}</p>
-    </div>
   );
 }
 

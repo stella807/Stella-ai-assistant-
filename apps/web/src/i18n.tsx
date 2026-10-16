@@ -220,7 +220,7 @@ const EN = {
 
   "footer.contact": "Contact",
   "footer.employeePortal": "Employee portal",
-  "footer.ownerPortal": "Owner portal",
+  "footer.ownerPortal": "Management portal",
   "footer.press": "Press",
   "footer.terms": "Terms of Service",
   "footer.privacy": "Privacy Policy",
@@ -496,7 +496,7 @@ const ES: Record<TranslationKey, string> = {
 
   "footer.contact": "Contacto",
   "footer.employeePortal": "Portal de empleados",
-  "footer.ownerPortal": "Portal del dueño",
+  "footer.ownerPortal": "Portal de gerencia",
   "footer.press": "Prensa",
   "footer.terms": "Términos de servicio",
   "footer.privacy": "Política de privacidad",

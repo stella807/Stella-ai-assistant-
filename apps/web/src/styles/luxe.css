@@ -37,3 +37,7 @@ h3 { color: #f3e2b3; }
 .simple-hide { display: none !important; }
 /* Links styled as buttons (Contact, Employee portal) sit level with real ones. */
 a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+
+.footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 14px; }
+.footer-links a, .footer-links .linklike { color: #e6cf9d; text-decoration: none; }
+.footer-portals { font-size: 12px; opacity: .75; }
