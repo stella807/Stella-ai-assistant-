@@ -5,6 +5,7 @@ import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
 import { PublicPricing, PublicWorkerPay } from "./PublicPricing.tsx";
 import { Footer } from "./Footer.tsx";
+import { LuxuryHero } from "./LuxuryHero.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
@@ -63,10 +64,10 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
 
   return (
     <div className="stack">
-      <div className="card stack" style={{ textAlign: "center" }}>
-        <h1 style={{ margin: 0 }}>{t("landing.heading")}</h1>
-        <p className="small muted" style={{ margin: 0 }}>{t("landing.subtitle")}</p>
-      </div>
+      <LuxuryHero
+        onStart={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}
+        onPrices={() => carousel.current?.goTo(2)}
+      />
 
       {/* The launch party, and only while it is actually on: the API owns
           whether the window is open (see launchStatus in routes.ts) so the

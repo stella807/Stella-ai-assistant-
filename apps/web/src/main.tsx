@@ -11,6 +11,7 @@ import "./styles/popup-cards.css";
 import "./styles/home.css";
 import "./styles/wingman.css";
 import "./styles/art.css";
+import "./styles/luxury.css";
 
 // Three distinct areas of one app, split by path rather than by a query
 // param carried on a link: /employee is the employee portal and /master is

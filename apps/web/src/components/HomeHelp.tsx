@@ -4,12 +4,12 @@ import type { HiringTab } from "./HiringScreen.tsx";
 import { api, type Account } from "../api.ts";
 import { activeRequests, firstName, helpTabFor, homeActions } from "../app/home-actions.ts";
 import { money } from "../money.ts";
-import { AssistantArt, DeskArt, ErrandArt, RideArt, WingmanIcon } from "./art/Art.tsx";
+import { AssistantArt, DeskArt, ErrandArt, WingmanIcon } from "./art/Art.tsx";
 
 const ACTION_ART: Record<string, () => JSX.Element> = {
   assistant: () => <AssistantArt />,
   errand: () => <ErrandArt />,
-  ride: () => <RideArt />,
+  ride: () => <img src="/img/suv.jpg" alt="" className="home-photo" width={64} height={96} />,
   desk: () => <DeskArt />,
 };
 

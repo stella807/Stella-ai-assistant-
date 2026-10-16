@@ -75,3 +75,6 @@
 .home-extra-mark { display: grid !important; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--accent, #ffb547); color: var(--accent, #ffb547); font-weight: 800; font-size: 1.3rem; flex: none; }
 
 .home-extra-club { background: linear-gradient(90deg, rgba(14, 7, 6, .94) 35%, rgba(14, 7, 6, .35)), url("/img/wingman-bourbon-cigar.jpg") right center / cover; min-height: 92px; }
+
+.home-photo { width: 56px; height: 84px; object-fit: cover; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,.45); }
+.home-action:has(.home-photo) .home-action-art { width: 56px; }
