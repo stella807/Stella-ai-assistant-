@@ -4406,6 +4406,84 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("an assistant handing an errand to a runner", () => {
+    const hire = async (role: string, name: string, market = "puerto-rico") =>
+      (await hireOne({ role, fullName: name, email: `${name.toLowerCase().replace(/\W/g, "")}${Math.random()}@example.com` }, market)).json.assistant.id as string;
+
+    /** A customer with a card, an assistant of theirs, a runner, and an errand booked with the assistant. */
+    const setup = async (runnerMarket = "puerto-rico") => {
+      const paId = await hire("personal-assistant", "Rosa Delgado");
+      const runnerId = await hire("errand-runner", "Kit Moreno", runnerMarket);
+      await withCard(sam);
+      const res = await call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+        location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
+        spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId: paId,
+      }, sam);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const pa = await assistantLogin(paId, "a-fine-assistant-password", false);
+      const runner = await assistantLogin(runnerId, "a-fine-assistant-password", false);
+      return { paId, runnerId, taskId: res.json.task.id as string, pa: pa.cookie, runner: runner.cookie };
+    };
+    const delegate = (taskId: string, runnerId: string | null, cookie: Record<string, string>) =>
+      call("POST", `/api/assistant/tasks/${taskId}/delegate`, { runnerId }, null, cookie);
+
+    it("lists the runners an assistant can hand to, and only to a personal assistant", async () => {
+      const { runnerId, pa, runner } = await setup();
+      const mine = await call("GET", "/api/assistant/runners", undefined, null, pa);
+      expect(mine.json.runners.map((r: { id: string }) => r.id)).toEqual([runnerId]);
+      expect((await call("GET", "/api/assistant/runners", undefined, null, runner)).json.runners).toEqual([]);
+    });
+
+    it("hands the errand over, and the runner sees it in their own portal as sent by the assistant", async () => {
+      const { runnerId, taskId, pa, runner } = await setup();
+      const res = await delegate(taskId, runnerId, pa);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const portal = await call("GET", "/api/assistant/portal", undefined, null, runner);
+      const seen = portal.json.tasks.find((t: { id: string }) => t.id === taskId);
+      expect(seen).toMatchObject({ role: "runner", handedOverBy: expect.any(String) });
+      const mineNow = await call("GET", "/api/assistant/portal", undefined, null, pa);
+      expect(mineNow.json.tasks.find((t: { id: string }) => t.id === taskId)).toMatchObject({ role: "assistant", runnerName: "Kit Moreno" });
+    });
+
+    it("never shows the customer who the runner is", async () => {
+      const { runnerId, taskId, pa } = await setup();
+      await delegate(taskId, runnerId, pa);
+      const detail = await call("GET", `/api/concierge/tasks/${taskId}`, undefined, sam);
+      expect(JSON.stringify(detail.json)).not.toMatch(/runnerId|runnerName|Kit Moreno/);
+      const list = await call("GET", "/api/concierge/tasks", undefined, sam);
+      expect(JSON.stringify(list.json)).not.toMatch(/runnerId|runnerName|Kit Moreno/);
+    });
+
+    it("lets the runner do the legwork — and pays them, not the assistant", async () => {
+      const { paId, runnerId, taskId, pa, runner } = await setup();
+      await delegate(taskId, runnerId, pa);
+      const done = await call("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents: 300 }, null, runner);
+      expect(done.status, JSON.stringify(done.json)).toBe(200);
+      const runnerEarned = await call("GET", "/api/assistant/portal", undefined, null, runner);
+      const paEarned = await call("GET", "/api/assistant/portal", undefined, null, pa);
+      expect(runnerEarned.json.unpaidEarningsCents).toBeGreaterThan(0);
+      expect(paEarned.json.unpaidEarningsCents).toBe(0);
+      expect(paId).not.toBe(runnerId);
+    });
+
+    it("refuses anyone but the assistant on the task, a runner from another market, and a task that is not an errand", async () => {
+      const { paId, runnerId, taskId, runner } = await setup();
+      expect((await delegate(taskId, runnerId, runner)).status).toBe(404);
+      const other = await setup("texas");
+      expect((await delegate(other.taskId, other.runnerId, other.pa)).status).toBe(400);
+      expect(paId).toBeTruthy();
+    });
+
+    it("takes it back, if the assistant changes their mind", async () => {
+      const { runnerId, taskId, pa, runner } = await setup();
+      await delegate(taskId, runnerId, pa);
+      expect((await delegate(taskId, null, pa)).status).toBe(200);
+      const portal = await call("GET", "/api/assistant/portal", undefined, null, runner);
+      expect(portal.json.tasks.find((t: { id: string }) => t.id === taskId)).toBeUndefined();
+    });
+  });
+
   describe("what a customer sees when choosing an assistant", () => {
     const hireWith = async (profile: Record<string, unknown>) => {
       const { json } = await apply({ email: `p${Math.random()}@example.com` });

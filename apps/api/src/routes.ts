@@ -32,7 +32,7 @@ import {
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
-  validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
+  canDelegateTo, whoDoesTheWork, validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
   BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
@@ -638,8 +638,18 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
 
 /** An assistant's own task, or 404 — never another assistant's, and never a
  *  task nobody picked a specific assistant for. */
+/** The customer deals with the assistant they chose. Who that assistant handed
+ *  the legwork to is their team's business, so it never leaves the server. */
+function forCustomer(task: ConciergeTask): ConciergeTask {
+  const { runnerId: _id, runnerName: _name, ...rest } = task;
+  return rest;
+}
+
 function assistantTaskOf(ctx: Ctx, assistantId: string, taskId: string): ConciergeTask {
-  const task = ctx.store.data.conciergeTasks.find((t) => t.id === taskId && t.assistantId === assistantId);
+  // The assistant the customer chose, or the errand runner they handed it to —
+  // the runner needs the same screens (receipts, the card, finishing the job).
+  const task = ctx.store.data.conciergeTasks.find((t) =>
+    t.id === taskId && (t.assistantId === assistantId || t.runnerId === assistantId));
   if (!task) throw notFound("Task");
   return task;
 }
@@ -667,8 +677,8 @@ function settleConciergeTask(ctx: Ctx, task: ConciergeTask, billedCents: unknown
   // assistant is warned about this in the portal before they mark a task
   // done, so it is never a surprise deduction.
   const unaccounted = unaccountedSpendCents(task);
-  if (unaccounted > 0 && task.assistantId) {
-    const assistantId = task.assistantId;
+  if (unaccounted > 0 && whoDoesTheWork(task)) {
+    const assistantId = whoDoesTheWork(task)!;
     ctx.store.update((db) => {
       db.assistantAdjustments.push({
         id: newId("adj"), assistantId, taskId: task.id,
@@ -3163,7 +3173,8 @@ export const routes: Record<string, Handler> = {
       tasks: ctx.store.data.conciergeTasks
         .filter((t) => t.travelerId === me)
         .slice()
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map(forCustomer),
     };
   },
 
@@ -3182,7 +3193,7 @@ export const routes: Record<string, Handler> = {
     const task = ctx.store.data.conciergeTasks
       .find((t) => t.id === req(p, "taskId") && t.travelerId === me);
     if (!task) throw notFound("Task");
-    return { task };
+    return { task: forCustomer(task) };
   },
 
   /**
@@ -3669,14 +3680,21 @@ export const routes: Record<string, Handler> = {
     const assistantId = assistantActor(ctx);
     const mustChangePassword = ctx.store.data.assistantCredentials[assistantId]?.mustChangePassword ?? false;
     const tasks = ctx.store.data.conciergeTasks
-      .filter((t) => t.assistantId === assistantId)
+      .filter((t) => t.assistantId === assistantId || t.runnerId === assistantId)
       .slice()
       // Priority first — "priority everything" for an Elite member, in the
       // one place two open requests actually compete for the same
       // assistant's attention — then most recent within each group.
       .sort((a, b) => Number(b.priority ?? false) - Number(a.priority ?? false)
         || b.createdAt.localeCompare(a.createdAt))
-      .map((t) => ({ ...t, requesterName: nameOf(ctx, t.travelerId) }));
+      .map((t) => ({
+        ...t, requesterName: nameOf(ctx, t.travelerId),
+        // Which side of a handover this person is on, so the portal can say
+        // "sent to Kit" to the assistant and "sent by Rosa" to the runner.
+        ...(t.runnerId === assistantId
+          ? { role: "runner" as const, handedOverBy: t.assistantName }
+          : { role: "assistant" as const }),
+      }));
     return {
       assistantId, mustChangePassword, tasks,
       unpaidEarningsCents: unpaidEarningsCents(ctx.store.data.conciergeTasks, assistantId),
@@ -4145,6 +4163,65 @@ export const routes: Record<string, Handler> = {
       request: updated.spendRequests!.find((r) => r.id === requestId),
       cardUnlocked: canRevealCard(updated),
     };
+  },
+
+  /**
+   * Handing an errand to a runner. Only the assistant the customer chose can,
+   * and only for what a runner is sent to (see delegation.ts): the customer
+   * keeps talking to one person, and the runner does the legwork.
+   */
+  "GET /api/assistant/runners": (ctx) => {
+    const me = assistantActor(ctx);
+    const self = ctx.store.data.assistants.find((a) => a.id === me);
+    if (!self || self.role !== "personal-assistant") return { runners: [] };
+    const now = ctx.now();
+    const busy = (id: string) => ctx.store.data.conciergeTasks
+      .filter((t) => t.status === "in-progress" && whoDoesTheWork(t) === id).length;
+    return {
+      runners: ctx.store.data.assistants
+        .filter((a) => a.role === "errand-runner" && a.market === self.market && isOnRoster(a, now))
+        .map((a) => ({
+          id: a.id, name: a.name, photoUrl: a.photoUrl, yearsExperience: a.yearsExperience,
+          busy: busy(a.id), capacity: a.maxConcurrentCustomers, available: busy(a.id) < a.maxConcurrentCustomers,
+        })),
+    };
+  },
+
+  "POST /api/assistant/tasks/:taskId/delegate": (ctx, p, body) => {
+    const me = assistantActor(ctx);
+    const task = ctx.store.data.conciergeTasks.find((t) => t.id === req(p, "taskId") && t.assistantId === me);
+    if (!task) throw notFound("Task");
+    if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
+
+    // Taking it back, before the runner has done anything about it.
+    if (body?.runnerId === null || body?.runnerId === "") {
+      ctx.store.update((db) => {
+        const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+        delete t.runnerId; delete t.runnerName;
+      });
+      return { runnerId: null };
+    }
+
+    const self = ctx.store.data.assistants.find((a) => a.id === me);
+    const runner = ctx.store.data.assistants.find((a) => a.id === String(body?.runnerId ?? ""));
+    if (!self || !runner) throw notFound("Runner");
+    const verdict = canDelegateTo(
+      { id: runner.id, role: runner.role, market: runner.market, maxConcurrentCustomers: runner.maxConcurrentCustomers, categories: runner.categories },
+      task,
+      {
+        assistantMarket: self.market, now: ctx.now(),
+        onRoster: (id, at) => { const a = ctx.store.data.assistants.find((x) => x.id === id); return Boolean(a && isOnRoster(a, at)); },
+        activeTasksFor: (id) => ctx.store.data.conciergeTasks.filter((t) => t.status === "in-progress" && t.id !== task.id && whoDoesTheWork(t) === id).length,
+      },
+    );
+    if (!verdict.ok) throw new HttpError(400, verdict.reason);
+
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === task.id)!;
+      t.runnerId = runner.id; t.runnerName = runner.name;
+    });
+    sendTexts(textTo(ctx.store.data, textKey("assistant", runner.id), "assistant-new-task"));
+    return { runnerId: runner.id, runnerName: runner.name };
   },
 
   "POST /api/assistant/tasks/:taskId/complete": (ctx, p, body) => {

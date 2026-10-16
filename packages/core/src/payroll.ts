@@ -76,7 +76,7 @@ export function earningsFor(tasks: ConciergeTask[], assistantId: string, period:
   const endMs = period.end.getTime();
   return tasks
     .filter((t): t is ConciergeTask & { completedAt: string } =>
-      t.assistantId === assistantId && t.status === "completed" && !t.payoutId && Boolean(t.completedAt))
+      (t.runnerId ?? t.assistantId) === assistantId && t.status === "completed" && !t.payoutId && Boolean(t.completedAt))
     .filter((t) => {
       const completedMs = new Date(t.completedAt).getTime();
       return completedMs >= startMs && completedMs < endMs;
@@ -97,7 +97,7 @@ export function totalEarningsCents(earnings: AssistantEarning[]): number {
  */
 export function unpaidEarningsCents(tasks: ConciergeTask[], assistantId: string): number {
   return tasks
-    .filter((t) => t.assistantId === assistantId && t.status === "completed" && !t.payoutId)
+    .filter((t) => (t.runnerId ?? t.assistantId) === assistantId && t.status === "completed" && !t.payoutId)
     .reduce((sum, t) => sum + t.assistantPayoutCents, 0);
 }
 

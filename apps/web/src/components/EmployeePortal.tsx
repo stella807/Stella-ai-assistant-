@@ -18,7 +18,7 @@ import { TextAlertsCard } from "./TextAlertsCard.tsx";
 
 import { dollars as moneyRound, money } from "../money.ts";
 
-type PortalTask = ConciergeTask & { requesterName: string };
+type PortalTask = ConciergeTask & { requesterName: string; role?: "runner" | "assistant"; handedOverBy?: string };
 
 /**
  * The employee portal — a distinct area of the app from the customer-facing
@@ -494,7 +494,11 @@ function TaskRow({ task, onOpen }: { task: PortalTask; onOpen: () => void }) {
             {conciergeCategoryLabel(task.category)}
             {task.priority && <span className="pill pill-safe" style={{ marginLeft: 6 }}>Priority</span>}
           </strong>
-          <div className="tiny muted">For {task.requesterName} · {task.note.slice(0, 60)}</div>
+          <div className="tiny muted">
+            For {task.requesterName} · {task.note.slice(0, 60)}
+            {task.role === "runner" && task.handedOverBy ? ` · sent by ${task.handedOverBy}` : ""}
+            {task.runnerName ? ` · with ${task.runnerName}` : ""}
+          </div>
         </div>
         <span className={`pill${task.status === "in-progress" ? " pill-safe" : ""}`}>{task.status}</span>
       </div>
@@ -717,6 +721,43 @@ function TaskCardPopup({ task, onClose, onChanged }: {
   );
 }
 
+/** An assistant hands the legwork to a runner; the client never sees this. */
+function RunnerPanel({ task, onChanged }: { task: PortalTask; onChanged: () => void }) {
+  const [runners, setRunners] = useState<{ id: string; name: string; busy: number; capacity: number; available: boolean }[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.assistantRunners().then((r) => setRunners(r.runners)).catch(() => setRunners([]));
+  }, [task.id, task.runnerId]);
+  const assign = async (runnerId: string | null) => {
+    setError(null);
+    try { await api.assistantDelegate(task.id, runnerId); onChanged(); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not hand that over"); }
+  };
+  if (task.role === "runner" || !runners) return null;
+  if (task.runnerId) {
+    return (
+      <section className="card card-quiet stack">
+        <strong className="small">With {task.runnerName ?? "a runner"}</strong>
+        <button className="btn btn-sm btn-ghost" onClick={() => assign(null)}>Take it back</button>
+        {error && <p className="tiny" role="alert">{error}</p>}
+      </section>
+    );
+  }
+  if (runners.length === 0) return null;
+  return (
+    <section className="card card-quiet stack">
+      <strong className="small">Send a runner</strong>
+      {runners.map((r) => (
+        <div key={r.id} className="row-between">
+          <span className="small">{r.name} <span className="tiny muted">{r.busy}/{r.capacity}</span></span>
+          <button className="btn btn-sm" disabled={!r.available} onClick={() => assign(r.id)}>Assign</button>
+        </div>
+      ))}
+      {error && <p className="tiny" role="alert">{error}</p>}
+    </section>
+  );
+}
+
 function TaskDetail({ task, onBack, onChanged, aiAssist }: {
   task: PortalTask; onBack: () => void; onChanged: () => void;
   aiAssist: { mode: "automatic" | "handoff" | "unavailable"; requires: string };
@@ -903,6 +944,8 @@ function TaskDetail({ task, onBack, onChanged, aiAssist }: {
       {showCard && task.card && (
         <TaskCardPopup task={task} onClose={() => setShowCard(false)} onChanged={onChanged} />
       )}
+
+      {task.status === "in-progress" && <RunnerPanel task={task} onChanged={onChanged} />}
 
       <section className="card stack">
         <div className="row-between">

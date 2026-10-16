@@ -594,7 +594,7 @@ export const api = {
    *  no token in the URL, unlike the old magic-link portal. */
   assistantPortal: () =>
     request<{
-      assistantId: string; mustChangePassword: boolean; tasks: (ConciergeTask & { requesterName: string })[];
+      assistantId: string; mustChangePassword: boolean; tasks: (ConciergeTask & { requesterName: string; role?: "runner" | "assistant"; handedOverBy?: string })[];
       unpaidEarningsCents: number; outstandingClawbackCents: number;
       aiAssist: { mode: "automatic" | "handoff" | "unavailable"; requires: string };
     }>("GET", "/api/assistant/portal"),
@@ -658,6 +658,11 @@ export const api = {
     }>("POST", `/api/assistant/tasks/${taskId}/card`, {}),
   assistantComplete: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
+  assistantRunners: () =>
+    request<{ runners: { id: string; name: string; busy: number; capacity: number; available: boolean }[] }>(
+      "GET", "/api/assistant/runners"),
+  assistantDelegate: (taskId: string, runnerId: string | null) =>
+    request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/delegate`, { runnerId }),
   assistantDecline: (taskId: string) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/decline`, {}),
   bookRide: (providerId: string, pickup: any, dropoff: any) =>

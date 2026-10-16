@@ -187,3 +187,17 @@ describe("outstandingClawbackCents", () => {
     expect(outstandingClawbackCents([])).toBe(0);
   });
 });
+
+describe("a task handed to an errand runner", () => {
+  const period = { start: new Date("2024-01-01T00:00:00.000Z"), end: new Date("2024-01-15T00:00:00.000Z") };
+  it("pays the runner who did the work, and not the assistant who handed it over", () => {
+    const handed = task({ runnerId: "runner1", runnerName: "Kit" });
+    expect(earningsFor([handed], "runner1", period)).toHaveLength(1);
+    expect(earningsFor([handed], "asst1", period)).toHaveLength(0);
+    expect(unpaidEarningsCents([handed], "runner1")).toBe(900);
+    expect(unpaidEarningsCents([handed], "asst1")).toBe(0);
+  });
+  it("still pays the assistant on a task they did themselves", () => {
+    expect(unpaidEarningsCents([task()], "asst1")).toBe(900);
+  });
+});

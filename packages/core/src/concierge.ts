@@ -821,6 +821,11 @@ export interface ConciergeTask {
   /** Their display name, from the partner network's own booking confirmation
    *  — kept so a reopened task can show who it is without a second lookup. */
   assistantName?: string;
+  /** Set when the assistant hands an errand to a runner — see delegation.ts.
+   *  The customer keeps dealing with `assistantId`; the runner does the legwork,
+   *  is paid for it, and answers for the receipts. */
+  runnerId?: string;
+  runnerName?: string;
   /** A selfie from each side, so each can confirm who they are meeting —
    *  see `validateIdentityPhoto`. Neither is required to book or to work a
    *  task; a missing one just means that side skipped it. */
