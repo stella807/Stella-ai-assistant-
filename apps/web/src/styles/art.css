@@ -36,3 +36,6 @@
 .assistant-name { font-size: 1.05rem; }
 .assistant-facts { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
 .assistant-fact { font-size: .72rem; padding: 3px 8px; border-radius: 999px; background: rgba(255, 181, 71, .14); border: 1px solid rgba(255, 181, 71, .3); }
+
+.plan-art:has(.plan-photo) { padding: 0; height: 130px; }
+.plan-photo { width: 100% !important; height: 100% !important; max-width: none !important; object-fit: cover; object-position: 30% 40%; animation: none !important; border-radius: inherit; }

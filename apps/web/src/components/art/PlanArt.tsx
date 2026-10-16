@@ -1,5 +1,5 @@
 import type { PlanId } from "@safehubby/core";
-import { AssistantArt, BourbonGlassArt, DeskArt, ErrandArt, ParachuteArt, RideArt, WingmanIcon } from "./Art.tsx";
+import { AssistantArt, DeskArt, ErrandArt, RideArt, WingmanIcon } from "./Art.tsx";
 
 /**
  * A picture for each plan, so the ladder reads as a ladder of experiences and
@@ -11,8 +11,8 @@ const ART: Partial<Record<PlanId, () => JSX.Element>> = {
   "premium-basic": () => <ErrandArt />,
   "premium-plus": () => <AssistantArt />,
   family: () => <DeskArt />,
-  elite: () => <BourbonGlassArt />,
-  "elite-signature": () => <ParachuteArt />,
+  elite: () => <img src="/img/jet.jpg" alt="" className="plan-photo" width={340} height={300} />,
+  "elite-signature": () => <img src="/img/jet.jpg" alt="" className="plan-photo" width={340} height={300} />,
   "elite-private": () => <WingmanIcon size={96} />,
 };
 
