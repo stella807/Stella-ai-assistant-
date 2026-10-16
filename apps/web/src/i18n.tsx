@@ -239,6 +239,7 @@ const EN = {
   "press.kit": "For interviews, logos, or screenshots, write to contact@safehubby.com.",
 
   "footer.paymentsAccepted": "Payments accepted",
+  "footer.paymentsVarious": "Various payment methods accepted",
   "footer.paymentsSecured": "Card details are handled by Stripe; PayPal payments by PayPal. Safehubby never sees or stores a full card number.",
 
   "billing.heading": "Payments",
@@ -515,6 +516,7 @@ const ES: Record<TranslationKey, string> = {
   "press.kit": "Para entrevistas, logotipos o capturas de pantalla, escribe a contact@safehubby.com.",
 
   "footer.paymentsAccepted": "Formas de pago aceptadas",
+  "footer.paymentsVarious": "Aceptamos varias formas de pago",
   "footer.paymentsSecured": "Los datos de la tarjeta los procesa Stripe; los pagos de PayPal, PayPal. Safehubby nunca ve ni almacena un número de tarjeta completo.",
 
   "billing.heading": "Pagos",

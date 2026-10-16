@@ -24,7 +24,7 @@ h3 { color: #f3e2b3; }
 .screen-cover > * { position: relative; }
 .screen-cover .badge { position: absolute; top: 14px; left: 14px; width: 48px; height: 48px; }
 .screen-cover h2 { font-size: 30px; text-shadow: 0 3px 20px rgba(0, 0, 0, .6); }
-.screen-cover-kicker { font: 600 11px system-ui; letter-spacing: .2em; text-transform: uppercase; color: #e6cf9d; }
+.screen-cover-kicker { font: 600 10.5px system-ui; letter-spacing: .14em; text-transform: uppercase; color: #e6cf9d; white-space: nowrap; }
 .screen-cover-sub { color: #e8dcc0; font-size: 14px; }
 .screen-cover-hero { background-image: url(/img/hero-luxury.jpg); }
 .screen-cover-jet { background-image: url(/img/jet.jpg); }
@@ -41,3 +41,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 14px; }
 .footer-links a, .footer-links .linklike { color: #e6cf9d; text-decoration: none; }
 .footer-portals { font-size: 12px; opacity: .75; }
+.footer-payments {
+  margin: 0; text-align: center; font: 600 10.5px system-ui; letter-spacing: .14em; text-transform: uppercase; color: #e6cf9d; white-space: nowrap;
+}
+.footer-payments::before, .footer-payments::after { content: "—"; margin: 0 10px; color: #c99a4c; }

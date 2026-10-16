@@ -50,6 +50,8 @@ export function Footer() {
         </p>
       )}
 
+      <p className="footer-payments">{t("footer.paymentsVarious")}</p>
+
       <p className="tiny muted" style={{ textAlign: "center" }}>
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}
       </p>
