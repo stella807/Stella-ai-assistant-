@@ -269,7 +269,10 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   // category already opens into — a named team is the thing Elite is
   // actually paying for, so routing them around it here would be odd.
   const eliteMember = isElitePlan(planId);
-  const useConfirmFlow = QUICK_TASK_CATEGORIES.includes(category) && !eliteMember;
+  // In the shared "Ask an assistant" grid everything is one box and one
+  // button: the assistant works out hours, place and the rest with you.
+  const simple = Boolean(extraTiles);
+  const useConfirmFlow = simple || (QUICK_TASK_CATEGORIES.includes(category) && !eliteMember);
   // Ceiling, step and presets all come from core: a booking that buys concert
   // tickets is funded differently from one that fetches a burger, and that is
   // a pricing rule, not a form detail.
@@ -357,6 +360,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       const res = await api.bookConcierge({
         category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask, errandTier: tier,
         assistantId: autoAssistant.id,
+        ...(hourly ? { hours: bookedHours } : {}),
+        ...(isAirportPickup ? { flight: { flightNumber: flightNumber.trim(), date: flightDate } } : {}),
         ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf: obAgreed } : {}),
       });
       onBooked(res.task);
@@ -617,7 +622,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {/* For a parent alone in a hospital, ordered for from another city. The
           place is words, not a pin — there is no geocoder yet — and the
           customer's own location plays no part. */}
-      <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
+      <label className={`row${simple ? " simple-hide" : ""}`} style={{ alignItems: "flex-start", gap: 8 }}>
         <input type="checkbox" checked={forSomeoneElse}
           onChange={(e) => { setForSomeoneElse(e.target.checked); setRoster(null); setObAgreed(false); }} />
         <span className="small"><strong>This is for someone else</strong> — a parent in a hospital, for example.</span>
@@ -670,8 +675,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       </div>
 
       <div className="field">
-        {!(placeSearchStatus && placeSearchStatus.mode !== "automatic") && <label htmlFor="concierge-place">Name a specific place (optional)</label>}
-        {selectedPlace ? (
+        {!simple && !(placeSearchStatus && placeSearchStatus.mode !== "automatic") && <label htmlFor="concierge-place">Name a specific place (optional)</label>}
+        {simple ? null : selectedPlace ? (
           <div className="row-between card card-quiet" style={{ padding: 8 }}>
             <div className="stack" style={{ gap: 2 }}>
               <strong className="small">{selectedPlace.name}</strong>
@@ -756,7 +761,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {/* Hours first, then the card. They are the two halves of an hourly
           booking and they are not the same kind of money — what you are
           paying the person, and what you are handing them to spend. */}
-      {hourly && (
+      {hourly && !simple && (
         <AmountStepper
           id="concierge-hours"
           label="How long do you need them?"
@@ -773,7 +778,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         />
       )}
 
-      <details className={quickEligible ? "cap-change" : "cap-change cap-open"} open={!quickEligible}>
+      {!simple && <details className={quickEligible ? "cap-change" : "cap-change cap-open"} open={!quickEligible}>
       {quickEligible && (
         <summary className="small">
           Up to {money(spendCapCents)} for what is bought · <span className="linklike">Change</span>
@@ -818,14 +823,14 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           </p>
         </div>
       )}
-      </details>
+      </details>}
 
       {/* What this costs, before agreeing to it rather than after.
           Everything here comes from the same core functions the server
           charges with, so the number shown is the number taken — the panel
           used to show the fee only once the task already existed, which
           meant picking a cap and finding out afterwards. */}
-      <div className="price-breakdown">
+      <div className={`price-breakdown${simple ? " simple-hide" : ""}`}>
         <div className="row-between">
           <span className="small">Service fee</span>
           <span className="small charge-amount">{feeIncluded ? "Included" : money(serviceFee)}</span>
@@ -884,7 +889,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           the customer is already looking at the screen that would send it. */}
       {useConfirmFlow && !confirming && (
         <button className="btn btn-block" disabled={busy || !note.trim() || covered === false || !onBehalfReady} onClick={startConfirm}>
-          Send request
+          {simple ? "Send it" : "Send request"}
         </button>
       )}
 
