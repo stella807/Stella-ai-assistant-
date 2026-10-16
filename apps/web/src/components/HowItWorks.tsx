@@ -5,7 +5,7 @@ import {
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { money } from "../money.ts";
-import { AssistantArt, DeskArt, ErrandArt, RideArt, WingmanIcon } from "./art/Art.tsx";
+import { AssistantArt, DeskArt, ErrandArt, RideArt } from "./art/Art.tsx";
 import { PlanArt } from "./art/PlanArt.tsx";
 
 interface CatalogPlan { id: string; name: string; monthlyCents: number; annualCents: number; blurb: string; seats: number }
@@ -76,9 +76,6 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
           <div className="card portal-card"><div className="how-art"><DeskArt /></div>
             <strong>The owner's and secretary's portal</strong>
             <p className="small muted">Hiring, payroll, prices and the access log. A secretary sees only the parts the owner opens to them, and everything done there is recorded.</p></div>
-          <div className="card portal-card"><div className="how-art"><WingmanIcon size={64} /></div>
-            <strong>The Wingman Club</strong>
-            <p className="small muted">One experience a month, arranged for the whole club — cigars, bourbon, the track, the sky.</p></div>
         </div>
       </section>
     </div>

@@ -5,7 +5,7 @@ import {
   releasedPlans,
 } from "@safehubby/core";
 import {
-  CONTACT_EMAIL, ERRAND_RUNNERS_HIRING, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, clubDuesRangeCents, clubExperiences, featuredPlans,
+  CONTACT_EMAIL, ERRAND_RUNNERS_HIRING, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, featuredPlans,
   formatPhone, mailtoHref, money, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { HEADERS, STYLESHEET, THEME, obfuscate, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
@@ -130,22 +130,9 @@ describe("the marketing site", () => {
     }
   });
 
-  it("sells the Wingman Club as an add-on, with dues that move with the pick", () => {
-    // Dues are a flat base plus that month's experience at cost, so the page
-    // has to show the span rather than one number that is wrong most months.
-    const { base, low, high } = clubDuesRangeCents();
-    expect(low).toBeLessThan(high);
+  it("never mentions the Wingman Club: it is by invitation, not advertised", () => {
     for (const lang of LANGS) {
-      expect(pages[lang], `club dues base in ${lang}`).toContain(money(base));
-      expect(pages[lang], `club dues low in ${lang}`).toContain(money(low));
-      expect(pages[lang], `club dues high in ${lang}`).toContain(money(high));
-      // And the rotation itself, so nobody has to guess what they joined for.
-      // Compared as the page renders them: "Steak & cigar night" is escaped
-      // on the way out, which is the behaviour we want rather than a miss.
-      const asRendered = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-      for (const label of clubExperiences()) {
-        expect(pages[lang], `${label} in ${lang}`).toContain(asRendered(label));
-      }
+      expect(pages[lang], lang).not.toMatch(/wingman/i);
     }
   });
 

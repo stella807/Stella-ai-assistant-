@@ -1,5 +1,5 @@
 import {
-  APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, clubDuesRangeCents, clubExperiences, errandTierRows,
+  APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, errandTierRows,
   featuredPlans, mailtoHref, money, startingPriceCents, whatsappHref,
   whatsappLabel, type Lang,
 } from "./content.ts";
@@ -207,21 +207,6 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
     <p class="more-plans">${esc(c.morePlans)}</p>
     <p class="note">${esc(c.pricingNote)}</p>
 
-    <!-- An add-on rather than a rung: it sits on top of whatever plan
-         somebody is already on, so it is its own card below the ladder
-         instead of an eighth tile in it. -->
-    <aside class="club">
-      <h3>${esc(c.clubHeading)}</h3>
-      <p class="club-dues">${esc(
-        c.clubDues
-          .replace("{base}", money(clubDuesRangeCents().base))
-          .replace("{low}", money(clubDuesRangeCents().low))
-          .replace("{high}", money(clubDuesRangeCents().high)),
-      )}</p>
-      <p>${esc(c.clubBody)}</p>
-      <p class="club-rotation"><strong>${esc(c.clubRotation)}</strong> ${esc(clubExperiences().join(" · "))}</p>
-      <p class="small club-perk">${esc(c.clubPerk)}</p>
-    </aside>
   </section>
 
   <section class="bleed bleed-accent">

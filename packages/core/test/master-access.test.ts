@@ -10,9 +10,18 @@ const account = (over: Partial<MasterAccount> = {}): MasterAccount => ({
   createdAt: now.toISOString(), ...over,
 });
 
+describe("the club assistant", () => {
+  it("can run the club and see the business, but never touch money", () => {
+    expect(scopesFor("club-assistant").sort()).toEqual(["club", "customers", "operations"]);
+  });
+  it("is not given the club by being a secretary", () => {
+    expect(scopesFor("secretary")).not.toContain("club");
+  });
+});
+
 describe("what each master role can reach", () => {
   it("gives the owner everything operational, plus money and write", () => {
-    expect(scopesFor("owner").sort()).toEqual(["customers", "money", "operations", "write"]);
+    expect(scopesFor("owner").sort()).toEqual(["club", "customers", "money", "operations", "write"]);
   });
 
   it("gives the secretary the office, and not the money", () => {

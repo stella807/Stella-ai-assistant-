@@ -27,7 +27,8 @@ export function WingmanClub() {
   const load = () => api.clubStatus().then(setStatus).catch(() => {});
   useEffect(() => { void load(); }, []);
 
-  if (!status) return null;
+  // By invitation: anyone not invited never sees that the club exists.
+  if (!status || !status.invited) return null;
 
   const toggle = async () => {
     setBusy(true);
@@ -121,6 +122,36 @@ export function WingmanClub() {
       </button>
 
       {error && <div className="banner banner-danger" style={{ marginTop: 12 }}>{error}</div>}
+      {status.isMember && <ClubAsk />}
     </section>
+  );
+}
+
+/** A member asks the club assistant for anything; the answer comes back here. */
+function ClubAsk() {
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof api.clubRequests>>["requests"]>([]);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const load = () => api.clubRequests().then((r) => setRows(r.requests)).catch(() => {});
+  useEffect(() => { void load(); }, []);
+  const send = async () => {
+    setError(null);
+    try { await api.askClub(note); setNote(""); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not send that"); }
+  };
+  return (
+    <div className="stack" style={{ marginTop: 16 }}>
+      <div className="wm-rot-title">Your club assistant</div>
+      <textarea aria-label="Ask your club assistant" rows={2} value={note} placeholder="A table for six, a car to the track…"
+        onChange={(e) => setNote(e.target.value)} />
+      <button className="wm-cta" disabled={!note.trim()} onClick={send}>Ask</button>
+      {error && <div className="banner banner-danger">{error}</div>}
+      {rows.map((r) => (
+        <div key={r.id} className="small">
+          {r.note} <span className="tiny muted">· {r.status}</span>
+          {r.reply && <div className="tiny muted">{r.reply}</div>}
+        </div>
+      ))}
+    </div>
   );
 }

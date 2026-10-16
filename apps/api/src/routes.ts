@@ -889,6 +889,14 @@ function requireElite(ctx: Ctx): void {
 /** The signed-in master account for this request, or null — resolved from
  *  `ctx.masterActorId`, which the server layer already checked against a
  *  live, unexpired session. */
+/** The owner, or the owner's club assistant — nobody else runs the club. */
+function clubAccount(ctx: Ctx): MasterAccount {
+  const account = masterAccountOf(ctx);
+  const now = ctx.now();
+  if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "club", now)) throw unauthorized();
+  return account;
+}
+
 function masterAccountOf(ctx: Ctx): MasterAccount | null {
   if (!ctx.masterActorId) return null;
   return ctx.store.data.masterAccounts.find((a) => a.id === ctx.masterActorId) ?? null;
@@ -3130,6 +3138,7 @@ export const routes: Record<string, Handler> = {
     const pick = pickMonthlyExperience(ctx.now());
     return {
       isMember: Boolean(traveler.clubMember),
+      invited: Boolean(traveler.clubInvited || traveler.clubMember || isElitePlan(traveler.planId as PlanId)),
       memberCount,
       breakEvenMembers: minMembersForOverhead(),
       overheadCovered: overheadCovered(memberCount),
@@ -3151,11 +3160,89 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/club/join": (ctx) => {
     const me = actor(ctx);
+    const self = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!self) throw notFound("Traveler");
+    if (!self.clubInvited && !self.clubMember && !isElitePlan(self.planId as PlanId)) {
+      throw new HttpError(403, "The Wingman Club is by invitation only.");
+    }
     ctx.store.update((db) => {
       const traveler = db.travelers.find((t) => t.id === me);
       if (traveler) traveler.clubMember = true;
     });
     return { isMember: true };
+  },
+
+  "GET /api/club/requests": (ctx) => {
+    const me = actor(ctx);
+    return { requests: (ctx.store.data.clubRequests ?? []).filter((r) => r.travelerId === me) };
+  },
+
+  "POST /api/club/requests": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const self = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!self?.clubMember) throw new HttpError(403, "Only club members can ask the club assistant.");
+    const note = String(body?.note ?? "").trim().slice(0, 1000);
+    if (!note) throw new HttpError(400, "Tell the club assistant what you would like arranged.");
+    const at = ctx.now().toISOString();
+    const request = { id: newId("clb"), travelerId: me, note, status: "open" as const, createdAt: at, updatedAt: at };
+    ctx.store.update((db) => { (db.clubRequests ??= []).push(request); });
+    return { request };
+  },
+
+  /* The club assistant: the owner's own assistant for the club. Invites
+     people, arranges what members ask for, and keeps the owner posted. */
+  "GET /api/master/club/desk": (ctx) => {
+    const account = clubAccount(ctx);
+    const now = ctx.now();
+    const weekAgo = now.getTime() - 7 * 24 * 3600 * 1000;
+    const db = ctx.store.data;
+    const requests = db.clubRequests ?? [];
+    return {
+      account: { name: account.name, role: account.role },
+      members: db.travelers.filter((t) => t.clubMember).map((t) => ({ id: t.id, name: t.displayName, email: t.email })),
+      invitable: db.travelers.filter((t) => !t.clubMember).map((t) => ({
+        id: t.id, name: t.displayName, email: t.email, invited: Boolean(t.clubInvited),
+      })),
+      thisMonth: pickMonthlyExperience(now),
+      requests: requests.map((r) => ({ ...r, memberName: nameOf(ctx, r.travelerId) })),
+      // What the owner is told: the shape of the business in a handful of numbers.
+      update: {
+        customers: db.travelers.length,
+        clubMembers: db.travelers.filter((t) => t.clubMember).length,
+        clubInvited: db.travelers.filter((t) => t.clubInvited && !t.clubMember).length,
+        openClubRequests: requests.filter((r) => r.status === "open").length,
+        tasksInProgress: db.conciergeTasks.filter((t) => t.status === "in-progress").length,
+        tasksDoneThisWeek: db.conciergeTasks.filter(
+          (t) => t.status === "completed" && new Date(t.completedAt ?? t.createdAt).getTime() >= weekAgo).length,
+        pickupsWaiting: db.pickupRequests.filter((r) => r.status === "requested").length,
+      },
+    };
+  },
+
+  "POST /api/master/club/invite": (ctx, _p, body) => {
+    clubAccount(ctx);
+    const id = String(body?.travelerId ?? "");
+    const invited = body?.invited !== false;
+    if (!ctx.store.data.travelers.some((t) => t.id === id)) throw notFound("Customer");
+    ctx.store.update((db) => {
+      const t = db.travelers.find((x) => x.id === id);
+      if (t) t.clubInvited = invited;
+    });
+    return { travelerId: id, invited };
+  },
+
+  "POST /api/master/club/requests/:id": (ctx, p, body) => {
+    clubAccount(ctx);
+    const id = req(p, "id");
+    const status = body?.status === "declined" ? "declined" : "arranged";
+    const reply = String(body?.reply ?? "").trim().slice(0, 1000) || undefined;
+    const found = (ctx.store.data.clubRequests ?? []).find((r) => r.id === id);
+    if (!found) throw notFound("Request");
+    ctx.store.update((db) => {
+      const r = (db.clubRequests ?? []).find((x) => x.id === id);
+      if (r) { r.status = status; r.reply = reply; r.updatedAt = ctx.now().toISOString(); }
+    });
+    return { ok: true };
   },
 
   "POST /api/club/leave": (ctx) => {
@@ -3339,10 +3426,11 @@ export const routes: Record<string, Handler> = {
     requireAdmin(ctx, "write");
     const name = String(body?.name ?? "").trim();
     const email = normalizeEmail(body?.email);
-    const role = body?.role === "secretary" ? "secretary" : body?.role === "owner" ? "owner" : null;
+    const role = body?.role === "secretary" ? "secretary" : body?.role === "owner" ? "owner"
+      : body?.role === "club-assistant" ? "club-assistant" : null;
     if (!name) throw new HttpError(400, "Name the person this account belongs to.");
     if (!email) throw new HttpError(400, "Enter a valid email address.");
-    if (!role) throw new HttpError(400, 'Role must be "owner" or "secretary".');
+    if (!role) throw new HttpError(400, 'Role must be "owner", "secretary" or "club-assistant".');
 
     const account: MasterAccount = { id: newId("mst"), role, name, email, createdAt: ctx.now().toISOString() };
     const key = newSessionToken();

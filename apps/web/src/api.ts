@@ -537,6 +537,7 @@ export const api = {
     request<{ isGoing: boolean; rsvpCount: number }>("POST", `/api/elite/events/${eventId}/cancel`, {}),
   clubStatus: () => request<{
     isMember: boolean;
+    invited: boolean;
     memberCount: number;
     breakEvenMembers: number;
     overheadCovered: boolean;
@@ -549,6 +550,13 @@ export const api = {
       duesCents: number;
     };
   }>("GET", "/api/club/status"),
+  clubRequests: () => request<{ requests: ClubRequestRow[] }>("GET", "/api/club/requests"),
+  askClub: (note: string) => request<{ request: ClubRequestRow }>("POST", "/api/club/requests", { note }),
+  clubDesk: () => request<ClubDesk>("GET", "/api/master/club/desk"),
+  clubInvite: (travelerId: string, invited: boolean) =>
+    request<{ invited: boolean }>("POST", "/api/master/club/invite", { travelerId, invited }),
+  clubArrange: (id: string, status: "arranged" | "declined", reply: string) =>
+    request<{ ok: true }>("POST", `/api/master/club/requests/${id}`, { status, reply }),
   joinClub: () => request<{ isMember: boolean }>("POST", "/api/club/join", {}),
   leaveClub: () => request<{ isMember: boolean }>("POST", "/api/club/leave", {}),
   completeConcierge: (taskId: string, billedCents?: number) =>
@@ -779,7 +787,7 @@ export const api = {
    * the traveler one; an owner's own session can list and revoke accounts
    * too (see `requireAdmin`'s dual gate), which is what the dashboard uses.
    */
-  masterCreateAccount: (adminKey: string, input: { name: string; email: string; role: "owner" | "secretary" }) =>
+  masterCreateAccount: (adminKey: string, input: { name: string; email: string; role: "owner" | "secretary" | "club-assistant" }) =>
     request<{ account: MasterAccount; key: string }>(
       "POST", "/api/admin/master-accounts", input, { "x-admin-key": adminKey }),
   masterListAccountsWithAdminKey: (adminKey: string) =>
@@ -789,7 +797,7 @@ export const api = {
   masterListAccounts: () => request<MasterAccountRow[]>("GET", "/api/admin/master-accounts"),
   masterRevokeAccount: (id: string) => request<MasterAccount>("POST", `/api/admin/master-accounts/${id}/revoke`, {}),
   masterLogin: (key: string) =>
-    request<{ accountId: string; name: string; role: "owner" | "secretary" }>(
+    request<{ accountId: string; name: string; role: "owner" | "secretary" | "club-assistant" }>(
       "POST", "/api/master/auth/login", { key }),
   masterLogout: () => request<{ ok: true }>("POST", "/api/master/auth/logout", {}),
   masterOverview: () => request<MasterOverview>("GET", "/api/master/overview"),
@@ -823,13 +831,30 @@ export const api = {
     request<any>("POST", "/api/master/payroll/process", { period }),
 };
 
+export interface ClubRequestRow {
+  id: string; travelerId: string; note: string; status: "open" | "arranged" | "declined";
+  reply?: string; createdAt: string; updatedAt: string;
+}
+
+export interface ClubDesk {
+  account: { name: string; role: string };
+  members: { id: string; name: string; email: string }[];
+  invitable: { id: string; name: string; email: string; invited: boolean }[];
+  thisMonth: { label: string; id: string };
+  requests: (ClubRequestRow & { memberName: string })[];
+  update: {
+    customers: number; clubMembers: number; clubInvited: number; openClubRequests: number;
+    tasksInProgress: number; tasksDoneThisWeek: number; pickupsWaiting: number;
+  };
+}
+
 export type MasterAccountRow = MasterAccount & { scopes: string[]; active: boolean };
 
 /** Present only when the signed-in role's scopes include it — see
  *  `GET /api/master/overview` in routes.ts. A missing key means "you can't
  *  see this," never "there is nothing here." */
 export interface MasterOverview {
-  account: { id: string; name: string; role: "owner" | "secretary" };
+  account: { id: string; name: string; role: "owner" | "secretary" | "club-assistant" };
   scopes: string[];
   generatedAt: string;
   customers?: { id: string; name: string; email: string; planId: string; clubMember: boolean }[];

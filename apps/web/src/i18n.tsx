@@ -30,7 +30,7 @@ const EN = {
   "nav.hiring": "Help",
   "nav.about": "About",
 
-  "lux.eyebrow": "Assistants · Errands · The Club",
+  "lux.eyebrow": "Assistants · Errands · Rides",
   "lux.title1": "Someone you trust,",
   "lux.title2": "wherever they're needed.",
   "lux.sub": "A personal assistant for the people you love, and for the evenings you want done right. You set the limit; you are never charged past it.",
@@ -304,7 +304,7 @@ const ES: Record<TranslationKey, string> = {
   "nav.hiring": "Ayuda",
   "nav.about": "Acerca de",
 
-  "lux.eyebrow": "Asistentes · Mandados · El Club",
+  "lux.eyebrow": "Asistentes · Mandados · Viajes",
   "lux.title1": "Alguien de confianza,",
   "lux.title2": "donde más lo necesitas.",
   "lux.sub": "Un asistente personal para quienes quieres, y para las noches que quieres bien hechas. Tú pones el límite; nunca se cobra de más.",

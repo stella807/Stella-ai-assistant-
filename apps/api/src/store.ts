@@ -74,6 +74,19 @@ export interface Traveler {
    * count rather than a hypothetical one, not to pretend dues are collected.
    */
   clubMember?: boolean;
+  /** The club is by invitation: nobody can join without one (Elite carries it). */
+  clubInvited?: boolean;
+}
+
+export interface ClubRequest {
+  id: string;
+  travelerId: string;
+  note: string;
+  status: "open" | "arranged" | "declined";
+  /** What the club assistant tells the member back. */
+  reply?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Session {
@@ -189,6 +202,7 @@ export interface Db {
   /** Requests to be picked up by a driver Safehubby actually hired — see
    *  ride-coordination.ts. Replaces the old Uber/Lyft hand-off entirely. */
   pickupRequests: PickupRequest[];
+  clubRequests?: ClubRequest[];
   referrals: Referral[];
   voiceMessages: VoiceMessage[];
   /** Typed messages on a task's thread. Sealed at rest alongside the voice

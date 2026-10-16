@@ -7,7 +7,7 @@ import { GetHomePanel } from "./GetHomePanel.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
 import { WingmanIcon } from "./art/Art.tsx";
 import { currentFix, type Fix } from "../native/location.ts";
-import type { Account } from "../api.ts";
+import { api, type Account } from "../api.ts";
 
 /**
  * Hiring someone, split into the two things people actually come here for.
@@ -76,7 +76,10 @@ const ELITE_TAB: { id: HiringTab; label: string; blurb: string } = {
 export function HiringScreen({ account, initialTab }: { account: Account; initialTab?: HiringTab }) {
   const planId = account.planId as PlanId;
   const onElite = isElitePlan(planId);
-  const tabs = onElite ? [...TABS, ELITE_TAB] : TABS;
+  const [clubInvited, setClubInvited] = useState(false);
+  useEffect(() => { api.clubStatus().then((s) => setClubInvited(s.invited)).catch(() => {}); }, []);
+  const visible = clubInvited ? TABS : TABS.filter((t) => t.id !== "club");
+  const tabs = onElite ? [...visible, ELITE_TAB] : visible;
 
   // Open on something this plan can actually use. This used to open on the
   // desk tab unconditionally, on the reasoning that it is what most members

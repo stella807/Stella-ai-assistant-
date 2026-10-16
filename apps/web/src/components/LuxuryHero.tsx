@@ -23,7 +23,6 @@ export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrice
     { icon: Icons.errand, label: t("lux.d2"), text: t("lux.d2t") },
     { icon: Icons.ride, label: t("lux.d3"), text: t("lux.d3t") },
     { icon: Icons.desk, label: t("lux.d4"), text: t("lux.d4t") },
-    { icon: Icons.club, label: t("lux.d5"), text: t("lux.d5t") },
     { icon: Icons.safety, label: t("lux.d6"), text: t("lux.d6t") },
   ];
   return (

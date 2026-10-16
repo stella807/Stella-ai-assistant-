@@ -28,7 +28,9 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
 }) {
   const planId = account.planId as PlanId;
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
+  const [clubInvited, setClubInvited] = useState(false);
   useEffect(() => {
+    api.clubStatus().then((s) => setClubInvited(s.invited)).catch(() => {});
     api.conciergeTasks().then((r) => setTasks(r.tasks)).catch(() => {});
   }, []);
 
@@ -63,12 +65,12 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
         </div>
       ) : null}
 
-      <button className="home-club" onClick={() => onOpenHelp("club")}
+      {clubInvited && <button className="home-club" onClick={() => onOpenHelp("club")}
         style={{ backgroundImage: "linear-gradient(90deg, rgba(10,14,26,.9) 30%, rgba(10,14,26,.2)), url(/img/wingman-bourbon-cigar.jpg)" }}>
         <WingmanIcon size={36} />
         <strong>Wingman Club</strong>
-        <span className="tiny">Cigars, bourbon, the track — arranged for you.</span>
-      </button>
+        <span className="tiny">By invitation — cigars, bourbon, the track.</span>
+      </button>}
       <button className="linklike tiny" style={{ alignSelf: "center" }} onClick={onOpenHow}>How it works</button>
 
       {!actions.some((a) => a.id === "assistant" || a.id === "errand") && (

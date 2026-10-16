@@ -5201,7 +5201,52 @@ describe("desk tasks — the assistant's job that does not need feet", () => {
   });
 });
 
+describe("the Wingman Club is by invitation, run by the club assistant", () => {
+  useAdminKey();
+  const keyed = async (role: string, email: string) => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", { name: "Club Desk", email, role });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    return { Cookie: `sh_master_session=${token}` };
+  };
+
+  it("refuses an uninvited customer, and welcomes one who was invited", async () => {
+    expect((await call("GET", "/api/club/status", undefined, sam)).json.invited).toBe(false);
+    expect((await call("POST", "/api/club/join", {}, sam)).status).toBe(403);
+    const desk = await keyed("club-assistant", "club@example.com");
+    expect((await call("POST", "/api/master/club/invite", { travelerId: samId }, null, desk)).status).toBe(200);
+    expect((await call("GET", "/api/club/status", undefined, sam)).json.invited).toBe(true);
+    expect((await call("POST", "/api/club/join", {}, sam)).status).toBe(200);
+  });
+
+  it("keeps the club desk away from a secretary", async () => {
+    const sec = await keyed("secretary", "sec@example.com");
+    expect((await call("GET", "/api/master/club/desk", undefined, null, sec)).status).toBe(401);
+    expect((await call("POST", "/api/master/club/invite", { travelerId: samId }, null, sec)).status).toBe(401);
+  });
+
+  it("lets a member ask, the assistant arrange, and the member see the answer", async () => {
+    const desk = await keyed("club-assistant", "club2@example.com");
+    await call("POST", "/api/master/club/invite", { travelerId: samId }, null, desk);
+    expect((await call("POST", "/api/club/requests", { note: "a table for six" }, sam)).status).toBe(403);
+    await call("POST", "/api/club/join", {}, sam);
+    const made = await call("POST", "/api/club/requests", { note: "a table for six" }, sam);
+    expect(made.status).toBe(200);
+    const seen = await call("GET", "/api/master/club/desk", undefined, null, desk);
+    expect(seen.json.update.openClubRequests).toBe(1);
+    expect(seen.json.requests[0].memberName).toBeTruthy();
+    await call("POST", `/api/master/club/requests/${made.json.request.id}`, { reply: "Booked for 8pm" }, null, desk);
+    const mine = await call("GET", "/api/club/requests", undefined, sam);
+    expect(mine.json.requests[0]).toMatchObject({ status: "arranged", reply: "Booked for 8pm" });
+    expect((await call("GET", "/api/club/requests", undefined, jordan)).json.requests).toEqual([]);
+  });
+});
+
 describe("the Wingman Club — modeled economics, no billing wired to it yet", () => {
+  beforeEach(() => {
+    for (const t of store.data.travelers) t.clubInvited = true;
+  });
+
   it("starts everyone out not a member, and reports the live roster count", async () => {
     const res = await call("GET", "/api/club/status", undefined, sam);
     expect(res.status).toBe(200);

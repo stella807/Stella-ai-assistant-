@@ -1,3 +1,4 @@
+import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
@@ -172,7 +173,7 @@ function BootstrapPanel() {
   const [adminKey, setAdminKey] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"owner" | "secretary">("owner");
+  const [role, setRole] = useState<"owner" | "secretary" | "club-assistant">("owner");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [issued, setIssued] = useState<{ name: string; role: string; key: string } | null>(null);
@@ -249,9 +250,10 @@ function BootstrapPanel() {
       </div>
       <div className="field">
         <label htmlFor="mst-role">Role</label>
-        <select id="mst-role" value={role} onChange={(e) => setRole(e.target.value as "owner" | "secretary")}>
+        <select id="mst-role" value={role} onChange={(e) => setRole(e.target.value as "owner" | "secretary" | "club-assistant")}>
           <option value="owner">Owner — everything, including money and write</option>
           <option value="secretary">Secretary — everything operational, read-only, no money</option>
+          <option value="club-assistant">Club assistant — runs the Wingman Club and keeps the owner posted</option>
         </select>
       </div>
       <button className="btn btn-primary btn-block" disabled={busy || !adminKey.trim() || !name.trim() || !email.trim()}
@@ -289,13 +291,17 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         <div className="stack" style={{ gap: 2 }}>
           <strong className="small">{overview.account.name}</strong>
           <span className="tiny muted">
-            {overview.account.role === "owner" ? "Owner — everything, including money and write" : "Secretary — everything operational, read-only"}
+            {overview.account.role === "owner" ? "Owner — everything, including money and write"
+              : overview.account.role === "club-assistant" ? "Club assistant — the club, and how the business is doing"
+              : "Secretary — everything operational, read-only"}
           </span>
         </div>
         <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onRefresh}>Refresh</button>
       </div>
 
       {overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
+
+      {overview.scopes.includes("club") && <ClubDeskSection />}
 
       {overview.customers && <CustomersSection customers={overview.customers} />}
       {overview.operations && (

@@ -25,7 +25,7 @@ import type { Iso8601 } from "./types.ts";
  * 1am.
  */
 
-export type MasterRole = "owner" | "secretary";
+export type MasterRole = "owner" | "secretary" | "club-assistant";
 
 export type MasterScope =
   /** Customers, their plans and their subscription state. */
@@ -36,12 +36,18 @@ export type MasterScope =
   | "money"
   /** Change things, rather than only look at them. */
   | "write"
+  /** Invite people to the Wingman Club and arrange things for its members. */
+  | "club"
   /** The decrypted contents of a task's message thread. */
   | "message-contents";
 
 const SCOPES: Record<MasterRole, MasterScope[]> = {
-  owner: ["customers", "operations", "money", "write"],
+  owner: ["customers", "operations", "money", "write", "club"],
   secretary: ["customers", "operations"],
+  // The owner's personal assistant for the club: sees who is who and what is
+  // going on so it can keep the owner posted, arranges for members, and has
+  // no money and no general write.
+  "club-assistant": ["customers", "operations", "club"],
 };
 
 /**
