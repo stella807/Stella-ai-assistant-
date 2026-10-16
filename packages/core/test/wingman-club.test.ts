@@ -126,3 +126,17 @@ describe("disclosures", () => {
     expect(CLUB_DISCLOSURES.join(" ")).toMatch(/cigar and drink/i);
   });
 });
+
+describe("the rotation", () => {
+  it("includes a track day and a cigar night", () => {
+    const ids = CLUB_EXPERIENCES.map((e) => e.id);
+    expect(ids).toContain("track-day");
+    expect(ids).toContain("cigar-night");
+  });
+  it("prices the cigar night inside the 60-65% negotiated range the catalog is built on", () => {
+    const e = findClubExperience("cigar-night");
+    const ratio = e.negotiatedPerPersonCents / e.retailPerPersonCents;
+    expect(ratio).toBeGreaterThanOrEqual(0.6);
+    expect(ratio).toBeLessThanOrEqual(0.65);
+  });
+});

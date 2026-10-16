@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CLUB_EXPERIENCES, duesForCents } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
@@ -75,6 +76,20 @@ export function WingmanClub() {
                 .replace("{rate}", money(thisMonth.experience.negotiatedPerPersonCents))
                 .replace("{retail}", money(thisMonth.experience.retailPerPersonCents))}
             </p>
+          </div>
+
+          <div className="stack" style={{ gap: 4 }}>
+            <strong className="tiny" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--accent-bright)" }}>
+              {t("wingman.comingUp")}
+            </strong>
+            <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0, gap: 4 }}>
+              {CLUB_EXPERIENCES.map((e) => (
+                <li key={e.id} className="row-between tiny">
+                  <span>{e.emoji} {e.label}</span>
+                  <span className="muted">{money(duesForCents(e))}</span>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {status.duesCoveredBySafehubby && (

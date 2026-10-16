@@ -71,6 +71,7 @@ export const CLUB_EXPERIENCES: ClubExperience[] = [
   { id: "skydiving", label: "Skydiving", emoji: "🪂", retailPerPersonCents: 30000, negotiatedPerPersonCents: 19500 },
   { id: "boat-day", label: "Boat day", emoji: "🛥️", retailPerPersonCents: 20000, negotiatedPerPersonCents: 13000 },
   { id: "steak-cigar-night", label: "Steak & cigar night", emoji: "🥩", retailPerPersonCents: 15000, negotiatedPerPersonCents: 9500 },
+  { id: "cigar-night", label: "Cigar night", emoji: "🚬", retailPerPersonCents: 9500, negotiatedPerPersonCents: 6000 },
   { id: "motorcycle-tour", label: "Motorcycle tour", emoji: "🏍️", retailPerPersonCents: 22000, negotiatedPerPersonCents: 14000 },
   { id: "deep-sea-fishing", label: "Deep-sea fishing", emoji: "🎣", retailPerPersonCents: 25000, negotiatedPerPersonCents: 16000 },
   { id: "golf", label: "Golf outing", emoji: "🏌️", retailPerPersonCents: 12000, negotiatedPerPersonCents: 8000 },
