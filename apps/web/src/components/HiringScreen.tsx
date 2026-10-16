@@ -38,11 +38,6 @@ const TABS: { id: HiringTab; label: string; blurb: string }[] = [
     blurb: "A personal assistant: wait with a friend who should not be alone, check on someone in person, or book and buy something for you — tickets, a hotel, a table — on a card funded from your account.",
   },
   {
-    id: "errand",
-    label: "Errands",
-    blurb: "Something short and specific — grab one thing, run one errand. You set the spend cap and you are only charged for what is spent.",
-  },
-  {
     id: "desk",
     label: "Handle a task",
     blurb: "Appointments, reminders, emails, admin — the half of the job that happens at a desk. Included in your plan, with nothing to set and nothing to agree to.",
@@ -90,7 +85,7 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
   const firstUsable = tabs.find((t) => {
     const feature = TAB_FEATURE[t.id];
     return !feature || hasFeature(planId, feature);
-  })?.id ?? "errand";
+  })?.id ?? "ride";
   const [kind, setKind] = useState<HiringTab>(initialTab ?? firstUsable);
 
   // Fetched once a ride is actually asked for, not on every visit to this

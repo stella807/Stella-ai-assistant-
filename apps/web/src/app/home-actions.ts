@@ -24,11 +24,6 @@ const ALL_ACTIONS: HomeAction[] = [
     hint: "Stay with someone, check on them, or book and buy something for you.",
   },
   {
-    id: "errand", tab: "errand", feature: "quick-tasks",
-    title: "Bring me something",
-    hint: "A juice, a charger, a blanket — brought to your door or your room.",
-  },
-  {
     id: "ride", tab: "ride", feature: "ride-booking",
     title: "Get a ride",
     hint: "We book it and tell you the price before it is confirmed.",
@@ -47,7 +42,10 @@ export function homeActions(planId: PlanId): HomeAction[] {
 
 /** The Help tab a running task belongs to, so "open it" lands where it lives. */
 export function helpTabFor(category: ConciergeCategory): HiringTab {
-  return category === "grab-something" || category === "run-errand" ? "errand" : "concierge";
+  // Errands no longer have their own tab — your assistant takes them and
+  // sends a runner — so every request opens in the same place.
+  void category;
+  return "concierge";
 }
 
 /** Requests still happening, newest first. */

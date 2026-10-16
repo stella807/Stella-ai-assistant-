@@ -12,8 +12,11 @@ describe("what the home screen offers", () => {
   it("leads with sending an assistant, because that is the service the launch rests on", () => {
     const ids = homeActions("premium-basic").map((a) => a.id);
     expect(ids[0]).toBe("assistant");
-    expect(ids).toContain("errand");
     expect(ids).toContain("ride");
+  });
+
+  it("has no errands door: errands are asked of your assistant, who sends a runner", () => {
+    expect(homeActions("premium-basic").map((a) => a.id)).not.toContain("errand");
   });
 
   it("offers only what the plan can actually use, never a padlock", () => {
@@ -27,13 +30,12 @@ describe("what the home screen offers", () => {
 
   it("opens the Help tab that does the thing", () => {
     expect(homeActions("premium-basic").find((a) => a.id === "assistant")!.tab).toBe("concierge");
-    expect(homeActions("premium-basic").find((a) => a.id === "errand")!.tab).toBe("errand");
     expect(homeActions("premium-basic").find((a) => a.id === "ride")!.tab).toBe("ride");
   });
 
-  it("sends a running task back to the tab it was booked in", () => {
-    expect(helpTabFor("grab-something")).toBe("errand");
-    expect(helpTabFor("run-errand")).toBe("errand");
+  it("opens every running task, errands included, with your assistant", () => {
+    expect(helpTabFor("grab-something")).toBe("concierge");
+    expect(helpTabFor("run-errand")).toBe("concierge");
     expect(helpTabFor("wait-with-someone")).toBe("concierge");
     expect(helpTabFor("check-in-person")).toBe("concierge");
   });
