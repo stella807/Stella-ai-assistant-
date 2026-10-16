@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
+import { downloadBase64 } from "../files.ts";
 import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars } from "../money.ts";
 
@@ -428,7 +429,17 @@ function ApplicationRow({ app, canWrite, onChanged }: {
       <div className="row-between">
         <span className="tiny muted">
           {app.fullName} — {app.role}{app.hoursPerWeek ? `, ${app.hoursPerWeek}h/wk` : ""}
-          {app.hasResume && <span className="pill" style={{ marginLeft: 6 }}>Résumé attached</span>}
+          {app.hasResume && (
+            // A button, not a label: "attached" with no way to read it was the
+            // whole gap. Downloads rather than opens — see downloadBase64.
+            <button className="btn btn-sm btn-ghost" style={{ marginLeft: 6 }} disabled={busy}
+              onClick={() => run(async () => {
+                const file = await api.masterApplicationResume(app.id);
+                downloadBase64(file.fileName, file.mimeType, file.base64);
+              })}>
+              Download résumé
+            </button>
+          )}
         </span>
         <span className="tiny">{app.city}, {app.state}</span>
       </div>

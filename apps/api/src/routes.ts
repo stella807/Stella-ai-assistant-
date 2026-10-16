@@ -4768,6 +4768,29 @@ export const routes: Record<string, Handler> = {
 
   /** Admin: the review queue for non-driving roles, gated the same way the
    *  driver queue is and for the same reason — it is real personal data. */
+  /**
+   * The résumé itself, for whoever is reviewing the application.
+   *
+   * The dashboard lists only a "résumé attached" flag, because a file can run
+   * to hundreds of KB and does not belong in a summary of everyone pending.
+   * Until this route existed the flag was a promise nobody could keep: the
+   * only way to read the file was to fish the base64 out of the raw admin
+   * JSON. Staff and driver applications share it — the ids do not collide.
+   *
+   * Returned as JSON and turned into a download by the client, so the server
+   * never serves an applicant's bytes as a page from this origin.
+   */
+  "GET /api/applications/:id/resume": (ctx, p) => {
+    requireAdmin(ctx, "operations");
+    const id = req(p, "id");
+    const application = ctx.store.data.staffApplications.find((a) => a.id === id)
+      ?? ctx.store.data.driverApplications.find((a) => a.id === id);
+    if (!application) throw notFound("Application");
+    if (!application.resume) throw new HttpError(404, "That applicant did not attach a résumé.");
+    const { fileName, mimeType, base64 } = application.resume;
+    return { fileName, mimeType, base64 };
+  },
+
   "GET /api/staff/applications": (ctx) => {
     requireAdmin(ctx, "operations");
     return ctx.store.data.staffApplications;

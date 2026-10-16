@@ -179,7 +179,12 @@ assistant or one of the desk roles instead.
 Parking is not covered by the mileage rate, and there is not yet a way to
 claim it.
 
-**Apply:** Careers → Errand runner, in the app.
+**Apply:** Careers → Errand runner, in the app. A link goes straight to the form
+with the role already chosen: `<app address>/#careers?role=errand-runner`
+(role ids: `personal-assistant`, `errand-runner`, `secretary`, …). No account
+is needed, a résumé (PDF, JPEG or PNG, up to 3 MB) is optional, and the owner
+reads it from the dashboard's review queue (Download résumé).
+Nothing is emailed to the owner when somebody applies.
 
 ---
 

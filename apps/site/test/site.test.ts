@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ERRAND_TIERS, errandPayoutCents } from "@safehubby/core";
 import {
   LAUNCH_WINDOW_START, PA_HOURLY_RATE_CENTS, SERVICE_LIVE_AT, findPlan, isPlanReleased,
   releasedPlans,
@@ -404,6 +405,42 @@ describe("serving it from Cloudflare", () => {
       vi.resetModules();
       const { renderPage: fresh } = await import("../src/render.ts");
       expect(fresh("en")).toContain('href="https://app.example.test"');
+    } finally {
+      if (prior === undefined) delete process.env.APP_URL; else process.env.APP_URL = prior;
+    }
+  });
+});
+
+describe("applying for a job", () => {
+  it("quotes errand runners' pay from the tiers, not the old flat task", () => {
+    // The page once said "$4 per quick task". Pay is by size now, and a page
+    // that advertises the wrong number to somebody deciding whether to apply
+    // is the most expensive kind of stale.
+    for (const lang of LANGS) {
+      const rates = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
+      expect(work[lang], lang).toContain(money(Math.min(...rates)));
+      expect(work[lang], lang).toContain(money(Math.max(...rates)));
+      expect(work[lang], lang).not.toMatch(/per quick task|por tarea rápida/);
+    }
+  });
+
+  it("sends the hiring page's button to the application, not the customer landing page", async () => {
+    // The place that advertises the job has to put a person on the form.
+    for (const lang of LANGS) {
+      expect(work[lang], lang).toMatch(/href="[^"]*\/#careers"/);
+    }
+    // And the home page's sign-up button stays a customer's way in.
+    expect(pages.en).not.toMatch(/class="btn" href="[^"]*#careers"/);
+  });
+
+  it("builds the careers link from wherever the app runs", async () => {
+    const prior = process.env.APP_URL;
+    process.env.APP_URL = "https://app.example.test/";
+    try {
+      const { vi } = await import("vitest");
+      vi.resetModules();
+      const { CAREERS_URL } = await import("../src/content.ts");
+      expect(CAREERS_URL).toBe("https://app.example.test/#careers");
     } finally {
       if (prior === undefined) delete process.env.APP_URL; else process.env.APP_URL = prior;
     }

@@ -17,7 +17,7 @@ import { MAX_RESUME_BYTES } from "@safehubby/core";
  * up (see adapters/email.ts), and a page that says "check your email" when
  * nothing was sent is worse than one that hands you the reference.
  */
-export function StaffSignupScreen({ onBack }: { onBack: () => void }) {
+export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void; initialRole?: string }) {
   const [roles, setRoles] = useState<StaffRoleInfo[]>([]);
   const [benefits, setBenefits] = useState<HiringBenefit[]>([]);
   const [role, setRole] = useState("");
@@ -52,7 +52,7 @@ export function StaffSignupScreen({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     api.staffRoles()
-      .then((r) => { setRoles(r.roles); setBenefits(r.benefits); setRole((cur) => cur || r.roles[0]?.id || ""); })
+      .then((r) => { setRoles(r.roles); setBenefits(r.benefits); setRole((cur) => cur || (r.roles.some((x) => x.id === initialRole) ? initialRole! : r.roles[0]?.id) || ""); })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load the open roles."));
   }, []);
 

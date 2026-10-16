@@ -12,6 +12,7 @@ import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
 import { StaffSignupScreen } from "./components/StaffSignupScreen.tsx";
+import { entryRoleFromHash, entryRouteFromHash, hashForEntryRoute } from "./app/entry-route.ts";
 import { HiringScreen, type HiringTab } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
@@ -23,7 +24,19 @@ type Role =
   | "drive" | "work";
 
 export function App() {
-  const [role, setRole] = useState<Role>("out");
+  // A link can open the job application directly — see entry-route.ts.
+  const [role, setRoleState] = useState<Role>(() => entryRouteFromHash(window.location.hash));
+  // Read once, at load: which role an ad asked the form to start on.
+  const [initialRole] = useState(() => entryRoleFromHash(window.location.hash));
+  // Keeps the address in step with the screen, so Back from the form clears it
+  // and a refresh does not reopen a form somebody already left.
+  const setRole = (next: Role) => {
+    setRoleState(next);
+    const hash = hashForEntryRoute(next);
+    if (hash !== window.location.hash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
+    }
+  };
   // Which Hiring sub-tab to open on, when something else sent the member
   // there for a specific thing. Cleared by HiringScreen's own tabs from then
   // on; it only decides where that screen starts.
@@ -92,7 +105,7 @@ export function App() {
       {role === "drive" ? (
         <DriveSignupScreen onBack={() => setRole("out")} />
       ) : role === "work" ? (
-        <StaffSignupScreen onBack={() => setRole("out")} />
+        <StaffSignupScreen onBack={() => setRole("out")} initialRole={initialRole} />
       ) : !ready ? null : !account ? (
         <LandingIntro
           onSignedIn={setAccount}

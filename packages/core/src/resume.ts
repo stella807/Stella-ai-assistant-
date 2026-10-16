@@ -41,4 +41,39 @@ export function validateResume(input: { base64: string; mimeType: string; fileNa
   if (approximateDecodedBytes(input.base64) > MAX_RESUME_BYTES) {
     throw new Error("That file is too large — try a smaller PDF or a more compressed photo.");
   }
+  if (!looksLike(input.mimeType, input.base64)) {
+    throw new Error("That file is not a real PDF, JPEG or PNG — attach the résumé itself.");
+  }
+}
+
+/** The first bytes each allowed type starts with. A claimed type alone is
+ *  whatever the sender typed; this stops an HTML page or a script being stored
+ *  under a PDF label for whoever opens it from the review screen. */
+const SIGNATURES: Record<string, number[][]> = {
+  "application/pdf": [[0x25, 0x50, 0x44, 0x46, 0x2d]],
+  "image/png": [[0x89, 0x50, 0x4e, 0x47]],
+  "image/jpeg": [[0xff, 0xd8, 0xff]],
+};
+
+export function looksLike(mimeType: string, base64: string): boolean {
+  const sigs = SIGNATURES[mimeType];
+  if (!sigs) return false;
+  const head = decodeBase64Head(base64);
+  return sigs.some((sig) => sig.every((byte, i) => head[i] === byte));
+}
+
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/** The first few bytes of a base64 string, decoded by hand. This module is
+ *  shared with the browser and has no `Buffer` or `atob` it can rely on, and
+ *  only a signature's worth of bytes are ever needed. */
+function decodeBase64Head(base64: string): number[] {
+  const out: number[] = [];
+  const chars = base64.slice(0, 16);
+  for (let i = 0; i + 3 < chars.length; i += 4) {
+    const v = [0, 1, 2, 3].map((k) => B64.indexOf(chars[i + k]!));
+    if (v.some((x) => x < 0)) break;
+    out.push((v[0]! << 2) | (v[1]! >> 4), ((v[1]! & 15) << 4) | (v[2]! >> 2), ((v[2]! & 3) << 6) | v[3]!);
+  }
+  return out;
 }

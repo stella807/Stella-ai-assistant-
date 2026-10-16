@@ -1,7 +1,7 @@
 import {
-  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
-  LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, QUICK_TASK_ASSISTANT_PAYOUT_CENTS,
-  SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, isHourlyCategory, isQuickTaskEligible,
+  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
+  LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
+  SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
   releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
 
@@ -30,6 +30,11 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-producti
  *  `APP_URL` at build time to point it at wherever the app is running — the
  *  address is not baked in, because it changes when the domain arrives. */
 export const APP_URL = process.env.APP_URL ?? "https://safehubby-app-production.up.railway.app";
+
+/** The job application, in the app — no account needed. A hash link, which
+ *  the app reads on load (apps/web/src/app/entry-route.ts), so a person lands
+ *  on the form rather than on a landing page built for customers. */
+export const CAREERS_URL = `${APP_URL.replace(/\/$/, "")}/#careers`;
 
 /**
  * Where to reach a person. An email, not a phone number — chosen by the owner.
@@ -263,7 +268,10 @@ const liveDate = (lang: Lang) => formatDate(SERVICE_LIVE_AT, lang);
 const openDate = (lang: Lang) => formatDate(LAUNCH_WINDOW_START, lang);
 const discountPercent = Math.round(LAUNCH_DISCOUNT_RATE * 100);
 const paRate = money(PA_HOURLY_RATE_CENTS);
-const quickTask = money(QUICK_TASK_ASSISTANT_PAYOUT_CENTS["grab-something"] ?? 0);
+const tierPays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
+/** What an errand runner is paid per task, as the span the four sizes cover. */
+const errandPayRange = `${money(Math.min(...tierPays))} to ${money(Math.max(...tierPays))}`;
+const errandMileage = money(ERRAND_MILEAGE_CENTS);
 
 const DISCLAIMER = {
   en: "Safehubby LLC is in formation. Safehubby is not an emergency service and never tells anyone they are safe to drive. In an emergency, call your local emergency number first.",
@@ -417,7 +425,7 @@ export const WORK_COPY: Record<Lang, WorkCopy> = {
     lede:
       "One flat rate in every market we operate in. We do not pay somebody less for the same job because of where they live.",
     rate: `${paRate} an hour for a personal assistant`,
-    errand: `${quickTask} per quick task for errand runners, and liability insurance for everyone on the roster from day one.`,
+    errand: `${errandPayRange} per errand for errand runners, by size, plus ${errandMileage} a mile, and liability insurance for everyone on the roster from day one.`,
     cta: "See open roles",
     back: "Safehubby",
   },
@@ -431,7 +439,7 @@ export const WORK_COPY: Record<Lang, WorkCopy> = {
     lede:
       "La misma tarifa en todos los mercados donde operamos. No le pagamos menos a nadie por el mismo trabajo según dónde viva.",
     rate: `${paRate} por hora para asistente personal`,
-    errand: `${quickTask} por tarea rápida para quienes hacen diligencias, y seguro de responsabilidad civil para todo el equipo desde el primer día.`,
+    errand: `${errandPayRange} por diligencia para quienes las hacen, según el tamaño, más ${errandMileage} por milla, y seguro de responsabilidad civil para todo el equipo desde el primer día.`,
     cta: "Ver puestos disponibles",
     back: "Safehubby",
   },

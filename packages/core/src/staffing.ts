@@ -193,7 +193,7 @@ export const STAFF_ROLES: RoleInfo[] = [
   {
     id: "wingman-club-coordinator",
     label: "Wingman Club coordinator",
-    description: "Personal assistant to the owner, dedicated to running the Wingman Club: picking and negotiating each month's experience, the venue relationships, and the reveal — see CLUB_EXPERIENCES in wingman-club.ts.",
+    description: "Personal assistant to the owner, dedicated to running the Wingman Club: picking and negotiating each month's experience, the venue relationships, and the reveal.",
     drives: false,
     // Reference: 2026 executive/personal-assistant-to-a-founder rates
     // cluster $35-44/hr (Glassdoor, Salary.com, Indeed). $40/hr lands

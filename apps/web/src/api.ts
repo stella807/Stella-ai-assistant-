@@ -773,6 +773,9 @@ export const api = {
   masterGetPricing: () => request<any>("GET", "/api/master/pricing"),
   masterSetPrice: (roleOrService: string, priceCents: number, reason?: string) =>
     request<any>("POST", "/api/master/pricing/override", { roleOrService, priceCents, reason }),
+  /** The file an applicant attached, for the review queue. */
+  masterApplicationResume: (id: string) =>
+    request<{ fileName: string; mimeType: string; base64: string }>("GET", `/api/applications/${encodeURIComponent(id)}/resume`),
   masterGetPayroll: () => request<any>("GET", "/api/master/payroll"),
   masterProcessPayroll: (period: string) =>
     request<any>("POST", "/api/master/payroll/process", { period }),

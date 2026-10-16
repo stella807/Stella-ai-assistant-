@@ -3941,6 +3941,37 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(hired.json.credentials.tempPassword).toBeTruthy();
   });
 
+  it("lets the owner open a résumé the dashboard says is attached", async () => {
+    // The dashboard showed "résumé attached" with no way to read it.
+    const pdf = Buffer.from("%PDF-1.4\nRosa Delgado resume\n").toString("base64");
+    const { json } = await apply({ email: "withresume@example.com", resume: { base64: pdf, mimeType: "application/pdf", fileName: "rosa-delgado-resume.pdf" } });
+    const res = await callAdmin("GET", `/api/applications/${json.id}/resume`);
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(res.json).toEqual({ fileName: "rosa-delgado-resume.pdf", mimeType: "application/pdf", base64: pdf });
+  });
+
+  it("keeps résumés from anyone who is not the owner", async () => {
+    const pdf = Buffer.from("%PDF-1.4\n").toString("base64");
+    const { json } = await apply({ email: "private@example.com", resume: { base64: pdf, mimeType: "application/pdf", fileName: "r.pdf" } });
+    expect((await call("GET", `/api/applications/${json.id}/resume`)).status).toBe(401);
+    expect((await call("GET", `/api/applications/${json.id}/resume`, undefined, sam)).status).toBe(401);
+  });
+
+  it("says plainly when there is nothing attached, or no such application", async () => {
+    const { json } = await apply({ email: "noresume@example.com" });
+    const none = await callAdmin("GET", `/api/applications/${json.id}/resume`);
+    expect(none.status).toBe(404);
+    expect(none.json.error).toMatch(/did not attach/i);
+    expect((await callAdmin("GET", "/api/applications/staff_nope/resume")).status).toBe(404);
+  });
+
+  it("refuses an application whose résumé is not the file type it claims", async () => {
+    const html = Buffer.from("<html><script>alert(1)</script></html>").toString("base64");
+    const res = await apply({ email: "fake@example.com", resume: { base64: html, mimeType: "application/pdf", fileName: "r.pdf" } });
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/not a real/i);
+  });
+
   it("makes an approved applicant dispatchable, which is the point of hiring them", async () => {
     const hired = await hireOne();
     expect(hired.status).toBe(200);
