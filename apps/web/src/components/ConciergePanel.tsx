@@ -110,7 +110,16 @@ function tierSuggestion(id: ErrandTierId): number {
   return findErrandTier(id).suggestedCapCents;
 }
 
-export function ConciergePanel({ account, kind = "concierge" }: { account: Account; kind?: HiringKind }) {
+export function ConciergePanel({ account, kind = "concierge", extraTiles, extra, onPickCategory, formHidden = false }: {
+  account: Account; kind?: HiringKind;
+  /** More choices in the same grid — the desk work an assistant also does —
+   *  so asking for anything starts from one place. */
+  extraTiles?: React.ReactNode;
+  /** Shown under the grid in place of this form while one of those is picked. */
+  extra?: React.ReactNode;
+  onPickCategory?: () => void;
+  formHidden?: boolean;
+}) {
   const planId = account.planId as PlanId;
   // Small errands (grab-something, run-errand) are gated on `quick-tasks`,
   // which is on every plan including Free — see `FREE_FEATURES` in
@@ -227,7 +236,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
   if (locked) {
     return (
       <section className="card stack">
-        <h3>{COPY_FOR[kind].heading}</h3>
+        <h3>{extraTiles ? "Ask an assistant" : COPY_FOR[kind].heading}</h3>
         <p className="tiny muted">{COPY_FOR[kind].locked}</p>
       </section>
     );
@@ -496,7 +505,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
 
   return (
     <section className="card stack">
-      <h3>{COPY_FOR[kind].heading}</h3>
+      <h3>{extraTiles ? "Ask an assistant" : COPY_FOR[kind].heading}</h3>
       <p className="small muted">{COPY_FOR[kind].blurb}</p>
 
       {/* Said here, at the top, rather than in a red banner under a finished
@@ -531,6 +540,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
         {CONCIERGE_CATEGORIES.filter((c) => allowed.includes(c.id)).map((c) => (
           <button key={c.id} className="category-tile"
             onClick={() => {
+              onPickCategory?.();
               setCategory(c.id);
               // The cap follows the category rather than carrying over. A $100
               // ceiling means nothing on a hotel booking, and a $500 one is not
@@ -547,7 +557,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
                 setFlightNumber(""); setFlightDate(""); setFlightPreview(null); setFlightError(null);
               }
             }}
-            aria-pressed={c.id === category}>
+            aria-pressed={!formHidden && c.id === category}>
             <span className="category-tile-icon"><CategoryIcon id={c.id} /></span>
             <span className="category-tile-label">{c.label}</span>
             {/* What it actually runs, on every tile at once — picking one to
@@ -563,7 +573,9 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             </span>
           </button>
         ))}
+        {extraTiles}
       </div>
+      {formHidden ? extra : <>
       {CONCIERGE_CATEGORIES.find((c) => c.id === category) && (
         <p className="tiny muted" style={{ margin: 0 }}>
           {CONCIERGE_CATEGORIES.find((c) => c.id === category)!.description}
@@ -982,6 +994,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       )}
 
       {openTaskModal}
+      </>}
     </section>
   );
 }

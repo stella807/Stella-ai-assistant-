@@ -2,7 +2,7 @@ import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
 import { hasFeature, isElitePlan, type Feature, type PlanId } from "@safehubby/core";
 import { ConciergePanel, type HiringKind } from "./ConciergePanel.tsx";
-import { DeskTasksPanel } from "./DeskTasksPanel.tsx";
+import { DeskTasksPanel, DeskTiles } from "./DeskTasksPanel.tsx";
 import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
 import { GetHomePanel } from "./GetHomePanel.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
@@ -113,7 +113,22 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
         ? <WingmanClub />
         : kind === "elite"
         ? <EliteDeskPanel />
-        : <ConciergePanel key={kind} account={account} kind={kind} />}
+        : <AskAssistant account={account} />}
     </div>
+  );
+}
+
+/** Everything you can ask an assistant for, in one grid: going somewhere in
+ *  person, booking and buying, and the desk work — appointments, reminders,
+ *  writing, looking things up. */
+function AskAssistant({ account }: { account: Account }) {
+  const [desk, setDesk] = useState<string | null>(null);
+  return (
+    <ConciergePanel account={account} kind="concierge"
+      extraTiles={<DeskTiles account={account} chosen={desk} onChoose={setDesk} />}
+      onPickCategory={() => setDesk(null)}
+      formHidden={desk !== null}
+      extra={desk && <DeskTasksPanel account={account} chosenKind={desk} embedded />}
+    />
   );
 }
