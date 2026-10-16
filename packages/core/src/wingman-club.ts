@@ -67,7 +67,7 @@ export interface ClubExperience {
 }
 
 export const CLUB_EXPERIENCES: ClubExperience[] = [
-  { id: "track-day", label: "Private track day", emoji: "🏎️", retailPerPersonCents: 40000, negotiatedPerPersonCents: 24000 },
+  { id: "track-day", label: "Private event day", emoji: "🏎️", retailPerPersonCents: 40000, negotiatedPerPersonCents: 24000 },
   { id: "skydiving", label: "Skydiving", emoji: "🪂", retailPerPersonCents: 30000, negotiatedPerPersonCents: 19500 },
   { id: "boat-day", label: "Boat day", emoji: "🛥️", retailPerPersonCents: 20000, negotiatedPerPersonCents: 13000 },
   { id: "steak-cigar-night", label: "Steak & cigar night", emoji: "🥩", retailPerPersonCents: 15000, negotiatedPerPersonCents: 9500 },

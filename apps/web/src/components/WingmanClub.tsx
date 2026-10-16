@@ -61,7 +61,7 @@ export function WingmanClub() {
       <div className="wm-trio" aria-hidden="true">
         <div className="wm-pic"><BourbonGlassArt /><span>Bourbon</span></div>
         <div className="wm-pic wm-pic-sky"><ParachuteArt /><span>The sky</span></div>
-        <div className="wm-pic"><FlagArt /><span>The track</span></div>
+        <div className="wm-pic"><FlagArt /><span>Events</span></div>
       </div>
 
       <div className="wm-month">
@@ -142,7 +142,7 @@ function ClubAsk() {
   return (
     <div className="stack" style={{ marginTop: 16 }}>
       <div className="wm-rot-title">Your club assistant</div>
-      <textarea aria-label="Ask your club assistant" rows={2} value={note} placeholder="A table for six, a car to the track…"
+      <textarea aria-label="Ask your club assistant" rows={2} value={note} placeholder="A table for six, a car to the event…"
         onChange={(e) => setNote(e.target.value)} />
       <button className="wm-cta" disabled={!note.trim()} onClick={send}>Ask</button>
       {error && <div className="banner banner-danger">{error}</div>}
