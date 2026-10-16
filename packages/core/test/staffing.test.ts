@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { resetFlags, setFlag } from "../src/features.ts";
 import {
   DRIVER_INSURANCE_SURCHARGE_CENTS_PER_MONTH, GAS_STIPEND_CENTS_PER_WEEK, GAS_STIPEND_WEEKS,
   LIABILITY_INSURANCE_CENTS_PER_MONTH, PRELAUNCH_HEADCOUNT, PRELAUNCH_MONTHS, PRELAUNCH_WEEKS,
-  STAFF_ROLES, findRole, gasStipendCentsPerDriver, insuranceCentsPerMonth, monthlyInsuranceCents,
+  HIRING_BENEFITS, STAFF_ROLES, benefitsFor, findRole, publicBenefits, gasStipendCentsPerDriver, insuranceCentsPerMonth, monthlyInsuranceCents,
   monthlyPayrollCents, monthlyRosterCents, prelaunchBudget, subscribersToCarryRoster, SOLO_HEADCOUNT,
 } from "../src/staffing.ts";
 import { findPlan, type PlanId } from "../src/billing.ts";
@@ -30,6 +31,26 @@ describe("the roles being hired", () => {
 
   it("refuses an unknown role rather than costing it at zero", () => {
     expect(() => findRole("bouncer" as never)).toThrow(/unknown staff role/i);
+  });
+});
+
+describe("what a hiring page may promise about insurance", () => {
+  it("does not list the insurance benefit until a policy is in place", () => {
+    // The cost model budgets for cover either way; the promise to applicants is
+    // made only once there is something behind it.
+    expect(publicBenefits().map((b) => b.id)).not.toContain("liability-insurance");
+    for (const role of STAFF_ROLES) expect(benefitsFor(role.id).map((b) => b.id), role.id).not.toContain("liability-insurance");
+    setFlag("insurance-in-place", true);
+    try {
+      expect(publicBenefits().map((b) => b.id)).toContain("liability-insurance");
+    } finally {
+      resetFlags();
+    }
+  });
+
+  it("keeps the other benefits, and the full list intact as data", () => {
+    expect(publicBenefits().map((b) => b.id)).toContain("published-rates");
+    expect(HIRING_BENEFITS.map((b) => b.id)).toContain("liability-insurance");
   });
 });
 

@@ -2,7 +2,7 @@ import {
   CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
   LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
-  releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
+  isEnabled, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -273,6 +273,16 @@ const tierPays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
 const errandPayRange = `${money(Math.min(...tierPays))} to ${money(Math.max(...tierPays))}`;
 const errandMileage = money(ERRAND_MILEAGE_CENTS);
 
+/**
+ * The insurance promise, said only when it is true. Liability cover for the
+ * people we hire is a promise to somebody deciding whether to take a job, and
+ * until a policy is bound (`insurance-in-place`) there is nothing behind it.
+ * These return their text when cover is in place and nothing when it is not,
+ * so the sentence around them reads correctly either way.
+ */
+const insuredEn = (text: string): string => (isEnabled("insurance-in-place") ? text : "");
+const insuredEs = (text: string): string => (isEnabled("insurance-in-place") ? text : "");
+
 const DISCLAIMER = {
   en: "Safehubby LLC is in formation. Safehubby is not an emergency service and never tells anyone they are safe to drive. In an emergency, call your local emergency number first.",
   es: "Safehubby LLC está en proceso de formación. Safehubby no es un servicio de emergencia y nunca le dice a nadie que puede manejar. En una emergencia, llama primero al número de emergencias de tu área.",
@@ -426,13 +436,13 @@ export const WORK_COPY: Record<Lang, WorkCopy> = {
     htmlLang: "en",
     title: "Work with Safehubby — one flat rate, every market",
     description:
-      `${paRate} an hour for personal assistants in Puerto Rico, Texas and Los Angeles. Liability insurance from day one.`,
+      `${paRate} an hour for personal assistants in Puerto Rico, Texas and Los Angeles.${insuredEn(" Liability insurance from day one.")}`,
     otherLang: { href: "/es/trabajo/", label: "Español" },
     heading: "Work with us",
     lede:
       "One flat rate in every market we operate in. We do not pay somebody less for the same job because of where they live.",
     rate: `${paRate} an hour for a personal assistant`,
-    errand: `${errandPayRange} per errand for errand runners, by size, plus ${errandMileage} a mile, and liability insurance for everyone on the roster from day one.`,
+    errand: `${errandPayRange} per errand for errand runners, by size, plus ${errandMileage} a mile${insuredEn(", and liability insurance for everyone on the roster from day one")}.`,
     cta: "See open roles",
     back: "Safehubby",
   },
@@ -440,13 +450,13 @@ export const WORK_COPY: Record<Lang, WorkCopy> = {
     htmlLang: "es",
     title: "Trabaja con Safehubby — la misma tarifa en todos los mercados",
     description:
-      `${paRate} por hora para asistentes personales en Puerto Rico, Texas y Los Ángeles. Seguro de responsabilidad civil desde el primer día.`,
+      `${paRate} por hora para asistentes personales en Puerto Rico, Texas y Los Ángeles.${insuredEs(" Seguro de responsabilidad civil desde el primer día.")}`,
     otherLang: { href: "/work/", label: "English" },
     heading: "Trabaja con nosotros",
     lede:
       "La misma tarifa en todos los mercados donde operamos. No le pagamos menos a nadie por el mismo trabajo según dónde viva.",
     rate: `${paRate} por hora para asistente personal`,
-    errand: `${errandPayRange} por diligencia para quienes las hacen, según el tamaño, más ${errandMileage} por milla, y seguro de responsabilidad civil para todo el equipo desde el primer día.`,
+    errand: `${errandPayRange} por diligencia para quienes las hacen, según el tamaño, más ${errandMileage} por milla${insuredEs(", y seguro de responsabilidad civil para todo el equipo desde el primer día")}.`,
     cta: "Ver puestos disponibles",
     back: "Safehubby",
   },

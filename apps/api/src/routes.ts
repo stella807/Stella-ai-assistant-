@@ -4,7 +4,7 @@ import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive,
-  HIRING_BENEFITS, PRELAUNCH_HEADCOUNT, SOLO_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
+  publicBenefits, PRELAUNCH_HEADCOUNT, SOLO_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
   subscribersToCarryRoster,
   reviewStaffApplication, submitStaffApplication, withdrawStaffApplication,
   addSubscriber, activeSubscribers, newUnsubscribeToken, unsubscribe,
@@ -4772,7 +4772,7 @@ export const routes: Record<string, Handler> = {
       const openings = openingsFor(r.id, hired);
       return { ...r, pay: payLabelFor(r.id), openings, hiring: openings > 0 };
     }),
-    benefits: HIRING_BENEFITS,
+    benefits: publicBenefits(),
   }),
 
   "POST /api/staff/apply": (ctx, _p, body) => {
@@ -5000,7 +5000,7 @@ export const routes: Record<string, Handler> = {
         monthlyAfterLaunch: monthlyRosterCents(SOLO_HEADCOUNT),
         subscribersToCarry: carriedBy(SOLO_HEADCOUNT),
       },
-      benefits: HIRING_BENEFITS,
+      benefits: publicBenefits(),
     };
   },
 

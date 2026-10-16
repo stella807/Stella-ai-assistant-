@@ -26,6 +26,7 @@
 
 export type FeatureFlag =
   | "elite-tier"
+  | "insurance-in-place"
   | "free-tier"
   | "free-errands"
   | "party-supply"
@@ -45,6 +46,11 @@ export const FLAGS: FlagDefinition[] = [
     id: "elite-tier",
     enabled: true,
     note: "The Elite ladder is live. The desk reports per service rather than per plan: with no charter operator or physician practice configured, a request is taken and answered by a person instead of quoted automatically — the same honesty rule every other adapter here follows. The legal duties do not ride on this flag: Part 295 disclosures are attached to every jet quote, medical commission is zero and cannot be set otherwise, and the doctor disappears entirely when the assessment says call emergency services.",
+  },
+  {
+    id: "insurance-in-place",
+    enabled: false,
+    note: "Liability insurance for the people we hire has not been bought yet, so the hiring pages do not promise it. Turn this on once a policy is bound.",
   },
   {
     id: "free-tier",

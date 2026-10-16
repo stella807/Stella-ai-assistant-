@@ -3608,7 +3608,8 @@ describe("hiring for the roles that do not drive", () => {
     expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
 
     const ids = res.json.benefits.map((b: { id: string }) => b.id);
-    expect(ids).toContain("liability-insurance");
+    // Insurance is left out until a policy exists — see `insurance-in-place`.
+    expect(ids).not.toContain("liability-insurance");
     expect(ids).toContain("gas-stipend");
   });
 
@@ -3941,6 +3942,13 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(hired.status).toBe(200);
     // Shown once, and the dashboard has to surface it immediately.
     expect(hired.json.credentials.tempPassword).toBeTruthy();
+  });
+
+  it("does not promise applicants insurance that has not been bought", async () => {
+    const res = await call("GET", "/api/staff/roles");
+    expect(res.status).toBe(200);
+    expect(res.json.benefits.map((b: { id: string }) => b.id)).not.toContain("liability-insurance");
+    expect(JSON.stringify(res.json.benefits).toLowerCase()).not.toContain("insurance");
   });
 
   it("tells applicants what each role pays and how many we are looking for", async () => {

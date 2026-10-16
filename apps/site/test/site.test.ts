@@ -418,6 +418,23 @@ describe("serving it from Cloudflare", () => {
   });
 });
 
+describe("what the hiring pages promise", () => {
+  it("does not promise insurance nobody has bought", () => {
+    // 'Liability insurance from day one' tells somebody deciding whether to
+    // take a job that they are covered while working. Until a policy is bound
+    // (`insurance-in-place`) that is a promise with nothing behind it.
+    for (const lang of LANGS) {
+      expect(work[lang], `${lang} work page`).not.toMatch(/insurance|seguro de responsabilidad/i);
+    }
+  });
+
+  it("still reads as whole sentences without it", () => {
+    expect(work.en).toMatch(/a mile\.</);
+    expect(work.es).toMatch(/por milla\.</);
+    expect(work.en).not.toMatch(/,\s*\.|\s\.\s\./);
+  });
+});
+
 describe("applying for a job", () => {
   it("quotes errand runners' pay from the tiers, not the old flat task", () => {
     // The page once said "$4 per quick task". Pay is by size now, and a page

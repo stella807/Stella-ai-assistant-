@@ -1,3 +1,4 @@
+import { isEnabled } from "./features.ts";
 import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "./promotions.ts";
 import { findPlan, type PlanId } from "./billing.ts";
 
@@ -249,8 +250,19 @@ export const HIRING_BENEFITS: HiringBenefit[] = [
   },
 ];
 
+/**
+ * What an applicant is shown. The insurance line is a promise, and it is only
+ * made once a policy actually exists (`insurance-in-place`): telling people
+ * they are covered while working, at no cost to them, when nothing has been
+ * bought, is the one line on a hiring page that can hurt somebody. The cost
+ * model below is unaffected — it budgets for the cover either way.
+ */
+export function publicBenefits(): HiringBenefit[] {
+  return HIRING_BENEFITS.filter((b) => b.id !== "liability-insurance" || isEnabled("insurance-in-place"));
+}
+
 export function benefitsFor(role: StaffRole): HiringBenefit[] {
-  return HIRING_BENEFITS.filter((b) => !b.roles || b.roles.includes(role));
+  return publicBenefits().filter((b) => !b.roles || b.roles.includes(role));
 }
 
 /* ---------------------------------------------------------------------------
