@@ -201,6 +201,8 @@ export interface PreAuthorization {
   capturedCents?: number;
   /** What this hold is for — a ride or a secure-transport trip id, once known. */
   reference?: string;
+  /** Set when this hold reserves the customer's prepaid balance rather than a card. */
+  fundedBy?: "balance";
 }
 
 /** Buffer over the estimate, to absorb surge or a route that runs long. */
@@ -244,6 +246,7 @@ export function authorizeExactHold(input: {
   now: Date;
   currency?: string;
   reference?: string;
+  fundedBy?: "balance";
 }): PreAuthorization {
   if (input.capCents <= 0) throw new Error("Nothing to hold for.");
   return {
@@ -254,6 +257,7 @@ export function authorizeExactHold(input: {
     createdAt: input.now.toISOString(),
     status: "held",
     ...(input.reference ? { reference: input.reference } : {}),
+    ...(input.fundedBy ? { fundedBy: input.fundedBy } : {}),
   };
 }
 

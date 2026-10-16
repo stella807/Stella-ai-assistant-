@@ -32,6 +32,7 @@ import {
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
+  BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
   canMarkByHand, launchProgress,
@@ -89,7 +90,7 @@ import { createSetupIntent, ensureStripeCustomer, stripeProcessor } from "./adap
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { paypalProcessor } from "./adapters/paypal.ts";
-import { athMovilProcessor } from "./adapters/ath-movil.ts";
+import { athMovilProcessor, athPublicToken, findAthPayment, refundAthPayment } from "./adapters/ath-movil.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -1545,6 +1546,122 @@ export const routes: Record<string, Handler> = {
     return { method };
   },
 
+  /**
+   * The prepaid balance, loaded with ATH Móvil. ATH Móvil debits on the spot
+   * and cannot be held or charged later, so it funds a balance that errands
+   * then reserve from — see balance.ts.
+   */
+  "GET /api/balance": (ctx) => {
+    const me = actor(ctx);
+    const d = ctx.store.data;
+    const token = athPublicToken();
+    return {
+      ...balanceSummary(d.balanceEntries, d.holds, me),
+      minLoadCents: BALANCE_MIN_LOAD_CENTS,
+      maxLoadCents: BALANCE_MAX_LOAD_CENTS,
+      ath: isAutomatic(athMovilProcessor.status)
+        ? { ready: true as const, publicToken: token }
+        : { ready: false as const, note: athMovilProcessor.status.requires },
+    };
+  },
+
+  /** Records what is about to be paid and who is paying it, before the
+   *  customer ever sees the ATH Móvil button. */
+  "POST /api/balance/ath/start": (ctx, _p, body) => {
+    const me = actor(ctx);
+    if (!isAutomatic(athMovilProcessor.status)) throw new HttpError(503, athMovilProcessor.status.requires);
+    const amountCents = Number(body?.amountCents);
+    const current = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+    try { validateLoad(amountCents, current.availableCents + current.heldCents); }
+    catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That amount cannot be loaded."); }
+
+    const nonce = newId("bl");
+    const cutoff = ctx.now().getTime() - 3_600_000;
+    ctx.store.update((db) => {
+      db.pendingBalanceLoads = db.pendingBalanceLoads.filter((l) => new Date(l.createdAt).getTime() > cutoff);
+      db.pendingBalanceLoads.push({ nonce, travelerId: me, amountCents, createdAt: ctx.now().toISOString() });
+    });
+    // `metadata2` carries the nonce through Evertec and back, which is what
+    // lets `complete` know this payment was begun by this account for this amount.
+    return { nonce, total: (amountCents / 100).toFixed(2), metadata1: "Safehubby balance", metadata2: nonce };
+  },
+
+  /** The browser says the payment finished; Evertec is asked whether it did. */
+  "POST /api/balance/ath/complete": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    const ecommerceId = String(body?.ecommerceId ?? "");
+    const nonce = String(body?.nonce ?? "");
+    if (!ecommerceId || !nonce) throw new HttpError(400, "Missing payment details.");
+    const pending = ctx.store.data.pendingBalanceLoads.find((l) => l.nonce === nonce && l.travelerId === me);
+    if (!pending) throw new HttpError(404, "That payment was not started from this account, or was already counted.");
+
+    let payment;
+    try { payment = await findAthPayment(ecommerceId); }
+    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "ATH Móvil could not be reached."); }
+    if (payment.ecommerceStatus !== "COMPLETED") {
+      throw new HttpError(402, `ATH Móvil shows that payment as ${payment.ecommerceStatus ?? "unknown"}, not completed.`);
+    }
+    if (payment.metadata2 !== nonce) throw new HttpError(400, "That payment does not match this load.");
+    if (Math.round(Number(payment.total) * 100) !== pending.amountCents) {
+      throw new HttpError(400, "The amount paid does not match what was asked for.");
+    }
+    const reference = String(payment.referenceNumber ?? "");
+    if (!reference) throw new HttpError(502, "ATH Móvil did not return a reference for that payment.");
+
+    // Re-checked after the await: a second tap or a replayed request must not
+    // credit the same payment twice.
+    const db = ctx.store.data;
+    if (db.balanceEntries.some((e) => e.reference === reference) || !db.pendingBalanceLoads.some((l) => l.nonce === nonce)) {
+      return { ...balanceSummary(db.balanceEntries, db.holds, me), alreadyCounted: true };
+    }
+    ctx.store.update((d) => {
+      d.pendingBalanceLoads = d.pendingBalanceLoads.filter((l) => l.nonce !== nonce);
+      d.balanceEntries.push({
+        id: newId("be"), travelerId: me, kind: "load", amountCents: pending.amountCents,
+        reference, createdAt: ctx.now().toISOString(),
+      });
+    });
+    return { ...balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me), alreadyCounted: false };
+  },
+
+  /** Sends unused money back to the customer's own ATH Móvil. */
+  "POST /api/balance/refund": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    if (!isAutomatic(athMovilProcessor.status)) throw new HttpError(503, athMovilProcessor.status.requires);
+    const summary = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+    const amountCents = body?.amountCents === undefined ? summary.availableCents : Number(body.amountCents);
+    if (!Number.isInteger(amountCents) || amountCents <= 0) throw new HttpError(400, "There is nothing to refund.");
+    if (amountCents > summary.availableCents) {
+      throw new HttpError(400, `Only $${(summary.availableCents / 100).toFixed(2)} is free to refund — the rest is set aside for tasks in progress.`);
+    }
+    let slices;
+    try { slices = allocateRefund(ctx.store.data.balanceEntries, me, amountCents); }
+    catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That cannot be refunded."); }
+
+    // Taken out of the balance before the refund is sent, so a task booked
+    // while Evertec is answering cannot spend the same money.
+    const ids = slices.map(() => newId("be"));
+    ctx.store.update((db) => {
+      slices.forEach((sl, i) => db.balanceEntries.push({
+        id: ids[i]!, travelerId: me, kind: "payout", amountCents: sl.amountCents,
+        reference: sl.reference, againstEntryId: sl.entryId, createdAt: ctx.now().toISOString(),
+      }));
+    });
+    const sent: string[] = [];
+    try {
+      for (const [i, sl] of slices.entries()) {
+        await refundAthPayment(sl.reference, sl.amountCents);
+        sent.push(ids[i]!);
+      }
+    } catch (e) {
+      // Whatever Evertec did not refund goes back on the balance.
+      const unsent = new Set(ids.filter((id) => !sent.includes(id)));
+      ctx.store.update((db) => { db.balanceEntries = db.balanceEntries.filter((en) => !unsent.has(en.id)); });
+      throw new HttpError(502, `${e instanceof Error ? e.message : "The refund failed"}${sent.length ? " Part of it was sent; the rest is still on your balance." : ""}`);
+    }
+    return balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+  },
+
   "POST /api/account/payment-method/remove": (ctx) => {
     const me = actor(ctx);
     ctx.store.update((db) => { delete db.paymentMethods[me]; });
@@ -2628,7 +2745,11 @@ export const routes: Record<string, Handler> = {
     if (!ourAssistant && !isAutomatic(concierge.status)) {
       throw new HttpError(503, concierge.status.requires);
     }
-    requirePaymentMethod(ctx, me);
+    // A card, or a balance with something on it — which one pays is decided
+    // below, once the total is known.
+    if (!hasLivePaymentMethod(ctx, me) && balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me).availableCents <= 0) {
+      requirePaymentMethod(ctx, me);
+    }
     const peopleCount = peopleCountFor(ctx, me, input);
     // Stamped onto the task below, so a later rate change never reprices
     // work already agreed. One universal rate — see market-pay.ts for why
@@ -2671,14 +2792,28 @@ export const routes: Record<string, Handler> = {
       // The hold covers both the reimbursable purchase and the service fee
       // that pays the assistant — one exact number, never padded, same as
       // either piece would be on its own.
-      const hold = authorizeExactHold({ id: newId("hold"), travelerId: me, capCents: totalCents, now: ctx.now() });
+      // The balance pays when it covers the whole amount; it is never split
+      // with a card. Decided and reserved with no await in between, so two
+      // bookings cannot both spend the same money.
+      const availableCents = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me).availableCents;
+      const fromBalance = availableCents >= totalCents;
+      if (!fromBalance && !hasLivePaymentMethod(ctx, me)) {
+        throw new HttpError(
+          402,
+          `Your balance ($${(availableCents / 100).toFixed(2)}) does not cover $${(totalCents / 100).toFixed(2)}. Add money to it, or add a card.`,
+        );
+      }
+      const hold = authorizeExactHold({
+        id: newId("hold"), travelerId: me, capCents: totalCents, now: ctx.now(),
+        ...(fromBalance ? { fundedBy: "balance" as const } : {}),
+      });
       ctx.store.update((db) => void db.holds.push(hold));
       const charge = addCharge(ctx, {
         travelerId: me,
         kind: "concierge",
         description: `${conciergeCategoryLabel(input.category)} — ${input.note} (${
           feeIncluded ? "no service fee — included in your plan" : `$${(serviceFeeCents / 100).toFixed(2)} service fee included`
-        })`.slice(0, 160),
+        }${fromBalance ? ", paid from your balance" : ""})`.slice(0, 160),
         amountCents: totalCents,
         holdId: hold.id,
       });

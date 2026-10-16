@@ -4117,6 +4117,207 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("prepaid balance, loaded with ATH Móvil", () => {
+    /** Evertec, stood in for. Only its own host is intercepted; the test
+     *  harness's calls to this app go through to the real fetch. */
+    interface FakePayment { ecommerceStatus: string; total: number; referenceNumber: string; metadata2: string }
+    let evertec: Map<string, FakePayment>;
+    let refunds: { referenceNumber: string; amount: string }[];
+    let refundStatus: string;
+    const realFetch = globalThis.fetch;
+
+    beforeEach(() => {
+      process.env.ATH_MOVIL_PUBLIC_TOKEN = "dummy";
+      process.env.ATH_MOVIL_PRIVATE_TOKEN = "private-dummy";
+      evertec = new Map();
+      refunds = [];
+      refundStatus = "COMPLETED";
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input);
+        if (!url.startsWith("https://payments.athmovil.com")) return realFetch(input, init);
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        if (url.endsWith("/findPayment")) {
+          const p = evertec.get(body.ecommerceId);
+          return p ? Response.json(p) : new Response("{}", { status: 404 });
+        }
+        if (url.endsWith("/refund")) {
+          refunds.push({ referenceNumber: body.referenceNumber, amount: body.amount });
+          return Response.json({ refund: { status: refundStatus } });
+        }
+        return new Response("{}", { status: 404 });
+      }) as typeof fetch;
+    });
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+      delete process.env.ATH_MOVIL_PUBLIC_TOKEN;
+      delete process.env.ATH_MOVIL_PRIVATE_TOKEN;
+    });
+
+    /** Starts a load and has the customer "pay" it in the fake Evertec. */
+    const load = async (token: string, amountCents: number, over: Partial<FakePayment> = {}) => {
+      const start = await call("POST", "/api/balance/ath/start", { amountCents }, token);
+      expect(start.status, JSON.stringify(start.json)).toBe(200);
+      const ecommerceId = `ec_${Math.random().toString(36).slice(2)}`;
+      evertec.set(ecommerceId, {
+        ecommerceStatus: "COMPLETED", total: amountCents / 100,
+        referenceNumber: `ref_${ecommerceId}`, metadata2: start.json.nonce, ...over,
+      });
+      return { ecommerceId, nonce: start.json.nonce as string };
+    };
+    const complete = (token: string, paid: { ecommerceId: string; nonce: string }) =>
+      call("POST", "/api/balance/ath/complete", paid, token);
+    const availableOf = async (token: string) => (await call("GET", "/api/balance", undefined, token)).json.availableCents;
+
+    it("starts at nothing, and says when ATH Móvil is not set up", async () => {
+      expect((await call("GET", "/api/balance", undefined, sam)).json.availableCents).toBe(0);
+      delete process.env.ATH_MOVIL_PUBLIC_TOKEN;
+      const res = await call("GET", "/api/balance", undefined, sam);
+      expect(res.json.ath.ready).toBe(false);
+      expect((await call("POST", "/api/balance/ath/start", { amountCents: 2_000 }, sam)).status).toBe(503);
+    });
+
+    it("needs a session", async () => {
+      for (const [m, path] of [["GET", "/api/balance"], ["POST", "/api/balance/ath/start"],
+        ["POST", "/api/balance/ath/complete"], ["POST", "/api/balance/refund"]] as const) {
+        expect((await call(m, path, m === "GET" ? undefined : {})).status).toBe(401);
+      }
+    });
+
+    it("credits the balance once Evertec confirms the payment", async () => {
+      const paid = await load(sam, 2_500);
+      const res = await complete(sam, paid);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      expect(res.json.availableCents).toBe(2_500);
+      expect(await availableOf(sam)).toBe(2_500);
+    });
+
+    it("refuses amounts outside the limits", async () => {
+      for (const amountCents of [100, 99_999_99, 1_000.5, "lots"]) {
+        expect((await call("POST", "/api/balance/ath/start", { amountCents }, sam)).status).toBe(400);
+      }
+    });
+
+    it("credits a payment only once, however many times it is reported", async () => {
+      const paid = await load(sam, 2_000);
+      await complete(sam, paid);
+      const again = await complete(sam, paid);
+      expect(again.status).toBe(404);
+      expect(await availableOf(sam)).toBe(2_000);
+    });
+
+    it("does not credit a payment that is not completed, or is for a different amount", async () => {
+      const open = await load(sam, 2_000, { ecommerceStatus: "OPEN" });
+      expect((await complete(sam, open)).status).toBe(402);
+      const short = await load(sam, 2_000, { total: 5 });
+      expect((await complete(sam, short)).status).toBe(400);
+      expect(await availableOf(sam)).toBe(0);
+    });
+
+    it("does not credit a payment begun by somebody else", async () => {
+      const ramon = (await signup("ramon-balance@example.com", "Ramón")).token;
+      const paid = await load(ramon, 2_000);
+      expect((await complete(sam, paid)).status).toBe(404);
+      expect(await availableOf(sam)).toBe(0);
+    });
+
+    it("does not credit a payment Evertec has no record of", async () => {
+      const start = await call("POST", "/api/balance/ath/start", { amountCents: 2_000 }, sam);
+      const res = await complete(sam, { ecommerceId: "made-up", nonce: start.json.nonce });
+      expect(res.status).toBe(502);
+      expect(await availableOf(sam)).toBe(0);
+    });
+
+    it("keeps the whole balance under its ceiling", async () => {
+      for (let i = 0; i < 2; i++) await complete(sam, await load(sam, 50_000));
+      expect((await call("POST", "/api/balance/ath/start", { amountCents: 500 }, sam)).status).toBe(400);
+    });
+
+    it("refunds unused money back through ATH Móvil, newest payment first", async () => {
+      await complete(sam, await load(sam, 3_000));
+      await complete(sam, await load(sam, 2_000));
+      const res = await call("POST", "/api/balance/refund", { amountCents: 2_500 }, sam);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      expect(res.json.availableCents).toBe(2_500);
+      expect(refunds.map((r) => r.amount)).toEqual(["20.00", "5.00"]);
+    });
+
+    it("puts the money back if ATH Móvil does not complete the refund", async () => {
+      await complete(sam, await load(sam, 3_000));
+      refundStatus = "FAILED";
+      const res = await call("POST", "/api/balance/refund", {}, sam);
+      expect(res.status).toBe(502);
+      expect(await availableOf(sam)).toBe(3_000);
+    });
+
+    it("will not refund more than is free", async () => {
+      await complete(sam, await load(sam, 1_000));
+      expect((await call("POST", "/api/balance/refund", { amountCents: 1_001 }, sam)).status).toBe(400);
+    });
+
+    describe("paying for an errand", () => {
+      const book = async (assistantId: string, over: Record<string, unknown> = {}) =>
+        call("POST", "/api/concierge/tasks", {
+          category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+          location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
+          spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId, ...over,
+        }, sam);
+      const kit = async () => (await hireOne({
+        role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com`,
+      }, "puerto-rico")).json.assistant.id as string;
+
+      it("reserves from the balance with no card on file, and gives back what was not spent", async () => {
+        const id = await kit();
+        await complete(sam, await load(sam, 5_000));
+        const res = await book(id);
+        expect(res.status, JSON.stringify(res.json)).toBe(200);
+        const held = (await call("GET", "/api/balance", undefined, sam)).json;
+        expect(held.heldCents).toBeGreaterThanOrEqual(1_000);
+        expect(held.availableCents).toBe(5_000 - held.heldCents);
+
+        const done = await call("POST", `/api/concierge/tasks/${res.json.task.id}/complete`, { billedCents: 400 }, sam);
+        expect(done.status, JSON.stringify(done.json)).toBe(200);
+        const after = (await call("GET", "/api/balance", undefined, sam)).json;
+        expect(after.heldCents).toBe(0);
+        expect(after.spentCents).toBeLessThan(held.heldCents);
+        expect(after.availableCents).toBe(5_000 - after.spentCents);
+      });
+
+      it("returns everything when the task is canceled", async () => {
+        const id = await kit();
+        await complete(sam, await load(sam, 5_000));
+        const res = await book(id);
+        const cancel = await call("POST", `/api/concierge/tasks/${res.json.task.id}/cancel`, {}, sam);
+        expect(cancel.status, JSON.stringify(cancel.json)).toBe(200);
+        expect(await availableOf(sam)).toBe(5_000);
+      });
+
+      it("refuses when the balance is short and there is no card, naming the shortfall", async () => {
+        const id = await kit();
+        await complete(sam, await load(sam, 500));
+        const res = await book(id, { spendCapCents: 3_000 });
+        expect(res.status).toBe(402);
+        expect(res.json.error).toMatch(/balance/i);
+        expect(await availableOf(sam)).toBe(500);
+      });
+
+      it("cannot spend the same money on two tasks", async () => {
+        const id = await kit();
+        await complete(sam, await load(sam, 1_500));
+        const results = await Promise.all([book(id), book(id)]);
+        expect(results.map((r) => r.status).sort()).toEqual([200, 402]);
+      });
+
+      it("falls back to the card when the balance cannot cover it", async () => {
+        const id = await kit();
+        await withCard(sam);
+        await complete(sam, await load(sam, 500));
+        const res = await book(id, { spendCapCents: 3_000 });
+        expect(res.status, JSON.stringify(res.json)).toBe(200);
+        expect(await availableOf(sam)).toBe(500);
+      });
+    });
+  });
+
   describe("errand tiers", () => {
     const book = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
       call("POST", "/api/concierge/tasks", {

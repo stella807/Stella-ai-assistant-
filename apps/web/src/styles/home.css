@@ -53,3 +53,7 @@
 .cap-change > summary { cursor: pointer; padding: 10px 0; list-style: none; }
 .cap-change > summary::-webkit-details-marker { display: none; }
 .cap-change > summary .linklike { text-decoration: underline; color: var(--gold, inherit); }
+
+.balance-amount { font-size: 1.6rem; font-weight: 700; }
+.balance-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.balance-presets .btn { padding-inline: 4px; white-space: nowrap; }

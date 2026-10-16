@@ -313,6 +313,29 @@ path already accepts, through Stripe, like Visa, Amex and Discover.
 off one source; "supporting Mastercard" means nothing more than the card form
 already working.
 
+### ATH Móvil loads a prepaid balance
+
+ATH Móvil debits the customer the moment they confirm in their app (Evertec's
+docs describe no hold, no saved method and no recurring charge, and there is
+no sandbox), so it cannot back a card-style hold. It funds a **Safehubby
+balance** instead (`balance.ts`, the Payments screen's *Safehubby balance*
+card, `/api/balance/*`):
+
+- **Load:** `POST /api/balance/ath/start` records the amount and a nonce for
+  this account; Evertec's button carries the nonce in `metadata2`; the browser
+  reports an `ecommerceId`; `POST /api/balance/ath/complete` asks Evertec
+  (`findPayment`) and credits only a `COMPLETED` payment whose amount and nonce
+  match, once. Limits: $5–$500 per load, $1,000 total.
+- **Spend:** an errand or assistant booking reserves from the balance when it
+  covers the whole amount (never split with a card); otherwise it uses the
+  card, or refuses naming the shortfall. The balance is derived from loads and
+  from holds marked `fundedBy: "balance"`, so a capture or release adjusts it
+  with no second write. Rides and plan payments still go on a card.
+- **Refund:** `POST /api/balance/refund` sends unused money back through ATH
+  Móvil's refund endpoint against the original payments, newest first.
+- Not yet covered: plan subscriptions and rides from the balance; recurring
+  renewals (each would need the customer to approve again).
+
 ### Configuring ATH Móvil
 
 Needs an ATH Móvil Business account. Both tokens are in the Settings tab of
@@ -382,9 +405,9 @@ Stated plainly, because the code says the same thing where it matters:
   saying so on its own tab rather than offering a button that would fail:
   - **PayPal and Venmo** need PayPal's own checkout SDK, which needs a real
     PayPal REST app's client id.
-  - **ATH Móvil** needs Evertec's Payment Button script
-    (`evertec/athmovil-javascript-api`) to produce the `ecommerceId` that
-    `adapters/ath-movil.ts` already knows how to verify.
+  - **ATH Móvil** is wired as a balance load (see above), not as a saved
+    method. Verified here only against a stand-in for Evertec's servers and
+    script, since Evertec offers no sandbox: try a small real load first.
 - **The Payment Element path has not been exercised against a live Stripe
   account either.** `createSetupIntent` and `ensureStripeCustomer` follow
   Stripe's documented SetupIntents and Customers APIs, and the screen follows

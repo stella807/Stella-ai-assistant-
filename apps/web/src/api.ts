@@ -133,6 +133,15 @@ export type PayBrand =
   | "klarna" | "cashapp" | "amazon-pay"
   | "venmo";
 
+export interface BalanceSummary {
+  loadedCents: number; refundedCents: number; heldCents: number; spentCents: number; availableCents: number;
+}
+export type BalanceInfo = BalanceSummary & {
+  minLoadCents: number;
+  maxLoadCents: number;
+  ath: { ready: true; publicToken: string | null } | { ready: false; note: string };
+};
+
 export interface PaymentMethod {
   id: string;
   processor: PaymentProcessor;
@@ -324,6 +333,14 @@ export const api = {
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
+  balance: () => request<BalanceInfo>("GET", "/api/balance"),
+  startBalanceLoad: (amountCents: number) =>
+    request<{ nonce: string; total: string; metadata1: string; metadata2: string }>(
+      "POST", "/api/balance/ath/start", { amountCents }),
+  completeBalanceLoad: (ecommerceId: string, nonce: string) =>
+    request<BalanceSummary & { alreadyCounted: boolean }>("POST", "/api/balance/ath/complete", { ecommerceId, nonce }),
+  refundBalance: (amountCents?: number) =>
+    request<BalanceSummary>("POST", "/api/balance/refund", amountCents === undefined ? {} : { amountCents }),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),
   /** A SetupIntent for the Payment Element, scoped to one brand. Only the
    *  Stripe-settled methods that can be saved off-session accept this — see

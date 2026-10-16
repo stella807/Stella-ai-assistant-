@@ -34,6 +34,7 @@ export * from "./auto-renewal.ts";
 export * from "./launch-plan.ts";
 export * from "./subscription.ts";
 export * from "./payment.ts";
+export * from "./balance.ts";
 export * from "./driver-applications.ts";
 export * from "./driver-pay.ts";
 export * from "./concierge.ts";

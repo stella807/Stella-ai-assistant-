@@ -36,35 +36,27 @@ import { statusFor } from "@safehubby/core";
  * configure the way PayPal needs one.
  */
 
-const ATH_PUBLIC_TOKEN = process.env.ATH_MOVIL_PUBLIC_TOKEN;
-const ATH_PRIVATE_TOKEN = process.env.ATH_MOVIL_PRIVATE_TOKEN;
-const ATH_API = (process.env.ATH_MOVIL_API_BASE ?? "https://payments.athmovil.com").replace(/\/$/, "");
+// Read at the moment of use rather than at import, so a test (or a redeploy
+// that sets the variables) is never stuck with what the process booted with.
+const publicToken = () => process.env.ATH_MOVIL_PUBLIC_TOKEN;
+const privateToken = () => process.env.ATH_MOVIL_PRIVATE_TOKEN;
+const apiBase = () => (process.env.ATH_MOVIL_API_BASE ?? "https://payments.athmovil.com").replace(/\/$/, "");
 
 /** ATH Móvil settles in US dollars only — it is a Puerto Rico network, and
  *  the island is on USD. Stated here so nothing upstream assumes otherwise. */
 export const ATH_MOVIL_CURRENCY = "USD";
 
 export const athMovilProcessor: ChargeProcessorPort = {
-  status: statusFor(
-    "ath-movil", "ATH Móvil", Boolean(ATH_PUBLIC_TOKEN && ATH_PRIVATE_TOKEN),
-    "An ATH Móvil Business account, then ATH_MOVIL_PUBLIC_TOKEN and ATH_MOVIL_PRIVATE_TOKEN from its Settings tab.",
-  ),
+  get status() {
+    return statusFor(
+      "ath-movil", "ATH Móvil", Boolean(publicToken() && privateToken()),
+      "An ATH Móvil Business account, then ATH_MOVIL_PUBLIC_TOKEN and ATH_MOVIL_PRIVATE_TOKEN from its Settings tab.",
+    );
+  },
 
   async verifyMethod(ecommerceId: string): Promise<VerifiedMethod> {
-    if (!ATH_PUBLIC_TOKEN || !ATH_PRIVATE_TOKEN) throw new Error("ATH Móvil is not configured.");
-
-    const res = await fetch(`${ATH_API}/api/business-transaction/ecommerce/business/findPayment`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ecommerceId, publicToken: ATH_PUBLIC_TOKEN }),
-    });
-    if (!res.ok) throw new Error(`ATH Móvil could not verify that payment: ${res.status}`);
-
-    const data = (await res.json()) as {
-      ecommerceStatus?: string;
-      referenceNumber?: string;
-      phoneNumber?: string;
-    };
+    if (!publicToken() || !privateToken()) throw new Error("ATH Móvil is not configured.");
+    const data = await findAthPayment(ecommerceId);
     if (data.ecommerceStatus !== "COMPLETED") {
       throw new Error(`ATH Móvil reported the payment as ${data.ecommerceStatus ?? "unknown"}, not completed.`);
     }
@@ -79,3 +71,52 @@ export const athMovilProcessor: ChargeProcessorPort = {
     };
   },
 };
+
+export interface AthPayment {
+  ecommerceStatus?: string;
+  referenceNumber?: string;
+  phoneNumber?: string;
+  /** Dollars, as Evertec reports it. */
+  total?: number;
+  metadata1?: string;
+  metadata2?: string;
+}
+
+/** What Evertec itself recorded for a payment — the only thing worth believing
+ *  about one, since the browser's callback is just the customer's own claim. */
+export async function findAthPayment(ecommerceId: string): Promise<AthPayment> {
+  const token = publicToken();
+  if (!token) throw new Error("ATH Móvil is not configured.");
+  const res = await fetch(`${apiBase()}/api/business-transaction/ecommerce/business/findPayment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ecommerceId, publicToken: token }),
+  });
+  if (!res.ok) throw new Error(`ATH Móvil could not verify that payment: ${res.status}`);
+  return (await res.json()) as AthPayment;
+}
+
+/** The merchant's public token, which Evertec's own browser button needs.
+ *  Public by design — it only identifies the business; the private token,
+ *  which can refund, never leaves the server. */
+export const athPublicToken = (): string | null => publicToken() ?? null;
+
+/** Refunds part or all of one original payment, back to the customer's own ATH Móvil. */
+export async function refundAthPayment(referenceNumber: string, amountCents: number): Promise<void> {
+  const pub = publicToken();
+  const priv = privateToken();
+  if (!pub || !priv) throw new Error("ATH Móvil is not configured.");
+  const res = await fetch(`${apiBase()}/api/business-transaction/ecommerce/refund`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      publicToken: pub, privateToken: priv, referenceNumber,
+      amount: (amountCents / 100).toFixed(2), message: "Safehubby balance refund",
+    }),
+  });
+  if (!res.ok) throw new Error(`ATH Móvil could not refund that payment: ${res.status}`);
+  const data = (await res.json()) as { refund?: { status?: string } };
+  if (data.refund?.status !== "COMPLETED") {
+    throw new Error(`ATH Móvil reported the refund as ${data.refund?.status ?? "unknown"}.`);
+  }
+}

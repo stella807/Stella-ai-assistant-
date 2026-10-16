@@ -21,7 +21,7 @@ type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
  *   App Pay, Amazon Pay and Link need in order to render at all.
  * - `sdk-pending` means the server adapter is ready and the vendor's own
  *   client SDK is not loaded on this screen: PayPal and Venmo need PayPal's
- *   JS SDK, ATH Móvil needs Evertec's Payment Button script.
+ *   JS SDK. ATH Móvil is not a tab: see BalanceCard.tsx.
  *
  * Affirm and Afterpay are not here, and not merely unwired: Stripe does not
  * support them on SetupIntents at all, so they cannot be a method on file.
@@ -54,7 +54,8 @@ const TABS: { id: Tab; label: string; processor: PaymentProcessor; brand?: PayBr
   { id: "link", label: "Link", processor: "stripe", brand: "link", wiring: "payment-element" },
   { id: "paypal", label: "PayPal", processor: "paypal", wiring: "sdk-pending" },
   { id: "venmo", label: "Venmo", processor: "paypal", brand: "venmo", wiring: "sdk-pending" },
-  { id: "ath-movil", label: "ATH Móvil", processor: "ath-movil", wiring: "sdk-pending" },
+  // ATH Móvil is not here on purpose: it debits on the spot and cannot be saved
+  // or held, so it loads the balance above this card instead (BalanceCard.tsx).
 ];
 
 const TAB = Object.fromEntries(TABS.map((t) => [t.id, t])) as Record<Tab, (typeof TABS)[number]>;

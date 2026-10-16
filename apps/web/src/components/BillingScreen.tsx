@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Billing } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
+import { BalanceCard } from "./BalanceCard.tsx";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { PlanPicker } from "./PlanPicker.tsx";
 import { RenewalTermsGate } from "./RenewalTermsGate.tsx";
@@ -145,6 +146,8 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
             }} />
         )}
       </section>
+
+      <BalanceCard />
 
       <PaymentMethodCard />
 
