@@ -252,6 +252,10 @@ const EN = {
   "billing.somethingWrong": "Something went wrong",
 
   "wingman.title": "Wingman Club",
+  "wingman.eyebrow": "Members only",
+  "wingman.tagline": "One night a month, done properly. Cigars, cars, the water — all arranged.",
+  "wingman.nowTag": "This month",
+  "wingman.perMonth": "a month",
   "wingman.blurb": "One membership, one group experience a month — revealed, not chosen by any one member. The due moves with the pick: {amount} this month for {experience}.",
   "wingman.hide": "Hide",
   "wingman.seeIt": "See it",
@@ -509,6 +513,10 @@ const ES: Record<TranslationKey, string> = {
   "billing.somethingWrong": "Algo salió mal",
 
   "wingman.title": "Wingman Club",
+  "wingman.eyebrow": "Solo para miembros",
+  "wingman.tagline": "Una noche al mes, como se debe. Puros, autos, el mar — todo organizado.",
+  "wingman.nowTag": "Este mes",
+  "wingman.perMonth": "al mes",
   "wingman.blurb": "Una membresía, una experiencia de grupo al mes — revelada, no elegida por ningún miembro. La cuota cambia con lo elegido: {amount} este mes por {experience}.",
   "wingman.hide": "Ocultar",
   "wingman.seeIt": "Verlo",

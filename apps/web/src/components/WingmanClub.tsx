@@ -3,6 +3,7 @@ import { CLUB_EXPERIENCES, duesForCents } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
+import { CigarArt, FlagArt } from "./CigarArt.tsx";
 
 /**
  * The Wingman Club: shown as its own folded section, the same treatment
@@ -19,7 +20,6 @@ import { money } from "../money.ts";
 export function WingmanClub() {
   const { t } = useLanguage();
   const [status, setStatus] = useState<Awaited<ReturnType<typeof api.clubStatus>> | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,89 +45,73 @@ export function WingmanClub() {
   const { thisMonth } = status;
 
   return (
-    <section className="card stack">
-      <div className="row-between">
-        <div className="stack" style={{ gap: 2 }}>
-          <h3>{t("wingman.title")}</h3>
-          <p className="tiny muted" style={{ margin: 0 }}>
-            {t("wingman.blurb")
-              .replace("{amount}", money(thisMonth.duesCents))
-              .replace("{experience}", thisMonth.experience.label.toLowerCase())}
-          </p>
+    <section className="wm-club" aria-label={t("wingman.title")}>
+      <div className="wm-haze" aria-hidden="true"><i /><i /><i /></div>
+
+      <div className="wm-eyebrow">{t("wingman.eyebrow")}</div>
+      <h3 className="wm-title">{t("wingman.title")}</h3>
+      <p className="wm-tagline">{t("wingman.tagline")}</p>
+
+      <div className="wm-hero"><CigarArt /></div>
+
+      <div className="wm-month">
+        <div className="wm-month-top">
+          <div className="wm-badge" aria-hidden="true">{thisMonth.experience.emoji}</div>
+          <div>
+            <div className="wm-label">{t("wingman.nowTag")}</div>
+            <h4>{thisMonth.experience.label}</h4>
+          </div>
+          <div className="wm-due">{money(thisMonth.duesCents)}<small>{t("wingman.perMonth")}</small></div>
         </div>
-        {!status.isMember && (
-          <button className="btn btn-sm btn-ghost" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
-            {expanded ? t("wingman.hide") : t("wingman.seeIt")}
-          </button>
-        )}
+        <p className="tiny" style={{ margin: "12px 0 0", color: "var(--wm-soft)" }}>
+          {t("wingman.negotiatedRate")
+            .replace("{rate}", money(thisMonth.experience.negotiatedPerPersonCents))
+            .replace("{retail}", money(thisMonth.experience.retailPerPersonCents))}
+        </p>
       </div>
 
-      {(expanded || status.isMember) && (
-        <>
-          <div className="card card-quiet stack" style={{ gap: 6 }}>
-            <div className="row-between">
-              <strong className="small">
-                {thisMonth.experience.emoji} {t("wingman.thisMonth").replace("{label}", thisMonth.experience.label)}
-              </strong>
-              <span className="charge-amount">{money(thisMonth.duesCents)}</span>
-            </div>
-            <p className="tiny muted" style={{ margin: 0 }}>
-              {t("wingman.negotiatedRate")
-                .replace("{rate}", money(thisMonth.experience.negotiatedPerPersonCents))
-                .replace("{retail}", money(thisMonth.experience.retailPerPersonCents))}
-            </p>
+      <div className="wm-rot-title">{t("wingman.comingUp")}</div>
+      <div className="wm-rail" role="list">
+        {CLUB_EXPERIENCES.map((e, i) => (
+          <div key={e.id} role="listitem" className={`wm-card${e.id === thisMonth.experience.id ? " now" : ""}`} style={{ ["--i" as string]: i }}>
+            {e.id === thisMonth.experience.id && <span className="now-tag">{t("wingman.nowTag")}</span>}
+            {e.id === "track-day" ? <FlagArt />
+              : e.id === "cigar-night" ? <CigarArt className="cigar-mini" />
+              : <span className="em" aria-hidden="true">{e.emoji}</span>}
+            <b>{e.label}</b>
+            <span className="p">{money(duesForCents(e))}</span>
           </div>
+        ))}
+      </div>
 
-          <div className="stack" style={{ gap: 4 }}>
-            <strong className="tiny" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--accent-bright)" }}>
-              {t("wingman.comingUp")}
-            </strong>
-            <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0, gap: 4 }}>
-              {CLUB_EXPERIENCES.map((e) => (
-                <li key={e.id} className="row-between tiny">
-                  <span>{e.emoji} {e.label}</span>
-                  <span className="muted">{money(duesForCents(e))}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {status.duesCoveredBySafehubby && (
-            <p className="tiny" style={{ margin: 0, color: "var(--accent-bright)" }}>
-              {t("wingman.includedElite")}
-            </p>
-          )}
-
-          <div className="stack" style={{ gap: 4 }}>
-            <strong className="tiny" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--accent-bright)" }}>
-              {t("wingman.everyEventIncludes")}
-            </strong>
-            {status.perks.map((p) => (
-              <p key={p} className="tiny muted" style={{ margin: 0 }}>🥃 {p}</p>
-            ))}
-          </div>
-
-          <p className="tiny muted" style={{ margin: 0 }}>
-            {t(status.memberCount === 1 ? "wingman.memberCountOne" : "wingman.memberCountMany").replace("{count}", String(status.memberCount))}
-            {" — "}
-            {status.overheadCovered
-              ? t("wingman.overheadCovered")
-              : t("wingman.overheadNotCovered").replace("{n}", String(status.breakEvenMembers))}
-          </p>
-
-          <ul className="timeline">
-            {status.disclosures.map((d) => (
-              <li key={d}><span className="tiny muted">{d}</span></li>
-            ))}
-          </ul>
-
-          <button className={`btn btn-block${status.isMember ? "" : " btn-primary"}`} disabled={busy} onClick={toggle}>
-            {status.isMember ? t("wingman.leave") : t("wingman.join")}
-          </button>
-
-          {error && <div className="banner banner-danger">{error}</div>}
-        </>
+      {status.duesCoveredBySafehubby && (
+        <p className="tiny" style={{ margin: "4px 0 10px", color: "var(--wm-gold)" }}>{t("wingman.includedElite")}</p>
       )}
+
+      <div className="wm-rot-title">{t("wingman.everyEventIncludes")}</div>
+      <div className="wm-perks">
+        {status.perks.map((p) => (
+          <div key={p} className="wm-perk"><span className="ic" aria-hidden="true">🥃</span><span className="small">{p}</span></div>
+        ))}
+      </div>
+
+      <p className="wm-fine" style={{ marginTop: 16 }}>
+        {t(status.memberCount === 1 ? "wingman.memberCountOne" : "wingman.memberCountMany").replace("{count}", String(status.memberCount))}
+        {" — "}
+        {status.overheadCovered
+          ? t("wingman.overheadCovered")
+          : t("wingman.overheadNotCovered").replace("{n}", String(status.breakEvenMembers))}
+      </p>
+
+      <ul className="wm-fine" style={{ paddingLeft: 18 }}>
+        {status.disclosures.map((d) => <li key={d}>{d}</li>)}
+      </ul>
+
+      <button className={`wm-cta${status.isMember ? " leave" : ""}`} disabled={busy} onClick={toggle}>
+        {status.isMember ? t("wingman.leave") : t("wingman.join")}
+      </button>
+
+      {error && <div className="banner banner-danger" style={{ marginTop: 12 }}>{error}</div>}
     </section>
   );
 }

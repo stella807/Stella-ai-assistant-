@@ -1,0 +1,136 @@
+/* The Wingman Club: a members-lounge look — deep wood and burgundy, brass
+   gold, slow smoke. Everything that moves stops under reduced motion. */
+.wm-club {
+  --wm-gold: #e8c170;
+  --wm-gold-deep: #b98a2c;
+  --wm-ink: #f6efe2;
+  --wm-soft: #cbbfa9;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 28px;
+  padding: 22px 18px 24px;
+  color: var(--wm-ink);
+  background:
+    radial-gradient(120% 70% at 85% -10%, rgba(176, 52, 40, .45), transparent 60%),
+    radial-gradient(90% 60% at -10% 110%, rgba(232, 193, 112, .18), transparent 60%),
+    linear-gradient(165deg, #1b0d0b 0%, #120a09 55%, #0b0706 100%);
+  border: 1px solid rgba(232, 193, 112, .28);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+.wm-club > * { position: relative; z-index: 1; }
+
+/* drifting haze behind everything */
+.wm-haze { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.wm-haze i {
+  position: absolute; bottom: -60px; width: 180px; height: 180px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 245, 226, .16), transparent);
+  filter: blur(14px); animation: wm-rise 14s linear infinite;
+}
+.wm-haze i:nth-child(1) { left: 6%; animation-delay: -2s; }
+.wm-haze i:nth-child(2) { left: 38%; width: 240px; height: 240px; animation-duration: 19s; animation-delay: -9s; }
+.wm-haze i:nth-child(3) { left: 70%; animation-duration: 16s; animation-delay: -5s; }
+@keyframes wm-rise {
+  0% { transform: translate3d(0, 0, 0) scale(.8); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate3d(30px, -520px, 0) scale(1.5); opacity: 0; }
+}
+
+.wm-eyebrow {
+  font-size: .72rem; letter-spacing: .32em; text-transform: uppercase; color: var(--wm-gold);
+  animation: wm-up .8s ease both;
+}
+.wm-title {
+  font-family: Georgia, "Times New Roman", serif; font-weight: 700; font-style: italic;
+  font-size: 2.35rem; line-height: 1.05; margin: 6px 0 4px;
+  background: linear-gradient(95deg, #fff7e3 0%, var(--wm-gold) 45%, #fff2cf 70%, var(--wm-gold-deep) 100%);
+  background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: wm-up .8s .08s ease both, wm-shine 7s 1s linear infinite;
+}
+@keyframes wm-shine { to { background-position: -220% 0; } }
+.wm-tagline { color: var(--wm-soft); margin: 0; animation: wm-up .8s .16s ease both; }
+
+.wm-hero { margin: 8px -6px 0; animation: wm-up .9s .2s ease both; }
+.cigar-art { width: 100%; height: auto; display: block; filter: drop-shadow(0 18px 24px rgba(0, 0, 0, .55)); animation: wm-float 6s ease-in-out infinite; }
+@keyframes wm-float { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-6px) rotate(-.6deg); } }
+.cigar-ember { transform-origin: 354px 115px; animation: wm-ember 2.2s ease-in-out infinite; }
+@keyframes wm-ember { 0%, 100% { opacity: .85; transform: scale(.92); } 50% { opacity: 1; transform: scale(1.15); } }
+.cigar-smoke path { stroke-dasharray: 160; stroke-dashoffset: 160; opacity: 0; animation: wm-smoke 6s ease-in-out infinite; }
+.cigar-smoke .smoke-b { animation-delay: 1.6s; }
+.cigar-smoke .smoke-c { animation-delay: 3.2s; }
+@keyframes wm-smoke {
+  0% { stroke-dashoffset: 160; opacity: 0; transform: translateY(8px); }
+  25% { opacity: .55; }
+  100% { stroke-dashoffset: 0; opacity: 0; transform: translateY(-18px); }
+}
+
+/* this month's pick */
+.wm-month {
+  margin-top: 6px; padding: 18px; border-radius: 22px;
+  background: linear-gradient(150deg, rgba(232, 193, 112, .16), rgba(255, 255, 255, .04));
+  border: 1px solid rgba(232, 193, 112, .4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  animation: wm-up .9s .3s ease both;
+}
+.wm-month-top { display: flex; align-items: center; gap: 14px; }
+.wm-badge {
+  flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 2rem;
+  background: radial-gradient(closest-side, rgba(232, 193, 112, .35), rgba(232, 193, 112, .06));
+  border: 1px solid rgba(232, 193, 112, .55); animation: wm-pulse 3.2s ease-in-out infinite;
+}
+@keyframes wm-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(232, 193, 112, .35); } 50% { box-shadow: 0 0 0 12px rgba(232, 193, 112, 0); } }
+.wm-month h4 { margin: 0; font-family: Georgia, serif; font-size: 1.35rem; }
+.wm-month .wm-label { font-size: .7rem; letter-spacing: .24em; text-transform: uppercase; color: var(--wm-gold); }
+.wm-due { margin-left: auto; text-align: right; font-family: Georgia, serif; font-size: 1.7rem; color: var(--wm-gold); line-height: 1; }
+.wm-due small { display: block; font-family: inherit; font-size: .65rem; letter-spacing: .2em; text-transform: uppercase; color: var(--wm-soft); margin-top: 4px; }
+
+/* the rotation: swipeable cards */
+.wm-rot-title { margin: 22px 0 8px; font-size: .72rem; letter-spacing: .28em; text-transform: uppercase; color: var(--wm-gold); }
+.wm-rail { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 2px 14px; margin: 0 -4px; scrollbar-width: none; }
+.wm-rail::-webkit-scrollbar { display: none; }
+.wm-card {
+  flex: none; width: 150px; scroll-snap-align: start; border-radius: 20px; padding: 14px 14px 16px; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02));
+  border: 1px solid rgba(232, 193, 112, .25);
+  opacity: 0; animation: wm-up .7s ease both; animation-delay: calc(var(--i) * 70ms + .4s);
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1), border-color .35s;
+}
+.wm-card:hover, .wm-card:focus-within { transform: translateY(-6px) scale(1.03); border-color: var(--wm-gold); }
+.wm-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 244, 214, .22) 50%, transparent 70%); transform: translateX(-120%); transition: transform .8s; }
+.wm-card:hover::after { transform: translateX(120%); }
+.wm-card .em { font-size: 2.1rem; display: block; height: 44px; }
+.wm-card .flag-art, .wm-card .cigar-mini { width: 58px; height: 44px; display: block; }
+.wm-card b { display: block; margin-top: 8px; font-family: Georgia, serif; font-size: 1rem; line-height: 1.15; }
+.wm-card span.p { display: block; margin-top: 6px; color: var(--wm-gold); font-size: .9rem; }
+.wm-card.now { border-color: var(--wm-gold); background: linear-gradient(160deg, rgba(232, 193, 112, .22), rgba(255, 255, 255, .03)); }
+.wm-card .now-tag { position: absolute; top: 10px; right: 10px; font-size: .58rem; letter-spacing: .18em; text-transform: uppercase; color: #1b0d0b; background: var(--wm-gold); border-radius: 99px; padding: 2px 8px; }
+
+/* perks */
+.wm-perks { display: grid; gap: 8px; margin-top: 6px; }
+.wm-perk { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(232, 193, 112, .2); animation: wm-up .8s .5s ease both; }
+.wm-perk .ic { font-size: 1.4rem; }
+
+.wm-fine { color: var(--wm-soft); font-size: .78rem; margin: 14px 0 0; }
+.wm-fine li { margin-bottom: 4px; }
+
+/* the call to action */
+.wm-cta {
+  position: relative; overflow: hidden; width: 100%; margin-top: 18px; padding: 16px; border: 0; border-radius: 16px; cursor: pointer;
+  font-family: Georgia, serif; font-weight: 700; font-size: 1.1rem; letter-spacing: .04em; color: #1b0d0b;
+  background: linear-gradient(95deg, var(--wm-gold-deep), var(--wm-gold) 40%, #fff0c4 60%, var(--wm-gold));
+  box-shadow: 0 10px 28px rgba(185, 138, 44, .4);
+}
+.wm-cta::after { content: ""; position: absolute; top: 0; bottom: 0; width: 60px; left: -80px; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .7), transparent); animation: wm-sweep 3.6s ease-in-out infinite; }
+@keyframes wm-sweep { 0% { left: -80px; } 55%, 100% { left: 110%; } }
+.wm-cta.leave { background: transparent; color: var(--wm-gold); border: 1px solid rgba(232, 193, 112, .5); box-shadow: none; }
+.wm-cta.leave::after { display: none; }
+.wm-cta:disabled { opacity: .6; cursor: default; }
+.wm-reveal { margin-top: 14px; width: 100%; background: transparent; border: 1px solid rgba(232, 193, 112, .4); color: var(--wm-gold); border-radius: 14px; padding: 12px; cursor: pointer; font-family: Georgia, serif; }
+
+@keyframes wm-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .wm-club *, .wm-club *::after { animation: none !important; transition: none !important; }
+  .wm-card, .wm-eyebrow, .wm-title, .wm-tagline, .wm-hero, .wm-month, .wm-perk { opacity: 1 !important; transform: none !important; }
+  .cigar-smoke path { opacity: .35; stroke-dashoffset: 0; }
+}

@@ -9,6 +9,7 @@ import "./styles/components.css";
 import "./styles/carousel.css";
 import "./styles/popup-cards.css";
 import "./styles/home.css";
+import "./styles/wingman.css";
 
 // Three distinct areas of one app, split by path rather than by a query
 // param carried on a link: /employee is the employee portal and /master is
