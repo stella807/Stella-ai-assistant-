@@ -48,7 +48,7 @@ export const CAREERS_URL = `${APP_URL.replace(/\/$/, "")}/#careers`;
  * price of it being a link anybody can tap; a contact form would need a
  * server, which this site deliberately does not have.
  */
-export const CONTACT_EMAIL = "le2596@gmail.com";
+export const CONTACT_EMAIL = "contact@safehubby.com";
 
 /** A link that opens the reader's mail app. */
 export function mailtoHref(address: string): string {
