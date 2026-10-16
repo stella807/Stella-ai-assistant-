@@ -11,6 +11,10 @@ import { permissionCopy, settingsPath } from "../native/permissions.ts";
 import { PermissionGate } from "./PermissionGate.tsx";
 import { readFileAsBase64 } from "../native/camera.ts";
 import { TaskMessageThread } from "./TaskMessageThread.tsx";
+import { PopupCard } from "./PopupCard.tsx";
+import { SpendRequestPopup } from "./SpendRequestPopup.tsx";
+import { TaskDetails } from "./TaskDetails.tsx";
+import { assistantFace, pendingSpendRequests, statusLine } from "../app/chat-cards.ts";
 
 /** Exact, to the cent — this screen is where the hold is actually agreed to,
  *  so it follows the same rule ConciergePanel's own pricing card does: a fee
@@ -77,8 +81,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   const [draft, setDraft] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [disputing, setDisputing] = useState(false);
-  const [disputeReason, setDisputeReason] = useState("");
+  // Whether the card is showing the paperwork instead of the conversation.
+  const [showDetails, setShowDetails] = useState(false);
   // The live handle lives in a ref, not state: `record()` below both starts
   // and stops the same recording, and a `useEffect` keyed on a state value
   // that changes as part of that same flow would tear the recorder down out
@@ -86,9 +90,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   // meant for unmount firing mid-flow instead. A ref sidesteps that; the
   // effect below only ever runs its cleanup on unmount.
   const activeRecording = useRef<ActiveRecording | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const selfieInput = useRef<HTMLInputElement>(null);
 
   /**
    * Keeps the whole screen live while it is open — messages *and* the task.
@@ -154,22 +157,14 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     if (timerRef.current) clearInterval(timerRef.current);
   }, []);
 
-  /**
-   * A dialog that announces `aria-modal` has to behave like one. Escape
-   * closes it, focus moves inside on open so a keyboard or screen-reader
-   * user is not left behind on the page underneath, and whatever was focused
-   * before gets it back on close.
-   */
+  // Keep the newest message in view as the conversation grows. Only when
+  // something arrives: moving the thread while somebody is reading back up it
+  // would take their place away.
+  const messageCount = texts.length + messages.length;
   useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    sheetRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      previouslyFocused?.focus?.();
-    };
-  }, [onClose]);
+    const body = bodyRef.current;
+    if (body && task && !showDetails) body.scrollTop = body.scrollHeight;
+  }, [messageCount, task?.id, showDetails]);
 
   const send = async () => {
     setBusy(true);
@@ -250,7 +245,6 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       setError(e instanceof Error ? e.message : "Could not save that photo");
     } finally {
       setBusy(false);
-      if (selfieInput.current) selfieInput.current.value = "";
     }
   };
 
@@ -271,257 +265,162 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     }
   };
 
-  const submitDispute = async () => {
-    if (!task) return;
+  /** Resolves true if the report went through, so the form closes only then. */
+  const submitDispute = async (reason: string): Promise<boolean> => {
+    if (!task) return false;
     setBusy(true);
     setError(null);
     try {
-      const res = await api.disputeConcierge(task.id, disputeReason);
+      const res = await api.disputeConcierge(task.id, reason);
       setTask(res.task);
-      setDisputing(false);
-      setDisputeReason("");
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not file that report");
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-sheet" ref={sheetRef} tabIndex={-1}
-        onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={assistant.name}>
-        <div className="row-between">
-          <div className="row" style={{ gap: 10 }}>
-            <div className="assistant-avatar">
-              {assistant.photoUrl ? <img src={assistant.photoUrl} alt="" /> : assistant.name.slice(0, 1)}
-            </div>
-            <div>
-              <strong className="small">{assistant.name}</strong>
-              {assistant.role && <div className="tiny muted">{findRole(assistant.role).label}</div>}
-              <div className="tiny muted">{describeAssistantCapacity(assistant)}</div>
-            </div>
+  const face = assistantFace(assistant, task);
+  const status = statusLine(task);
+  const pending = pendingSpendRequests(task);
+  const payout = errandTier ? errandPayoutCents(errandTier) : assistantPayoutFor(category, quickTask, peopleCount, hours);
+
+  const header = (
+    <>
+      <div className="assistant-avatar popup-avatar">
+        {face ? <img src={face} alt="" /> : assistant.name.slice(0, 1)}
+      </div>
+      <div className="popup-who">
+        <strong>{assistant.name}</strong>
+        <span className="tiny muted">
+          {assistant.role ? `${findRole(assistant.role).label} · ` : ""}
+          <span className={`popup-status${status.live ? " popup-status-live" : ""}`}>{status.label}</span>
+        </span>
+      </div>
+      {task && (
+        <button className="btn btn-sm btn-ghost" onClick={() => setShowDetails((v) => !v)}
+          aria-pressed={showDetails} aria-label={showDetails ? "Back to the conversation" : "Task details"}>
+          {showDetails ? "Chat" : "Details"}
+        </button>
+      )}
+      <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
+    </>
+  );
+
+  // Before there is a task this is the request card: what is being asked, what
+  // it costs, and the agreement. The agreement and the button stay pinned so
+  // the one action on the card is never scrolled out of reach.
+  if (!task) {
+    return (
+      <PopupCard label={assistant.name} onClose={onClose} header={header} footer={
+        <>
+          {error && <div className="banner banner-danger">{error}</div>}
+          <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
+            <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
+            <span className="small">I understand what this means and want to send this request.</span>
+          </label>
+          <button className="btn btn-primary btn-block" disabled={busy || !acknowledged || totalCents === null} onClick={send}>
+            Send request
+          </button>
+        </>
+      }>
+        {assistant.bio && <p className="small muted" style={{ margin: 0 }}>{assistant.bio}</p>}
+        <p className="tiny muted" style={{ margin: 0 }}>{describeAssistantCapacity(assistant)}</p>
+        <p className="small" style={{ margin: 0 }}><strong>Request:</strong> {note}</p>
+
+        {maxPeopleCount > 1 && (
+          <div className="field">
+            <label htmlFor="people-count">How many people is this for?</label>
+            <select id="people-count" value={peopleCount} onChange={(e) => setPeopleCount(Number(e.target.value))}>
+              {Array.from({ length: maxPeopleCount }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n === 1 ? "Just me" : `${n} people`}</option>
+              ))}
+            </select>
+            <span className="tiny muted">
+              Looking after more people is more work, so the assistant is paid more for it. Your plan
+              covers up to {maxPeopleCount}.
+            </span>
           </div>
-          <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
+        )}
+
+        <div className="card card-quiet stack" style={{ gap: 6 }}>
+          <div className="row-between tiny muted">
+            <span>Spend cap (reimbursed purchase)</span>
+            <span className="charge-amount">{money(spendCapCents)}</span>
+          </div>
+          <div className="row-between tiny muted">
+            <span>Service fee{peopleCount > 1 && ` — for ${peopleCount} people`}</span>
+            <span className="charge-amount">{serviceFeeCents === null ? "…" : serviceFeeCents === 0 ? "Included" : money(serviceFeeCents)}</span>
+          </div>
+          {/* Not the fee: the fee is what the assistant is paid plus Safehubby's
+              margin. This is the line that adds up for somebody doing the
+              hourly arithmetic themselves. */}
+          <div className="row-between tiny muted">
+            <span>Your assistant is paid</span>
+            <span className="charge-amount">{money(payout)}</span>
+          </div>
+          <div className="row-between small">
+            <strong>Held on your card now</strong>
+            <strong className="charge-amount">{totalCents === null ? "…" : money(totalCents)}</strong>
+          </div>
         </div>
+        <ul className="timeline">
+          {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
+        </ul>
+      </PopupCard>
+    );
+  }
 
-        {assistant.bio && <p className="small muted">{assistant.bio}</p>}
-
-        {!task ? (
-          <>
-            <p className="small">Request: {note}</p>
-
-            {maxPeopleCount > 1 && (
-              <div className="field">
-                <label htmlFor="people-count">How many people is this for?</label>
-                <select id="people-count" value={peopleCount}
-                  onChange={(e) => setPeopleCount(Number(e.target.value))}>
-                  {Array.from({ length: maxPeopleCount }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>{n === 1 ? "Just me" : `${n} people`}</option>
-                  ))}
-                </select>
-                <span className="tiny muted">
-                  Looking after more people is more work, so the assistant is paid more for it. Your plan
-                  covers up to {maxPeopleCount}.
-                </span>
-              </div>
-            )}
-
-            <div className="row-between tiny muted">
-              <span>Spend cap (reimbursed purchase)</span>
-              <span className="charge-amount">{money(spendCapCents)}</span>
-            </div>
-            <div className="row-between tiny muted">
-              <span>
-                Service fee
-                {peopleCount > 1 && ` — for ${peopleCount} people`}
-              </span>
-              <span className="charge-amount">{serviceFeeCents === null ? "…" : money(serviceFeeCents)}</span>
-            </div>
-            {/* The fee above is not what the assistant is paid — it is what the
-                assistant is paid *plus* Safehubby's margin, per assistantPayoutFor.
-                Showing only the fee and calling it "pays your assistant" is how a
-                customer who does the hourly math themselves ends up thinking the
-                numbers don't add up; this line is the one that actually adds up. */}
-            <div className="row-between tiny muted">
-              <span>Your assistant is paid</span>
-              <span className="charge-amount">{money(errandTier ? errandPayoutCents(errandTier) : assistantPayoutFor(category, quickTask, peopleCount, hours))}</span>
-            </div>
-            <div className="row-between small">
-              <strong>Held on your card now</strong>
-              <strong className="charge-amount">{totalCents === null ? "…" : money(totalCents)}</strong>
-            </div>
-            <ul className="timeline">
-              {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
-            </ul>
-            <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
-              <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
-              <span className="small">I understand what this means and want to send this request.</span>
-            </label>
-            <button className="btn btn-primary btn-block" disabled={busy || !acknowledged || totalCents === null} onClick={send}>
-              Send request
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="tiny muted">
-              Sent — {money(task.spendCapCents + task.serviceFeeCents)} held ({money(task.spendCapCents)} spend cap +
-              {" "}{money(task.serviceFeeCents)} service fee). Leave a voice message if there's more to say.
-            </p>
-
-            {(task.spendRequests ?? []).length > 0 && (
-              <div className="stack" style={{ gap: 8 }}>
-                <strong className="small">What they're buying</strong>
-                {(task.spendRequests ?? []).map((r) => (
-                  <div key={r.id} className="card card-quiet stack" style={{ gap: 6 }}>
-                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                      <img className="selfie-thumb" alt={r.note}
-                        src={`data:${r.photo.mimeType};base64,${r.photo.base64}`} />
-                      <div className="stack" style={{ gap: 2 }}>
-                        <span className="small">{r.note}</span>
-                        <span className="tiny muted">{money(r.amountCents)}</span>
-                      </div>
-                    </div>
-                    {r.change && (
-                      <p className="tiny muted" style={{ margin: 0 }}>
-                        They let you know: {r.change.note}
-                      </p>
-                    )}
-                    {r.receipt ? (
-                      <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                        <img className="selfie-thumb" alt="Receipt"
-                          src={`data:${r.receipt.mimeType};base64,${r.receipt.base64}`} />
-                        <span className="tiny muted">Receipt</span>
-                      </div>
-                    ) : (
-                      <span className="tiny muted">No receipt yet.</span>
-                    )}
-                    {r.status === "open" ? (
-                      <div className="row">
-                        <button className="btn btn-sm grow" disabled={busy}
-                          onClick={() => decide(r.id, false)}>
-                          Not that
-                        </button>
-                        <button className="btn btn-sm btn-primary grow" disabled={busy}
-                          onClick={() => decide(r.id, true)}>
-                          Looks right
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="tiny muted">
-                        {r.status === "approved" ? "You said this looks right." : "You declined this — the card is locked."}
-                      </span>
-                    )}
-                  </div>
-                ))}
-                <p className="tiny muted">
-                  You don't have to answer these — your spend cap already limits what can be spent. Saying
-                  "not that" locks the card so nothing more goes through on it.
-                </p>
-              </div>
-            )}
-
-            <div className="row-between">
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                {task.identityPhotos?.assistant ? (
-                  <img className="selfie-thumb" alt="Your assistant"
-                    src={`data:${task.identityPhotos.assistant.mimeType};base64,${task.identityPhotos.assistant.base64}`} />
-                ) : (
-                  <span className="tiny muted">No photo from them yet</span>
-                )}
-              </div>
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                {task.identityPhotos?.traveler ? (
-                  <img className="selfie-thumb" alt="Your selfie"
-                    src={`data:${task.identityPhotos.traveler.mimeType};base64,${task.identityPhotos.traveler.base64}`} />
-                ) : (
-                  <button className="btn btn-sm" disabled={busy} onClick={() => selfieInput.current?.click()}>
-                    Take my selfie
-                  </button>
-                )}
-                <input ref={selfieInput} type="file" accept="image/*" capture="user" hidden
-                  onChange={(e) => captureSelfie(e.target.files?.[0])} />
-              </div>
-            </div>
-            <p className="tiny muted">
-              A selfie from each of you is shared with the other, so you can confirm who you're meeting.
-            </p>
-
-            {task.status === "completed" && (
-              <div className="stack" style={{ gap: 6 }}>
-                {task.completionPhoto ? (
-                  <>
-                    <p className="tiny muted">Proof of completion, from your assistant:</p>
-                    <img className="selfie-thumb" alt="What your assistant delivered" style={{ width: 96, height: 96 }}
-                      src={`data:${task.completionPhoto.mimeType};base64,${task.completionPhoto.base64}`} />
-                  </>
-                ) : (
-                  <p className="tiny muted">Your assistant didn't attach a completion photo for this one.</p>
-                )}
-
-                {task.disputed ? (
-                  <p className="tiny muted">
-                    Reported and refunded — {money(task.refundedCents ?? 0)} back to your card.
-                  </p>
-                ) : disputing ? (
-                  <>
-                    <div className="field">
-                      <label htmlFor="dispute-reason">What happened?</label>
-                      <textarea id="dispute-reason" maxLength={280} rows={2} value={disputeReason}
-                        onChange={(e) => setDisputeReason(e.target.value)}
-                        placeholder="Never showed up, and I was still charged." />
-                    </div>
-                    <div className="row">
-                      <button className="btn btn-sm grow" disabled={busy} onClick={() => setDisputing(false)}>Cancel</button>
-                      <button className="btn btn-sm btn-primary grow" disabled={busy || !disputeReason.trim()} onClick={submitDispute}>
-                        Submit report
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setDisputing(true)}>
-                    Report a problem — never showed up or kept the money
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Typed and spoken messages in one timeline, with both ways to
-                reply under it — see TaskMessageThread. */}
-            <TaskMessageThread texts={texts} voices={messages} assistantName={assistant.name} />
-
-            <div className="row" style={{ gap: 8 }}>
-              <input
-                aria-label="Message your assistant"
-                placeholder={`Message ${assistant.name}`}
-                value={draft}
-                maxLength={MAX_TEXT_MESSAGE_LENGTH}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) sendText(); }}
-                style={{ flex: 1 }}
-              />
-              <button className="btn btn-sm btn-primary" disabled={busy || !draft.trim()} onClick={sendText}>
-                Send
-              </button>
-            </div>
-
-            {/* Explains itself before the OS dialog appears. On a native
-                build a refused microphone prompt is never shown again, so the
-                one chance to ask has to land on someone who knows why. */}
+  // After it is sent: the conversation is the card. The paperwork is one tap
+  // away on "Details", and a question from the assistant pops up above the
+  // message box where it cannot be missed.
+  return (
+    <PopupCard label={assistant.name} onClose={onClose} header={header} bodyRef={bodyRef} footer={
+      <>
+        {pending[0] && (
+          <SpendRequestPopup request={pending[0]} position={1} total={pending.length} busy={busy}
+            onDecide={(approve) => decide(pending[0]!.id, approve)} />
+        )}
+        {error && <div className="banner banner-danger">{error}</div>}
+        <div className="popup-composer">
+          <input
+            aria-label="Message your assistant"
+            placeholder={`Message ${assistant.name}`}
+            value={draft}
+            maxLength={MAX_TEXT_MESSAGE_LENGTH}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) sendText(); }}
+          />
+          <button className="btn btn-primary" disabled={busy || !draft.trim()} onClick={sendText}>Send</button>
+          {/* Explains itself before the OS dialog appears. On a native build a
+              refused microphone prompt is never shown again, so the one chance
+              to ask has to land on someone who knows why. */}
+          <div className="popup-mic-slot">
             <PermissionGate name="microphone" compact>
-              <button className={`record-button${isRecording ? " recording" : ""}`} disabled={busy && !isRecording} onClick={record}
+              <button className={`record-button popup-mic${isRecording ? " recording" : ""}`}
+                disabled={busy && !isRecording} onClick={record}
                 aria-label={isRecording ? "Stop and send" : "Record a voice message"}>
                 {isRecording ? `${elapsed}s` : "●"}
               </button>
             </PermissionGate>
-            <p className="tiny muted" style={{ textAlign: "center" }}>
-              {isRecording ? "Recording — tap to send" : `Tap to record, up to ${MAX_VOICE_MESSAGE_SECONDS}s`}
-            </p>
-          </>
-        )}
-
-        {error && <div className="banner banner-danger">{error}</div>}
-      </div>
-    </div>
+          </div>
+        </div>
+        {isRecording && <p className="tiny muted" style={{ margin: 0, textAlign: "center" }}>Recording — tap to send (up to {MAX_VOICE_MESSAGE_SECONDS}s)</p>}
+      </>
+    }>
+      {showDetails ? (
+        <TaskDetails task={task} busy={busy} onSelfie={captureSelfie} onDispute={submitDispute} />
+      ) : (
+        <>
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Sent — {money(task.spendCapCents + task.serviceFeeCents)} held. Type or leave a voice message if there's more to say.
+          </p>
+          {/* Typed and spoken messages in one timeline — see TaskMessageThread. */}
+          <TaskMessageThread texts={texts} voices={messages} assistantName={assistant.name} />
+        </>
+      )}
+    </PopupCard>
   );
 }
