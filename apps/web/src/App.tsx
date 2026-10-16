@@ -72,11 +72,7 @@ export function App() {
         <div className="row" style={{ gap: 6, alignItems: "center" }}>
           {account ? (
             <>
-              <button className="btn btn-sm btn-ghost" onClick={() => setRole("about")}>{t("nav.about")}</button>
               <button className="btn btn-sm btn-ghost" onClick={() => setRole("account")}>{t("app.account")}</button>
-              <button className="btn btn-sm btn-ghost" onClick={() => api.logout().then(() => setAccount(null))}>
-                {t("app.signOut")}
-              </button>
             </>
           ) : (
             <span className="tiny muted">{t("app.tagline")}</span>
@@ -156,6 +152,10 @@ export function App() {
             every customer sees. Signed out, the landing carries both already. */}
         {account && role !== "drive" && role !== "work" && (
           <span style={{ display: "block", marginTop: 8 }}>
+            <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
+            {" · "}
+            <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
+            {" · "}
             <button className="linklike" onClick={() => setRole("games")}>{t("nav.games")}</button>
             {isEnabled("party-supply") && (<>{" · "}<button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button></>)}
             {" · "}

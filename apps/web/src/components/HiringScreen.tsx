@@ -92,7 +92,6 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
     return !feature || hasFeature(planId, feature);
   })?.id ?? "errand";
   const [kind, setKind] = useState<HiringTab>(initialTab ?? firstUsable);
-  const active = tabs.find((t) => t.id === kind) ?? tabs[0]!;
 
   // Fetched once a ride is actually asked for, not on every visit to this
   // screen — the same "don't ask for a permission nobody has used yet" rule
@@ -101,10 +100,8 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
   useEffect(() => { if (kind === "ride") void currentFix().then(setFix); }, [kind]);
 
   return (
-    <div className="stack">
-      <ScreenCover photo="jet" kicker="Your assistant" title="Get help">
-        A vetted person — in person if you want — at a limit you set.
-      </ScreenCover>
+    <div className="stack help-simple">
+      <ScreenCover photo="jet" kicker="Your assistant" title="Get help" />
 
       <div className="tabs tabs-scroll" role="tablist" aria-label="What you need">
         {tabs.map((tab) => (
@@ -115,7 +112,6 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
         ))}
       </div>
 
-      <p className="tiny muted" style={{ margin: 0 }}>{active.blurb}</p>
 
       {/* Keyed by tab so switching resets the form rather than carrying a
           half-filled concierge request into the errands screen. */}

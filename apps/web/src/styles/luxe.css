@@ -30,3 +30,7 @@ h3 { color: #f3e2b3; }
 .screen-cover-jet { background-image: url(/img/jet.jpg); }
 .screen-cover-suv { background-image: url(/img/suv.jpg); }
 .screen-cover-bourbon { background-image: url(/img/wingman-bourbon-cigar.jpg); }
+
+/* Get help shows the choices, not the explanations: the assistant explains
+   the rest in the chat or in person. Prices and anything you agree to stay. */
+.help-simple p.small.muted, .help-simple p.tiny.muted { display: none; }

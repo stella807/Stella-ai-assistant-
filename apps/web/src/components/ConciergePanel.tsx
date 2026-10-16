@@ -658,7 +658,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
       </div>
 
       <div className="field">
-        <label htmlFor="concierge-place">Name a specific place (optional)</label>
+        {!(placeSearchStatus && placeSearchStatus.mode !== "automatic") && <label htmlFor="concierge-place">Name a specific place (optional)</label>}
         {selectedPlace ? (
           <div className="row-between card card-quiet" style={{ padding: 8 }}>
             <div className="stack" style={{ gap: 2 }}>
@@ -668,9 +668,7 @@ export function ConciergePanel({ account, kind = "concierge" }: { account: Accou
             <button className="btn btn-sm btn-ghost" onClick={() => setSelectedPlace(null)}>Change</button>
           </div>
         ) : placeSearchStatus && placeSearchStatus.mode !== "automatic" ? (
-          <p className="tiny muted">
-            Place search isn't set up yet — describe where in the note above instead.
-          </p>
+          null
         ) : (
           <>
             <div className="row" style={{ gap: 6 }}>
