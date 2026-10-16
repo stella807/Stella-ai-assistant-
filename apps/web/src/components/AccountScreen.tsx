@@ -2,6 +2,8 @@ import { useState } from "react";
 import { findPlan, isElitePlan, type PlanId } from "@safehubby/core";
 import { api, type Account } from "../api.ts";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
+import { TextAlertsCard } from "./TextAlertsCard.tsx";
+import { useLanguage } from "../i18n.tsx";
 import { ShareCard } from "./ShareCard.tsx";
 
 /**
@@ -14,6 +16,7 @@ import { ShareCard } from "./ShareCard.tsx";
 export function AccountScreen({ account, onDeleted, onManagePlan }: {
   account: Account; onDeleted: () => void; onManagePlan: () => void;
 }) {
+  const { language } = useLanguage();
   const plan = findPlan(account.planId as PlanId);
   const initials = account.displayName
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
@@ -84,6 +87,8 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
       </section>
 
       <PaymentMethodCard />
+
+      <TextAlertsCard scope="account" language={language === "es" ? "es" : "en"} />
 
       {/* Above the export-and-delete block on purpose: those two are the
           leaving path, and an invite sitting under them reads as a parting

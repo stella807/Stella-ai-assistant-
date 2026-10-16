@@ -43,5 +43,5 @@ export const SEED: Db = {
   deskTasks: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
   priceOverrides: [],
-  balanceEntries: [], pendingBalanceLoads: [],
+  balanceEntries: [], pendingBalanceLoads: [], textContacts: {},
 };

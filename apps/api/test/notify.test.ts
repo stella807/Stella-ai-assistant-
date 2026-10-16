@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Alert } from "@safehubby/core";
-import { guardianMessages } from "../src/notify.ts";
+import { guardianMessages, guardianTexts } from "../src/notify.ts";
 import { SEED } from "../src/seed.ts";
 import type { Db } from "../src/store.ts";
 
@@ -103,5 +103,39 @@ describe("expired sessions", () => {
       now,
     );
     expect(kept.map((s) => s.token)).toEqual(["live"]);
+  });
+});
+
+describe("who actually gets texted", () => {
+  const withNumber = (base: Db, optedOut = false): Db => {
+    base.textContacts["traveler:jordan"] = {
+      phone: "+17875550142", language: "en", consentedAt: NOW.toISOString(),
+      ...(optedOut ? { optedOutAt: NOW.toISOString() } : {}),
+    };
+    return base;
+  };
+  const sos = () => alert({ id: "n1:sos", kind: "sos", severity: "urgent", message: "SOS at 18.4655, -66.1057" });
+
+  it("texts a watching guardian who agreed to texts, about an SOS, without the location", () => {
+    const texts = guardianTexts(withNumber(db()), [sos()], NOW);
+    expect(texts).toHaveLength(1);
+    expect(texts[0]).toMatchObject({ to: "+17875550142" });
+    expect(texts[0]!.body).toContain("Sam");
+    expect(texts[0]!.body).not.toMatch(/18\.4655|-66\./);
+  });
+  it("texts about a missed check-in only when their grant covers check-ins", () => {
+    expect(guardianTexts(withNumber(db()), [alert()], NOW)).toHaveLength(1);
+    expect(guardianTexts(withNumber(db({ scopes: ["location"] })), [alert()], NOW)).toEqual([]);
+  });
+  it("does not text for the quieter alerts", () => {
+    const quiet = alert({ id: "n1:pace", kind: "fast-pace", severity: "info" });
+    expect(guardianTexts(withNumber(db()), [quiet], NOW)).toEqual([]);
+  });
+  it("texts nobody who never agreed, who opted out, or whose grant is revoked, expired or unclaimed", () => {
+    expect(guardianTexts(db(), [sos()], NOW)).toEqual([]);
+    expect(guardianTexts(withNumber(db(), true), [sos()], NOW)).toEqual([]);
+    expect(guardianTexts(withNumber(db({ revokedAt: NOW.toISOString() })), [sos()], NOW)).toEqual([]);
+    expect(guardianTexts(withNumber(db({ expiresAt: iso(-1) })), [sos()], NOW)).toEqual([]);
+    expect(guardianTexts(withNumber(db({ claimed: false })), [sos()], NOW)).toEqual([]);
   });
 });

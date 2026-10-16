@@ -4406,6 +4406,166 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("text alerts", () => {
+    /** Twilio, stood in for. Only its own host is intercepted. */
+    const realFetch = globalThis.fetch;
+    let texts: { to: string; body: string; auth: string }[];
+    const flush = () => new Promise((r) => setTimeout(r, 30));
+
+    beforeEach(() => {
+      process.env.TWILIO_ACCOUNT_SID = "ACtest";
+      process.env.TWILIO_AUTH_TOKEN = "tok";
+      process.env.TWILIO_FROM_NUMBER = "+17875550100";
+      texts = [];
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input);
+        if (!url.startsWith("https://api.twilio.com")) return realFetch(input, init);
+        const form = new URLSearchParams(String(init?.body ?? ""));
+        texts.push({ to: form.get("To") ?? "", body: form.get("Body") ?? "", auth: String((init?.headers as Record<string, string>)?.authorization ?? "") });
+        return Response.json({ sid: "SM1" }, { status: 201 });
+      }) as typeof fetch;
+    });
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+      delete process.env.TWILIO_ACCOUNT_SID;
+      delete process.env.TWILIO_AUTH_TOKEN;
+      delete process.env.TWILIO_FROM_NUMBER;
+      delete process.env.OWNER_ALERT_PHONE;
+    });
+
+    const optIn = (token: string | null, cookie: Record<string, string> | null, phone: string, language = "en", path = "/api/account/text-alerts") =>
+      call("POST", path, { phone, consent: true, language }, token, cookie ?? undefined);
+
+    /** A customer with a card, an assistant on our roster, and a booked errand between them. */
+    const booked = async () => {
+      const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` }, "puerto-rico");
+      const assistantId = hired.json.assistant.id as string;
+      await withCard(sam);
+      const res = await call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+        location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
+        spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId,
+      }, sam);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
+      return { assistantId, taskId: res.json.task.id as string, cookie };
+    };
+
+    it("needs a session, and refuses a number without agreement or one that cannot be a number", async () => {
+      expect((await call("GET", "/api/account/text-alerts")).status).toBe(401);
+      expect((await call("POST", "/api/account/text-alerts", { phone: "787-555-0142", consent: true })).status).toBe(401);
+      expect((await call("POST", "/api/account/text-alerts", { phone: "787-555-0142", consent: false }, sam)).json.enabled).toBe(false);
+      expect((await call("POST", "/api/account/text-alerts", { phone: "787-555-0142" }, sam)).status).toBe(400);
+      expect((await optIn(sam, null, "12345")).status).toBe(400);
+      expect((await call("GET", "/api/account/text-alerts", undefined, sam)).json.enabled).toBe(false);
+    });
+
+    it("keeps only the last four digits of a number it will show back", async () => {
+      const res = await optIn(sam, null, "(787) 555-0142");
+      expect(res.json).toEqual({ enabled: true, phoneLast4: "0142" });
+      const read = await call("GET", "/api/account/text-alerts", undefined, sam);
+      expect(read.json).toMatchObject({ enabled: true, phoneLast4: "0142" });
+      expect(JSON.stringify(read.json)).not.toContain("555");
+    });
+
+    it("texts the assistant when a request lands on them, signed with the account's own credentials", async () => {
+      const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` }, "puerto-rico");
+      const assistantId = hired.json.assistant.id as string;
+      const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
+      expect((await optIn(null, cookie, "787-555-0199", "es", "/api/assistant/text-alerts")).json.enabled).toBe(true);
+      await withCard(sam);
+      const res = await call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+        location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
+        spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId,
+      }, sam);
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      await flush();
+      expect(texts).toHaveLength(1);
+      expect(texts[0]).toMatchObject({ to: "+17875550199" });
+      expect(texts[0]!.body).toMatch(/solicitud nueva/);
+      expect(texts[0]!.auth).toBe(`Basic ${Buffer.from("ACtest:tok").toString("base64")}`);
+    });
+
+    it("texts nobody who never agreed to it", async () => {
+      await booked();
+      await flush();
+      expect(texts).toEqual([]);
+    });
+
+    it("texts the customer when the assistant answers, asks to spend, and finishes — and the assistant when the customer writes", async () => {
+      const { taskId, cookie } = await booked();
+      await optIn(sam, null, "787-555-0142");
+      await optIn(null, cookie, "787-555-0199", "en", "/api/assistant/text-alerts");
+
+      await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body: "Thanks!" }, sam);
+      await call("POST", `/api/assistant/tasks/${taskId}/messages`, { body: "On my way." }, null, cookie);
+      await flush();
+      expect(texts.map((t) => t.to).sort()).toEqual(["+17875550142", "+17875550199"]);
+
+      texts.length = 0;
+      await call("POST", `/api/assistant/tasks/${taskId}/spend-request`, { amountCents: 300, note: "Juice", photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" } }, null, cookie);
+      await flush();
+      expect(texts).toHaveLength(1);
+      expect(texts[0]!.to).toBe("+17875550142");
+      expect(texts[0]!.body).toMatch(/approve a purchase/);
+
+      texts.length = 0;
+      await call("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents: 300 }, null, cookie);
+      await flush();
+      expect(texts).toHaveLength(1);
+      expect(texts[0]!.body).toMatch(/marked your request done/);
+    });
+
+    it("sends one text per conversation per few minutes, not one per message", async () => {
+      const { taskId, cookie } = await booked();
+      await optIn(null, cookie, "787-555-0199", "en", "/api/assistant/text-alerts");
+      for (const body of ["one", "two", "three"]) {
+        await call("POST", `/api/concierge/tasks/${taskId}/messages`, { body }, sam);
+      }
+      await flush();
+      expect(texts).toHaveLength(1);
+    });
+
+    it("never puts an amount, a place, or what was bought in a text", async () => {
+      const { taskId, cookie } = await booked();
+      await optIn(sam, null, "787-555-0142");
+      await call("POST", `/api/assistant/tasks/${taskId}/spend-request`, { amountCents: 300, note: "Juice at the hospital", photo: { base64: Buffer.from("the shelf").toString("base64"), mimeType: "image/jpeg" } }, null, cookie);
+      await flush();
+      expect(texts[0]!.body).not.toMatch(/\$|\d{2,}|juice|hospital|san juan/i);
+    });
+
+    it("stops texting the moment someone opts out", async () => {
+      const { taskId, cookie } = await booked();
+      await optIn(sam, null, "787-555-0142");
+      expect((await call("POST", "/api/account/text-alerts", { consent: false }, sam)).json.enabled).toBe(false);
+      await call("POST", `/api/assistant/tasks/${taskId}/messages`, { body: "Hello" }, null, cookie);
+      await flush();
+      expect(texts).toEqual([]);
+    });
+
+    it("texts whoever hires when an application comes in, only if a number is set for that", async () => {
+      await apply({ email: "nonumber@example.com" });
+      await flush();
+      expect(texts).toEqual([]);
+      process.env.OWNER_ALERT_PHONE = "787-555-0111";
+      await apply({ email: "withnumber@example.com" });
+      await flush();
+      expect(texts).toHaveLength(1);
+      expect(texts[0]).toMatchObject({ to: "+17875550111" });
+      expect(texts[0]!.body).toMatch(/job application/);
+    });
+
+    it("reports itself as not set up rather than pretending, when there is no account", async () => {
+      delete process.env.TWILIO_AUTH_TOKEN;
+      expect((await call("GET", "/api/account/text-alerts", undefined, sam)).json.providerReady).toBe(false);
+      await optIn(sam, null, "787-555-0142");
+      await booked();
+      await flush();
+      expect(texts).toEqual([]);
+    });
+  });
+
   describe("errand tiers", () => {
     const book = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
       call("POST", "/api/concierge/tasks", {

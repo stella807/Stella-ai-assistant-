@@ -133,6 +133,8 @@ export type PayBrand =
   | "klarna" | "cashapp" | "amazon-pay"
   | "venmo";
 
+export interface TextAlertsState { enabled: boolean; phoneLast4?: string; language?: "en" | "es"; providerReady: boolean }
+
 export interface BalanceSummary {
   loadedCents: number; refundedCents: number; heldCents: number; spentCents: number; availableCents: number;
 }
@@ -339,6 +341,10 @@ export const api = {
   paypalSetupToken: () => request<{ id: string }>("POST", "/api/payment/paypal/setup-token", {}),
   paypalPaymentToken: (setupToken: string) =>
     request<{ token: string }>("POST", "/api/payment/paypal/payment-token", { setupToken }),
+  textAlerts: (scope: "account" | "assistant") =>
+    request<TextAlertsState>("GET", `/api/${scope}/text-alerts`),
+  saveTextAlerts: (scope: "account" | "assistant", input: { phone?: string; consent: boolean; language: "en" | "es" }) =>
+    request<{ enabled: boolean; phoneLast4?: string }>("POST", `/api/${scope}/text-alerts`, input),
   balance: () => request<BalanceInfo>("GET", "/api/balance"),
   startBalanceLoad: (amountCents: number) =>
     request<{ nonce: string; total: string; metadata1: string; metadata2: string }>(

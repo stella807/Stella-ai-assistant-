@@ -32,6 +32,7 @@ import {
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
+  canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
   BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
@@ -95,7 +96,8 @@ import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
 import { email } from "./adapters/email.ts";
-import { guardianMessages } from "./notify.ts";
+import { guardianMessages, guardianTexts, textKey, textTo } from "./notify.ts";
+import { sms } from "./adapters/sms.ts";
 import { renewDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
@@ -1200,6 +1202,56 @@ function ownNight(ctx: Ctx, nightId: string): NightOut {
 function notifyGuardians(ctx: Ctx, alerts: Alert[]): void {
   if (alerts.length === 0) return;
   void push.send(guardianMessages(ctx.store.data, alerts, ctx.now())).catch(() => {});
+  sendTexts(guardianTexts(ctx.store.data, alerts, ctx.now()));
+}
+
+/**
+ * Texts go out the same way pushes do: fire and forget. The thing that raised
+ * the alert is already stored, and a provider having a bad minute must not
+ * fail the request that did it.
+ */
+function sendTexts(messages: SmsMessage[]): void {
+  if (messages.length === 0) return;
+  void sms.send(messages).catch(() => {});
+}
+
+/** A chat can fire many messages in a minute; one text per conversation per
+ *  window is enough to bring the person back to the app. */
+const lastTextAt = new Map<string, number>();
+function textOnce(ctx: Ctx, key: string, windowMs: number): boolean {
+  const now = ctx.now().getTime();
+  const last = lastTextAt.get(key);
+  if (last !== undefined && now - last < windowMs) return false;
+  lastTextAt.set(key, now);
+  return true;
+}
+const CHAT_TEXT_WINDOW_MS = 5 * 60_000;
+
+/** A new application is worth a text to whoever hires — `OWNER_ALERT_PHONE`,
+ *  a single number set on the server, not anyone's account. */
+function textOwnerOfApplication(): void {
+  const phone = normalizePhone(process.env.OWNER_ALERT_PHONE ?? "");
+  if (!phone) return;
+  sendTexts([{ to: phone, body: composeText("owner-application", {}, "en") }]);
+}
+
+function saveTextContact(ctx: Ctx, key: string, body: any): { enabled: boolean; phoneLast4?: string } {
+  const existing = ctx.store.data.textContacts[key];
+  if (body?.consent === false) {
+    if (existing) ctx.store.update((db) => { db.textContacts[key] = optOut(existing, ctx.now()); });
+    return { enabled: false };
+  }
+  let contact;
+  try {
+    contact = registerTextContact({
+      phone: String(body?.phone ?? ""), consent: body?.consent === true,
+      language: body?.language === "es" ? "es" : "en", now: ctx.now(),
+    });
+  } catch (e) {
+    throw new HttpError(400, e instanceof Error ? e.message : "Could not save those text alerts.");
+  }
+  ctx.store.update((db) => { db.textContacts[key] = contact; });
+  return { enabled: true, phoneLast4: contact.phone.slice(-4) };
 }
 
 /** Recomputes derived state (missed check-ins, new alerts) before any read. */
@@ -1692,6 +1744,28 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(502, `${e instanceof Error ? e.message : "The refund failed"}${sent.length ? " Part of it was sent; the rest is still on your balance." : ""}`);
     }
     return balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+  },
+
+  /**
+   * Opting in to text alerts. The phone number is only ever stored together
+   * with the person saying they agree — see `registerTextContact` — and the
+   * same call with `consent: false` is an opt-out, effective immediately.
+   */
+  "GET /api/account/text-alerts": (ctx) => {
+    const c = ctx.store.data.textContacts[textKey("traveler", actor(ctx))];
+    return { enabled: canText(c), ...(canText(c) ? { phoneLast4: c.phone.slice(-4), language: c.language } : {}), providerReady: isAutomatic(sms.status) };
+  },
+  "POST /api/account/text-alerts": (ctx, _p, body) => {
+    const key = textKey("traveler", actor(ctx));
+    return saveTextContact(ctx, key, body);
+  },
+  "GET /api/assistant/text-alerts": (ctx) => {
+    const c = ctx.store.data.textContacts[textKey("assistant", assistantActor(ctx))];
+    return { enabled: canText(c), ...(canText(c) ? { phoneLast4: c.phone.slice(-4), language: c.language } : {}), providerReady: isAutomatic(sms.status) };
+  },
+  "POST /api/assistant/text-alerts": (ctx, _p, body) => {
+    const key = textKey("assistant", assistantActor(ctx));
+    return saveTextContact(ctx, key, body);
   },
 
   "POST /api/account/payment-method/remove": (ctx) => {
@@ -2920,6 +2994,7 @@ export const routes: Record<string, Handler> = {
         // network's assistant is told through their own dispatch system, in
         // `concierge.book` above, not this app's push devices.
         if (ourAssistant) {
+          sendTexts(textTo(ctx.store.data, textKey("assistant", ourAssistant.id), "assistant-new-task"));
           const devices = devicesFor(ctx.store.data.pushDevices, ourAssistant.id);
           if (devices.length > 0) {
             const messages = messagesForAssistantTask({
@@ -3844,6 +3919,9 @@ export const routes: Record<string, Handler> = {
       body: String(body?.body ?? ""), now: ctx.now(),
     });
     ctx.store.update((db) => void db.textMessages.push(message));
+    if (textOnce(ctx, `to-customer:${task.id}`, CHAT_TEXT_WINDOW_MS)) {
+      sendTexts(textTo(ctx.store.data, textKey("traveler", task.travelerId), "customer-reply", task.assistantName));
+    }
     return { message };
   },
 
@@ -3956,6 +4034,7 @@ export const routes: Record<string, Handler> = {
       (t.spendRequests ??= []).push(request);
     });
     const updated = ctx.store.data.conciergeTasks.find((t) => t.id === task.id)!;
+    sendTexts(textTo(ctx.store.data, textKey("traveler", task.travelerId), "customer-spend-request", task.assistantName));
     return { request, remainingSpendCents: remainingSpendCents(updated) };
   },
 
@@ -4066,7 +4145,9 @@ export const routes: Record<string, Handler> = {
   "POST /api/assistant/tasks/:taskId/complete": (ctx, p, body) => {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
-    return { task: settleConciergeTask(ctx, task, body?.billedCents) };
+    const settled = settleConciergeTask(ctx, task, body?.billedCents);
+    sendTexts(textTo(ctx.store.data, textKey("traveler", task.travelerId), "customer-task-done", task.assistantName));
+    return { task: settled };
   },
 
   /** The assistant's own way to say no — see CONCIERGE_DISCLOSURES: they can
@@ -4155,6 +4236,9 @@ export const routes: Record<string, Handler> = {
       now: ctx.now(),
     });
     ctx.store.update((db) => void db.textMessages.push(message));
+    if (task.assistantId && textOnce(ctx, `to-assistant:${task.id}`, CHAT_TEXT_WINDOW_MS)) {
+      sendTexts(textTo(ctx.store.data, textKey("assistant", task.assistantId), "assistant-message", nameOf(ctx, me)));
+    }
     return { message };
   },
 
@@ -4869,6 +4953,7 @@ export const routes: Record<string, Handler> = {
       now: ctx.now(),
     });
     ctx.store.update((db) => void db.driverApplications.push(app));
+    textOwnerOfApplication();
     // The full record (licence numbers, etc.) is not echoed back to the
     // submitter's own browser response beyond what they already typed — this
     // just confirms receipt and gives them their id to reference.
@@ -4964,6 +5049,7 @@ export const routes: Record<string, Handler> = {
       now: ctx.now(),
     });
     ctx.store.update((db) => void db.staffApplications.push(app));
+    textOwnerOfApplication();
     return { id: app.id, role: app.role, status: app.status, submittedAt: app.submittedAt };
   },
 

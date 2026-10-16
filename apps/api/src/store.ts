@@ -7,7 +7,7 @@ import type {
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage, PriceOverride,
 } from "@safehubby/core";
-import type { BalanceEntry, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
+import type { BalanceEntry, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
  *  than nested under the event, the same shape `Referral` and the other
@@ -234,6 +234,8 @@ export interface Db {
   /** Prepaid balance loads and refunds — see balance.ts. The balance itself
    *  is derived from these and from the holds, never stored. */
   balanceEntries: BalanceEntry[];
+  /** Who agreed to be texted, keyed `traveler:<id>` or `assistant:<id>` — see sms.ts. */
+  textContacts: Record<string, TextContact>;
   /** ATH Móvil loads started but not yet confirmed. The nonce is what ties a
    *  payment to the account that began it. */
   pendingBalanceLoads: PendingBalanceLoad[];
@@ -253,7 +255,7 @@ const EMPTY: Db = {
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
-  priceOverrides: [], balanceEntries: [], pendingBalanceLoads: [],
+  priceOverrides: [], balanceEntries: [], pendingBalanceLoads: [], textContacts: {},
 };
 
 /** What routes need from a store, so the file and Postgres backings are
