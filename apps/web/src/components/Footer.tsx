@@ -25,11 +25,11 @@ export function Footer() {
       <section className="card stack" aria-label={t("invest.heading")}>
         <h2>{t("invest.heading")}</h2>
         <p className="small">{t("invest.body")}</p>
-        <a className="btn btn-ghost btn-block" href="mailto:invest@safehubby.app">{t("invest.cta")}</a>
+        <a className="btn btn-ghost btn-block" href="mailto:contact@safehubby.com?subject=Investing">{t("invest.cta")}</a>
       </section>
 
       <nav className="row" style={{ gap: 8, flexWrap: "wrap", justifyContent: "center" }} aria-label={t("footer.contact")}>
-        <a className="btn btn-sm btn-ghost" href="mailto:hello@safehubby.app">{t("footer.contact")}</a>
+        <a className="btn btn-sm btn-ghost" href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
         <button
           className="btn btn-sm btn-ghost" aria-expanded={open === "press"}
           onClick={() => setOpen((o) => (o === "press" ? null : "press"))}
@@ -120,7 +120,7 @@ function PressRelease() {
       <p className="small">{t("press.body3")}</p>
       <p className="tiny muted" style={{ margin: 0 }}>{t("press.boilerplate")}</p>
       <p className="tiny" style={{ margin: 0 }}>
-        <strong>{t("press.contactLabel")}</strong> <a href="mailto:press@safehubby.app">press@safehubby.app</a>
+        <strong>{t("press.contactLabel")}</strong> <a href="mailto:contact@safehubby.com?subject=Press">contact@safehubby.com</a>
       </p>
       <p className="tiny muted" style={{ margin: 0 }}>{t("press.kit")}</p>
     </article>

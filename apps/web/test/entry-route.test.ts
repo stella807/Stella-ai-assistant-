@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { entryRoleFromHash, entryRouteFromHash, hashForEntryRoute } from "../src/app/entry-route.ts";
+import {
+  entryRoleFromHash, entryRoleFromUrl, entryRouteFromHash, entryRouteFromUrl, hashForEntryRoute, pathAfterLeaving,
+} from "../src/app/entry-route.ts";
 
 describe("opening the app on a specific screen from a link", () => {
   it("opens the careers application from #careers", () => {
@@ -49,5 +51,38 @@ describe("choosing the role from the link", () => {
     for (const bad of ["#careers?role=", "#careers?role=<script>", "#careers?role=a b", `#careers?role=${"x".repeat(50)}`]) {
       expect(entryRoleFromHash(bad), bad).toBeUndefined();
     }
+  });
+});
+
+describe("opening the app from a plain address, not just a hash", () => {
+  // The hiring flyer prints safehubby.com/work. With the whole site on one
+  // domain there is no separate marketing page behind that address, so the app
+  // itself has to answer it.
+  it("treats /work and its Spanish twin as the careers application", () => {
+    for (const p of ["/work", "/work/", "/Work", "/careers", "/trabajo", "/es/trabajo", "/es/trabajo/"]) {
+      expect(entryRouteFromUrl({ pathname: p, hash: "" }), p).toBe("work");
+    }
+  });
+  it("treats /drive as the driver application", () => {
+    expect(entryRouteFromUrl({ pathname: "/drive", hash: "" })).toBe("drive");
+  });
+  it("opens nothing for the home page or an address that is not one of these", () => {
+    for (const p of ["/", "/account", "/worker", "/work/extra", "/master"]) {
+      expect(entryRouteFromUrl({ pathname: p, hash: "" }), p).toBe("out");
+    }
+  });
+  it("still honours the hash on the home page", () => {
+    expect(entryRouteFromUrl({ pathname: "/", hash: "#careers" })).toBe("work");
+  });
+  it("reads the role from the query string of a plain address too", () => {
+    expect(entryRoleFromUrl({ pathname: "/work", hash: "", search: "?role=personal-assistant" })).toBe("personal-assistant");
+    expect(entryRoleFromUrl({ pathname: "/", hash: "#careers?role=lawyer", search: "" })).toBe("lawyer");
+    expect(entryRoleFromUrl({ pathname: "/work", hash: "", search: "?role=../etc" })).toBeUndefined();
+  });
+  it("sends a person back to the home address when they leave the form", () => {
+    expect(pathAfterLeaving("/work")).toBe("/");
+    expect(pathAfterLeaving("/es/trabajo/")).toBe("/");
+    expect(pathAfterLeaving("/")).toBe("/");
+    expect(pathAfterLeaving("/master")).toBe("/master");
   });
 });

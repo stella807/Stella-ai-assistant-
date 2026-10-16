@@ -42,7 +42,7 @@ export interface EmailPort {
 /** Exported so the request body is testable without a network call. */
 export function emailPayload(messages: OutboundEmail[]) {
   return {
-    from: EMAIL_FROM ?? "hello@safehubby.app",
+    from: EMAIL_FROM ?? "contact@safehubby.com",
     messages: messages.map((m) => ({ to: m.to, subject: m.subject, text: m.body })),
   };
 }

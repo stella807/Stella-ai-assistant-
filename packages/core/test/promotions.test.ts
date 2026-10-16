@@ -130,9 +130,9 @@ describe("referral codes", () => {
   });
 
   it("puts the code and the link in the invite, so a share is actually trackable", () => {
-    const text = shareMessage("ABC-DE4", "https://safehubby.app/?ref=ABC-DE4");
+    const text = shareMessage("ABC-DE4", "https://safehubby.com/?ref=ABC-DE4");
     expect(text).toContain("ABC-DE4");
-    expect(text).toContain("https://safehubby.app/?ref=ABC-DE4");
+    expect(text).toContain("https://safehubby.com/?ref=ABC-DE4");
   });
 
   it("never pitches drinking in the invite", () => {

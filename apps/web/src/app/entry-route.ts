@@ -44,3 +44,37 @@ export function entryRoleFromHash(hash: string): string | undefined {
   const value = new URLSearchParams(query).get("role")?.trim().toLowerCase();
   return value && /^[a-z-]{1,40}$/.test(value) ? value : undefined;
 }
+
+/**
+ * The same links as plain addresses. With the app on the site's own domain,
+ * `safehubby.com/work` is what gets printed on a flyer or typed into a bio, so
+ * it has to open the application — the server already answers every unknown
+ * path with the app, this only teaches the app what to do with it.
+ */
+const PATHS: Record<string, Exclude<EntryRoute, "out">> = {
+  "/work": "work",
+  "/careers": "work",
+  "/trabajo": "work",
+  "/es/trabajo": "work",
+  "/drive": "drive",
+};
+
+const entryPathKey = (pathname: string) => pathname.toLowerCase().replace(/\/+$/, "");
+
+export function entryRouteFromUrl(loc: { pathname: string; hash: string }): EntryRoute {
+  return PATHS[entryPathKey(loc.pathname)] ?? entryRouteFromHash(loc.hash);
+}
+
+export function entryRoleFromUrl(loc: { pathname: string; hash: string; search: string }): string | undefined {
+  if (entryRouteFromUrl(loc) !== "work") return undefined;
+  const fromHash = entryRoleFromHash(loc.hash);
+  if (fromHash) return fromHash;
+  const value = new URLSearchParams(loc.search).get("role")?.trim().toLowerCase();
+  return value && /^[a-z-]{1,40}$/.test(value) ? value : undefined;
+}
+
+/** Once the form is closed, a plain-address link goes back to the home
+ *  address, so a refresh does not reopen a form somebody already left. */
+export function pathAfterLeaving(pathname: string): string {
+  return entryPathKey(pathname) in PATHS ? "/" : pathname;
+}

@@ -1721,7 +1721,7 @@ export const routes: Record<string, Handler> = {
       });
     }
 
-    const url = `${process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.app"}/?ref=${encodeURIComponent(code)}`;
+    const url = `${process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com"}/?ref=${encodeURIComponent(code)}`;
     const joined = ctx.store.data.referrals.filter((r) => r.referrerId === me);
     return {
       code,

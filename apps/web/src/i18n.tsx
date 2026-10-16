@@ -209,8 +209,8 @@ const EN = {
   "footer.press": "Press",
   "footer.terms": "Terms of Service",
   "footer.privacy": "Privacy Policy",
-  "footer.termsPending": "Our Terms of Service are being finalized before launch. Questions in the meantime: hello@safehubby.app.",
-  "footer.privacyPending": "Our Privacy Policy is being finalized before launch. Questions in the meantime: hello@safehubby.app.",
+  "footer.termsPending": "Our Terms of Service are being finalized before launch. Questions in the meantime: contact@safehubby.com.",
+  "footer.privacyPending": "Our Privacy Policy is being finalized before launch. Questions in the meantime: contact@safehubby.com.",
   "footer.copyright": "© {year} Safehubby. All rights reserved.",
 
   "press.tag": "FOR IMMEDIATE RELEASE",
@@ -221,7 +221,7 @@ const EN = {
   "press.quote": "“We built this for the person who couldn’t get a ride, the friend who needed someone to check on them and had no one to call, and the family who wishes there had been another option,” said Safehubby’s founding team. “Every feature here exists because someone, somewhere, needed exactly that and didn’t have it.”",
   "press.contactLabel": "Press contact:",
   "press.boilerplate": "About Safehubby: Safehubby is a safety-first app for nights out, combining automated check-ins, a sober way home, emergency escalation, and a vetted personal concierge in one product. Safehubby is not an emergency service and never tells anyone they are safe to drive.",
-  "press.kit": "For interviews, logos, or screenshots, write to press@safehubby.app.",
+  "press.kit": "For interviews, logos, or screenshots, write to contact@safehubby.com.",
 
   "footer.paymentsAccepted": "Payments accepted",
   "footer.paymentsSecured": "Card details are handled by Stripe; PayPal payments by PayPal. Safehubby never sees or stores a full card number.",
@@ -465,8 +465,8 @@ const ES: Record<TranslationKey, string> = {
   "footer.press": "Prensa",
   "footer.terms": "Términos de servicio",
   "footer.privacy": "Política de privacidad",
-  "footer.termsPending": "Nuestros Términos de servicio se están finalizando antes del lanzamiento. Preguntas mientras tanto: hello@safehubby.app.",
-  "footer.privacyPending": "Nuestra Política de privacidad se está finalizando antes del lanzamiento. Preguntas mientras tanto: hello@safehubby.app.",
+  "footer.termsPending": "Nuestros Términos de servicio se están finalizando antes del lanzamiento. Preguntas mientras tanto: contact@safehubby.com.",
+  "footer.privacyPending": "Nuestra Política de privacidad se está finalizando antes del lanzamiento. Preguntas mientras tanto: contact@safehubby.com.",
   "footer.copyright": "© {year} Safehubby. Todos los derechos reservados.",
 
   "press.tag": "PARA PUBLICACIÓN INMEDIATA",
@@ -477,7 +477,7 @@ const ES: Record<TranslationKey, string> = {
   "press.quote": "“Construimos esto para la persona que no pudo conseguir un viaje, el amigo que necesitaba que alguien lo revisara y no tenía a quién llamar, y la familia que desearía haber tenido otra opción”, dijo el equipo fundador de Safehubby. “Cada función aquí existe porque alguien, en algún lugar, necesitó exactamente eso y no lo tuvo.”",
   "press.contactLabel": "Contacto de prensa:",
   "press.boilerplate": "Acerca de Safehubby: Safehubby es una app centrada en la seguridad para salidas nocturnas, que combina chequeos automáticos, una forma sobria de llegar a casa, escalamiento de emergencia y un conserje personal verificado en un solo producto. Safehubby no es un servicio de emergencia y nunca le dice a nadie que está en condiciones de conducir.",
-  "press.kit": "Para entrevistas, logotipos o capturas de pantalla, escribe a press@safehubby.app.",
+  "press.kit": "Para entrevistas, logotipos o capturas de pantalla, escribe a contact@safehubby.com.",
 
   "footer.paymentsAccepted": "Formas de pago aceptadas",
   "footer.paymentsSecured": "Los datos de la tarjeta los procesa Stripe; los pagos de PayPal, PayPal. Safehubby nunca ve ni almacena un número de tarjeta completo.",

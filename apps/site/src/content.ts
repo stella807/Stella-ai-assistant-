@@ -24,12 +24,12 @@ export const LANGS: Lang[] = ["en", "es"];
 
 /** The canonical origin, used for hreflang and the sitemap. Overridden by
  *  SITE_ORIGIN once a real domain exists. */
-export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby-app-production.up.railway.app";
+export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby.com";
 
 /** Where a visitor goes to actually sign up. The app, not this site. Set
  *  `APP_URL` at build time to point it at wherever the app is running — the
  *  address is not baked in, because it changes when the domain arrives. */
-export const APP_URL = process.env.APP_URL ?? "https://safehubby-app-production.up.railway.app";
+export const APP_URL = process.env.APP_URL ?? "https://safehubby.com";
 
 /** The job application, in the app — no account needed. A hash link, which
  *  the app reads on load (apps/web/src/app/entry-route.ts), so a person lands

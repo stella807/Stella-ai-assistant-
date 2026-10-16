@@ -131,7 +131,11 @@ encrypted at rest.
 
 ---
 
-# The marketing site, and a real domain
+# The domain, and the optional marketing site
+
+> **The plan is the full app on `safehubby.com`** — see "How the names divide"
+> below. The static site described first is optional: skip it at launch, or put
+> it on `info.safehubby.com` later.
 
 `apps/site` is static — plain HTML, no JavaScript, built to `apps/site/dist`.
 It is the one piece that does **not** belong on the app server, and the one
@@ -208,12 +212,25 @@ not been done or tested. Until it is, the app stays where it is running, and
 
 ## How the names divide
 
+**The full app is the website.** `safehubby.com` is served by the Railway
+service — the signed-out landing page, sign-up, every signed-in screen, the
+hiring form, `/master`, and `/api/*` all come from the one place, so the
+session cookie stays same-origin. The static site in `apps/site` is optional
+and, if you deploy it at all, goes on a different name (`info.safehubby.com`).
+
 | Name | Goes to | Serves |
 |---|---|---|
-| `safehubby.com` | Cloudflare Pages | The marketing site |
+| `safehubby.com` | Railway | The app, `/master`, `/api/*` |
 | `www.safehubby.com` | redirect to apex | — |
-| `app.safehubby.com` | Railway | The app, `/master`, and `/api/*` |
-| `ceo@safehubby.com` | Cloudflare Email Routing | Forwards to a real inbox |
+| `contact@safehubby.com` | Cloudflare Email Routing | Forwards to a real inbox |
+| `info.safehubby.com` (optional) | Cloudflare | The static marketing site |
+
+Addresses that open the app straight on a screen, so they work printed on a
+flyer or typed into a bio: `safehubby.com/work` (also `/careers`, `/trabajo`,
+`/es/trabajo`) opens the job application, `safehubby.com/drive` the driver
+application. `?role=personal-assistant` preselects a role. The server answers
+any unknown path with the app, and the app reads the path itself — see
+`apps/web/src/app/entry-route.ts`.
 
 ## 1. The domain
 
@@ -222,48 +239,34 @@ renewal markup — about $10.44/year for a `.com`. A **free** Cloudflare account
 is all this needs; the $20-25/month Pro plan is a website security and image
 optimization product and buys nothing here.
 
-Buying elsewhere works too: point that registrar's nameservers at Cloudflare.
-Registering at Cloudflare means the nameservers are already right.
+## 2. Point the domain at Railway
 
-## 2. Pages, building from this repo
+1. Deploy the app on Railway first (the **Railway** section above) and check
+   `/api/health` on its `*.up.railway.app` address.
+2. Railway -> the service -> **Settings -> Networking -> Custom Domain**, add
+   `safehubby.com`. Railway shows a CNAME target.
+3. Cloudflare -> the domain -> **DNS -> Records**, add a `CNAME` named `@`
+   (the bare domain) pointing at that target. Cloudflare flattens a CNAME at the
+   bare domain automatically. **Proxy off (grey cloud)** — Railway terminates
+   its own TLS, and proxying it through Cloudflare's orange cloud puts a second
+   certificate in front of a service that already has one.
+4. Add `www` as a second custom domain on Railway with its own CNAME, or a
+   Cloudflare **Redirect Rule** from `www.safehubby.com` to `https://safehubby.com`.
+5. Set `SAFEHUBBY_PUBLIC_URL=https://safehubby.com` on the service (invite and
+   referral links are built from it).
 
-Workers & Pages -> Create -> Pages -> Connect to Git, then:
+Leave the `MX` and `TXT` records Email Routing added alone; they do not touch
+the website.
 
-```
-Build command:      pnpm install && pnpm --filter @safehubby/site build
-Output directory:   apps/site/dist
-```
+## 3. Email
 
-Building from the repo rather than uploading `dist/` by hand is the whole
-point of generating the site from `packages/core`: a price changes there, the
-push rebuilds the site, and the two cannot drift. An uploaded folder drifts
-the first time somebody forgets.
+Email -> Email Routing -> add `contact@safehubby.com`, forward it to a real
+inbox. Cloudflare adds the MX records. It receives only; to *send* from the
+address, add it in Gmail under Settings -> Accounts -> "Send mail as".
 
-Add `safehubby.com` as a custom domain on the project. Cloudflare adds the DNS
-record itself.
-
-## 3. The app's subdomain
-
-In Railway, add `app.safehubby.com` as a custom domain on the service. Railway
-gives a CNAME target; add it in Cloudflare DNS, **proxy off (grey cloud)** —
-Railway terminates its own TLS, and proxying it through Cloudflare's orange
-cloud on the free plan puts a second certificate in front of a service that
-already has one.
-
-## 4. Point the code at the new names
-
-Two values, both in `apps/site/src/content.ts`:
-
-- `ORIGIN` — the canonical URL in `<link rel="canonical">` and the sitemap.
-  Reads `SITE_ORIGIN` from the environment, so set it in the Pages project
-  rather than editing the file.
-- `APP_URL` — where "Start free" and "See open roles" send people.
-
-## 5. Email
-
-Email -> Email Routing -> add `ceo@safehubby.com`, forward it to a real inbox.
-Cloudflare adds the MX records. It receives only; to *send* from the address,
-add it in Gmail under Settings -> Accounts -> "Send mail as".
+The app's footer (Contact, Investing, Press) and its Terms/Privacy notices all
+point at this one address. Add `invest@` or `press@` later and change them in
+`apps/web/src/components/Footer.tsx` and `i18n.tsx`.
 
 Nothing sends to the newsletter list from here — that is bulk mail and needs
 its own provider with its own DKIM records. See `newsletter.ts`.

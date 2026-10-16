@@ -12,7 +12,7 @@ import { GuardianScreen } from "./components/GuardianScreen.tsx";
 import { TravelerScreen } from "./components/TravelerScreen.tsx";
 import { DriveSignupScreen } from "./components/DriveSignupScreen.tsx";
 import { StaffSignupScreen } from "./components/StaffSignupScreen.tsx";
-import { entryRoleFromHash, entryRouteFromHash, hashForEntryRoute } from "./app/entry-route.ts";
+import { entryRoleFromUrl, entryRouteFromUrl, hashForEntryRoute, pathAfterLeaving } from "./app/entry-route.ts";
 import { HiringScreen, type HiringTab } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
@@ -25,16 +25,19 @@ type Role =
 
 export function App() {
   // A link can open the job application directly — see entry-route.ts.
-  const [role, setRoleState] = useState<Role>(() => entryRouteFromHash(window.location.hash));
+  const [role, setRoleState] = useState<Role>(() => entryRouteFromUrl(window.location));
   // Read once, at load: which role an ad asked the form to start on.
-  const [initialRole] = useState(() => entryRoleFromHash(window.location.hash));
+  const [initialRole] = useState(() => entryRoleFromUrl(window.location));
   // Keeps the address in step with the screen, so Back from the form clears it
   // and a refresh does not reopen a form somebody already left.
   const setRole = (next: Role) => {
     setRoleState(next);
     const hash = hashForEntryRoute(next);
-    if (hash !== window.location.hash) {
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
+    const onEntryScreen = next === "work" || next === "drive";
+    const path = onEntryScreen ? window.location.pathname : pathAfterLeaving(window.location.pathname);
+    const search = path === window.location.pathname ? window.location.search : "";
+    if (hash !== window.location.hash || path !== window.location.pathname) {
+      window.history.replaceState(null, "", `${path}${search}${hash}`);
     }
   };
   // Which Hiring sub-tab to open on, when something else sent the member
