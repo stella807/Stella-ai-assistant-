@@ -96,7 +96,7 @@ function TaskRow({ task, onOpen }: { task: ConciergeTask; onOpen: () => void }) 
         <div>
           <strong className="small">{task.note}</strong>
           <div className="tiny muted">
-            {task.provider} · {money(task.spendCapCents + task.serviceFeeCents)} held
+            {task.assistantName ?? task.provider}
             {task.status !== "in-progress" && ` · ${STATUS_LABEL[task.status] ?? task.status}`}
           </div>
         </div>
@@ -344,6 +344,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       const available = res.assistants.find((a) => isAssistantAvailable(a));
       if (!available) throw new Error("No one is available for this right now — try again shortly.");
       setAutoAssistant(available);
+      if (simple) { await sendTo(available); return; }
       setConfirming(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not send that request");
@@ -352,14 +353,16 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
     }
   };
 
-  const confirmAndSend = async () => {
-    if (!taskLocation || !autoAssistant) { setError("Turn on location to send this."); return; }
+  const confirmAndSend = () => (autoAssistant ? sendTo(autoAssistant) : Promise.resolve(setError("Turn on location to send this.")));
+
+  const sendTo = async (assistant: { id: string }) => {
+    if (!taskLocation) { setError("Turn on location to send this."); return; }
     setBusy(true);
     setError(null);
     try {
       const res = await api.bookConcierge({
         category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask, errandTier: tier,
-        assistantId: autoAssistant.id,
+        assistantId: assistant.id,
         ...(hourly ? { hours: bookedHours } : {}),
         ...(isAirportPickup ? { flight: { flightNumber: flightNumber.trim(), date: flightDate } } : {}),
         ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf: obAgreed } : {}),
@@ -569,13 +572,13 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
                 find out was the same "swipe to compare" problem the plan
                 picker has, just for "what does a simple errand cost"
                 instead of "what does a bigger plan cost". */}
-            <span className="category-tile-price">
+            {!simple && <span className="category-tile-price">
               from {money(isQuickTaskEligible(c.id)
                 ? customerServiceFeeFor({
                   planId, category: c.id, quickTask: true, errandTier: "in-building", spendCapCents: 1_000, usedThisMonth,
                 })
                 : serviceFeeFor(c.id, false, 1, defaultHoursFor(c.id)))}
-            </span>
+            </span>}
           </button>
         ))}
         {extraTiles}

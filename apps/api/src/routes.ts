@@ -68,7 +68,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
-  withholdingFor, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
+  withholdingFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
 } from "@safehubby/core";
 import type {
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
@@ -1246,6 +1246,19 @@ function sendTexts(messages: SmsMessage[]): void {
 function sendEmails(messages: OutboundEmail[]): void {
   if (messages.length === 0) return;
   void email.send(messages).catch(() => {});
+}
+
+/** What a request costs goes to the customer's inbox — what is held when it
+ *  is booked, and what was charged when it is done — instead of the screen. */
+function emailCost(ctx: Ctx, task: ConciergeTask, stage: "held" | "charged", purchaseCents: number): void {
+  const traveler = ctx.store.data.travelers.find((t) => t.id === task.travelerId);
+  if (!traveler?.email) return;
+  const language = ctx.store.data.emailContacts?.[textKey("traveler", traveler.id)]?.language ?? "en";
+  const { subject, body } = costEmail({
+    stage, categoryLabel: conciergeCategoryLabel(task.category), serviceFeeCents: task.feeIncluded ? 0 : task.serviceFeeCents,
+    purchaseCents, assistantName: task.assistantName,
+  }, language);
+  sendEmails([{ to: traveler.email, subject, body }]);
 }
 
 /** One alert, on every channel the person has agreed to: text and email. */
@@ -3071,6 +3084,7 @@ export const routes: Record<string, Handler> = {
           ...(flightInfo ? { flight: flightInfo } : {}),
         };
         ctx.store.update((db) => void db.conciergeTasks.push(task));
+        emailCost(ctx, task, "held", task.spendCapCents);
         ctx.store.update((db) => {
           (db.points[me] ??= []).push(award(newId("pt"), "bookedRideInsteadOfDriving", ctx.now(), "Sent a concierge instead of going alone"));
         });
@@ -4420,6 +4434,7 @@ export const routes: Record<string, Handler> = {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     const settled = settleConciergeTask(ctx, task, body?.billedCents);
+    emailCost(ctx, settled, "charged", Math.max(0, (settled.billedCents ?? settled.spendCapCents)));
     sendAlert(ctx, textKey("traveler", task.travelerId), "customer-task-done", task.assistantName);
     return { task: settled };
   },

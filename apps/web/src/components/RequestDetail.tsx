@@ -5,7 +5,6 @@ import { api } from "../api.ts";
 import { CategoryIcon } from "./CategoryIcons.tsx";
 import { FlightCard } from "./FlightCard.tsx";
 import { LiveMap } from "./LiveMap.tsx";
-import { TaskCardVisual } from "./TaskCardVisual.tsx";
 import { money } from "../money.ts";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -47,7 +46,6 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
   const [flightBusy, setFlightBusy] = useState(false);
   const [flightError, setFlightError] = useState<string | null>(null);
 
-  const totalHeld = task.spendCapCents + task.serviceFeeCents;
 
   const refreshFlight = async () => {
     if (!task.flightNumber || !task.flightDate) return;
@@ -107,6 +105,7 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
         </div>
 
         <p className="small">{task.note}</p>
+        {task.status === "in-progress" && <QuickReply taskId={task.id} />}
 
         {task.flightNumber && (
           <div className="stack" style={{ gap: 6 }}>
@@ -146,36 +145,11 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
             <span className="tiny muted">Assistant</span>
             <span className="small">{task.assistantName ?? task.provider}</span>
           </li>
-          {task.hoursBooked !== undefined && (
-            <li className="row-between">
-              <span className="tiny muted">Booked for</span>
-              <span className="small">{(task.hoursBooked / 100).toFixed(1).replace(/\.0$/, "")}h</span>
-            </li>
-          )}
-          <li className="row-between">
-            <span className="tiny muted">Held on your card</span>
-            <span className="small charge-amount">{money(totalHeld)}</span>
-          </li>
-          {task.billedCents !== undefined && (
-            <li className="row-between">
-              <span className="tiny muted">Actually spent</span>
-              <span className="small charge-amount">{money(task.billedCents)}</span>
-            </li>
-          )}
         </ul>
 
-        {task.card && (
-          <TaskCardVisual
-            card={task.card}
-            capCents={task.spendCapCents}
-            caption="Assistant's card for this task"
-            holderLabel="Holder"
-            holderValue={task.assistantName ?? task.provider}
-            footnote={`Not yours — this card only covers what ${task.assistantName ?? "your assistant"} spends on this task, up to the cap above.`}
-          />
-        )}
 
-        <button className="btn btn-block" disabled={busy} onClick={onMessage}>Message concierge</button>
+
+        <button className="btn btn-block" disabled={busy} onClick={onMessage}>Open the full chat</button>
         {onComplete && <button className="btn btn-block" disabled={busy} onClick={onComplete}>Mark done</button>}
         {onCancel && <button className="btn btn-block btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>}
       </section>
@@ -221,6 +195,28 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+/** Right under the request: write to your assistant and send, without
+ *  opening anything else. What it costs comes by email, not here. */
+function QuickReply({ taskId }: { taskId: string }) {
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = async () => {
+    setError(null);
+    try { await api.sendTaskMessage(taskId, text.trim()); setText(""); setSent(true); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not send that"); }
+  };
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <textarea aria-label="Message your assistant" rows={2} value={text} placeholder="Message your assistant…"
+        onChange={(e) => { setText(e.target.value); setSent(false); }} />
+      <button className="btn btn-primary btn-block" disabled={!text.trim()} onClick={send}>Send</button>
+      {sent && <p className="tiny" style={{ margin: 0 }}>Sent.</p>}
+      {error && <p className="tiny" role="alert" style={{ margin: 0 }}>{error}</p>}
     </div>
   );
 }

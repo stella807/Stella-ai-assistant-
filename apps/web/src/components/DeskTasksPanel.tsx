@@ -182,7 +182,6 @@ export function DeskTiles({ account, chosen, onChoose }: {
         <button key={k.id} className="category-tile" aria-pressed={chosen === k.id} onClick={() => onChoose(k.id)}>
           <span className="category-tile-icon"><CategoryIcon id={k.id} /></span>
           <span className="category-tile-label">{k.label}</span>
-          <span className="category-tile-price">included</span>
         </button>
       ))}
     </>

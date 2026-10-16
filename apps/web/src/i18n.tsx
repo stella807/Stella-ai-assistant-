@@ -74,7 +74,7 @@ const EN = {
 
   "leadership.heading": "Leadership",
   "leadership.name": "Luis Garcia — Founder & CEO",
-  "leadership.bio": "I come from the healthcare sector, where I've seen firsthand how not having someone there in a critical moment causes accidents, tragedies, and worse. That's the problem Safehubby exists to solve — making sure help, a safe way home, or someone who shows up in person is never out of reach when it matters most.",
+  "leadership.bio": "I come from healthcare, where I saw firsthand what happens when no one is there in a critical moment: accidents, tragedies, and worse. Safehubby exists so that help — a safe ride home, or someone who shows up in person — is never out of reach when it matters most.",
 
   "what.heading": "What Safehubby does",
   "what.nightOut.title": "A safer night out",
@@ -348,7 +348,7 @@ const ES: Record<TranslationKey, string> = {
 
   "leadership.heading": "Liderazgo",
   "leadership.name": "Luis Garcia — Fundador y Director Ejecutivo",
-  "leadership.bio": "Vengo del sector de la salud, donde he visto de primera mano cómo la falta de alguien presente en un momento crítico causa accidentes, tragedias y algo peor. Ese es el problema que Safehubby existe para resolver — asegurando que la ayuda, una forma segura de llegar a casa, o alguien que se presente en persona, nunca esté fuera de alcance cuando más importa.",
+  "leadership.bio": "Vengo del sector de la salud, donde vi de primera mano lo que pasa cuando nadie está presente en un momento crítico: accidentes, tragedias y cosas peores. Safehubby existe para que la ayuda —un viaje seguro a casa o alguien que llegue en persona— nunca esté fuera de alcance cuando más importa.",
 
   "what.heading": "Qué hace Safehubby",
   "what.nightOut.title": "Una noche más segura",

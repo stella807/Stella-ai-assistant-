@@ -3,7 +3,6 @@ import { conciergeCategoryLabel, type ConciergeTask, type PlanId } from "@safehu
 import type { HiringTab } from "./HiringScreen.tsx";
 import { api, type Account } from "../api.ts";
 import { activeRequests, firstName, helpTabFor, homeActions } from "../app/home-actions.ts";
-import { money } from "../money.ts";
 import { AssistantArt, DeskArt, ErrandArt, WingmanIcon } from "./art/Art.tsx";
 
 const ACTION_ART: Record<string, () => JSX.Element> = {
@@ -141,7 +140,7 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
                 <strong className="small">{conciergeCategoryLabel(t.category)}</strong>
                 <span className="tiny muted">
                   {t.onBehalfOf ? `For ${t.onBehalfOf.recipientName} · ` : ""}
-                  {t.assistantName ? `${t.assistantName} is on it` : "On the job"} · {money(t.spendCapCents + t.serviceFeeCents)} held
+                  {t.assistantName ? `${t.assistantName} is on it` : "On the job"}
                 </span>
               </span>
               <span className="chev">›</span>
