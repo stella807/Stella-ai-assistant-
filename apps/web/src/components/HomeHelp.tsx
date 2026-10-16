@@ -38,49 +38,45 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
 
   return (
     <div className="stack">
-      <section className="card stack home-hero">
-        <div>
-          <h2>{name ? `Hi ${name}, how can we help?` : "How can we help?"}</h2>
-          <p className="small muted" style={{ margin: 0 }}>
-            A vetted person for one thing, or one afternoon. You set a limit, and you are never charged past it.
-          </p>
-        </div>
-
-        {actions.length > 0 ? (
-          <div className="home-actions">
-            {actions.map((a) => (
-              <button key={a.id} className="home-action" onClick={() => onOpenHelp(a.tab)}>
-                <span className="home-action-art">{ACTION_ART[a.id]?.()}</span>
-                <strong>{a.title}</strong>
-                <span className="tiny muted">{a.hint}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="home-extras">
-          <button className="home-extra home-extra-club" onClick={() => onOpenHelp("club")}>
-            <WingmanIcon size={44} />
-            <span><strong>Wingman Club</strong><span className="tiny muted">One evening a month, arranged — cigars, bourbon, the track.</span></span>
-          </button>
-          <button className="home-extra" onClick={onOpenHow}>
-            <span className="home-extra-mark">?</span>
-            <span><strong>How it works</strong><span className="tiny muted">What it costs, plan by plan, and who does what.</span></span>
-          </button>
-        </div>
-
-        {/* An account with no paid plan has no assistants or errands to offer.
-            Say where they start, rather than showing doors that are locked. */}
-        {!actions.some((a) => a.id === "assistant" || a.id === "errand") && (
-          <div className="card card-quiet stack" style={{ gap: 8 }}>
-            <strong className="small">Assistants and errands start with Premium.</strong>
-            <span className="tiny muted">
-              Check-ins, location sharing and SOS are always free. A paid plan adds a real person who comes to you.
-            </span>
-            <button className="btn btn-primary" onClick={onOpenPlans}>See the plans</button>
-          </div>
-        )}
+      <section className="home-cover" style={{ backgroundImage: "linear-gradient(180deg, rgba(10,14,26,.15) 0%, rgba(10,14,26,.92) 100%), url(/img/hero-luxury.jpg)" }}>
+        <span className="tiny home-cover-kicker">Your personal assistant</span>
+        <h2>{name ? `Hello, ${name}.` : "Hello."}</h2>
+        <p className="small">Tell us what you need. We take care of it.</p>
       </section>
+
+      {actions.some((a) => a.id === "assistant") && (
+        <button className="home-speak" onClick={() => onOpenHelp("concierge")}>
+          <AssistantArt />
+          <span><strong>Speak with your assistant</strong><span className="tiny">A real person. Ask for anything.</span></span>
+          <span className="chev">›</span>
+        </button>
+      )}
+
+      {actions.length > 0 ? (
+        <div className="home-tiles">
+          {actions.filter((a) => a.id !== "assistant").map((a) => (
+            <button key={a.id} className="home-tile" onClick={() => onOpenHelp(a.tab)}>
+              <span className="home-tile-art">{ACTION_ART[a.id]?.()}</span>
+              <strong>{a.title}</strong>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <button className="home-club" onClick={() => onOpenHelp("club")}
+        style={{ backgroundImage: "linear-gradient(90deg, rgba(10,14,26,.9) 30%, rgba(10,14,26,.2)), url(/img/wingman-bourbon-cigar.jpg)" }}>
+        <WingmanIcon size={36} />
+        <strong>Wingman Club</strong>
+        <span className="tiny">Cigars, bourbon, the track — arranged for you.</span>
+      </button>
+      <button className="linklike tiny" style={{ alignSelf: "center" }} onClick={onOpenHow}>How it works</button>
+
+      {!actions.some((a) => a.id === "assistant" || a.id === "errand") && (
+        <div className="card card-quiet stack" style={{ gap: 8 }}>
+          <strong className="small">Assistants start with Premium.</strong>
+          <button className="btn btn-primary" onClick={onOpenPlans}>See the plans</button>
+        </div>
+      )}
 
       {running.length > 0 && (
         <section className="card stack" aria-label="In progress">

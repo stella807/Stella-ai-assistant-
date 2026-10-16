@@ -18,7 +18,7 @@ import { AboutScreen } from "./components/AboutScreen.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
-import { IconBriefcase, IconCard, IconConfetti, IconDice, IconEye, IconMoon } from "./components/NavIcons.tsx";
+import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
 type Role =
   | "out" | "watching" | "games" | "party" | "plans" | "hiring" | "about" | "account"
@@ -111,20 +111,12 @@ export function App() {
             <button role="tab" aria-selected={role === "watching"} onClick={() => setRole("watching")}>
               <span className="tab-icon"><IconEye /></span><span>{t("nav.watch")}</span>
             </button>
-            <button role="tab" aria-selected={role === "games"} onClick={() => setRole("games")}>
-              <span className="tab-icon"><IconDice /></span><span>{t("nav.games")}</span>
-            </button>
-            {isEnabled("party-supply") && (
-              <button role="tab" aria-selected={role === "party"} onClick={() => setRole("party")}>
-                <span className="tab-icon"><IconConfetti /></span><span>{t("nav.party")}</span>
-              </button>
-            )}
-            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>
-              <span className="tab-icon"><IconCard /></span><span>{t("nav.payments")}</span>
-            </button>
             <button role="tab" aria-selected={role === "hiring"}
               onClick={() => { setHiringTab(undefined); setRole("hiring"); }}>
               <span className="tab-icon"><IconBriefcase /></span><span>{t("nav.hiring")}</span>
+            </button>
+            <button role="tab" aria-selected={role === "plans"} onClick={() => setRole("plans")}>
+              <span className="tab-icon"><IconCard /></span><span>{t("nav.payments")}</span>
             </button>
           </nav>
 
@@ -164,6 +156,9 @@ export function App() {
             every customer sees. Signed out, the landing carries both already. */}
         {account && role !== "drive" && role !== "work" && (
           <span style={{ display: "block", marginTop: 8 }}>
+            <button className="linklike" onClick={() => setRole("games")}>{t("nav.games")}</button>
+            {isEnabled("party-supply") && (<>{" · "}<button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button></>)}
+            {" · "}
             <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
             {" · "}
             <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>
