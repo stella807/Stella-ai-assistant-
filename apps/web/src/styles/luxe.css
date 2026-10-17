@@ -49,3 +49,21 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .issuing-field { min-height: 28px; }
 .wallet-steps > summary { cursor: pointer; color: #e6cf9d; }
 .wallet-steps li { margin-bottom: 4px; }
+
+/* An odd last service on the landing gets the whole row, not half of one. */
+.lux-doors li:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: 0; }
+/* The mission reads as a statement, not a wall. */
+.mission-lead { font-size: 17px; font-weight: 500; }
+.home-tile-icon { color: #e6cf9d; display: inline-flex; }
+.home-tile-icon svg { width: 40px; height: 40px; }
+.home-club { justify-content: flex-end; min-height: 160px; }
+
+/* Text boxes match the inputs: same type, same navy, gold when focused. */
+textarea {
+  font: inherit; color: var(--text); background: var(--fill); border: 1px solid var(--line);
+  border-radius: var(--r-btn); padding: 10px 12px; width: 100%; resize: vertical;
+}
+textarea:focus { outline: none; border-color: #c99a4c; }
+textarea::placeholder { color: var(--faint); }
+/* Room between a fold-out's title and its +. */
+.night-out > summary { gap: 12px; }

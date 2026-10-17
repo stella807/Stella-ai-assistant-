@@ -105,13 +105,6 @@ export function WingmanClub() {
         ))}
       </div>
 
-      <p className="wm-fine" style={{ marginTop: 16 }}>
-        {t(status.memberCount === 1 ? "wingman.memberCountOne" : "wingman.memberCountMany").replace("{count}", String(status.memberCount))}
-        {" — "}
-        {status.overheadCovered
-          ? t("wingman.overheadCovered")
-          : t("wingman.overheadNotCovered").replace("{n}", String(status.breakEvenMembers))}
-      </p>
 
       <ul className="wm-fine" style={{ paddingLeft: 18 }}>
         {status.disclosures.map((d) => <li key={d}>{d}</li>)}

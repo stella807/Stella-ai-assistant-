@@ -176,10 +176,8 @@ function PayRates({ onBack }: { onBack: () => void }) {
       <section className="card stack">
         <h3>Pay rates</h3>
         <p className="tiny muted">
-          What you earn per task — Safehubby's cut is never taken out of it. In Puerto Rico, 10% of what you're paid is held back for Hacienda unless you give us your exemption certificate. The customer pays more than this; the difference is
-          Safehubby's margin and is added on top of your rate, never taken out of it (see
-          docs/concierge.md). You're paid per task, not by the hour; the hourly figure is only a
-          reference, using the typical time a task like this takes.
+          What you earn per task. Safehubby's cut is added on top, never taken out of your pay. In Puerto Rico,
+          10% is held back for Hacienda unless you give us your exemption certificate.
         </p>
         {/* Pay is indexed to the market a task happens in (see market-pay.ts),
             so one national column would overstate what most assistants

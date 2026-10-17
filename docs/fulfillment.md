@@ -290,9 +290,9 @@ not the subscriber's own card, and not their bank account directly.** A
 direct bank debit was the original idea; it was replaced with a
 pre-authorization hold on the card already on file (settles same-night, ACH
 does not) plus a single-use, spend-capped virtual card handed to the assistant
-(`apps/api/src/adapters/cards.ts`). Full details, including the real
-constraint that Stripe's card-issuing API is scoped to your own team members
-rather than arbitrary third parties, are in `docs/concierge.md`.
+(`apps/api/src/adapters/cards.ts`). Cards hang off one Safehubby company cardholder,
+and Stripe shows the number to the assistant directly. Full details are in
+`docs/concierge.md`.
 
 ## 5. Flight tracking — for `airport-pickup`
 

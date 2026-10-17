@@ -9,7 +9,13 @@ import { AssistantArt, DeskArt, ErrandArt, WingmanIcon } from "./art/Art.tsx";
 const ACTION_ART: Record<string, () => JSX.Element> = {
   assistant: () => <AssistantArt />,
   errand: () => <ErrandArt />,
-  ride: () => <img src="/img/suv.jpg" alt="" className="home-photo" width={64} height={96} />,
+  ride: () => (
+    <span className="home-tile-icon" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 20v-4l3-6h16l3 6v4" /><path d="M4 20h24v4H4z" /><circle cx="10" cy="24" r="2.2" /><circle cx="22" cy="24" r="2.2" /><path d="M9 15h14" />
+      </svg>
+    </span>
+  ),
   desk: () => <DeskArt />,
 };
 
@@ -102,7 +108,7 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow, onOpenGa
       ) : null}
 
       {clubInvited && <button className="home-club" onClick={() => onOpenHelp("club")}
-        style={{ backgroundImage: "linear-gradient(180deg, rgba(10,14,26,0) 55%, rgba(10,14,26,.8)), url(/img/wingman-bourbon-cigar.jpg)" }}>
+        style={{ backgroundImage: "linear-gradient(180deg, rgba(10,14,26,0) 35%, rgba(10,14,26,.92)), url(/img/wingman-bourbon-cigar.jpg)" }}>
         <WingmanIcon size={36} />
         <strong>Wingman Club</strong>
         <span className="tiny">By invitation — cigars, bourbon, events.</span>

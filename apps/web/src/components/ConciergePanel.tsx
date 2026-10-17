@@ -674,7 +674,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         <label htmlFor="concierge-note">What do you need?</label>
         <textarea id="concierge-note" maxLength={280} rows={2} value={note}
           onChange={(e) => { setNote(e.target.value); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
-          placeholder="Grab a burger and fries from The Anchor Tavern" />
+          placeholder={simple ? "Tell your assistant what you need…" : "Grab a burger and fries from The Anchor Tavern"} />
       </div>
 
       <div className="field">

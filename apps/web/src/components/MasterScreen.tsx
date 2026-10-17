@@ -580,7 +580,7 @@ function OperationsSection({ operations, canWrite, onChanged }: {
             otherwise. */}
         {roles.map((role) => (
           <div key={role} className="row-between">
-            <span className="tiny muted">{role}</span>
+            <span className="tiny muted">{role.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase())}</span>
             <span className="tiny">
               {operations.hiredByRole[role] ?? 0} hired / {operations.recommendedHeadcount[role]} recommended
             </span>
@@ -745,10 +745,6 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
         </p>
       </div>
 
-      <p className="tiny muted" style={{ margin: 0 }}>
-        The hiring-budget breakdown (headcount, plan vs. actual) lives at its own resolution — see
-        GET /api/admin/budget, reachable with this same key.
-      </p>
     </section>
   );
 }

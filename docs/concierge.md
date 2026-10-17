@@ -328,17 +328,14 @@ that before it shipped, and both were load-bearing:
   the task completes or cancels — never a card that outlives the task it was
   issued for.
 
-One real constraint worth stating plainly rather than glossing over: Stripe Issuing
-Business's card-issuing surface is scoped to members of *your own* Stripe Issuing
-Business team, not to arbitrary third parties. There is no endpoint for
-handing a card to someone who isn't a team member. Using this for real means
-either onboarding the partner network's assistants as authorized cardholders
-on Safehubby's own Stripe Issuing account (a vendor relationship to set up, not just
-an API key), or having the partner hold its own Stripe Issuing account that
-Safehubby funds by transfer instead. The adapter's doc comment has the full
-reasoning; nothing here pretends this is a five-minute integration.
+Cards are issued under one company cardholder on Safehubby's own Stripe
+account (`STRIPE_ISSUING_CARDHOLDER`), so assistants do not need accounts of
+their own. The number is shown to the assistant by Stripe's Issuing Elements,
+straight from Stripe to their browser (`IssuingCardView.tsx`); Safehubby's
+server only hands over a short-lived key for that one card. Stripe has to
+approve Issuing on the account before any of this runs.
 
-**Card issuing is an add-on, not a precondition.** If `STRIPE_SECRET_KEY` isn't
+**Card issuing is an add-on, not a precondition.** If `STRIPE_ISSUING_CARDHOLDER` isn't
 set, or Stripe Issuing is briefly unreachable, a concierge task still books — the
 partner network can bill Safehubby directly with no card in the loop, the same
 way it would if this integration didn't exist at all. `cardIssuing.mode` on

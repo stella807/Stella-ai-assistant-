@@ -102,8 +102,8 @@ export function AssistantArt(props: ArtProps) {
       <circle cx="60" cy="22" r="4" fill="#ffe3a0" />
       <path d="M44 62 Q46 46 58 42" stroke="#fff" strokeOpacity=".7" strokeWidth="3" strokeLinecap="round" fill="none" />
       {/* a person arriving */}
-      <circle cx="98" cy="30" r="7" fill="#6ee7ff" />
-      <path d="M98 38 Q90 50 92 60 M98 38 Q106 50 104 60" stroke="#6ee7ff" strokeWidth="3.4" strokeLinecap="round" fill="none" />
+      <circle cx="98" cy="30" r="7" fill="#e6cf9d" />
+      <path d="M98 38 Q90 50 92 60 M98 38 Q106 50 104 60" stroke="#e6cf9d" strokeWidth="3.4" strokeLinecap="round" fill="none" />
     </svg>
   );
 }
@@ -118,9 +118,9 @@ export function ErrandArt(props: ArtProps) {
           <stop offset="1" stopColor="#b9792c" />
         </linearGradient>
       </defs>
-      <circle cx="60" cy="54" r="40" fill="#6ee7ff" opacity=".1" />
+      <circle cx="60" cy="54" r="40" fill="#e6cf9d" opacity=".1" />
       {/* bottle */}
-      <rect x="44" y="10" width="14" height="22" rx="4" fill="#6ee7ff" opacity=".9" />
+      <rect x="44" y="10" width="14" height="22" rx="4" fill="#e6cf9d" opacity=".9" />
       <rect x="47" y="4" width="8" height="8" rx="2" fill="#aab7d6" />
       {/* charger cable */}
       <path d="M76 36 Q86 16 98 24 Q104 28 96 34" stroke="#eef3ff" strokeWidth="3" fill="none" strokeLinecap="round" />
