@@ -47,3 +47,5 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; justif
 .footer-payments::before, .footer-payments::after { content: "—"; margin: 0 10px; color: #c99a4c; }
 .issuing-card { border-color: rgba(201, 154, 76, .5); }
 .issuing-field { min-height: 28px; }
+.wallet-steps > summary { cursor: pointer; color: #e6cf9d; }
+.wallet-steps li { margin-bottom: 4px; }

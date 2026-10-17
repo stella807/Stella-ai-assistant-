@@ -54,6 +54,16 @@ export function IssuingCardView({ getKey }: {
       {!ready && !error && <p className="tiny muted" style={{ margin: 0 }}>Loading from Stripe…</p>}
       {error && <p className="tiny" role="alert" style={{ margin: 0 }}>{error}</p>}
       <p className="tiny muted" style={{ margin: 0 }}>Shown by Stripe. Safehubby never sees or stores this number.</p>
+      <details className="wallet-steps">
+        <summary className="small">Add it to Apple Wallet</summary>
+        <ol className="small" style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+          <li>Open the <b>Wallet</b> app and tap <b>+</b>.</li>
+          <li>Choose <b>Debit or Credit Card</b>, then <b>Enter Card Details Manually</b>.</li>
+          <li>Type the number, expiry and CVC shown above. Name: <b>Safehubby</b>.</li>
+          <li>If Apple asks for a verification code, ask dispatch for it.</li>
+          <li>Pay by holding your iPhone to the reader. Remove the card from Wallet when the task is done — it stops working then anyway.</li>
+        </ol>
+      </details>
     </div>
   );
 }
