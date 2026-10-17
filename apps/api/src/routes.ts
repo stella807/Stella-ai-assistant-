@@ -71,6 +71,7 @@ import {
   withholdingFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
 } from "@safehubby/core";
 import type {
+  PreAuthorization,
   Alert, ApplicationStatus, AssistantProfile, Basket, Cadence, CartLine, ChargeKind, ConciergeCategory,
   ConciergeTask, ConciergeTaskInput, CrewMemberFacts, DeskTask, DeskTaskKind, DriverTier, EliteBooking, EliteServiceId,
   PickupRequest, Resume,
@@ -88,7 +89,9 @@ import {
 import { flightTracking } from "./adapters/flight-tracking.ts";
 import { revolutCards } from "./adapters/cards.ts";
 import { revolutPayouts } from "./adapters/payouts.ts";
-import { createSetupIntent, ensureStripeCustomer, stripeProcessor } from "./adapters/stripe.ts";
+import {
+  captureOnCard, cardChargingReady, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard, stripeProcessor,
+} from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
@@ -701,6 +704,7 @@ function settleConciergeTask(ctx: Ctx, task: ConciergeTask, billedCents: unknown
     if (target) Object.assign(target, captureHold(target, totalCents, ctx.now()));
   });
   updateCharge(ctx, task.chargeId, (c) => settleCharge(c, ctx.now(), totalCents));
+  settleOnCard(ctx, task.holdId, totalCents, task.chargeId);
   ctx.store.update((db) => {
     const t = db.conciergeTasks.find((x) => x.id === task.id)!;
     t.status = "completed"; t.completedAt = ctx.now().toISOString(); t.billedCents = purchaseCents;
@@ -717,6 +721,7 @@ function releaseConciergeTask(ctx: Ctx, task: ConciergeTask, declinedByAssistant
     const target = db.holds.find((h) => h.id === task.holdId);
     if (target) Object.assign(target, releaseHold(target));
   });
+  releaseCardHold(ctx, task.holdId);
   updateCharge(ctx, task.chargeId, (c) =>
     failCharge(c, declinedByAssistant ? "Declined by the assistant." : "Task canceled before completion.", ctx.now()));
   ctx.store.update((db) => {
@@ -803,6 +808,47 @@ function chargeForSupplies(ctx: Ctx, travelerId: string, basket: Basket, deliver
  * user should never see a hold on their card with nothing on their statement
  * explaining it, or a line on their statement that no hold backs.
  */
+/**
+ * Real money on the customer's saved card. Each hold in the ledger is matched
+ * by a real Stripe authorization when the customer pays by card through
+ * Stripe and the server has a Stripe key; otherwise (the prepaid balance, a
+ * method saved before keys were set, or a dev server) the ledger is the only
+ * record, as before.
+ */
+async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: string): Promise<void> {
+  if (hold.fundedBy === "balance" || !cardChargingReady()) return;
+  const method = ctx.store.data.paymentMethods[hold.travelerId];
+  const customerId = ctx.store.data.stripeCustomers[hold.travelerId];
+  if (method?.processor !== "stripe" || !method.processorToken || !customerId) return;
+  try {
+    const intent = await holdOnCard({
+      customerId, paymentMethodId: method.processorToken, amountCents: hold.amountCents, description, idempotencyKey: hold.id,
+    });
+    ctx.store.update((db) => {
+      const target = db.holds.find((h) => h.id === hold.id);
+      if (target) target.processorRef = intent.id;
+    });
+  } catch (err) {
+    throw new HttpError(402, err instanceof Error ? err.message : "Your card could not be charged.");
+  }
+}
+
+/** Takes what was spent, or lets the whole hold go. Never fails the request
+ *  that settled the task; a failure is written onto the charge for the owner. */
+function settleOnCard(ctx: Ctx, holdId: string, capturedCents: number, chargeId?: string): void {
+  const ref = ctx.store.data.holds.find((h) => h.id === holdId)?.processorRef;
+  if (!ref) return;
+  (capturedCents > 0 ? captureOnCard(ref, capturedCents) : releaseOnCard(ref)).catch((err) => {
+    console.error("[safehubby] Card settlement failed:", err);
+    if (chargeId) updateCharge(ctx, chargeId, (c) => failCharge(c, `Card capture failed: ${err instanceof Error ? err.message : err}`, ctx.now()));
+  });
+}
+
+function releaseCardHold(ctx: Ctx, holdId: string): void {
+  const ref = ctx.store.data.holds.find((h) => h.id === holdId)?.processorRef;
+  if (ref) releaseOnCard(ref).catch((err) => console.error("[safehubby] Card release failed:", err));
+}
+
 async function bookWithHold<T extends { fareEstimateCents: number | null }>(
   ctx: Ctx,
   travelerId: string,
@@ -821,6 +867,7 @@ async function bookWithHold<T extends { fareEstimateCents: number | null }>(
   });
 
   try {
+    await reserveOnCard(ctx, hold, line.description);
     const result = await doBook();
     let captured = hold.amountCents;
     ctx.store.update((db) => {
@@ -831,12 +878,14 @@ async function bookWithHold<T extends { fareEstimateCents: number | null }>(
       Object.assign(target, captureHold(target, captured, ctx.now()));
     });
     updateCharge(ctx, charge.id, (c) => settleCharge(c, ctx.now(), captured));
+    settleOnCard(ctx, hold.id, captured, charge.id);
     return result;
   } catch (err) {
     ctx.store.update((db) => {
       const target = db.holds.find((h) => h.id === hold.id);
       if (target) Object.assign(target, releaseHold(target));
     });
+    releaseCardHold(ctx, hold.id);
     updateCharge(ctx, charge.id, (c) =>
       failCharge(c, err instanceof Error ? err.message : "The booking did not go through.", ctx.now()));
     throw err;
@@ -1723,6 +1772,7 @@ export const routes: Record<string, Handler> = {
       brand,
       last4,
       ...(accountLabel ? { accountLabel } : {}),
+      ...(isAutomatic(port.status) ? { processorToken: String(body?.token ?? "") } : {}),
       ...(expMonth === undefined ? {} : { expMonth }),
       ...(expYear === undefined ? {} : { expYear }),
       now: ctx.now(),
@@ -3029,6 +3079,7 @@ export const routes: Record<string, Handler> = {
         amountCents: totalCents,
         holdId: hold.id,
       });
+      await reserveOnCard(ctx, hold, `Safehubby: ${conciergeCategoryLabel(input.category)}`);
 
       // Issuing a card is an add-on, not a precondition for the task itself: the
       // partner may bill Safehubby directly with no card in the loop at all, so
@@ -3119,6 +3170,7 @@ export const routes: Record<string, Handler> = {
           const target = db.holds.find((h) => h.id === hold.id);
           if (target) Object.assign(target, releaseHold(target));
         });
+        releaseCardHold(ctx, hold.id);
         updateCharge(ctx, charge.id, (c) =>
           failCharge(c, err instanceof Error ? err.message : "The task could not be booked.", ctx.now()));
         throw err;

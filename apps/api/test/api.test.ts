@@ -4609,6 +4609,70 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("real card charging through Stripe", () => {
+    const realFetch = globalThis.fetch;
+    let stripe: { path: string; body: URLSearchParams }[];
+    const flush = () => new Promise((r) => setTimeout(r, 30));
+    beforeEach(() => {
+      process.env.STRIPE_SECRET_KEY = "sk_test_x";
+      stripe = [];
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input);
+        if (!url.startsWith("https://api.stripe.com")) return realFetch(input, init);
+        const path = new URL(url).pathname;
+        stripe.push({ path, body: new URLSearchParams(String(init?.body ?? "")) });
+        const status = path.endsWith("/capture") ? "succeeded" : path.endsWith("/cancel") ? "canceled" : "requires_capture";
+        return Response.json({ id: "pi_test", status });
+      }) as typeof fetch;
+    });
+    afterEach(() => { globalThis.fetch = realFetch; delete process.env.STRIPE_SECRET_KEY; });
+
+    const bookOnCard = async () => {
+      const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` }, "puerto-rico");
+      const assistantId = hired.json.assistant.id as string;
+      await withCard(sam);
+      store.update((db) => {
+        db.paymentMethods[samId]!.processor = "stripe";
+        db.paymentMethods[samId]!.processorToken = "pm_saved";
+        db.stripeCustomers[samId] = "cus_sam";
+      });
+      const res = await call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+        location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
+        spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId,
+      }, sam);
+      return { res, assistantId };
+    };
+
+    it("reserves the real amount on the saved card when a request is booked", async () => {
+      const { res } = await bookOnCard();
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const intent = stripe.find((c) => c.path === "/v1/payment_intents")!;
+      expect(intent.body.get("customer")).toBe("cus_sam");
+      expect(intent.body.get("payment_method")).toBe("pm_saved");
+      expect(intent.body.get("capture_method")).toBe("manual");
+      const hold = store.data.holds.find((h) => h.id === res.json.task.holdId)!;
+      expect(intent.body.get("amount")).toBe(String(hold.amountCents));
+      expect(hold.processorRef).toBe("pi_test");
+    });
+
+    it("takes only what was spent when the task is done", async () => {
+      const { res, assistantId } = await bookOnCard();
+      const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
+      await call("POST", `/api/assistant/tasks/${res.json.task.id}/complete`, { billedCents: 400 }, null, cookie);
+      await flush();
+      const capture = stripe.find((c) => c.path === "/v1/payment_intents/pi_test/capture")!;
+      expect(Number(capture.body.get("amount_to_capture"))).toBe(400 + res.json.task.serviceFeeCents);
+    });
+
+    it("lets the whole hold go when the request is cancelled", async () => {
+      const { res } = await bookOnCard();
+      await call("POST", `/api/concierge/tasks/${res.json.task.id}/cancel`, {}, sam);
+      await flush();
+      expect(stripe.some((c) => c.path === "/v1/payment_intents/pi_test/cancel")).toBe(true);
+    });
+  });
+
   describe("text alerts", () => {
     /** Twilio, stood in for. Only its own host is intercepted. */
     const realFetch = globalThis.fetch;

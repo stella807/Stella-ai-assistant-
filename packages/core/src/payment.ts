@@ -117,6 +117,8 @@ export const CARD_NETWORKS = ["Visa", "Mastercard", "American Express", "Discove
 
 export interface PaymentMethodOnFile {
   id: string;
+  /** See `AttachMethodInput.processorToken`. */
+  processorToken?: string;
   processor: PaymentProcessor;
   payWith?: PayBrand;
   /** Never a full card number. This is the only thing worth storing that way. */
@@ -145,6 +147,9 @@ export interface AttachMethodInput {
   accountLabel?: string;
   expMonth?: number;
   expYear?: number;
+  /** The processor's reusable id for the method (a Stripe PaymentMethod id),
+   *  so it can actually be charged later. Never a card number. */
+  processorToken?: string;
   now: Date;
 }
 
@@ -175,6 +180,7 @@ export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFi
     last4: input.last4,
     ...(input.accountLabel ? { accountLabel: input.accountLabel } : {}),
     ...(hasExpiry ? { expMonth: input.expMonth!, expYear: input.expYear! } : {}),
+    ...(input.processorToken ? { processorToken: input.processorToken } : {}),
     addedAt: input.now.toISOString(),
   };
 }
@@ -211,6 +217,9 @@ export interface PreAuthorization {
   reference?: string;
   /** Set when this hold reserves the customer's prepaid balance rather than a card. */
   fundedBy?: "balance";
+  /** The processor's own record of the real authorization (a Stripe
+   *  PaymentIntent id), once money is actually reserved on the card. */
+  processorRef?: string;
 }
 
 /** Buffer over the estimate, to absorb surge or a route that runs long. */

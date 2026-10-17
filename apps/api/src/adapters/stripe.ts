@@ -68,12 +68,15 @@ function form(fields: Record<string, string | number | boolean | undefined>): st
   return body.toString();
 }
 
-async function stripePost<T>(path: string, fields: Record<string, string | number | boolean | undefined>): Promise<T> {
+async function stripePost<T>(
+  path: string, fields: Record<string, string | number | boolean | undefined>, idempotencyKey?: string,
+): Promise<T> {
   const res = await fetch(`${STRIPE_API}${path}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${STRIPE_KEY}`,
+      authorization: `Bearer ${process.env.STRIPE_SECRET_KEY ?? STRIPE_KEY}`,
       "content-type": "application/x-www-form-urlencoded",
+      ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
     },
     body: form(fields),
   });
@@ -136,4 +139,48 @@ export async function createSetupIntent(input: {
   });
   if (!intent.client_secret) throw new Error("Stripe returned a SetupIntent with no client secret.");
   return { clientSecret: intent.client_secret };
+}
+
+/**
+ * Real money on a saved card, in the three steps a task needs: reserve the
+ * exact amount when it is booked (a manual-capture PaymentIntent, charged
+ * off-session because the customer is not at the keyboard), take only what
+ * was actually spent when it is done, or release all of it if it is
+ * cancelled. Stripe's own idempotency key is the hold's id, so a retry never
+ * reserves twice.
+ */
+export const cardChargingReady = () => Boolean(process.env.STRIPE_SECRET_KEY);
+
+export async function holdOnCard(input: {
+  customerId: string; paymentMethodId: string; amountCents: number; description: string; idempotencyKey: string;
+}): Promise<{ id: string }> {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe is not configured.");
+  const intent = await stripePost<{ id: string; status: string }>("/v1/payment_intents", {
+    amount: input.amountCents,
+    currency: "usd",
+    customer: input.customerId,
+    payment_method: input.paymentMethodId,
+    capture_method: "manual",
+    confirm: true,
+    off_session: true,
+    description: input.description.slice(0, 200),
+  }, input.idempotencyKey);
+  if (intent.status !== "requires_capture" && intent.status !== "succeeded") {
+    // Most often a bank asking the cardholder to approve it themselves (3-D
+    // Secure). Nobody is there to approve it, so say so rather than book.
+    if (intent.id) await stripePost(`/v1/payment_intents/${encodeURIComponent(intent.id)}/cancel`, {}).catch(() => {});
+    throw new Error("Your bank wants to approve this payment itself. Open your banking app, or use a different card.");
+  }
+  return { id: intent.id };
+}
+
+export async function captureOnCard(intentId: string, amountCents: number): Promise<void> {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe is not configured.");
+  if (amountCents <= 0) { await releaseOnCard(intentId); return; }
+  await stripePost(`/v1/payment_intents/${encodeURIComponent(intentId)}/capture`, { amount_to_capture: amountCents });
+}
+
+export async function releaseOnCard(intentId: string): Promise<void> {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe is not configured.");
+  await stripePost(`/v1/payment_intents/${encodeURIComponent(intentId)}/cancel`, {});
 }

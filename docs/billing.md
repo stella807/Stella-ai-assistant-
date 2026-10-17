@@ -650,3 +650,13 @@ client knows whether it is the App Store build. A client that lied would be
 routing an in-app subscription around Apple's billing, which is the operator's
 compliance problem — it cannot take a user's money twice or reach anyone else's
 data. It is stored on the subscription so the rail is auditable afterwards.
+
+## Real card charging (Stripe)
+
+When `STRIPE_SECRET_KEY` is set and a customer saved a card (or Apple Pay, Google Pay, Link, Cash App Pay…) through Stripe, every hold in the ledger is matched by a real Stripe authorization:
+
+- **Booked:** a manual-capture PaymentIntent for the exact amount, charged off-session to the saved method (the hold's id is the idempotency key). A decline, or a bank asking the cardholder to approve it (3-D Secure), stops the booking with the bank's own reason — nothing is booked on a hold that does not exist.
+- **Done:** only what was actually spent is captured; the rest of the authorization falls away.
+- **Cancelled or declined by the assistant:** the PaymentIntent is cancelled, releasing the whole hold.
+
+A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid ATH Móvil balance is unchanged. Not yet charged for real: PayPal/Venmo (saved only), and plan subscriptions.
