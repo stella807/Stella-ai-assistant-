@@ -81,3 +81,31 @@ export const taskCards: CardIssuingPort = {
     await stripeForm(`/v1/issuing/cards/${encodeURIComponent(cardId)}`, { status: "canceled" });
   },
 };
+
+/** The Stripe API version the ephemeral key is made for; Stripe.js's Issuing
+ *  Elements need the key and the call to agree on one. */
+export const ISSUING_ELEMENTS_API_VERSION = "2024-06-20";
+
+/**
+ * A short-lived key that lets Stripe's own Issuing Elements, in the
+ * assistant's browser, show this one card's number, expiry and CVC. The
+ * number goes from Stripe straight to that browser — never through this
+ * server. The nonce comes from Stripe.js (`createEphemeralKeyNonce`), which
+ * ties the key to the page that asked for it.
+ */
+export async function cardViewKey(cardId: string, nonce: string): Promise<string> {
+  if (!ready()) throw new Error("Stripe Issuing is not configured.");
+  const res = await fetch(`${API}/v1/ephemeral_keys`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "stripe-version": ISSUING_ELEMENTS_API_VERSION,
+    },
+    body: new URLSearchParams({ issuing_card: cardId, nonce }).toString(),
+  });
+  if (!res.ok) throw new Error(`Stripe would not open this card: ${res.status}`);
+  const key = (await res.json()) as { secret?: string };
+  if (!key.secret) throw new Error("Stripe returned no key for this card.");
+  return key.secret;
+}

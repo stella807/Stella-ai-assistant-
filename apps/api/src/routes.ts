@@ -87,7 +87,7 @@ import {
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { flightTracking } from "./adapters/flight-tracking.ts";
-import { taskCards } from "./adapters/cards.ts";
+import { cardViewKey, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
 import {
   captureOnCard, cardChargingReady, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard, stripeProcessor,
@@ -830,6 +830,12 @@ async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: stri
   } catch (err) {
     throw new HttpError(402, err instanceof Error ? err.message : "Your card could not be charged.");
   }
+}
+
+/** Stripe's key for showing one card in the browser, with its refusal said plainly. */
+async function cardViewKeyOrFail(cardId: string, nonce: string): Promise<string> {
+  try { return await cardViewKey(cardId, nonce); }
+  catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "Stripe would not open this card."); }
 }
 
 /** Takes what was spent, or lets the whole hold go. Never fails the request
@@ -4251,7 +4257,7 @@ export const routes: Record<string, Handler> = {
    * window in which a stranger holds spending power stays exactly as long as
    * the job does.
    */
-  "POST /api/assistant/tasks/:taskId/card": async (ctx, p) => {
+  "POST /api/assistant/tasks/:taskId/card": async (ctx, p, body) => {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     if (task.status !== "in-progress") {
@@ -4270,9 +4276,13 @@ export const routes: Record<string, Handler> = {
     }
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
 
-    const revealUrl = await taskCards.revealCard(task.card.id);
-    if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask dispatch to reissue it.");
-    return { revealUrl, card: task.card, spendCapCents: task.spendCapCents };
+    // Two steps: the card's id first, so Stripe.js can make a nonce for it,
+    // then a short-lived key for that nonce. The number itself goes from
+    // Stripe to the assistant's browser, never through here.
+    const nonce = String(body?.nonce ?? "");
+    if (!nonce) return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents };
+    const ephemeralKeySecret = await cardViewKeyOrFail(task.card.id, nonce);
+    return { cardId: task.card.id, ephemeralKeySecret, card: task.card, spendCapCents: task.spendCapCents };
   },
 
   /**
@@ -5213,16 +5223,16 @@ export const routes: Record<string, Handler> = {
 
   /** The one-time reveal link, fetched fresh each time — never stored. Same
    *  discipline as the assistant task card's own reveal route. */
-  "POST /api/elite/spending-card/reveal": async (ctx) => {
+  "POST /api/elite/spending-card/reveal": async (ctx, _p, body) => {
     const me = actor(ctx);
     requireElite(ctx);
     const monthKey = clubMonthKey(ctx.now());
     const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
     if (!card) throw notFound("Spending card");
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
-    const revealUrl = await taskCards.revealCard(card.cardId);
-    if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask support to reissue it.");
-    return { revealUrl, card };
+    const nonce = String(body?.nonce ?? "");
+    if (!nonce) return { cardId: card.cardId, card };
+    return { cardId: card.cardId, ephemeralKeySecret: await cardViewKeyOrFail(card.cardId, nonce), card };
   },
 
   /**

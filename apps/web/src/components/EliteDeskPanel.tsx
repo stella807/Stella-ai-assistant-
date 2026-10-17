@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { IssuingCardView } from "./IssuingCardView.tsx";
+import { useCallback, useEffect, useState } from "react";
 import { MAX_ELITE_BRIEF_LENGTH } from "@safehubby/core";
 import type { EliteBooking, EliteService, EliteServiceId } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -25,7 +26,8 @@ export function EliteDeskPanel() {
   const [eventBusy, setEventBusy] = useState<string | null>(null);
   const [spendingCard, setSpendingCard] = useState<Awaited<ReturnType<typeof api.eliteSpendingCard>> | null>(null);
   const [spendingBusy, setSpendingBusy] = useState(false);
-  const [revealUrl, setRevealUrl] = useState<string | null>(null);
+  const [showCard, setShowCard] = useState(false);
+  const getKey = useCallback((nonce?: string) => api.eliteSpendingCardKey(nonce), []);
   const [selected, setSelected] = useState<EliteServiceId | null>(null);
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,18 +58,6 @@ export function EliteDeskPanel() {
     }
   };
 
-  const revealSpendingCard = async () => {
-    setSpendingBusy(true);
-    setError(null);
-    try {
-      const { revealUrl: url } = await api.revealEliteSpendingCard();
-      setRevealUrl(url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not reveal your spending card");
-    } finally {
-      setSpendingBusy(false);
-    }
-  };
 
   const toggleRsvp = async (eventId: string, isGoing: boolean) => {
     setEventBusy(eventId);
@@ -128,14 +118,9 @@ export function EliteDeskPanel() {
                 holderValue="You"
                 footnote="Resets every calendar month — unused balance does not roll over."
               />
-              <button className="btn btn-sm" disabled={spendingBusy} onClick={revealSpendingCard}>
-                {spendingBusy ? "Working…" : "Reveal card number"}
-              </button>
-              {revealUrl && (
-                <a className="btn btn-sm btn-ghost" href={revealUrl} target="_blank" rel="noreferrer">
-                  Open the reveal link →
-                </a>
-              )}
+              {showCard
+                ? <IssuingCardView getKey={getKey} />
+                : <button className="btn btn-sm" onClick={() => setShowCard(true)}>Show card number</button>}
             </>
           ) : spendingCard.automatic ? (
             <button className="btn btn-primary btn-block" disabled={spendingBusy} onClick={issueSpendingCard}>

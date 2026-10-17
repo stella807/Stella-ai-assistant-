@@ -1,5 +1,6 @@
+import { IssuingCardView } from "./IssuingCardView.tsx";
 import { ScreenCover } from "./ScreenCover.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
   REFERENCE_MARKET, LAUNCH_MARKETS, describePayAgainstMarket, minutesFor, type LaunchMarketId,
@@ -591,21 +592,8 @@ function TaskCardPopup({ task, onClose, onChanged }: {
     }
   };
 
-  const reveal = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { revealUrl } = await api.assistantRevealCard(task.id);
-      // Opened rather than embedded: the number should render on the
-      // provider's own page, not inside a page Safehubby controls.
-      window.open(revealUrl, "_blank", "noopener,noreferrer");
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not reveal the card");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [showCard, setShowCard] = useState(false);
+  const getKey = useCallback((nonce?: string) => api.assistantCardKey(task.id, nonce), [task.id]);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Task card">
@@ -640,12 +628,9 @@ function TaskCardPopup({ task, onClose, onChanged }: {
 
         {unlocked ? (
           <>
-            <button className="btn btn-primary btn-block" disabled={busy} onClick={reveal}>
-              {busy ? "Getting the number…" : "Show the full card number"}
-            </button>
-            <p className="tiny muted">
-              Opens on the card issuer's own secure page, in a new tab. Safehubby never sees the number.
-            </p>
+            {showCard
+              ? <IssuingCardView getKey={getKey} />
+              : <button className="btn btn-primary btn-block" onClick={() => setShowCard(true)}>Show the full card number</button>}
           </>
         ) : (
           <div className="stack" style={{ gap: 8 }}>

@@ -529,8 +529,8 @@ export const api = {
   issueEliteSpendingCard: () => request<{
     card: { id: string; monthKey: string; capCents: number; last4: string; network: string; expMonth: number; expYear: number };
   }>("POST", "/api/elite/spending-card", {}),
-  revealEliteSpendingCard: () =>
-    request<{ revealUrl: string; card: unknown }>("POST", "/api/elite/spending-card/reveal", {}),
+  eliteSpendingCardKey: (nonce?: string) =>
+    request<{ cardId: string; ephemeralKeySecret?: string }>("POST", "/api/elite/spending-card/reveal", { nonce }),
   eliteEvents: () => request<{
     events: {
       id: string; label: string; emoji: string; description: string; city: string; date: string;
@@ -665,12 +665,8 @@ export const api = {
       "POST", `/api/concierge/tasks/${taskId}/spend-requests/${requestId}/decision`, { approve }),
   /** A one-time link to the task card's full number, for paying with it. The
    *  number itself never comes through this API — see revealCard in core. */
-  assistantRevealCard: (taskId: string) =>
-    request<{
-      revealUrl: string;
-      card: { id: string; last4: string; network: string; expMonth: number; expYear: number };
-      spendCapCents: number;
-    }>("POST", `/api/assistant/tasks/${taskId}/card`, {}),
+  assistantCardKey: (taskId: string, nonce?: string) =>
+    request<{ cardId: string; ephemeralKeySecret?: string }>("POST", `/api/assistant/tasks/${taskId}/card`, { nonce }),
   assistantComplete: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
   assistantRunners: () =>

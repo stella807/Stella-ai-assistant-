@@ -44,3 +44,23 @@ describe("task cards through Stripe Issuing", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+describe("showing a task card's number through Stripe, never through us", () => {
+  afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ENV }; });
+
+  it("asks Stripe for a short-lived key bound to the card and the page's nonce", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_x"; process.env.STRIPE_ISSUING_CARDHOLDER = "ich_1";
+    const seen: { url: string; body: string; headers: Record<string, string> }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), body: String(init?.body), headers: init?.headers as Record<string, string> });
+      return { ok: true, status: 200, json: async () => ({ secret: "ek_test_1" }) } as Response;
+    }));
+    const { cardViewKey, ISSUING_ELEMENTS_API_VERSION } = await import("../src/adapters/cards.ts");
+    expect(await cardViewKey("ic_1", "nonce_1")).toBe("ek_test_1");
+    expect(seen[0]!.url).toBe("https://api.stripe.com/v1/ephemeral_keys");
+    const body = new URLSearchParams(seen[0]!.body);
+    expect(body.get("issuing_card")).toBe("ic_1");
+    expect(body.get("nonce")).toBe("nonce_1");
+    expect(seen[0]!.headers["stripe-version"]).toBe(ISSUING_ELEMENTS_API_VERSION);
+  });
+});
