@@ -15,7 +15,7 @@ export type Language = "en" | "es";
 const STORAGE_KEY = "safehubby-language";
 
 const EN = {
-  "app.tagline": "Get home safe",
+  "app.tagline": "Puerto Rico · 24/7",
   "app.account": "Account",
   "app.signOut": "Sign out",
   "app.drive": "Drive for Safehubby →",
@@ -292,7 +292,7 @@ const EN = {
 export type TranslationKey = keyof typeof EN;
 
 const ES: Record<TranslationKey, string> = {
-  "app.tagline": "Llega a casa a salvo",
+  "app.tagline": "Puerto Rico · 24/7",
   "app.account": "Cuenta",
   "app.signOut": "Cerrar sesión",
   "app.drive": "Maneja para Safehubby →",
