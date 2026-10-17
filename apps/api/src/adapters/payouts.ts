@@ -1,63 +1,25 @@
-import type { PayoutPort } from "@safehubby/core";
+import type { PayoutPort, ProviderStatus } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
-import { postJson } from "./fulfillment.ts";
-import { revolutReady, revolutRequest } from "./revolut-auth.ts";
-import type { ProviderStatus } from "@safehubby/core";
-
-let statusOverride: ProviderStatus | undefined;
 
 /**
- * Biweekly payouts to assistants, through Revolut Business — the same
- * account and the same credentials already used to issue task cards in
- * `cards.ts`. A real Revolut Business account can both issue cards and send
- * external payments, so this reuses `REVOLUT_API_BASE`/`REVOLUT_API_KEY`
- * rather than inventing a second provider decision for what is, from
- * Revolut's side, the same account. See `cards.ts`'s doc comment for the
- * caveats that apply to both: OAuth2 client-credentials rather than a bare
- * bearer token, and endpoint shapes that are a best-effort mapping of
- * Revolut's documented Business API, not verified against a live sandbox.
- *
- * Revolut's Business payments API pays a "counterparty" it already knows
- * about, not a raw account number handed over inline — a real integration
- * would first create or look up a counterparty for the assistant's bank
- * details, then pay that counterparty. This adapter folds both steps into
- * one call for simplicity; the counterparty-creation call is the one to
- * split out first if a real sandbox shows a different shape.
+ * Paying assistants. There is no automatic payout provider wired in: payroll
+ * still works out every 14 days what each assistant is owed (and holds back
+ * the 10% for Hacienda in Puerto Rico), and records the payout with the
+ * reason below, so the owner can send it from the business bank account or
+ * ATH Business. A provider (for example Stripe Connect) plugs in here later.
  */
+let statusOverride: ProviderStatus | undefined;
 
-
-export const revolutPayouts: PayoutPort = {
-  // A getter because connecting Revolut happens while the server runs; the
-  // setter lets tests stand a status in.
+export const assistantPayouts: PayoutPort = {
   get status() {
     return statusOverride ?? statusFor(
-      "revolut-payouts", "Revolut Business", revolutReady(),
-      "A Revolut Business account, connected: set REVOLUT_CLIENT_ID, REVOLUT_PRIVATE_KEY and REVOLUT_ISSUER, then approve it once from the owner portal (or, as before, REVOLUT_API_BASE and REVOLUT_API_KEY).",
+      "assistant-payouts", "Assistant payouts", false,
+      "Pay this one yourself from the business bank account or ATH Business — no automatic payout provider is connected.",
     );
   },
   set status(value) { statusOverride = value; },
 
-  async payOut(input): Promise<{ payoutId: string }> {
-    const r = await revolutRequest();
-    if (!r) throw new Error("Revolut Business is not configured.");
-
-    const data = await postJson(
-      `${r.base}/1.0/pay`,
-      { authorization: r.authorization },
-      {
-        request_id: input.reference,
-        amount: input.amountCents / 100,
-        currency: input.currency,
-        counterparty: {
-          account_holder_name: input.recipient.accountHolderName,
-          account_number: input.recipient.accountNumber,
-          routing_number: input.recipient.routingNumber,
-          country: "US",
-        },
-        reference: `Safehubby payout ${input.reference}`,
-      },
-    );
-
-    return { payoutId: String(data.id ?? "") };
+  async payOut() {
+    throw new Error("No automatic payout provider is connected — pay this assistant yourself.");
   },
 };

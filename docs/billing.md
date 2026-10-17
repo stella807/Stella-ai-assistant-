@@ -256,7 +256,7 @@ forgotten in either direction.
 `packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
 `apps/api/src/adapters/stripe.ts` / `paypal.ts` implement it — the same
 `ProviderStatus` automatic/handoff pattern as every other adapter in this
-app (Revolut cards, Revolut payouts, Uber, DoorDash). Their one job today is
+app (Stripe Issuing cards, manual payouts, Uber, DoorDash). Their one job today is
 verification: the browser's own SDK tokenizes a method (Stripe.js, PayPal's
 JS SDK) and hands this server a token, and the adapter asks the real
 processor what that token actually is — brand, last 4, expiry — rather than

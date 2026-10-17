@@ -3,7 +3,6 @@ import { renewDueSubscriptions } from "./billing.ts";
 import { createApp, makeCtx } from "./server.ts";
 import { runFlightSweep, runPayroll } from "./routes.ts";
 import { cipherFromEnv } from "./crypto.ts";
-import { revolutAuth } from "./adapters/revolut-auth.ts";
 import { SEED } from "./seed.ts";
 import { PostgresStore } from "./store-postgres.ts";
 import { Store, type StoreLike } from "./store.ts";
@@ -40,18 +39,6 @@ async function main(): Promise<void> {
     store = new Store();
     if (store.data.travelers.length === 0 && store.data.sessions.length === 0) store.reset(SEED);
     console.log("[safehubby] File store (development only).");
-  }
-
-  // Revolut's refresh token survives a restart, encrypted like everything else
-  // sensitive; with no encryption key it is kept in memory only.
-  if (revolutAuth) {
-    const sealed = store.data.revolutRefreshToken;
-    if (sealed && cipher) {
-      try { revolutAuth.setRefreshToken(cipher.decrypt(sealed)); } catch { console.error("[safehubby] Stored Revolut token could not be read."); }
-    }
-    revolutAuth.onRefreshToken((token) => {
-      if (cipher) store.update((db) => { db.revolutRefreshToken = cipher.encrypt(token); });
-    });
   }
 
   console.log(`[safehubby] Location encryption: ${cipher ? "on" : "OFF"}`);

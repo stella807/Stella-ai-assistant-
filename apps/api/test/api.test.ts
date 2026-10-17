@@ -8,7 +8,7 @@ import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
 import { hashPassword } from "../src/auth.ts";
 import { runFlightSweep, runPayroll, type Ctx } from "../src/routes.ts";
-import { revolutCards } from "../src/adapters/cards.ts";
+import { taskCards } from "../src/adapters/cards.ts";
 import {
   ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
   eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
@@ -1524,8 +1524,8 @@ describe("personal concierge", () => {
   it("reports card issuing separately from dispatch — no credentials in tests, so it hands off", async () => {
     const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
     expect(res.cardIssuing.mode).toBe("handoff");
-    expect(res.cardIssuing.name).toBe("Revolut Business");
-    expect(res.cardIssuing.requires).toMatch(/Revolut Business account/i);
+    expect(res.cardIssuing.name).toBe("Stripe Issuing");
+    expect(res.cardIssuing.requires).toMatch(/Stripe Issuing/i);
   });
 
   it("still lets a task book with no card issuer configured — issuing one is an add-on, not a precondition", async () => {
@@ -2219,7 +2219,7 @@ describe("assistant portal", () => {
       }, null, cookie);
       const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
       expect(res.status).toBe(503);
-      expect(res.json.error).toMatch(/revolut/i);
+      expect(res.json.error).toMatch(/stripe issuing/i);
     });
 
     it("records the purchase with its photo and reports what's left of the cap", async () => {
@@ -2503,14 +2503,14 @@ describe("biweekly payroll", () => {
     expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeUndefined();
   });
 
-  it("fails with Revolut's own reason once a destination is on file but Revolut itself is not configured", async () => {
+  it("fails with a clear pay-it-yourself reason once a destination is on file but no payout provider is connected", async () => {
     await withEncryptionKey(async () => {
       const { cookie } = await assistantLogin(assistantId);
       await call("POST", "/api/assistant/payout-destination", payoutDestination(), null, cookie);
       const result = await runPayroll(ctx);
       expect(result.failed).toBe(1);
       const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
-      expect(payout.failureReason).toMatch(/Revolut Business/i);
+      expect(payout.failureReason).toMatch(/pay this one yourself/i);
     });
   });
 
@@ -4999,7 +4999,7 @@ describe("hiring somebody and actually sending them to a job", () => {
     it("lets only one of two simultaneous bookings take the last included grab", async () => {
       /**
        * The fee is decided before the task is saved, and in production a card
-       * is issued in between — an await on Revolut. Two taps landing together
+       * is issued in between — an await on the card issuer. Two taps landing together
        * would both see one grab left and both book it free.
        *
        * Without a card issuer there is no await in that gap at all, so an
@@ -5012,7 +5012,7 @@ describe("hiring somebody and actually sending them to a job", () => {
       const allowance = INCLUDED_GRABS_PER_MONTH.free!;
       for (let i = 0; i < allowance - 1; i++) await bookGrab(jordan, kit);
 
-      const cards = revolutCards as { status: CardIssuingPort["status"]; issueCard: CardIssuingPort["issueCard"] };
+      const cards = taskCards as { status: CardIssuingPort["status"]; issueCard: CardIssuingPort["issueCard"] };
       const real = { status: cards.status, issueCard: cards.issueCard };
       cards.status = { ...real.status, mode: "automatic" };
       cards.issueCard = async () => {
@@ -5359,27 +5359,6 @@ describe("desk tasks — the assistant's job that does not need feet", () => {
   it("refuses an empty ask rather than opening an empty task", async () => {
     expect((await call("POST", "/api/desk/tasks", { kind: "reminder", note: "  " }, sam)).status).toBe(400);
     expect((await call("POST", "/api/desk/tasks", { kind: "teleport", note: "x" }, sam)).status).toBe(400);
-  });
-});
-
-describe("connecting Revolut Business from the owner portal", () => {
-  useAdminKey();
-  const master = async (role: string, email: string) => {
-    const created = await callAdmin("POST", "/api/admin/master-accounts", { name: "M", email, role });
-    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
-    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
-    return { Cookie: `sh_master_session=${token}` };
-  };
-
-  it("is owner-only, and says what is missing when the server has no Revolut keys", async () => {
-    expect((await call("GET", "/api/master/revolut")).status).toBe(401);
-    const sec = await master("secretary", "rsec@example.com");
-    expect((await call("GET", "/api/master/revolut", undefined, null, sec)).status).toBe(401);
-    const owner = await master("owner", "rown@example.com");
-    const res = await call("GET", "/api/master/revolut", undefined, null, owner);
-    expect(res.json).toMatchObject({ configured: false, connected: false });
-    expect(res.json.requires).toMatch(/REVOLUT_CLIENT_ID/);
-    expect((await call("POST", "/api/master/revolut/connect", { code: "x", state: "y" }, null, owner)).status).toBe(503);
   });
 });
 

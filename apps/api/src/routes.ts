@@ -87,8 +87,8 @@ import {
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { flightTracking } from "./adapters/flight-tracking.ts";
-import { revolutCards } from "./adapters/cards.ts";
-import { revolutPayouts } from "./adapters/payouts.ts";
+import { taskCards } from "./adapters/cards.ts";
+import { assistantPayouts } from "./adapters/payouts.ts";
 import {
   captureOnCard, cardChargingReady, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard, stripeProcessor,
 } from "./adapters/stripe.ts";
@@ -100,7 +100,6 @@ import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
 import { email, type OutboundEmail } from "./adapters/email.ts";
-import { revolutAuth } from "./adapters/revolut-auth.ts";
 import { emailTo, guardianEmails, guardianMessages, guardianTexts, textKey, textTo } from "./notify.ts";
 import { sms } from "./adapters/sms.ts";
 import { renewDueSubscriptions } from "./billing.ts";
@@ -617,7 +616,7 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
       ? "No payout destination on file for this assistant."
       : !cipher
         ? "Payout encryption key not configured on this server."
-        : !isAutomatic(revolutPayouts.status) ? revolutPayouts.status.requires : null;
+        : !isAutomatic(assistantPayouts.status) ? assistantPayouts.status.requires : null;
 
     if (reason) {
       ctx.store.update((db) => void db.payouts.push({ ...base, status: "failed", failureReason: reason }));
@@ -627,7 +626,7 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
 
     try {
       const recipient = openPayoutDestination(destination!, cipher!);
-      const result = await revolutPayouts.payOut({
+      const result = await assistantPayouts.payOut({
         amountCents: payableCents, currency: "USD", recipient, reference: payoutId,
       });
       ctx.store.update((db) => {
@@ -680,7 +679,7 @@ function settleConciergeTask(ctx: Ctx, task: ConciergeTask, billedCents: unknown
     : task.spendCapCents;
   const totalCents = purchaseCents + task.serviceFeeCents;
 
-  if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
+  if (task.card) taskCards.cancelCard(task.card.id).catch(() => {});
 
   // Spend nobody answered for comes out of the assistant's pay, through the
   // same clawback ledger a customer dispute uses. A receipt answers for a
@@ -716,7 +715,7 @@ function settleConciergeTask(ctx: Ctx, task: ConciergeTask, billedCents: unknown
  *  own cancel and the assistant portal's decline. */
 function releaseConciergeTask(ctx: Ctx, task: ConciergeTask, declinedByAssistant: boolean): ConciergeTask {
   if (task.status !== "in-progress") throw new HttpError(400, `This task is already ${task.status}.`);
-  if (task.card) revolutCards.cancelCard(task.card.id).catch(() => {});
+  if (task.card) taskCards.cancelCard(task.card.id).catch(() => {});
   ctx.store.update((db) => {
     const target = db.holds.find((h) => h.id === task.holdId);
     if (target) Object.assign(target, releaseHold(target));
@@ -946,14 +945,6 @@ function requireElite(ctx: Ctx): void {
 /** The signed-in master account for this request, or null — resolved from
  *  `ctx.masterActorId`, which the server layer already checked against a
  *  live, unexpired session. */
-/** The owner, signed in, with permission to change things. */
-function ownerWriter(ctx: Ctx): MasterAccount {
-  const account = masterAccountOf(ctx);
-  const now = ctx.now();
-  if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "write", now)) throw unauthorized();
-  return account;
-}
-
 /** The owner, or the owner's club assistant — nobody else runs the club. */
 function clubAccount(ctx: Ctx): MasterAccount {
   const account = masterAccountOf(ctx);
@@ -2718,7 +2709,7 @@ export const routes: Record<string, Handler> = {
     const { rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing } = fulfillmentStatus();
     return {
       rides, delivery, walmart, secureTransport: secure, concierge: aide, cardIssuing, push: push.status,
-      placeSearch: placeSearch.status, payouts: revolutPayouts.status, flightTracking: flightTracking.status,
+      placeSearch: placeSearch.status, payouts: assistantPayouts.status, flightTracking: flightTracking.status,
       disclosures: SECURE_TRANSPORT_DISCLOSURES,
       conciergeDisclosures: CONCIERGE_DISCLOSURES,
       flightTrackingDisclosures: FLIGHT_TRACKING_DISCLOSURES,
@@ -3083,14 +3074,14 @@ export const routes: Record<string, Handler> = {
 
       // Issuing a card is an add-on, not a precondition for the task itself: the
       // partner may bill Safehubby directly with no card in the loop at all, so
-      // a Revolut outage or a missing key should not block dispatch. Whether one
+      // a card-issuer outage or a missing key should not block dispatch. Whether one
       // was actually issued is independently visible via `cardIssuing.mode` on
       // `/api/fulfillment/status`, the same "each capability reports for
       // itself" rule as every other adapter here.
-      let issuedCard: Awaited<ReturnType<typeof revolutCards.issueCard>> | null = null;
-      if (isAutomatic(revolutCards.status)) {
+      let issuedCard: Awaited<ReturnType<typeof taskCards.issueCard>> | null = null;
+      if (isAutomatic(taskCards.status)) {
         try {
-          issuedCard = await revolutCards.issueCard({
+          issuedCard = await taskCards.issueCard({
             capCents: input.spendCapCents,
             currency: "USD",
             label: `Concierge: ${conciergeCategoryLabel(input.category)}`,
@@ -3165,7 +3156,7 @@ export const routes: Record<string, Handler> = {
       } catch (err) {
         // A card issued for a task that never actually got booked is a live,
         // spend-capped card sitting around for nothing — kill it, best-effort.
-        if (issuedCard) revolutCards.cancelCard(issuedCard.id).catch(() => {});
+        if (issuedCard) taskCards.cancelCard(issuedCard.id).catch(() => {});
         ctx.store.update((db) => {
           const target = db.holds.find((h) => h.id === hold.id);
           if (target) Object.assign(target, releaseHold(target));
@@ -4152,36 +4143,6 @@ export const routes: Record<string, Handler> = {
 
   /* What was held back from each worker in a year — the figures behind the
      year-end return and the payment to Hacienda. Money scope only. */
-  /* Connecting Revolut Business (cards and payouts). The owner opens
-     Revolut's consent page from here; Revolut sends them back to /master with
-     a one-time code, which the portal posts below while they are signed in. */
-  "GET /api/master/revolut": (ctx) => {
-    ownerWriter(ctx);
-    if (!revolutAuth) {
-      return { configured: false, connected: false,
-        requires: "Set REVOLUT_CLIENT_ID, REVOLUT_PRIVATE_KEY and REVOLUT_ISSUER on the server first." };
-    }
-    const value = newSessionToken();
-    ctx.store.update((db) => {
-      db.revolutOAuthState = { value, expiresAt: new Date(ctx.now().getTime() + 15 * 60_000).toISOString() };
-    });
-    return { configured: true, connected: revolutAuth.connected(), connectUrl: revolutAuth.consentUrl(value) };
-  },
-
-  "POST /api/master/revolut/connect": async (ctx, _p, body) => {
-    ownerWriter(ctx);
-    if (!revolutAuth) throw new HttpError(503, "Revolut Business is not set up on this server.");
-    const state = ctx.store.data.revolutOAuthState;
-    if (!state || state.value !== String(body?.state ?? "") || new Date(state.expiresAt) < ctx.now()) {
-      throw new HttpError(400, "That Revolut approval is out of date. Start again from the owner portal.");
-    }
-    const code = String(body?.code ?? "");
-    if (!code) throw new HttpError(400, "Revolut did not send a code back.");
-    ctx.store.update((db) => { delete db.revolutOAuthState; });
-    await revolutAuth.exchangeCode(code);
-    return { connected: revolutAuth.connected() };
-  },
-
   "GET /api/master/withholding": (ctx, p) => {
     const account = masterAccountOf(ctx);
     const now = ctx.now();
@@ -4307,9 +4268,9 @@ export const routes: Record<string, Handler> = {
         "Photograph what you're buying first — the card unlocks once there's a purchase on the record.",
       );
     }
-    if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
+    if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
 
-    const revealUrl = await revolutCards.revealCard(task.card.id);
+    const revealUrl = await taskCards.revealCard(task.card.id);
     if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask dispatch to reissue it.");
     return { revealUrl, card: task.card, spendCapCents: task.spendCapCents };
   },
@@ -5222,7 +5183,7 @@ export const routes: Record<string, Handler> = {
     const capCents = eliteSpendingAllowanceCents(planOf(ctx, me));
     const monthKey = clubMonthKey(ctx.now());
     const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey) ?? null;
-    return { capCents, monthKey, card, automatic: isAutomatic(revolutCards.status) };
+    return { capCents, monthKey, card, automatic: isAutomatic(taskCards.status) };
   },
 
   "POST /api/elite/spending-card": async (ctx) => {
@@ -5232,11 +5193,11 @@ export const routes: Record<string, Handler> = {
     const monthKey = clubMonthKey(ctx.now());
     const existing = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
     if (existing) return { card: existing };
-    if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
+    if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
 
     const now = ctx.now();
     const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const issued = await revolutCards.issueCard({
+    const issued = await taskCards.issueCard({
       capCents, currency: "USD",
       label: `Elite spending allowance — ${monthKey}`,
       expiresAt: nextMonth.toISOString(),
@@ -5258,8 +5219,8 @@ export const routes: Record<string, Handler> = {
     const monthKey = clubMonthKey(ctx.now());
     const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
     if (!card) throw notFound("Spending card");
-    if (!isAutomatic(revolutCards.status)) throw new HttpError(503, revolutCards.status.requires);
-    const revealUrl = await revolutCards.revealCard(card.cardId);
+    if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
+    const revealUrl = await taskCards.revealCard(card.cardId);
     if (!revealUrl) throw new HttpError(410, "This card can no longer be revealed. Ask support to reissue it.");
     return { revealUrl, card };
   },

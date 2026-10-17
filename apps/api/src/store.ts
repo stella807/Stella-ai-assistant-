@@ -26,7 +26,7 @@ export interface EliteEventRsvp {
  * against the member's own card, which is the whole difference from a
  * concierge task's card (`ConciergeTask.card`). No `revealUrl` here on
  * purpose: like the task card, the one-time reveal link is fetched fresh
- * from Revolut each time (`revolutCards.revealCard`) rather than stored, so
+ * from the card issuer each time (`taskCards.revealCard`) rather than stored, so
  * there is never a stale link sitting in the database.
  */
 export interface EliteSpendingCard {
@@ -251,10 +251,6 @@ export interface Db {
   /** Who agreed to be texted, keyed `traveler:<id>` or `assistant:<id>` — see sms.ts. */
   textContacts: Record<string, TextContact>;
   emailContacts?: Record<string, EmailContact>;
-  /** Revolut Business refresh token, encrypted at rest — see revolut-auth.ts. */
-  revolutRefreshToken?: string;
-  /** The one-time value that ties Revolut's consent redirect to the owner who started it. */
-  revolutOAuthState?: { value: string; expiresAt: string };
   /** ATH Móvil loads started but not yet confirmed. The nonce is what ties a
    *  payment to the account that began it. */
   pendingBalanceLoads: PendingBalanceLoad[];

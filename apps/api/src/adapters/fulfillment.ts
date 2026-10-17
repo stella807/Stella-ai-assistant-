@@ -6,7 +6,7 @@ import type {
 import { SECURE_TRANSPORT_DISCLOSURES, statusFor } from "@safehubby/core";
 import { ridesFor, pharmacySearch } from "@safehubby/core";
 import { instacart, walmartLink, walmartStatus } from "./grocery.ts";
-import { revolutCards } from "./cards.ts";
+import { taskCards } from "./cards.ts";
 
 /**
  * Automatic fulfilment adapters.
@@ -463,7 +463,7 @@ export const fulfillmentStatus = () => ({
   walmart: walmartStatus(),
   secureTransport: secureTransport.status,
   concierge: concierge.status,
-  cardIssuing: revolutCards.status,
+  cardIssuing: taskCards.status,
   /** Links used whenever a provider is in handoff mode. */
   fallbacks: { rides: ridesFor, pharmacy: pharmacySearch, walmart: walmartLink },
 });

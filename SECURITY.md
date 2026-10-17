@@ -44,18 +44,15 @@ is no data-processing agreement template or retention commitment from a real
 partner yet; get one in place, and reviewed, before a real `CONCIERGE_API_KEY`
 is ever set. See `docs/concierge.md`.
 
-**Revolut Business as a real vendor relationship, not just an API key.**
-Card-issuing in `apps/api/src/adapters/cards.ts` assumes the partner network's
-assistants are onboarded as authorized cardholders on Safehubby's own Revolut
-Business account — Revolut's card-issuing API has no concept of handing a card
-to a third party who isn't a team member. That means real names and payment
-details for partner-network assistants would live inside Safehubby's own
-Revolut account before this can go live, which is its own data-handling
-surface to review, on top of the API integration itself. The same account and
-credentials now also send biweekly payouts (`apps/api/src/adapters/payouts.ts`)
-— its counterparty-payment endpoint shape is a best-effort mapping of
-Revolut's documented Business API, not verified against a live sandbox, the
-same caveat as the card-issuing adapter. See `docs/concierge.md`.
+**Task cards through Stripe Issuing.** `apps/api/src/adapters/cards.ts`
+issues each task a virtual card under one company cardholder on Safehubby's
+own Stripe account, capped at the task's limit and cancelled when the task
+ends. The full card number is never fetched by this server — Stripe's own
+Issuing Elements is the way to show it to an assistant, which keeps
+Safehubby out of PCI scope; until that is wired, the portal says the number
+is not available here. Assistant payouts have no automatic provider
+(`apps/api/src/adapters/payouts.ts`): payroll computes what is owed and the
+owner pays it by hand. See `docs/concierge.md`.
 
 **A bank account number is real financial PII, and this app now stores
 one.** An assistant's payout destination is encrypted at rest

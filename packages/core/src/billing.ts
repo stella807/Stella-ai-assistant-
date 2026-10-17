@@ -292,7 +292,7 @@ const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-pro
  *     shape as secure transport's insurance contract, and priced the same
  *     way, as a fixed cost spread across subscribers rather than billed at
  *     cost per task.
- *   - Funding the Revolut Business balance that issues each task's spend-
+ *   - Funding the Stripe Issuing balance that issues each task's spend-
  *     capped virtual card (see docs/concierge.md and adapters/cards.ts).
  *     Safehubby fronts that money for the (short) window between the card
  *     being issued and the subscriber's own hold being captured — a real
@@ -515,7 +515,7 @@ export function includedConciergeHours(id: PlanId): number {
 
 /**
  * Elite's monthly spending allowance: real money loaded onto a member's own
- * spending card (see `adapters/cards.ts`'s `revolutCards`), funded by
+ * spending card (see `adapters/cards.ts`'s `taskCards`), funded by
  * Safehubby out of its own account rather than held against the member's —
  * the "free bee" the tier promises, in the same "paid for, not billed to
  * you" shape the concierge-physician retainer already uses.

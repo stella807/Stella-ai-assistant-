@@ -144,7 +144,7 @@ export function EliteDeskPanel() {
           ) : (
             <p className="tiny muted" style={{ margin: 0 }}>
               Card issuing isn't set up on this server yet, so there is nothing to activate — the allowance is
-              real and disclosed, just not live without Revolut Business configured. See adapters/cards.ts.
+              real and disclosed, just not live without Stripe Issuing configured. See adapters/cards.ts.
             </p>
           )}
         </section>

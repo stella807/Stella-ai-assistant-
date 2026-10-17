@@ -1,4 +1,3 @@
-import { RevolutConnect } from "./RevolutConnect.tsx";
 import { ScreenCover } from "./ScreenCover.tsx";
 import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
@@ -316,7 +315,6 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       )}
       {overview.money && <MoneySection money={overview.money} />}
 
-      {overview.account.role === "owner" && <RevolutConnect />}
       {overview.account.role === "owner" && <PricingSection />}
 
       <section className="card stack">

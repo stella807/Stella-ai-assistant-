@@ -161,7 +161,7 @@ the picker offers exactly the right seats instead of guessing.
 
 **What it does not touch: the spend cap, and therefore the card.** Scaling is
 applied to the *payout* only. The spend cap stays exactly what the subscriber
-chose, and the single-use Revolut card issued for the task is still capped at
+chose, and the single-use Stripe Issuing card issued for the task is still capped at
 precisely that amount (`authorizeExactHold` + `issueCard`) — a bigger
 household means the subscriber may *choose* a bigger cap for a bigger grocery
 run, but nothing about paying the assistant more can raise the purchasing
@@ -271,7 +271,7 @@ what was bought, and Safehubby pays the runner.
   resetsAt }`. The task is stamped `feeIncluded` at booking, so a later change
   to the table never rewrites what a past month counted.
 - **Decided after the last await before the hold, and reserved until saved.**
-  Card issuing awaits Revolut between the fee decision and the save, so two
+  Card issuing awaits Stripe Issuing between the fee decision and the save, so two
   taps landing together could both take the last free grab; an in-process
   reservation closes that (safe because the store already requires one
   replica).
@@ -323,23 +323,23 @@ that before it shipped, and both were load-bearing:
   Safehubby recoups that hold once the task settles. Safehubby fronts the
   money for a short window; the cap bounds how much and the exact-hold rule
   means the recoup is never short.
-- **The card is issued through Revolut Business** (`apps/api/src/adapters/cards.ts`),
+- **The card is issued through Stripe Issuing** (`apps/api/src/adapters/cards.ts`),
   capped at exactly the task's spend cap, single-use, and killed the moment
   the task completes or cancels — never a card that outlives the task it was
   issued for.
 
-One real constraint worth stating plainly rather than glossing over: Revolut
-Business's card-issuing surface is scoped to members of *your own* Revolut
+One real constraint worth stating plainly rather than glossing over: Stripe Issuing
+Business's card-issuing surface is scoped to members of *your own* Stripe Issuing
 Business team, not to arbitrary third parties. There is no endpoint for
 handing a card to someone who isn't a team member. Using this for real means
 either onboarding the partner network's assistants as authorized cardholders
-on Safehubby's own Revolut account (a vendor relationship to set up, not just
-an API key), or having the partner hold its own Revolut account that
+on Safehubby's own Stripe Issuing account (a vendor relationship to set up, not just
+an API key), or having the partner hold its own Stripe Issuing account that
 Safehubby funds by transfer instead. The adapter's doc comment has the full
 reasoning; nothing here pretends this is a five-minute integration.
 
-**Card issuing is an add-on, not a precondition.** If `REVOLUT_API_KEY` isn't
-set, or Revolut is briefly unreachable, a concierge task still books — the
+**Card issuing is an add-on, not a precondition.** If `STRIPE_SECRET_KEY` isn't
+set, or Stripe Issuing is briefly unreachable, a concierge task still books — the
 partner network can bill Safehubby directly with no card in the loop, the same
 way it would if this integration didn't exist at all. `cardIssuing.mode` on
 `GET /api/fulfillment/status` reports this independently of `concierge.mode`,
@@ -669,11 +669,11 @@ Three gates, all checked live rather than once at issue:
    card the moment a task is marked done, and this refuses afterwards with a
    `400`. The window in which a stranger holds spending power is exactly as
    long as the job.
-3. **Card issuing has to actually be configured.** Without Revolut credentials
+3. **Card issuing has to actually be configured.** Without Stripe Issuing credentials
    the route returns a `503` naming what's missing, and a cancelled or expired
    card returns a `410` rather than a dead link.
 
-When no card was issued at all — the normal case while `revolutCards` is in
+When no card was issued at all — the normal case while `taskCards` is in
 handoff — the portal says so plainly and tells the assistant to report what
 they spent instead, rather than showing a button that cannot work.
 
@@ -702,7 +702,7 @@ one place that decides, so the two features can never drift out of sync
 across the quote, roster and booking routes.
 
 - The partner-network retainer itself.
-- Keeping the Revolut Business balance funded that issues each task's card —
+- Keeping the Stripe Issuing balance funded that issues each task's card —
   Safehubby is fronting real money for the window between issuing a card and
   capturing the matching hold, even though each card's cap bounds it tightly.
 
@@ -750,7 +750,7 @@ which, for the most recently *closed* period:
    paid (`earningsFor` — a task tagged with a `payoutId` never counts twice).
 2. Sums what's owed per assistant (`totalEarningsCents`).
 3. Sends one transfer per assistant through `PayoutPort`
-   (`apps/api/src/adapters/payouts.ts`, reusing the same Revolut Business
+   (`apps/api/src/adapters/payouts.ts`, reusing the same Stripe Issuing
    account and credentials already used for card issuing in `cards.ts`), to
    the bank account the assistant entered for themselves in the employee
    portal (`POST /api/assistant/payout-destination` — never collected by
@@ -814,7 +814,7 @@ earned that period, and returns what's actually payable. A period fully or
 partially absorbed by debt still settles — as `paid`, at whatever's left
 over, even `$0` — and its tasks still get tagged with a `payoutId`, since
 that pay was legitimately spent, just against a debt instead of a wire
-transfer. A `$0` payout skips the bank-destination and Revolut-provider
+transfer. A `$0` payout skips the bank-destination and Stripe Issuing-provider
 checks entirely, since there's nothing to actually transfer; only a payout
 with something left to pay after debt still needs a destination on file and
 a configured payout provider, with the same retry-next-run behavior as
@@ -829,14 +829,14 @@ railway variables \
   --set "CONCIERGE_PROVIDER=Nearby Aide" \
   --set "CONCIERGE_API_BASE=https://..." \
   --set "CONCIERGE_API_KEY=..." \
-  --set "REVOLUT_API_BASE=https://..." \
-  --set "REVOLUT_API_KEY=..." \
+  --set "STRIPE_ISSUING_CARDHOLDER=https://..." \
+  --set "STRIPE_SECRET_KEY=..." \
   --set "SAFEHUBBY_ENCRYPTION_KEY=..."
 ```
 
-The first three turn on dispatch; `REVOLUT_API_BASE`/`REVOLUT_API_KEY` turn on
+The first three turn on dispatch; `STRIPE_ISSUING_CARDHOLDER`/`STRIPE_SECRET_KEY` turn on
 both card issuing (`cards.ts`) and biweekly payouts (`payouts.ts`) — the same
-Revolut Business account does both. `SAFEHUBBY_ENCRYPTION_KEY` is required
+Stripe Issuing account does both. `SAFEHUBBY_ENCRYPTION_KEY` is required
 before any assistant can be paid at all, since it's what lets a payout
 destination be stored. Set `GOOGLE_PLACES_API_KEY` (shared with
 `venues.ts`/`grocery.ts`) to turn on the place picker, and

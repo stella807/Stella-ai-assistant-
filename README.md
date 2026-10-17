@@ -141,7 +141,7 @@ spend cap you set that is never exceeded. Deliberately a booking layer on an
 already-vetted partner, the same shape as secure transport, rather than an
 in-house hiring marketplace: Safehubby vets and employs nobody here. The
 assistant pays with a single-use, spend-capped virtual card issued through
-Revolut Business — never the subscriber's own card, and never a same-night
+Stripe Issuing — never the subscriber's own card, and never a same-night
 bank debit, which is too slow to fund one. On every paid tier, not just
 Family — Premium included — and every paid tier's price reflects that: not for
 a salary, but for the same category of standing cost that funds secure
@@ -177,7 +177,7 @@ voice, take their own selfie and an optional completion photo of what they
 delivered, and mark a task done or decline it. Assistants are paid biweekly
 — an hourly sweep totals up what each one earned in the most recently closed
 14-day period and sends it to the bank account they entered for themselves,
-through the same Revolut Business account that issues task cards; paying a
+through the same Stripe Issuing account that issues task cards; paying a
 contractor on a schedule like this is the same thing Uber and DoorDash do,
 and doesn't make Safehubby anyone's employer. If a customer disputes a
 completed task — never delivered, or the money was kept — they get a full,
