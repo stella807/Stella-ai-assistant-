@@ -1,3 +1,5 @@
+import { useLanguage } from "../i18n.tsx";
+import { askWords } from "../app/ask-copy.ts";
 import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
 import { hasFeature, isElitePlan, type Feature, type PlanId } from "@safehubby/core";
@@ -89,15 +91,18 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
   const [fix, setFix] = useState<Fix | null>(null);
   useEffect(() => { if (kind === "ride") void currentFix().then(setFix); }, [kind]);
 
+  const { language } = useLanguage();
+  const w = askWords(language === "es" ? "es" : "en");
+
   return (
     <div className="stack help-simple">
-      <ScreenCover photo="jet" kicker="Your assistant" title="Get help" />
+      <ScreenCover photo="jet" kicker={w.kicker} title={w.title} />
 
       <div className="tabs tabs-scroll" role="tablist" aria-label="What you need">
         {tabs.map((tab) => (
           <button key={tab.id} role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)}>
             {tab.id === "club" && <WingmanIcon size={18} style={{ marginRight: 6, verticalAlign: "-3px" }} />}
-            {tab.label}
+            {w.tabs[tab.id] ?? tab.label}
           </button>
         ))}
       </div>

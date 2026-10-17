@@ -1,3 +1,5 @@
+import { useLanguage } from "../i18n.tsx";
+import { askWords, choiceLabel, type Lang } from "../app/ask-copy.ts";
 import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
@@ -121,6 +123,9 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   formHidden?: boolean;
 }) {
   const planId = account.planId as PlanId;
+  const { language } = useLanguage();
+  const lang: Lang = language === "es" ? "es" : "en";
+  const w = askWords(lang);
   // Small errands (grab-something, run-errand) are gated on `quick-tasks`,
   // which is on every plan including Free — see `FREE_FEATURES` in
   // billing.ts and its own "a free user can send someone to grab a
@@ -236,7 +241,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   if (locked) {
     return (
       <section className="card stack">
-        <h3>{extraTiles ? "Ask an assistant" : COPY_FOR[kind].heading}</h3>
+        <h3>{extraTiles ? w.ask : COPY_FOR[kind].heading}</h3>
         <p className="tiny muted">{COPY_FOR[kind].locked}</p>
       </section>
     );
@@ -513,7 +518,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
 
   return (
     <section className="card stack">
-      <h3>{extraTiles ? "Ask an assistant" : COPY_FOR[kind].heading}</h3>
+      <h3>{extraTiles ? w.ask : COPY_FOR[kind].heading}</h3>
       <p className="small muted">{COPY_FOR[kind].blurb}</p>
 
       {/* Said here, at the top, rather than in a red banner under a finished
@@ -567,7 +572,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
             }}
             aria-pressed={!formHidden && c.id === category}>
             <span className="category-tile-icon"><CategoryIcon id={c.id} /></span>
-            <span className="category-tile-label">{c.label}</span>
+            <span className="category-tile-label">{choiceLabel(c.id, c.label, lang)}</span>
             {/* What it actually runs, on every tile at once — picking one to
                 find out was the same "swipe to compare" problem the plan
                 picker has, just for "what does a simple errand cost"
@@ -671,10 +676,10 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       )}
 
       <div className="field">
-        <label htmlFor="concierge-note">What do you need?</label>
+        <label htmlFor="concierge-note">{w.need}</label>
         <textarea id="concierge-note" maxLength={280} rows={2} value={note}
           onChange={(e) => { setNote(e.target.value); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
-          placeholder={simple ? "Tell your assistant what you need…" : "Grab a burger and fries from The Anchor Tavern"} />
+          placeholder={simple ? w.placeholder : "Grab a burger and fries from The Anchor Tavern"} />
       </div>
 
       <div className="field">
@@ -892,7 +897,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           the customer is already looking at the screen that would send it. */}
       {useConfirmFlow && !confirming && (
         <button className="btn btn-block" disabled={busy || !note.trim() || covered === false || !onBehalfReady} onClick={startConfirm}>
-          {simple ? "Send it" : "Send request"}
+          {simple ? w.send : "Send request"}
         </button>
       )}
 

@@ -1,3 +1,5 @@
+import { useLanguage } from "../i18n.tsx";
+import { askWords, choiceLabel } from "../app/ask-copy.ts";
 import { useEffect, useState } from "react";
 import { hasFeature, type PlanId } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -23,6 +25,7 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
   embedded?: boolean;
 }) {
   const locked = !hasFeature(account.planId as PlanId, "desk-tasks");
+  const { language } = useLanguage();
   const [kinds, setKinds] = useState<{ id: string; label: string; description: string }[]>([]);
   const [kind, setKind] = useState("");
   const [note, setNote] = useState("");
@@ -71,6 +74,7 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
   const open = tasks.filter((t) => t.status === "open");
   const out = allowance?.remaining === 0;
   const activeKind = chosenKind ?? kind;
+  const w = askWords(language === "es" ? "es" : "en");
   const sendIt = async () => {
     setBusy(true);
     setError(null);
@@ -89,12 +93,12 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
     return (
       <div className="stack">
         <div className="field">
-          <label htmlFor="desk-note">What do you need?</label>
+          <label htmlFor="desk-note">{w.need}</label>
           <textarea id="desk-note" rows={3} value={note} maxLength={500}
-            placeholder="Book the dentist, any afternoon after the 12th"
+            placeholder={w.deskPlaceholder}
             onChange={(e) => setNote(e.target.value)} />
         </div>
-        <button className="btn btn-primary btn-block" disabled={busy || !note.trim() || out} onClick={sendIt}>Send it</button>
+        <button className="btn btn-primary btn-block" disabled={busy || !note.trim() || out} onClick={sendIt}>{w.send}</button>
         {error && <div className="banner banner-danger">{error}</div>}
         {open.map((t) => (
           <div key={t.id} className="row-between">
@@ -174,6 +178,7 @@ export function DeskTiles({ account, chosen, onChoose }: {
   account: Account; chosen: string | null; onChoose: (kind: string) => void;
 }) {
   const [kinds, setKinds] = useState<{ id: string; label: string }[]>([]);
+  const { language } = useLanguage();
   const locked = !hasFeature(account.planId as PlanId, "desk-tasks");
   useEffect(() => { if (!locked) api.deskTasks().then((r) => setKinds(r.kinds)).catch(() => {}); }, [locked]);
   return (
@@ -181,7 +186,7 @@ export function DeskTiles({ account, chosen, onChoose }: {
       {kinds.map((k) => (
         <button key={k.id} className="category-tile" aria-pressed={chosen === k.id} onClick={() => onChoose(k.id)}>
           <span className="category-tile-icon"><CategoryIcon id={k.id} /></span>
-          <span className="category-tile-label">{k.label}</span>
+          <span className="category-tile-label">{choiceLabel(k.id, k.label, language === "es" ? "es" : "en")}</span>
         </button>
       ))}
     </>
