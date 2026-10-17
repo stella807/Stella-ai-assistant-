@@ -117,3 +117,5 @@
    tile left; give it the row rather than a lonely third of one. */
 .home-tile:only-child { grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; gap: 14px; min-height: 76px; padding: 12px 16px; }
 .home-tile:only-child strong { font-size: 16px; }
+.home-tile-icon svg { width: 40px; height: 40px; color: #e6cf9d; }
+.home-tiles:has(> :nth-child(2):last-child) { grid-template-columns: 1fr 1fr; }

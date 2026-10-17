@@ -1,3 +1,4 @@
+import { IconDice } from "./NavIcons.tsx";
 import { useEffect, useState } from "react";
 import { conciergeCategoryLabel, type ConciergeTask, type PlanId } from "@safehubby/core";
 import type { HiringTab } from "./HiringScreen.tsx";
@@ -50,11 +51,12 @@ const ASSISTANT_CAN: { title: string; items: string[] }[] = [
  * a juice to arrive, or for news from a parent's hospital room — so what is
  * already happening comes first, above the things they could start.
  */
-export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
+export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow, onOpenGames }: {
   account: Account;
   onOpenHelp: (tab: HiringTab) => void;
   onOpenPlans: () => void;
   onOpenHow: () => void;
+  onOpenGames: () => void;
 }) {
   const planId = account.planId as PlanId;
   const [tasks, setTasks] = useState<ConciergeTask[]>([]);
@@ -92,6 +94,10 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow }: {
               <strong>{a.title}</strong>
             </button>
           ))}
+          <button className="home-tile" onClick={onOpenGames}>
+            <span className="home-tile-art home-tile-icon"><IconDice /></span>
+            <strong>Games</strong>
+          </button>
         </div>
       ) : null}
 

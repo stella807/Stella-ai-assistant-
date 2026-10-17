@@ -124,7 +124,8 @@ export function App() {
             <TravelerScreen drinks={drinks} account={account}
               onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}
               onOpenPlans={() => setRole("plans")}
-              onOpenHow={() => setRole("how")} />
+              onOpenHow={() => setRole("how")}
+              onOpenGames={() => setRole("games")} />
           )}
           {role === "watching" && <GuardianScreen />}
           {role === "games" && <GamesScreen account={account} />}
@@ -155,7 +156,6 @@ export function App() {
             <nav className="footer-links" aria-label="More">
               <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
               <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
-              <button className="linklike" onClick={() => setRole("games")}>{t("nav.games")}</button>
               {isEnabled("party-supply") && <button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button>}
               <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
             </nav>
