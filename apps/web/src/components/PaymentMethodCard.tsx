@@ -130,6 +130,24 @@ export function PaymentMethodCard() {
    *  has the secret key to verify the resulting token with. */
   const stripeLive = isStripeConfigured() && statusOf("stripe")?.mode === "automatic";
 
+  /**
+   * Only the options that can actually be completed here are offered: the
+   * processor connected on the server, Stripe's key in this build, the wallet
+   * offered by this browser, and the vendor's checkout wired into this screen.
+   * An option that would only explain why it doesn't work is left off, so a
+   * customer never meets a payment button that cannot take a payment. Each
+   * one comes back on its own as soon as its account is connected.
+   */
+  const canComplete = (t: (typeof TABS)[number]): boolean => {
+    if (statusOf(t.processor)?.mode !== "automatic") return false;
+    if (t.wiring === "paypal-button") return true;
+    if (t.wiring === "sdk-pending" || !stripeLive) return false;
+    if (t.id === "apple-pay") return wallets.applePay;
+    if (t.id === "google-pay") return wallets.googlePay;
+    return true;
+  };
+  const usableTabs = TABS.filter(canComplete);
+
   // Stripe's Card Element has to be mounted into a real node, so it can only
   // be created once the Card tab is actually on screen.
   useEffect(() => {
@@ -278,6 +296,9 @@ export function PaymentMethodCard() {
   };
 
   if (!loaded) return null;
+  // Nothing on file and nothing that can be added: no card at all, rather
+  // than an "Add" button that leads to options which cannot finish.
+  if (!method && usableTabs.length === 0) return null;
 
   /**
    * Why a tab can't be completed right now, in the user's terms — and whose
@@ -342,19 +363,18 @@ export function PaymentMethodCard() {
         </>
       )}
 
-      {!method && !adding && (
-        <button className="btn btn-block" disabled={busy} onClick={() => setAdding(true)}>Add a payment method</button>
+      {!method && !adding && usableTabs.length > 0 && (
+        <button className="btn btn-block" disabled={busy}
+          onClick={() => { setTab(usableTabs[0]?.id ?? "card"); setAdding(true); }}>
+          Add a payment method
+        </button>
       )}
 
       {adding && (
         <>
-          {/* All four are always listed, including ones this browser or
-              server can't complete right now. A hidden option tells the
-              reader nothing; a visible one that states plainly why it won't
-              work tells them whether the problem is their device or our
-              setup. */}
+          {/* Only the options that can finish here — see `canComplete`. */}
           <div className="tabs tabs-scroll" role="tablist">
-            {TABS.map((t) => (
+            {usableTabs.map((t) => (
               <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
                 {t.label}
               </button>

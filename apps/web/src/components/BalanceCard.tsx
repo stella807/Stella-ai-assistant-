@@ -152,6 +152,11 @@ export function BalanceCard() {
   };
 
   if (!info) return null;
+  // ATH Móvil is the only way to load the balance. Until it is turned on there
+  // is nothing to load it with, so the card stays off the screen rather than
+  // showing a button that cannot work — unless money is already in it, which
+  // is always shown.
+  if (!ready && info.availableCents === 0 && info.heldCents === 0) return null;
   const maxLoad = Math.min(info.maxLoadCents, Math.max(0, BALANCE_MAX_CENTS - info.availableCents - info.heldCents));
 
   return (
@@ -170,7 +175,7 @@ export function BalanceCard() {
         </div>
       )}
 
-      {!checkout && (
+      {!checkout && ready && (
         <>
           <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 8 }}>
             <legend className="small"><strong>{c.pick}</strong></legend>
@@ -183,10 +188,9 @@ export function BalanceCard() {
               ))}
             </div>
           </fieldset>
-          <button className="btn btn-block btn-primary" disabled={busy || !ready || amount > maxLoad} onClick={begin}>
+          <button className="btn btn-block btn-primary" disabled={busy || amount > maxLoad} onClick={begin}>
             {c.pay(money(amount))}
           </button>
-          {!ready && info.ath.ready === false && <p className="tiny muted" style={{ margin: 0 }}>{c.notReady}</p>}
         </>
       )}
 
