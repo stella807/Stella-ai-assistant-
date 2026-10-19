@@ -63,7 +63,9 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
   const invitedBy = incomingReferralCode();
 
   return (
-    <div className="stack">
+    // `landing` lets the desktop layout give this page the full width while
+    // every other screen stays a readable column (styles/desktop.css).
+    <div className="stack landing">
       <LuxuryHero
         onStart={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}
         onPrices={() => carousel.current?.goTo(2)}

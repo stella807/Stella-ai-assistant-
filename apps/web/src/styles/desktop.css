@@ -1,0 +1,143 @@
+/*
+ * Desktop.
+ *
+ * Everything else in styles/ is phone-first: one 448px column, a tab bar
+ * fixed to the bottom of the screen. On a laptop that left a narrow strip in
+ * the middle of a wide, empty page — it read as a phone app viewed through a
+ * letterbox rather than as a website.
+ *
+ * Every rule here sits behind the min-width query, so a phone, or a tablet in
+ * portrait, never sees any of it: the mobile app is exactly what it was. On a
+ * wide screen the customer app gets a full-width header, the landing page
+ * gets a two-column hero and two-column slides, and the signed-in screens
+ * become a comfortable 760px column with the tab bar moved up under the
+ * header, where a desktop user looks for navigation.
+ *
+ * Hooks: `.app-customer` on the customer app's root (App.tsx) and `.landing`
+ * on the signed-out page (LandingIntro.tsx). The employee and owner portals
+ * share `.app` but not these hooks, so they are untouched.
+ */
+
+@media (min-width: 1024px) {
+  .app-customer {
+    max-width: 1180px;
+    padding: 28px 40px 56px;
+    gap: 26px;
+  }
+
+  .app-customer > header .brand-mark { font-size: 24px; }
+  .app-customer > header .brand-mark img { width: 44px; height: 44px; }
+
+  /* Every screen except the landing page is a reading column: forms, lists
+     and cards stretched to 1100px would be harder to use, not easier. */
+  .app-customer > :not(header):not(.landing) {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+  }
+
+  /* The tab bar, up under the header instead of fixed to the bottom edge. */
+  .app-customer .tabs-bottom {
+    position: sticky;
+    top: 12px;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 6px;
+    box-shadow: var(--shadow);
+  }
+  .app-customer .tabs-bottom button {
+    flex-direction: row;
+    gap: 8px;
+    min-height: 46px;
+    font-size: 14px;
+  }
+
+  /* ---- The landing page --------------------------------------------- */
+
+  .landing { gap: 26px; }
+
+  /* Hero: words on the left, the photograph on the right. */
+  .landing .lux-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    min-height: 540px;
+  }
+  /* The photo starts a little under the words and fades in on an eased
+     curve, so there is no visible line where the two halves meet. */
+  .landing .lux-photo {
+    grid-column: 2;
+    grid-row: 1;
+    height: 100%;
+    width: calc(100% + 140px);
+    margin-left: -140px;
+    aspect-ratio: auto;
+    object-fit: cover;
+    object-position: 45% 50%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .12) 12%, rgba(0, 0, 0, .45) 24%, rgba(0, 0, 0, .85) 36%, #000 46%);
+    mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .12) 12%, rgba(0, 0, 0, .45) 24%, rgba(0, 0, 0, .85) 36%, #000 46%);
+  }
+  .landing .lux-copy {
+    grid-column: 1;
+    grid-row: 1;
+    z-index: 1;
+    margin-top: 0;
+    align-content: center;
+    gap: 18px;
+    padding: 56px 8px 56px clamp(36px, 4vw, 56px);
+  }
+  /* Scales with the window so a 1024px laptop does not break the headline
+     into four lines, and stops growing past about 1440px. */
+  .landing .lux-title { font-size: clamp(2.5rem, 3.7vw, 3.4rem); }
+  .landing .lux-sub { font-size: 1.12rem; max-width: 36ch; }
+  .landing .lux-btn { padding: 16px 26px; font-size: .82rem; }
+
+  /* The five doors in one row. */
+  .landing .lux-doors { grid-template-columns: repeat(5, 1fr); margin-top: 22px; }
+  .landing .lux-doors li { padding: 26px 18px; border-bottom: 0; border-right: 0; }
+  .landing .lux-doors li:not(:last-child) { border-right: 1px solid rgba(217, 178, 106, .16); }
+  /* luxe.css stretches an odd last door across the row so a phone's two
+     columns end evenly; in one row of five it should be a door like the rest. */
+  .landing .lux-doors li:last-child:nth-child(odd) { grid-column: auto; }
+  .landing .lux-doors strong { font-size: .72rem; }
+  .landing .lux-doors li > span:last-child { font-size: .86rem; }
+  .landing .lux-tagline { margin-top: 22px; }
+
+  /* Launch notice, invite note, carousel controls and footer: centred. */
+  .landing > .banner,
+  .landing > p,
+  .landing .slide-nav,
+  .landing > footer {
+    width: 100%;
+    max-width: 760px;
+    margin-inline: auto;
+  }
+
+  /* Slides: two columns instead of one tall stack. */
+  .landing .slide {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 28px;
+    align-items: start;
+  }
+  /* A slide's button runs under both columns, at its natural width. */
+  .landing .slide > .btn {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: auto;
+    min-width: 340px;
+  }
+  /* A card on its own (alone, or with only a button beside it), and the odd
+     one out at the end of a slide, takes the full row — centred, so its lines
+     stay readable. */
+  .landing .slide > :only-child,
+  .landing .slide > :first-child:nth-last-child(2):has(+ .btn),
+  .landing .slide > :last-child:nth-child(odd):not(.btn) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: 100%;
+    max-width: 860px;
+  }
+}

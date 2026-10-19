@@ -63,7 +63,9 @@ export function App() {
   }, []);
 
   return (
-    <div className="app stack">
+    // `app-customer` is the hook for the desktop layout (styles/desktop.css);
+    // the employee and owner portals share `.app` but keep their own widths.
+    <div className="app app-customer stack">
       <header className="row-between">
         <h1 className="brand-mark">
           <img src="/favicon.png" alt="" width={38} height={38} />
