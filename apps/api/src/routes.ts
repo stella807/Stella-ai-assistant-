@@ -2013,12 +2013,20 @@ export const routes: Record<string, Handler> = {
       // included. Computed here rather than in the browser so the price on the
       // card is the price the server will charge — a plan card showing full
       // price under a banner promising a discount is the two disagreeing.
-      plans: releasedPlans().map((plan) => ({
-        ...plan,
-        monthlyOffer: launchOfferFor(plan.monthlyCents, ctx.now()),
-        annualOffer: launchOfferFor(plan.annualCents, ctx.now()),
-        ...(isElitePlan(plan.id) ? { locked: !eliteUnlock.unlocked } : {}),
-      })),
+      //
+      // Paid plans are also `locked`, with the reason, until `paid-plans` is
+      // on: their prices stay on show, but joining waits for live payments.
+      plans: releasedPlans().map((plan) => {
+        const awaitingPayments = plan.monthlyCents > 0 && !isEnabled("paid-plans");
+        const eliteLocked = isElitePlan(plan.id) && !eliteUnlock.unlocked;
+        return {
+          ...plan,
+          monthlyOffer: launchOfferFor(plan.monthlyCents, ctx.now()),
+          annualOffer: launchOfferFor(plan.annualCents, ctx.now()),
+          ...(isElitePlan(plan.id) || awaitingPayments ? { locked: eliteLocked || awaitingPayments } : {}),
+          ...(awaitingPayments ? { lockedReason: "payments" as const } : {}),
+        };
+      }),
       rewards: REWARD_CATALOG,
       // The one launch-party fact a signed-out visitor needs, on a request the
       // landing page already makes. A separate public endpoint for it would be
@@ -2466,6 +2474,13 @@ export const routes: Record<string, Handler> = {
         404,
         "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members. See progress on the pricing page.",
       );
+    }
+    // A web subscription's card charge is settled inline below because no
+    // processor collects it yet, so a paid plan joined here would be granted
+    // without being paid for. Held until payments are live — see `paid-plans`.
+    // Store purchases are untouched: they wait for the store's own receipt.
+    if (plan.monthlyCents > 0 && platform === "web" && !isEnabled("paid-plans")) {
+      throw new HttpError(409, flagNote("paid-plans"));
     }
     catchUpBilling(ctx);
     const existing = subscriptionOf(ctx, me);

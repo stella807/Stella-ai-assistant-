@@ -104,7 +104,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
 
         {locked ? (
           <p className="tiny muted" style={{ margin: 0 }}>
-            {t("plans.notOpenYet")}
+            {t(p.lockedReason === "payments" ? "plans.paymentsSoon" : "plans.notOpenYet")}
           </p>
         ) : isDowngrade ? (
           <HelpDeskDowngradeButton fromName={currentPlan?.name ?? ""} toPlanId={p.id} toName={p.name} />

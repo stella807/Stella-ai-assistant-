@@ -125,6 +125,9 @@ const useAdminKey = (key = "test-admin-key") => {
 };
 
 beforeEach(async () => {
+  // These tests describe billing once payments are live; the `paid-plans`
+  // gate that holds paid plans back before then has its own tests below.
+  setFlag("paid-plans", true);
   dir = mkdtempSync(join(tmpdir(), "safehubby-"));
   // After go-live (SERVICE_LIVE_AT), because these tests are about a running
   // service: before it, billing defers and nothing is charged, which is the
@@ -2737,6 +2740,28 @@ describe("Uber Guest Trips wiring", () => {
     const res = await call("POST", "/api/rides/trip_123/cancel", {}, sam);
     expect(res.status).toBe(400);
     expect(res.json.error).toMatch(/not configured/i);
+  });
+});
+
+describe("paid plans before payments are live", () => {
+  beforeEach(() => setFlag("paid-plans", false));
+  afterEach(() => resetFlags());
+
+  it("keeps every price on show but locks every paid plan, saying why", async () => {
+    const plans = (await call("GET", "/api/catalog")).json.plans;
+    const paid = plans.filter((p: any) => p.monthlyCents > 0);
+    expect(paid.length).toBeGreaterThan(0);
+    for (const p of paid) {
+      expect(p.locked, p.id).toBe(true);
+      expect(p.lockedReason, p.id).toBe("payments");
+    }
+  });
+
+  it("refuses to start a paid plan on the web, so nobody is granted one unpaid", async () => {
+    const res = await call("POST", "/api/subscription", { planId: "premium-plus" }, jordan);
+    expect(res.status).toBe(409);
+    expect(res.json.error).toMatch(/payments are live/i);
+    expect((await call("GET", "/api/billing", undefined, jordan)).json.plan.id).not.toBe("premium-plus");
   });
 });
 
