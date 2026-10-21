@@ -3822,6 +3822,32 @@ describe("hiring for the roles that do not drive", () => {
     expect(ids).toContain("gas-stipend");
   });
 
+  it("emails the applicant when it arrives, and again when it is decided", async () => {
+    const realFetch = globalThis.fetch;
+    const sent: { to: string; subject: string }[] = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).startsWith("https://api.cloudflare.com/")) {
+        sent.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    Object.assign(process.env, { CLOUDFLARE_ACCOUNT_ID: "acc", CLOUDFLARE_EMAIL_TOKEN: "tok", EMAIL_FROM: "hello@safehubby.com", SAFEHUBBY_ADMIN_KEY: "k" });
+    try {
+      const res = await call("POST", "/api/staff/apply", application());
+      await new Promise((r) => setTimeout(r, 20));
+      expect(sent.at(-1)?.subject).toMatch(/received/i);
+      const to = sent.at(-1)!.to;
+
+      await call("POST", `/api/staff/applications/${res.json.id}/review`, { status: "rejected" }, null, { "x-admin-key": "k" });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(sent.at(-1)).toMatchObject({ to, subject: expect.stringMatching(/About your application/) });
+    } finally {
+      globalThis.fetch = realFetch;
+      for (const k of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_EMAIL_TOKEN", "EMAIL_FROM", "SAFEHUBBY_ADMIN_KEY"]) delete process.env[k];
+    }
+  });
+
   it("takes an application and gives back an id to follow it up with", async () => {
     const res = await call("POST", "/api/staff/apply", application());
     expect(res.status).toBe(200);

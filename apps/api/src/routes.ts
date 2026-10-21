@@ -1,5 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import {
+  applicantEmail, findRole, type ApplicantEmailKind,
+} from "@safehubby/core";
+import {
   REWARD_CATALOG, DRINK_CATALOG,
   isPlanReleased, releasedPlans,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
@@ -1321,8 +1324,16 @@ function sendTexts(messages: SmsMessage[]): void {
 /** Email alerts, fire and forget for the same reason. With no mail provider
  *  configured `send` refuses, which is caught here: nothing is claimed sent. */
 function sendEmails(messages: OutboundEmail[]): void {
-  if (messages.length === 0) return;
-  void email.send(messages).catch(() => {});
+  // No sender set up is a setting, not a failure — the status screens say so.
+  if (messages.length === 0 || !isAutomatic(email.status)) return;
+  void email.send(messages).catch((err) => console.error("[safehubby] Email not sent:", err instanceof Error ? err.message : err));
+}
+
+/** Tells an applicant where their application stands — see applicant-email.ts. */
+function emailApplicant(to: string, name: string, roleLabel: string, kind: ApplicantEmailKind): void {
+  if (!isValidNewsletterEmail(to)) return;
+  const { subject, body } = applicantEmail({ kind, name, roleLabel });
+  sendEmails([{ to, subject, body }]);
 }
 
 /** What a request costs goes to the customer's inbox — what is held when it
@@ -5388,6 +5399,7 @@ export const routes: Record<string, Handler> = {
     });
     ctx.store.update((db) => void db.driverApplications.push(app));
     textOwnerOfApplication();
+    emailApplicant(app.email, app.fullName, "Driver", "received");
     // The full record (licence numbers, etc.) is not echoed back to the
     // submitter's own browser response beyond what they already typed — this
     // just confirms receipt and gives them their id to reference.
@@ -5439,6 +5451,9 @@ export const routes: Record<string, Handler> = {
       const i = db.driverApplications.findIndex((a) => a.id === id);
       db.driverApplications[i] = reviewed;
     });
+    if (reviewed.status !== app.status && reviewed.status !== "submitted" && reviewed.status !== "withdrawn") {
+      emailApplicant(app.email, app.fullName, "Driver", reviewed.status);
+    }
     return reviewed;
   },
 
@@ -5484,6 +5499,7 @@ export const routes: Record<string, Handler> = {
     });
     ctx.store.update((db) => void db.staffApplications.push(app));
     textOwnerOfApplication();
+    emailApplicant(app.email, app.fullName, findRole(app.role).label, "received");
     return { id: app.id, role: app.role, status: app.status, submittedAt: app.submittedAt };
   },
 
@@ -5540,6 +5556,9 @@ export const routes: Record<string, Handler> = {
       const i = db.staffApplications.findIndex((a) => a.id === id);
       db.staffApplications[i] = reviewed;
     });
+    if (reviewed.status !== app.status && reviewed.status !== "submitted" && reviewed.status !== "withdrawn") {
+      emailApplicant(app.email, app.fullName, findRole(app.role).label, reviewed.status);
+    }
     return reviewed;
   },
 
@@ -5587,6 +5606,7 @@ export const routes: Record<string, Handler> = {
 
     ctx.store.update((db) => void db.assistants.push(assistant));
     const credentials = await provisionAssistantCredentials(ctx, assistant.id);
+    emailApplicant(app.email, app.fullName, findRole(app.role).label, "hired");
     return { assistant, credentials };
   },
 
