@@ -141,12 +141,16 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         <div className="plan-ladder" role="list" aria-label={t("plans.comparePrices")}>
           {everyday.map((p, i) => {
             const price = cadence === "annual" ? p.annualCents : p.monthlyCents;
+            // The same price the card below shows, discount included — the
+            // strip is the first number people read, so it must agree.
+            const offer = cadence === "annual" ? p.annualOffer : p.monthlyOffer;
+            const pay = offer?.discounted ? offer.payCents : price;
             return (
               <button key={p.id} role="listitem"
                 className={`plan-ladder-item${i === activeIndex ? " plan-ladder-active" : ""}`}
                 aria-current={i === activeIndex} onClick={() => carousel.current?.goTo(i)}>
                 <span className="plan-ladder-name">{p.name}</span>
-                <span className="plan-ladder-price">{price === 0 ? t("pricing.free") : dollars(price)}</span>
+                <span className="plan-ladder-price">{price === 0 ? t("pricing.free") : money(pay)}</span>
               </button>
             );
           })}
