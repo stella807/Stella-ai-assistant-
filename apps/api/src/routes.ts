@@ -90,7 +90,8 @@ import { flightTracking } from "./adapters/flight-tracking.ts";
 import { cardViewKey, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
 import {
-  captureOnCard, cardChargingReady, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard, stripeProcessor,
+  captureOnCard, cardChargingReady, chargeOnCard, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard,
+  stripeProcessor,
 } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
@@ -102,7 +103,7 @@ import { push } from "./adapters/push.ts";
 import { email, type OutboundEmail } from "./adapters/email.ts";
 import { emailTo, guardianEmails, guardianMessages, guardianTexts, textKey, textTo } from "./notify.ts";
 import { sms } from "./adapters/sms.ts";
-import { renewDueSubscriptions } from "./billing.ts";
+import { collectSubscriptionCharges, renewDueSubscriptions, retryPastDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import {
   ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword,
@@ -311,7 +312,14 @@ function platformFrom(value: unknown): Platform {
  * way, which is also what makes it testable without a clock running.
  */
 function catchUpBilling(ctx: Ctx): void {
-  ctx.store.update((db) => void renewDueSubscriptions(db, ctx.now()));
+  let toCollect: string[] = [];
+  ctx.store.update((db) => { toCollect = renewDueSubscriptions(db, ctx.now(), { collect: cardChargingReady() }).toCollect; });
+  // Taking the card is a network call; the hourly sweep in main.ts does the
+  // same, so this only gets it done sooner and never blocks the screen.
+  if (toCollect.length > 0) {
+    collectSubscriptionCharges(ctx.store, ctx.now(), toCollect, chargeOnCard)
+      .catch((err) => console.error("[safehubby] Plan charge failed:", err));
+  }
 }
 
 function subscriptionOf(ctx: Ctx, userId: string): Subscription | null {
@@ -1775,6 +1783,11 @@ export const routes: Record<string, Handler> = {
       now: ctx.now(),
     });
     ctx.store.update((db) => { db.paymentMethods[me] = method; });
+    // A plan that went past-due on the old card is tried again on this one
+    // now, rather than at tomorrow's retry.
+    if (cardChargingReady() && method.processor === "stripe") {
+      await retryPastDueSubscriptions(ctx.store, ctx.now(), chargeOnCard, { travelerId: me, immediately: true });
+    }
     return { method };
   },
 
@@ -2460,7 +2473,7 @@ export const routes: Record<string, Handler> = {
    * the same reason a ride is: there is no point starting a trial that cannot
    * convert.
    */
-  "POST /api/subscription": (ctx, _p, body) => {
+  "POST /api/subscription": async (ctx, _p, body) => {
     const me = actor(ctx);
     const planId = body?.planId as PlanId;
     const cadence: Cadence = body?.cadence === "annual" ? "annual" : "monthly";
@@ -2542,11 +2555,17 @@ export const routes: Record<string, Handler> = {
       if (isElitePlan(traveler.planId as PlanId)) traveler.clubMember = true;
     });
 
-    // A card charge settles inline here because there is no processor wired in
-    // yet; a store charge cannot, because only the store's receipt can say it
-    // happened. Both are explicit in the response rather than implied.
+    // A card charge is taken from the saved card through Stripe when it is set
+    // up, and settled inline when it is not; a store charge cannot be either,
+    // because only the store's receipt can say it happened.
     if (charge && charge.rail === "card") {
-      updateCharge(ctx, charge.id, (c) => settleCharge(c, ctx.now()));
+      if (cardChargingReady()) {
+        await collectSubscriptionCharges(ctx.store, ctx.now(), [charge.id], chargeOnCard);
+        const taken = ctx.store.data.charges.find((c) => c.id === charge.id);
+        if (taken?.status === "failed") throw new HttpError(402, taken.failureReason ?? "Your card could not be charged.");
+      } else {
+        updateCharge(ctx, charge.id, (c) => settleCharge(c, ctx.now()));
+      }
     }
 
     return {

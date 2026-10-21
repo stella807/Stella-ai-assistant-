@@ -1,8 +1,8 @@
 import {
-  effectivePlan, findPlan, formatPrice, isRenewalDue, launchDiscountCentsFor, recordCharge,
-  renew, settleCharge,
+  effectivePlan, failCharge, findPlan, formatPrice, isRenewalDue, launchDiscountCentsFor, markPastDue, recordCharge,
+  renew, settleCharge, type Charge,
 } from "@safehubby/core";
-import type { Db } from "./store.ts";
+import type { Db, StoreLike } from "./store.ts";
 import { newId } from "./store.ts";
 
 /**
@@ -29,10 +29,18 @@ export interface RenewalResult {
   discountedCents: number;
   /** Store-rail subscriptions past their period that only the store can renew. */
   storeRailPending: number;
+  /** Charges left pending for a card processor to take — see `collectSubscriptionCharges`. */
+  toCollect: string[];
 }
 
-export function renewDueSubscriptions(db: Db, now: Date): RenewalResult {
-  const result: RenewalResult = { renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0 };
+/**
+ * `collect` is true when a card processor is set up: the renewal's charge is
+ * then left pending, to be taken from the card by `collectSubscriptionCharges`
+ * once this synchronous sweep has saved. Without one it is settled on the spot,
+ * the way it always was, so a server with no Stripe key behaves as before.
+ */
+export function renewDueSubscriptions(db: Db, now: Date, opts: { collect?: boolean } = {}): RenewalResult {
+  const result: RenewalResult = { renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0, toCollect: [] };
 
   for (const [travelerId, sub] of Object.entries(db.subscriptions)) {
     if (!isRenewalDue(sub, now)) continue;
@@ -65,10 +73,12 @@ export function renewDueSubscriptions(db: Db, now: Date): RenewalResult {
         amountCents: chargedCents,
         now,
       });
-      // No processor is wired in, so this settles immediately. When one is,
-      // this is the line that becomes an await and can come back declined —
-      // and `markPastDue` is what a decline should produce.
-      db.charges.push(settleCharge(charge, now));
+      if (opts.collect) {
+        db.charges.push(charge);
+        result.toCollect.push(charge.id);
+      } else {
+        db.charges.push(settleCharge(charge, now));
+      }
       result.chargedCents += chargedCents;
       result.discountedCents += discountCents;
     }
@@ -83,4 +93,116 @@ export function renewDueSubscriptions(db: Db, now: Date): RenewalResult {
   }
 
   return result;
+}
+
+/* ---------------------------------------------------------------------------
+   Taking plan charges from the card
+   ------------------------------------------------------------------------ */
+
+/** Takes a payment from a saved card. The Stripe adapter in production; a
+ *  stub in tests. */
+export type CardCharger = (input: {
+  customerId: string; paymentMethodId: string; amountCents: number; description: string; idempotencyKey: string;
+}) => Promise<{ id: string }>;
+
+/** Declined plan charges are retried once a day, this many tries in all. */
+export const SUBSCRIPTION_CHARGE_ATTEMPTS = 3;
+const RETRY_AFTER_MS = 24 * 60 * 60_000;
+
+/**
+ * Takes each pending plan charge from the member's saved card.
+ *
+ * A decline fails the charge with the bank's reason and puts the plan
+ * past-due. Past-due keeps working (see `effectivePlan`), because cutting off
+ * someone's ride home the moment a card bounces is the wrong default; the
+ * retries below are what eventually settle it either way.
+ */
+export async function collectSubscriptionCharges(
+  store: StoreLike, now: Date, chargeIds: string[], charge: CardCharger,
+): Promise<{ paid: number; failed: number }> {
+  let paid = 0;
+  let failed = 0;
+  for (const id of chargeIds) {
+    const line = store.data.charges.find((c) => c.id === id);
+    if (!line || line.status !== "pending") continue;
+    const method = store.data.paymentMethods[line.travelerId];
+    const customerId = store.data.stripeCustomers[line.travelerId];
+    let outcome: { ref: string } | { reason: string };
+    if (method?.processor !== "stripe" || !method.processorToken || !customerId) {
+      outcome = { reason: "There is no card on file to charge. Add one under Payments." };
+    } else {
+      try {
+        const intent = await charge({
+          customerId, paymentMethodId: method.processorToken, amountCents: line.amountCents,
+          description: `Safehubby — ${line.description}`, idempotencyKey: line.id,
+        });
+        outcome = { ref: intent.id };
+      } catch (err) {
+        outcome = { reason: err instanceof Error ? err.message : "Your card could not be charged." };
+      }
+    }
+    store.update((db) => {
+      const i = db.charges.findIndex((c) => c.id === id);
+      if (i < 0) return;
+      const sub = db.subscriptions[line.travelerId];
+      if ("ref" in outcome) {
+        db.charges[i] = settleCharge(db.charges[i]!, now, undefined, outcome.ref);
+        if (sub?.status === "past-due") db.subscriptions[line.travelerId] = { ...sub, status: "active" };
+      } else {
+        db.charges[i] = failCharge(db.charges[i]!, outcome.reason, now);
+        if (sub) db.subscriptions[line.travelerId] = markPastDue(sub);
+      }
+    });
+    if ("ref" in outcome) paid += 1; else failed += 1;
+  }
+  return { paid, failed };
+}
+
+/** The plan charges for the period a subscription is in, newest last. */
+function periodCharges(db: Db, travelerId: string, periodStart: string): Charge[] {
+  return db.charges
+    .filter((c) => c.travelerId === travelerId && c.kind === "subscription" && c.createdAt >= periodStart)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Tries a past-due plan's charge again, once a day. After the last try the
+ * plan ends now and the account goes back to Free — a period nobody paid for
+ * is not one to keep giving away, and Free keeps SOS and check-ins working.
+ *
+ * `immediately` skips the day's wait, for when the member has just saved a
+ * new card and the next try should be with it.
+ */
+export async function retryPastDueSubscriptions(
+  store: StoreLike, now: Date, charge: CardCharger, opts: { travelerId?: string; immediately?: boolean } = {},
+): Promise<{ paid: number; failed: number; ended: number }> {
+  const retry: string[] = [];
+  let ended = 0;
+  store.update((db) => {
+    for (const [travelerId, sub] of Object.entries(db.subscriptions)) {
+      if (sub.status !== "past-due" || sub.rail !== "card") continue;
+      if (opts.travelerId && opts.travelerId !== travelerId) continue;
+      const lines = periodCharges(db, travelerId, sub.startedAt);
+      const last = lines.at(-1);
+      if (!last || last.status !== "failed") continue;
+      const failures = lines.filter((c) => c.status === "failed").length;
+      if (failures >= SUBSCRIPTION_CHARGE_ATTEMPTS) {
+        db.subscriptions[travelerId] = { ...sub, status: "canceled", canceledAt: now.toISOString(), currentPeriodEnd: now.toISOString() };
+        const traveler = db.travelers.find((t) => t.id === travelerId);
+        if (traveler) traveler.planId = "free";
+        ended += 1;
+        continue;
+      }
+      const failedAt = new Date(last.settledAt ?? last.createdAt).getTime();
+      if (!opts.immediately && now.getTime() - failedAt < RETRY_AFTER_MS) continue;
+      const again = recordCharge({
+        id: newId("ch"), travelerId, kind: "subscription", platform: "web",
+        description: last.description, amountCents: last.amountCents, now,
+      });
+      db.charges.push(again);
+      retry.push(again.id);
+    }
+  });
+  const { paid, failed } = await collectSubscriptionCharges(store, now, retry, charge);
+  return { paid, failed, ended };
 }

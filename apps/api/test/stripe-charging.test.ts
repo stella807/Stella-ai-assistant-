@@ -72,3 +72,25 @@ describe("charging a saved card through Stripe", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+describe("charging a plan to a saved card", () => {
+  afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ORIGINAL_ENV }; vi.resetModules(); });
+
+  it("takes the payment in one step, off-session, keyed by the charge", async () => {
+    const s = await fresh("sk_test_x");
+    stubStripe({ id: "pi_9", status: "succeeded" });
+    expect(await s.chargeOnCard({ customerId: "cus_1", paymentMethodId: "pm_1", amountCents: 9999, description: "Premium Plus monthly", idempotencyKey: "ch_1" }))
+      .toEqual({ id: "pi_9" });
+    const b = calls[0]!.body;
+    expect(b.get("amount")).toBe("9999");
+    expect(b.get("capture_method")).toBeNull();
+    expect(b.get("off_session")).toBe("true");
+    expect(calls[0]!.headers["idempotency-key"]).toBe("ch_1");
+  });
+
+  it("refuses a payment the bank wants approved by hand", async () => {
+    const s = await fresh("sk_test_x");
+    stubStripe({ id: "pi_9", status: "requires_action" });
+    await expect(s.chargeOnCard({ customerId: "c", paymentMethodId: "p", amountCents: 1, description: "x", idempotencyKey: "k" })).rejects.toThrow(/bank/i);
+  });
+});
