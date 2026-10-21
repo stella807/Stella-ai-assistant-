@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
   isPlanReleased, releasedPlans,
@@ -1019,6 +1020,17 @@ function ownerAccrualFor(
     dayOfMonth: Math.min(now.getUTCDate(), daysInMonth),
     daysInMonth,
   };
+}
+
+/** Whether a typed key is the server's SAFEHUBBY_ADMIN_KEY. Compared in
+ *  constant time, and trimmed, because a key pasted from a password manager
+ *  or a hosting dashboard often carries a stray space or newline. */
+function adminKeyMatches(typed: string): boolean {
+  const expected = process.env.SAFEHUBBY_ADMIN_KEY?.trim();
+  if (!expected) return false;
+  const a = Buffer.from(typed.trim());
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function requireAdmin(ctx: Ctx, scope: MasterScope = "operations"): void {
@@ -3637,6 +3649,18 @@ export const routes: Record<string, Handler> = {
       const credential = ctx.store.data.masterCredentials[account.id];
       if (!credential) continue;
       if (await verifyPassword(key, credential.keyHash)) { matched = account; break; }
+    }
+    // The server's own SAFEHUBBY_ADMIN_KEY opens the portal as the owner too.
+    // It is the one key an operator is told to set at deploy time, and before
+    // this it was refused here — leaving no way in on a fresh server short of
+    // a raw API call. The first time, it makes the owner account it signs into.
+    if (!matched && adminKeyMatches(key)) {
+      matched = ctx.store.data.masterAccounts.find((a) => a.role === "owner" && isMasterAccountActive(a, now)) ?? null;
+      if (!matched) {
+        const owner: MasterAccount = { id: newId("mst"), role: "owner", name: "Owner", email: "", createdAt: now.toISOString() };
+        ctx.store.update((db) => { db.masterAccounts.push(owner); });
+        matched = owner;
+      }
     }
     if (!matched) throw new HttpError(401, "That key is not valid.");
 

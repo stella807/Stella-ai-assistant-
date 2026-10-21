@@ -2556,6 +2556,29 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("signing in to the Management portal with the server's admin key", () => {
+    useAdminKey("the-server-admin-key");
+
+    it("lets the owner in with SAFEHUBBY_ADMIN_KEY, even with a stray space pasted on", async () => {
+      const r = await call("POST", "/api/master/auth/login", { key: " the-server-admin-key\n" });
+      expect(r.status).toBe(200);
+      expect(r.json.role).toBe("owner");
+      const token = /sh_master_session=([^;]+)/.exec(r.setCookie ?? "")?.[1] ?? "";
+      const overview = await call("GET", "/api/master/overview", undefined, null, { Cookie: `sh_master_session=${token}` });
+      expect(overview.status).toBe(200);
+    });
+
+    it("makes the owner account only once", async () => {
+      await call("POST", "/api/master/auth/login", { key: "the-server-admin-key" });
+      await call("POST", "/api/master/auth/login", { key: "the-server-admin-key" });
+      expect(store.data.masterAccounts.filter((a) => a.role === "owner")).toHaveLength(1);
+    });
+
+    it("still refuses a wrong key", async () => {
+      expect((await call("POST", "/api/master/auth/login", { key: "the-server-admin-kez" })).status).toBe(401);
+    });
+  });
+
   describe("recording an exemption certificate and the year's totals", () => {
     useAdminKey();
     const master = async (role: string, email: string) => {
