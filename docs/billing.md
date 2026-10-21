@@ -389,13 +389,10 @@ missing. Nothing is ever presented as working when it isn't.
 
 Stated plainly, because the code says the same thing where it matters:
 
-- **No hold capture or refund through a real processor.** A card-rail charge
-  still settles inline the moment it is recorded — Stripe's manual-capture
-  PaymentIntents map onto `authorizeHold` / `captureHold` / `releaseHold`
-  exactly, and PayPal has an equivalent authorize/capture flow, but neither
-  swap is made yet. That work is contained to `apps/api/src/routes.ts` and
-  `apps/api/src/billing.ts`; verifying the payment method itself (above) is
-  a separate, already-done step from actually moving money against it.
+- **PayPal does not move money yet.** Card holds, captures and plan charges
+  go through Stripe (see "Real card charging" below); with no
+  `STRIPE_SECRET_KEY` a card-rail charge still settles inline the moment it
+  is recorded, which is what development and the tests run on.
 - **Three of the ten options still need a vendor SDK in the browser.** Card,
   Apple Pay, Google Pay, Klarna, Cash App Pay, Amazon Pay and Link are wired
   end to end through Stripe.js — the first three via the Card Element and the
@@ -450,6 +447,20 @@ Two things renew, and they agree:
 - `catchUpBilling` in `routes.ts` runs the same sweep before answering any
   billing question, so a trial that ended an hour ago is over the moment the
   user opens the screen rather than whenever a timer next fires.
+
+With Stripe set up, a card-rail renewal is left **pending** by the sweep and
+then taken from the member's saved card (`collectSubscriptionCharges` in
+`billing.ts`, using `chargeOnCard`). The charge's id is the Stripe idempotency
+key, so a sweep that runs twice never bills twice.
+
+- **Declined:** the charge fails with the bank's reason and the plan goes
+  `past-due`. Past-due keeps working, the same as before.
+- **Retried** once a day (`retryPastDueSubscriptions`), and straight away when
+  the member saves a new card.
+- **After three declined tries** the plan ends that moment and the account
+  goes back to Free. SOS and check-ins keep working.
+- **Choosing a plan after the trial** (`POST /api/subscription`) charges the
+  card on the spot and answers 402 with the bank's reason if it is declined.
 
 ## What the plans cost, and why
 
@@ -659,4 +670,4 @@ When `STRIPE_SECRET_KEY` is set and a customer saved a card (or Apple Pay, Googl
 - **Done:** only what was actually spent is captured; the rest of the authorization falls away.
 - **Cancelled or declined by the assistant:** the PaymentIntent is cancelled, releasing the whole hold.
 
-A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid ATH Móvil balance is unchanged. Not yet charged for real: PayPal/Venmo (saved only), and plan subscriptions.
+A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid ATH Móvil balance is unchanged. Plan subscriptions are charged to the saved card too — see "When the period turns over". Not yet charged for real: PayPal/Venmo (saved only).

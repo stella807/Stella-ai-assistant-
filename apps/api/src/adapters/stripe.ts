@@ -184,3 +184,29 @@ export async function releaseOnCard(intentId: string): Promise<void> {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe is not configured.");
   await stripePost(`/v1/payment_intents/${encodeURIComponent(intentId)}/cancel`, {});
 }
+
+/**
+ * Takes a payment outright, with nobody at the keyboard — a plan's monthly or
+ * yearly charge. Unlike a task's hold there is nothing to settle later: the
+ * price is known, so it is captured in the same step. The idempotency key is
+ * the charge's own id, so a sweep that runs twice never bills twice.
+ */
+export async function chargeOnCard(input: {
+  customerId: string; paymentMethodId: string; amountCents: number; description: string; idempotencyKey: string;
+}): Promise<{ id: string }> {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe is not configured.");
+  const intent = await stripePost<{ id: string; status: string }>("/v1/payment_intents", {
+    amount: input.amountCents,
+    currency: "usd",
+    customer: input.customerId,
+    payment_method: input.paymentMethodId,
+    confirm: true,
+    off_session: true,
+    description: input.description.slice(0, 200),
+  }, input.idempotencyKey);
+  if (intent.status !== "succeeded" && intent.status !== "processing") {
+    if (intent.id) await stripePost(`/v1/payment_intents/${encodeURIComponent(intent.id)}/cancel`, {}).catch(() => {});
+    throw new Error("Your bank wants to approve this payment itself. Open your banking app, or use a different card.");
+  }
+  return { id: intent.id };
+}

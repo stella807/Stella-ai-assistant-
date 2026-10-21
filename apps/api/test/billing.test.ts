@@ -115,7 +115,7 @@ describe("renewDueSubscriptions", () => {
 
   it("is safe on a database with no subscriptions at all", () => {
     const db = structuredClone(SEED);
-    expect(renewDueSubscriptions(db, now)).toEqual({ renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0 });
+    expect(renewDueSubscriptions(db, now)).toEqual({ renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0, toCollect: [] });
   });
 });
 
