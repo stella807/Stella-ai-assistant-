@@ -90,6 +90,20 @@ export function validateLoad(amountCents: number, currentBalanceCents: number): 
   }
 }
 
+/**
+ * How much of the available balance can go back to ATH Móvil automatically:
+ * never more than is free, and never more than ATH Móvil loads still have
+ * left. Crypto loads are refunded by hand — see `allocateRefund`.
+ */
+export function athRefundableCents(entries: BalanceEntry[], holds: PreAuthorization[], travelerId: string): number {
+  const mine = entries.filter((e) => e.travelerId === travelerId);
+  const athLoaded = mine.filter((e) => e.kind === "load" && e.source !== "crypto").reduce((n, e) => n + e.amountCents, 0);
+  const athIds = new Set(mine.filter((e) => e.kind === "load" && e.source !== "crypto").map((e) => e.id));
+  const athRefunded = mine.filter((e) => e.kind === "payout" && e.againstEntryId && athIds.has(e.againstEntryId))
+    .reduce((n, e) => n + e.amountCents, 0);
+  return Math.max(0, Math.min(balanceSummary(entries, holds, travelerId).availableCents, athLoaded - athRefunded));
+}
+
 export interface RefundSlice {
   entryId: string;
   reference: string;

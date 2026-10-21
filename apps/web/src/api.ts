@@ -143,7 +143,10 @@ export interface BalanceSummary {
 export type BalanceInfo = BalanceSummary & {
   minLoadCents: number;
   maxLoadCents: number;
+  /** What can go back to ATH Móvil; money added with crypto is refunded by hand. */
+  refundableCents: number;
   ath: { ready: true; publicToken: string | null } | { ready: false; note: string };
+  crypto: { ready: true } | { ready: false; note: string };
 };
 
 export interface PaymentMethod {
@@ -355,6 +358,8 @@ export const api = {
   startBalanceLoad: (amountCents: number) =>
     request<{ nonce: string; total: string; metadata1: string; metadata2: string }>(
       "POST", "/api/balance/ath/start", { amountCents }),
+  startCryptoLoad: (amountCents: number) =>
+    request<{ reference: string }>("POST", "/api/balance/crypto/start", { amountCents }),
   completeBalanceLoad: (ecommerceId: string, nonce: string) =>
     request<BalanceSummary & { alreadyCounted: boolean }>("POST", "/api/balance/ath/complete", { ecommerceId, nonce }),
   refundBalance: (amountCents?: number) =>

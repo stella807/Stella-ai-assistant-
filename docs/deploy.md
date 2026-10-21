@@ -47,6 +47,8 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `OWNER_ALERT_PHONE` | optional | Your number, texted when a job application comes in. |
 | `OWNER_ALERT_EMAIL` | optional | Your address, emailed when a job application comes in (needs the email provider settings above). |
 | `STRIPE_ISSUING_CARDHOLDER` | for task cards | The company cardholder id (`ich_…`) from Stripe Issuing; task cards are issued under it. |
+| `NWC_URI` | for crypto | A **receive-only** NWC code from your Bitcoin wallet. Turns on crypto balance loads through OpenReceive — see `docs/billing.md`. The server refuses a code that can also send money. |
+| `LSC_URI_PRIMARY`, `LSC_URI_BACKUP` | optional, for crypto | A swap provider, so customers can pay in USDT, USDC, SOL or ETH and you still receive Bitcoin. |
 | `PORT` | no | Railway injects it. |
 | `WEB_ROOT` | no | Set by the Dockerfile. |
 | `ALLOWED_ORIGINS` | no | Only needed if you serve the web app from a second origin. |
