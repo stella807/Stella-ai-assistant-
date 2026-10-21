@@ -5,6 +5,7 @@ import { TextAlertsCard } from "./TextAlertsCard.tsx";
 import { EmailAlertsCard } from "./EmailAlertsCard.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { ShareCard } from "./ShareCard.tsx";
+import { planNameFor } from "../app/plan-name.tsx";
 
 /**
  * Account settings: export and deletion.
@@ -68,7 +69,7 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
           <h2 style={{ margin: 0 }}>{account.displayName}</h2>
           <p className="tiny muted" style={{ margin: 0 }}>{account.email}</p>
           <span className={`pill${isElitePlan(account.planId as PlanId) ? " pill-safe" : ""}`} style={{ marginTop: 2 }}>
-            {plan.name} member
+            {language === "es" ? `Miembro ${planNameFor(plan.id, plan.name, language)}` : `${plan.name} member`}
           </span>
         </div>
       </div>
@@ -77,7 +78,7 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
           gets — a plan is the one thing on this screen worth a second look
           rather than a settings row. */}
       <section className="card mission" style={{ gap: 8 }}>
-        <p className="mission-eyebrow" style={{ margin: 0 }}>{plan.name} plan</p>
+        <p className="mission-eyebrow" style={{ margin: 0 }}>{language === "es" ? `Plan ${planNameFor(plan.id, plan.name, language)}` : `${plan.name} plan`}</p>
         <p className="small" style={{ margin: 0 }}>
           {isElitePlan(account.planId as PlanId)
             ? "Priority booking, the luxury desk, and everything on every plan below it."

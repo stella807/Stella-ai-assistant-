@@ -8,6 +8,7 @@ import { api } from "../api.ts";
 import { money } from "../money.ts";
 import { AssistantArt, DeskArt, ErrandArt, RideArt } from "./art/Art.tsx";
 import { PlanArt } from "./art/PlanArt.tsx";
+import { PlanName } from "../app/plan-name.tsx";
 
 interface CatalogPlan { id: string; name: string; monthlyCents: number; annualCents: number; blurb: string; seats: number }
 
@@ -58,7 +59,7 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
         <h3>What you pay, on your plan</h3>
         <div className="how-chips" role="tablist" aria-label="Plan">
           {plans.map((p) => (
-            <button key={p.id} role="tab" aria-selected={selected === p.id} className="how-chip" onClick={() => setSelected(p.id)}>{p.name}</button>
+            <button key={p.id} role="tab" aria-selected={selected === p.id} className="how-chip" onClick={() => setSelected(p.id)}><PlanName id={p.id} name={p.name} /></button>
           ))}
         </div>
 
@@ -110,7 +111,7 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
 
   return (
     <div className="card stack how-plan">
-      <div className="how-plan-head"><PlanArt planId={plan.id} /><div><strong>{plan.name}</strong><p className="small muted" style={{ margin: "2px 0 0" }}>{plan.blurb}</p></div></div>
+      <div className="how-plan-head"><PlanArt planId={plan.id} /><div><strong><PlanName id={plan.id} name={plan.name} /></strong><p className="small muted" style={{ margin: "2px 0 0" }}>{plan.blurb}</p></div></div>
 
       <dl className="how-rows">
         {rows.map((r) => (

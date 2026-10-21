@@ -106,6 +106,13 @@ export function formatDate(iso: string, lang: Lang): string {
  * the fix for a wall is to lay it sideways, not to knock most of it down.
  * They render as a swipeable rail; see `.plan-rail` in render.ts.
  */
+/** Family and Free are the plan names that change in Spanish. */
+const PLAN_NAMES_ES: Partial<Record<PlanId, string>> = { family: "Familia", free: "Gratis" };
+
+export function planNameIn(plan: Plan, lang: Lang): string {
+  return lang === "es" ? PLAN_NAMES_ES[plan.id] ?? plan.name : plan.name;
+}
+
 export function featuredPlans(): Plan[] {
   return releasedPlans();
 }

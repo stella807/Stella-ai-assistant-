@@ -29,6 +29,7 @@ import { RequestDetail } from "./RequestDetail.tsx";
  *  charges that land on a statement — a fee of $13.13 shown as "$13" is a
  *  number the customer did not actually accept. */
 import { dollars, money } from "../money.ts";
+import { PlanName } from "../app/plan-name.tsx";
 /** Whole dollars, for the amounts the cap control deals in, which step in
  *  fives and so can never have cents to lose. */
 
@@ -714,7 +715,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
                   <li key={p.id}>
                     <button className="card card-quiet btn-block" style={{ textAlign: "left", padding: 8 }}
                       onClick={() => pickPlace(p)}>
-                      <strong className="small">{p.name}</strong>
+                      <strong className="small"><PlanName id={p.id} name={p.name} /></strong>
                       <div className="tiny muted">{p.address}</div>
                     </button>
                   </li>

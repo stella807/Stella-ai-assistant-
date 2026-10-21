@@ -1,7 +1,7 @@
 import { launchOfferFor } from "@safehubby/core";
 import {
   APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, errandTierRows,
-  featuredPlans, mailtoHref, money, startingPriceCents, whatsappHref,
+  featuredPlans, mailtoHref, money, planNameIn, startingPriceCents, whatsappHref,
   whatsappLabel, type Lang,
 } from "./content.ts";
 
@@ -142,7 +142,7 @@ function planCard(lang: Lang, plan: ReturnType<typeof featuredPlans>[number]): s
   const seats = plan.seats === 1 ? c.seatsOne : c.seatsMany(plan.seats);
   const blurb = c.planBlurbs[plan.id] ?? "";
   return `<article class="plan">
-  <h3>${esc(plan.name)}</h3>
+  <h3>${esc(planNameIn(plan, lang))}</h3>
   <p class="plan-cost">${price}</p>
   <p class="plan-seats">${esc(seats)}</p>
   <p class="plan-blurb">${esc(blurb)}</p>

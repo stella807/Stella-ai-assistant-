@@ -8,6 +8,7 @@ import { WingmanClub } from "./WingmanClub.tsx";
 import { PlanArt } from "./art/PlanArt.tsx";
 
 import { dollars, money } from "../money.ts";
+import { usePlanName } from "../app/plan-name.tsx";
 
 /**
  * The plan list, and nothing else.
@@ -22,6 +23,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
   onChoose: (planId: string, cadence: "monthly" | "annual") => void;
 }) {
   const { t } = useLanguage();
+  const planName = usePlanName();
   const [plans, setPlans] = useState<any[]>([]);
   const [cadence, setCadence] = useState<"monthly" | "annual">("annual");
 
@@ -72,7 +74,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
         {featured && <span className="plan-tag">{t("plans.mostPicked")}</span>}
         {locked && <span className="plan-tag">{t("plans.comingSoon")}</span>}
         <div className="row-between">
-          <h3>{p.name}</h3>
+          <h3>{planName(p.id, p.name)}</h3>
           {current && <span className="pill pill-safe">{t("plans.yourPlan")}</span>}
         </div>
 
@@ -107,11 +109,11 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
             {t(p.lockedReason === "payments" ? "plans.paymentsSoon" : "plans.notOpenYet")}
           </p>
         ) : isDowngrade ? (
-          <HelpDeskDowngradeButton fromName={currentPlan?.name ?? ""} toPlanId={p.id} toName={p.name} />
+          <HelpDeskDowngradeButton fromName={currentPlan ? planName(currentPlan.id, currentPlan.name) : ""} toPlanId={p.id} toName={planName(p.id, p.name)} />
         ) : (
           <button className={`btn btn-block${current ? "" : " btn-primary"}`} disabled={busy || current}
             onClick={() => onChoose(p.id, cadence)}>
-            {current ? t("plans.currentPlan") : p.monthlyCents === 0 ? t("plans.switchToFree") : t("plans.choose").replace("{name}", p.name)}
+            {current ? t("plans.currentPlan") : p.monthlyCents === 0 ? t("plans.switchToFree") : t("plans.choose").replace("{name}", planName(p.id, p.name))}
           </button>
         )}
       </section>
@@ -149,7 +151,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
               <button key={p.id} role="listitem"
                 className={`plan-ladder-item${i === activeIndex ? " plan-ladder-active" : ""}`}
                 aria-current={i === activeIndex} onClick={() => carousel.current?.goTo(i)}>
-                <span className="plan-ladder-name">{p.name}</span>
+                <span className="plan-ladder-name">{planName(p.id, p.name)}</span>
                 <span className="plan-ladder-price">{price === 0 ? t("pricing.free") : money(pay)}</span>
               </button>
             );
@@ -167,7 +169,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
       {everyday.length > 0 && (
         <Carousel
           ref={carousel}
-          labels={everyday.map((p) => p.name)}
+          labels={everyday.map((p) => planName(p.id, p.name))}
           ariaLabel={t("plans.plansAriaLabel")}
           prevLabel={t("plans.previousPlan")}
           nextLabel={t("plans.nextPlan")}
