@@ -58,7 +58,7 @@ by a test going red rather than by someone remembering to update this page,
 which is exactly why the numbers below are read from `billing.ts` rather
 than retyped from memory.
 
-**$1,500/$7,500/$60,000 a month, for 1/2/6 people.** The ladder sells two
+**$1,555/$7,775/$62,175 a month, for 1/2/6 people** (raised from $1,500/$7,500/$60,000 to cover PayPal's fee). The ladder sells two
 things now, not one: a personal assistant's time (the included concierge
 hours — 10/50/200), and a concierge physician's own retainer, paid by
 Safehubby and included in the price rather than billed to the member
@@ -84,7 +84,7 @@ all of them" was not.
 | Concierge medicine retainer | $2,000–$5,000/yr commonly; up to $25,000/yr |
 | Amex-style card concierge | **Free** — you pay only the retail cost of what they buy |
 | Amalfi Jets "Reserve" | **$99/mo** — jets plus hotels, dining, ground transport |
-| **Safehubby Elite (entry)** | **$1,500/mo, one person, retainer included** |
+| **Safehubby Elite (entry)** | **$1,555/mo, one person, retainer included** |
 
 The comparison that actually holds now is against *employing* the
 equivalent, not against a card membership: a house manager alone runs
@@ -445,24 +445,32 @@ id, so a sweep that runs twice never bills twice.
 
 ## What the plans cost, and why
 
-Premium ($89.99), Premium Plus ($99.99), and Family ($539.94) are all
+Premium ($93.99), Premium Plus ($104.99), and Family ($563.94) are all
 priced at ownership's explicit direction, a deliberate move away from
 anchoring against personal-safety apps (Life360, Noonlight) or the
 mid-market concierge-app band this ladder used before. The one rule every
 round of this ladder has still held: seats and price climb together, never
 seats-up-price-down (see the seat-ordering test in `billing.test.ts`,
 scoped to exclude only Elite) — but Family's own per-seat number is no
-longer a discount against Premium Plus's ($89.99/seat against Premium
-Plus's $49.995/seat). See the full rationale in
+longer a discount against Premium Plus's ($93.99/seat against Premium
+Plus's $52.495/seat). See the full rationale in
 `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
-| Premium | $89.99 | $899.99 | 1 |
-| Premium Plus | $99.99 | $999.99 | 2 |
-| Family | $539.94 | $5,399.99 | 6 |
-| Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
+| Premium | $93.99 | $939.99 | 1 |
+| Premium Plus | $104.99 | $1,049.99 | 2 |
+| Family | $563.94 | $5,639.99 | 6 |
+| Elite (entry rung, live) | $1,555.00 | $15,549.99 | 1 |
+
+**Every paid price includes PayPal's fee.** PayPal keeps 3.49% + $0.49 of
+each payment, and a separate card fee is illegal in Puerto Rico (Law 150), so
+the fee is built into the price instead: each price was raised from its
+earlier figure ($89.99, $99.99, $539.94, $1,500, $7,500, $60,000, and the
+yearly prices the same way) to the amount that leaves at least that figure
+after the fee. `PROCESSOR_FEE_RATE` and `PROCESSOR_FEE_FIXED_CENTS` in
+`billing.ts` hold the rate, and a test fails if any price stops covering it.
 
 Premium, Premium Plus and Family carry almost the identical feature set
 (`PLUS_FEATURES` in `billing.ts`) — automatic ride/delivery booking, secure

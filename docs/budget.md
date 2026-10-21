@@ -51,9 +51,9 @@ Computed by `subscribersToCarryRoster`, off the live plan price:
 
 | Plan | Monthly | Subscribers to carry the roster |
 |---|---:|---:|
-| Premium | $89.99 | **377** |
-| Premium Plus | $99.99 | **340** |
-| Family | $539.94 | **63** |
+| Premium | $93.99 | **361** |
+| Premium Plus | $104.99 | **324** |
+| Family | $563.94 | **61** |
 
 Subscription revenue only. Per-job margin from rides and errands is real but
 scales with work done, so leaving it out keeps these a floor: the count that

@@ -3,7 +3,7 @@ import {
   ALL_FEATURES, ELITE_LADDER, ELITE_ONLY, ELITE_UNLOCK_SAFETY_MULTIPLE, ELITE_UNLOCK_TARGET_CLIENTS_HIGH,
   PLANS, annualSavingsPercent, eliteSpendingAllowanceCents, eliteUnlockedByRevenue,
   eliteUnlockProgressPercent, eliteUnlockThresholdCents, findPlan, formatPrice,
-  hasFeature, includedConciergeHours, isElitePlan, isPlanReleased, releasedPlans,
+  hasFeature, includedConciergeHours, netAfterProcessorFeeCents, isElitePlan, isPlanReleased, releasedPlans,
 } from "../src/billing.ts";
 import type { PlanId } from "../src/billing.ts";
 import { disclosuresFor, doctorAvailableFor, findEliteService } from "../src/elite.ts";
@@ -184,9 +184,10 @@ describe("plans", () => {
       // Still a step up from the household tier, or the ladder makes no sense.
       expect(plan.monthlyCents, id).toBeGreaterThan(findPlan("family").monthlyCents);
     }
-    // And the band is the one that was asked for: $1,500 to $60,000 a month.
-    expect(findPlan("elite").monthlyCents).toBe(150_000);
-    expect(findPlan("elite-private").monthlyCents).toBe(6_000_000);
+    // And the band is the one that was asked for, $1,500 to $60,000 a month,
+    // raised to cover PayPal's fee: $1,555 to $62,175.
+    expect(findPlan("elite").monthlyCents).toBe(155_500);
+    expect(findPlan("elite-private").monthlyCents).toBe(6_217_500);
   });
 
   it("makes every everyday paid tier the same features, except multi-profile on the single-seat one", () => {
@@ -373,5 +374,34 @@ describe("Elite's revenue-covered unlock — the cushion before the tier opens",
     expect(eliteUnlockProgressPercent(0)).toBe(0);
     expect(eliteUnlockProgressPercent(Math.round(threshold / 2))).toBe(50);
     expect(eliteUnlockProgressPercent(threshold * 10)).toBe(100);
+  });
+});
+
+describe("prices cover PayPal's fee", () => {
+  // What each plan brought in before the fee was built in. After PayPal's cut,
+  // every price must still bring in at least this much.
+  const before: Record<string, [number, number]> = {
+    "premium-basic": [8999, 89999], "premium-plus": [9999, 99999], family: [53994, 539999],
+    elite: [150000, 1499999], "elite-signature": [750000, 7499999], "elite-private": [6000000, 59999999],
+  };
+
+  it("leaves at least the earlier price after the fee, monthly and yearly", () => {
+    for (const [id, [monthly, annual]] of Object.entries(before)) {
+      const plan = findPlan(id as Parameters<typeof findPlan>[0]);
+      expect(netAfterProcessorFeeCents(plan.monthlyCents), `${id} monthly`).toBeGreaterThanOrEqual(monthly);
+      expect(netAfterProcessorFeeCents(plan.annualCents), `${id} yearly`).toBeGreaterThanOrEqual(annual);
+    }
+  });
+
+  it("keeps Family at exactly six Premium seats, and yearly at ten months", () => {
+    expect(findPlan("family").monthlyCents).toBe(findPlan("premium-basic").monthlyCents * 6);
+    for (const id of Object.keys(before)) {
+      const plan = findPlan(id as Parameters<typeof findPlan>[0]);
+      expect(Math.abs(plan.annualCents - plan.monthlyCents * 10), id).toBeLessThan(100);
+    }
+  });
+
+  it("takes nothing from a free plan", () => {
+    expect(netAfterProcessorFeeCents(0)).toBe(0);
   });
 });

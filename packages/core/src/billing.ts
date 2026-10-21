@@ -314,7 +314,8 @@ const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-pro
  */
 /**
  * Priced at ownership's explicit direction: Premium $89.99, Premium Plus
- * $99.99 — a deliberate move away from anchoring against personal-safety
+ * $99.99 (since raised to $93.99 and $104.99 so PayPal's fee comes out of the
+ * customer's price rather than ours — see `PROCESSOR_FEE_RATE`) — a deliberate move away from anchoring against personal-safety
  * apps (Life360, Noonlight) or even the mid-market concierge-app band
  * ($30-$70/month) this ladder used before.
  *
@@ -351,6 +352,25 @@ const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-pro
  * Annual stays ~17% off, the same discount shape every round of this ladder
  * has used.
  */
+/**
+ * What PayPal keeps from each payment: its standard rate for a US merchant,
+ * 3.49% + $0.49. Card surcharges are illegal in Puerto Rico (Law 150), so the
+ * fee is not added at checkout; instead every paid price below was raised
+ * from its earlier figure (Premium $89.99, Premium Plus $99.99, Family
+ * $539.94, Elite $1,500 / $7,500 / $60,000, yearly prices the same way) to
+ * the amount that leaves at least that earlier figure after PayPal's cut.
+ * The test pins that. If PayPal's rate changes, change these two numbers and
+ * the test says which prices no longer cover it.
+ */
+export const PROCESSOR_FEE_RATE = 0.0349;
+export const PROCESSOR_FEE_FIXED_CENTS = 49;
+
+/** What actually arrives from a payment of this size, after PayPal's fee. */
+export function netAfterProcessorFeeCents(priceCents: number): number {
+  if (priceCents <= 0) return 0;
+  return priceCents - Math.ceil(priceCents * PROCESSOR_FEE_RATE) - PROCESSOR_FEE_FIXED_CENTS;
+}
+
 export const PLANS: Plan[] = [
   {
     id: "free",
@@ -369,8 +389,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-basic",
     name: "Premium",
-    monthlyCents: 8999,
-    annualCents: 89999,
+    monthlyCents: 9399,
+    annualCents: 93999,
     seats: 1,
     // Everything Premium Plus and Family have, minus multi-profile —
     // Premium is one seat, so "multiple people, one account" is not a
@@ -381,8 +401,8 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 9999,
-    annualCents: 99999,
+    monthlyCents: 10499,
+    annualCents: 104999,
     seats: 2,
     // Identical features to Family, by design. The one feature Premium
     // doesn't get — multi-profile — is exactly the one that makes sense
@@ -393,8 +413,8 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 53994,
-    annualCents: 539999,
+    monthlyCents: 56394,
+    annualCents: 563999,
     seats: 6,
     // Identical features to Premium Plus, by design — Family is the same
     // product for more people, not a longer feature list. Differs from
@@ -406,8 +426,8 @@ export const PLANS: Plan[] = [
   {
     id: "elite",
     name: "Elite",
-    monthlyCents: 150000,
-    annualCents: 1499999,
+    monthlyCents: 155500,
+    annualCents: 1554999,
     seats: 1,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 10,
@@ -416,8 +436,8 @@ export const PLANS: Plan[] = [
   {
     id: "elite-signature",
     name: "Elite Signature",
-    monthlyCents: 750000,
-    annualCents: 7499999,
+    monthlyCents: 777500,
+    annualCents: 7774999,
     seats: 2,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 50,
@@ -426,8 +446,8 @@ export const PLANS: Plan[] = [
   {
     id: "elite-private",
     name: "Elite Private",
-    monthlyCents: 6000000,
-    annualCents: 59999999,
+    monthlyCents: 6217500,
+    annualCents: 62174999,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 200,
