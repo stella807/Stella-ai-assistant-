@@ -34,6 +34,9 @@ export const ERRAND_MILEAGE_CENTS = 70;
 export const CARD_FEE_RATE = 0.029;
 export const CARD_FEE_FIXED_CENTS = 30;
 export const ERRAND_PROFIT_FLOOR_CENTS = 5;
+/** The purchase every "from $X" errand price is quoted against, so the
+ *  website and the app quote the same floor. */
+export const ERRAND_REFERENCE_CAP_CENTS = 2_000;
 
 export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "wait-in-line";
 

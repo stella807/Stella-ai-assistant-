@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandFeeCents } from "@safehubby/core";
+import { money } from "../money.ts";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 
 /** Mission and leadership. Public-facing, plain, and grounded in the
@@ -47,6 +49,9 @@ export function LeadershipSection() {
  * (see roster.ts) — and describing them as one "vetted assistant" hid both
  * the price difference and the reason for it.
  */
+/** The smallest errand fee, from the same rate card the website quotes. */
+const ERRAND_FROM = money(errandFeeCents(ERRAND_TIERS[0]!.id, ERRAND_REFERENCE_CAP_CENTS));
+
 const FEATURES: { id: string; titleKey: TranslationKey; blurbKey: TranslationKey }[] = [
   { id: "night-out", titleKey: "what.nightOut.title", blurbKey: "what.nightOut.blurb" },
   { id: "watch", titleKey: "what.watch.title", blurbKey: "what.watch.blurb" },
@@ -76,7 +81,7 @@ export function WhatWeDoSection() {
                 <strong className="small">{t(f.titleKey)}</strong>
                 <span className="tiny muted" aria-hidden="true">{open ? "−" : "+"}</span>
               </div>
-              {open && <p className="tiny muted" style={{ marginTop: 6 }}>{t(f.blurbKey)}</p>}
+              {open && <p className="tiny muted" style={{ marginTop: 6 }}>{t(f.blurbKey).replace("{amount}", ERRAND_FROM)}</p>}
             </button>
           );
         })}

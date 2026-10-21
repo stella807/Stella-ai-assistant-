@@ -1,3 +1,4 @@
+import { launchOfferFor } from "@safehubby/core";
 import {
   APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, errandTierRows,
   featuredPlans, mailtoHref, money, startingPriceCents, whatsappHref,
@@ -121,11 +122,23 @@ function skip(lang: Lang): string {
   return `<a class="skip" href="#main">${lang === "es" ? "Ir al contenido" : "Skip to content"}</a>`;
 }
 
+/** The price as the app shows it: during the launch window, the list price
+ *  struck through beside what joining now costs. Worked out when the page is
+ *  built, so the site has to be rebuilt once the window closes. */
+function planPrice(cents: number): string {
+  // Always to the cent, as the app's plan screens write it ("$97.00", not "$97").
+  const money = (n: number) => `$${(n / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const offer = launchOfferFor(cents, new Date());
+  return offer.discounted
+    ? `<s class="plan-was">${esc(money(offer.fullCents))}</s> <span class="plan-price">${esc(money(offer.payCents))}</span>`
+    : `<span class="plan-price">${esc(money(cents))}</span>`;
+}
+
 function planCard(lang: Lang, plan: ReturnType<typeof featuredPlans>[number]): string {
   const c = COPY[lang];
   const price = plan.monthlyCents === 0
     ? `<span class="plan-free">${esc(c.freeLabel)}</span>`
-    : `<span class="plan-price">${esc(money(plan.monthlyCents))}</span><span class="plan-per">${esc(c.perMonth)}</span>`;
+    : planPrice(plan.monthlyCents) + `<span class="plan-per">${esc(c.perMonth)}</span>`;
   const seats = plan.seats === 1 ? c.seatsOne : c.seatsMany(plan.seats);
   const blurb = c.planBlurbs[plan.id] ?? "";
   return `<article class="plan">
@@ -556,6 +569,7 @@ h2::after {
 .plan h3 { font-family: var(--display); font-size: 20px; letter-spacing: -0.015em; margin: 0; }
 .plan-cost { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
 .plan-price { font-family: var(--display); font-size: 32px; letter-spacing: -0.03em; }
+.plan-was { font-size: 16px; color: var(--ink-soft); }
 .plan-per { font-size: 16px; color: var(--ink-soft); font-weight: 600; }
 .plan-free { font-family: var(--display); font-size: 24px; color: var(--cyan); letter-spacing: -0.02em; text-shadow: 0 0 18px rgb(110 231 255 / 40%); }
 .plan-seats {
