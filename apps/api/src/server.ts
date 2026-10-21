@@ -53,7 +53,8 @@ function serveStatic(res: ServerResponse, pathname: string, headOnly = false): b
 
   const ext = extname(file);
   res.writeHead(200, {
-    "content-type": MIME[ext] ?? "application/octet-stream",
+    // The Apple Pay domain file has no extension and Apple wants plain text.
+    "content-type": MIME[ext] ?? (file.includes("/.well-known/") ? "text/plain; charset=utf-8" : "application/octet-stream"),
     // Content-hashed filenames are immutable (Vite emits base64url hashes, not
     // hex); index.html must never be cached or a deploy strands people on the
     // old bundle.

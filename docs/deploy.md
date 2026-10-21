@@ -64,6 +64,20 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 That is the intended failure — the alternative is a key the platform can read.
 Store it in a password manager, not only in Railway.
 
+## Apple Pay (subscriptions and balance)
+
+Apple Pay goes through Stripe, so there is nothing else to run. In the Stripe
+dashboard: **Settings → Payment methods → Apple Pay**, then **Add new
+domain** and enter `safehubby.com` (and `www.safehubby.com` if it is used).
+Stripe checks for the verification file, which the app already serves at
+`/.well-known/apple-developer-merchantid-domain-association`
+(`apps/web/public/.well-known/`, Stripe's standard file for every account).
+Apple Pay then shows on iPhone and Safari wherever the card form appears. A
+subscription saved with Apple Pay is charged each period like any card.
+
+Apple's App Store rules generally require in-app purchase for subscriptions
+bought inside an iOS app; the website is unaffected.
+
 ## Email through Cloudflare
 
 The domain is on Cloudflare, so email goes out through Cloudflare Email
