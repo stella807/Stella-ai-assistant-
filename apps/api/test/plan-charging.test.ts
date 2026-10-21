@@ -72,7 +72,7 @@ describe("taking plan charges from the card", () => {
   it("says plainly when there is no card to charge", async () => {
     const store = storeWith({ card: false });
     await collectSubscriptionCharges(store, days(20), renewForCard(store, days(20)), approves);
-    expect(store.data.charges[0]!.failureReason).toMatch(/no card on file/i);
+    expect(store.data.charges[0]!.failureReason).toMatch(/no card or PayPal account on file/i);
     expect(store.data.subscriptions.t1!.status).toBe("past-due");
   });
 

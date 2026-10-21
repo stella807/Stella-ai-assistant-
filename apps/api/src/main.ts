@@ -2,7 +2,7 @@ import { LOCATION_RETENTION_DAYS, sweepExpiredHolds, sweepLocationHistory } from
 import {
   SUBSCRIPTION_CHARGE_ATTEMPTS, collectSubscriptionCharges, renewDueSubscriptions, retryPastDueSubscriptions,
 } from "./billing.ts";
-import { cardChargingReady, chargeOnCard } from "./adapters/stripe.ts";
+import { chargeSaved, chargingReady } from "./adapters/charging.ts";
 import { createApp, makeCtx } from "./server.ts";
 import { createCryptoRoutes } from "./adapters/openreceive.ts";
 import { runFlightSweep, runPayroll } from "./routes.ts";
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
       released = before - db.holds.filter((h) => h.status === "held").length;
 
       // Periods have to actually turn over, or a paid plan runs forever unbilled.
-      renewals = renewDueSubscriptions(db, now, { collect: cardChargingReady() });
+      renewals = renewDueSubscriptions(db, now, { collect: chargingReady() });
     });
     if (removed > 0) console.log(`[safehubby] Retention: dropped ${removed} expired location ping(s)`);
     if (released > 0) console.log(`[safehubby] Released ${released} expired payment hold(s)`);
@@ -88,10 +88,10 @@ async function main(): Promise<void> {
     }
     // Taking the cards happens after the sweep has saved: a network call has
     // no place inside a store update.
-    if (cardChargingReady()) {
+    if (chargingReady()) {
       (async () => {
-        const taken = await collectSubscriptionCharges(store, now, renewals.toCollect, chargeOnCard);
-        const retried = await retryPastDueSubscriptions(store, now, chargeOnCard);
+        const taken = await collectSubscriptionCharges(store, now, renewals.toCollect, chargeSaved);
+        const retried = await retryPastDueSubscriptions(store, now, chargeSaved);
         const declined = taken.failed + retried.failed;
         if (declined > 0) console.log(`[safehubby] ${declined} plan charge(s) declined — those plans are past due`);
         if (retried.ended > 0) console.log(`[safehubby] ${retried.ended} plan(s) ended after ${SUBSCRIPTION_CHARGE_ATTEMPTS} declined tries`);

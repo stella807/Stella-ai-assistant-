@@ -94,9 +94,9 @@ import { flightTracking } from "./adapters/flight-tracking.ts";
 import { cardViewFor, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
 import {
-  captureOnCard, cardChargingReady, chargeOnCard, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard,
-  stripeProcessor,
+  createSetupIntent, ensureStripeCustomer, stripeProcessor,
 } from "./adapters/stripe.ts";
+import { captureHeld, chargeSaved, chargingReady, holdSaved, processorReady, releaseHeld } from "./adapters/charging.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
@@ -319,11 +319,11 @@ function platformFrom(value: unknown): Platform {
  */
 function catchUpBilling(ctx: Ctx): void {
   let toCollect: string[] = [];
-  ctx.store.update((db) => { toCollect = renewDueSubscriptions(db, ctx.now(), { collect: cardChargingReady() }).toCollect; });
+  ctx.store.update((db) => { toCollect = renewDueSubscriptions(db, ctx.now(), { collect: chargingReady() }).toCollect; });
   // Taking the card is a network call; the hourly sweep in main.ts does the
   // same, so this only gets it done sooner and never blocks the screen.
   if (toCollect.length > 0) {
-    collectSubscriptionCharges(ctx.store, ctx.now(), toCollect, chargeOnCard)
+    collectSubscriptionCharges(ctx.store, ctx.now(), toCollect, chargeSaved)
       .catch((err) => console.error("[safehubby] Plan charge failed:", err));
   }
 }
@@ -829,20 +829,23 @@ function chargeForSupplies(ctx: Ctx, travelerId: string, basket: Basket, deliver
  * record, as before.
  */
 async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: string): Promise<void> {
-  if (hold.fundedBy === "balance" || !cardChargingReady()) return;
+  if (hold.fundedBy === "balance") return;
   const method = ctx.store.data.paymentMethods[hold.travelerId];
+  if (!method?.processorToken || !processorReady(method.processor)) return;
   const customerId = ctx.store.data.stripeCustomers[hold.travelerId];
-  if (method?.processor !== "stripe" || !method.processorToken || !customerId) return;
+  const processor = method.processor === "paypal" ? "paypal" : method.processor === "stripe" && customerId ? "stripe" : null;
+  if (!processor) return;
   try {
-    const intent = await holdOnCard({
-      customerId, paymentMethodId: method.processorToken, amountCents: hold.amountCents, description, idempotencyKey: hold.id,
+    const intent = await holdSaved({
+      processor, ...(customerId ? { customerId } : {}), paymentMethodId: method.processorToken,
+      method: { brand: method.brand, last4: method.last4 }, amountCents: hold.amountCents, description, idempotencyKey: hold.id,
     });
     ctx.store.update((db) => {
       const target = db.holds.find((h) => h.id === hold.id);
       if (target) target.processorRef = intent.id;
     });
   } catch (err) {
-    throw new HttpError(402, err instanceof Error ? err.message : "Your card could not be charged.");
+    throw new HttpError(402, err instanceof Error ? err.message : "Your payment could not be taken.");
   }
 }
 
@@ -857,7 +860,7 @@ async function cardViewOrFail(cardId: string, nonce: string) {
 function settleOnCard(ctx: Ctx, holdId: string, capturedCents: number, chargeId?: string): void {
   const ref = ctx.store.data.holds.find((h) => h.id === holdId)?.processorRef;
   if (!ref) return;
-  (capturedCents > 0 ? captureOnCard(ref, capturedCents) : releaseOnCard(ref)).catch((err) => {
+  (capturedCents > 0 ? captureHeld(ref, capturedCents) : releaseHeld(ref)).catch((err) => {
     console.error("[safehubby] Card settlement failed:", err);
     if (chargeId) updateCharge(ctx, chargeId, (c) => failCharge(c, `Card capture failed: ${err instanceof Error ? err.message : err}`, ctx.now()));
   });
@@ -865,7 +868,7 @@ function settleOnCard(ctx: Ctx, holdId: string, capturedCents: number, chargeId?
 
 function releaseCardHold(ctx: Ctx, holdId: string): void {
   const ref = ctx.store.data.holds.find((h) => h.id === holdId)?.processorRef;
-  if (ref) releaseOnCard(ref).catch((err) => console.error("[safehubby] Card release failed:", err));
+  if (ref) releaseHeld(ref).catch((err) => console.error("[safehubby] Card release failed:", err));
 }
 
 async function bookWithHold<T extends { fareEstimateCents: number | null }>(
@@ -1810,8 +1813,8 @@ export const routes: Record<string, Handler> = {
     ctx.store.update((db) => { db.paymentMethods[me] = method; });
     // A plan that went past-due on the old card is tried again on this one
     // now, rather than at tomorrow's retry.
-    if (cardChargingReady() && method.processor === "stripe") {
-      await retryPastDueSubscriptions(ctx.store, ctx.now(), chargeOnCard, { travelerId: me, immediately: true });
+    if (processorReady(method.processor)) {
+      await retryPastDueSubscriptions(ctx.store, ctx.now(), chargeSaved, { travelerId: me, immediately: true });
     }
     return { method };
   },
@@ -2607,8 +2610,8 @@ export const routes: Record<string, Handler> = {
     // up, and settled inline when it is not; a store charge cannot be either,
     // because only the store's receipt can say it happened.
     if (charge && charge.rail === "card") {
-      if (cardChargingReady()) {
-        await collectSubscriptionCharges(ctx.store, ctx.now(), [charge.id], chargeOnCard);
+      if (chargingReady()) {
+        await collectSubscriptionCharges(ctx.store, ctx.now(), [charge.id], chargeSaved);
         const taken = ctx.store.data.charges.find((c) => c.id === charge.id);
         if (taken?.status === "failed") throw new HttpError(402, taken.failureReason ?? "Your card could not be charged.");
       } else {

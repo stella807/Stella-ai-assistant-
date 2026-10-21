@@ -99,10 +99,13 @@ export function renewDueSubscriptions(db: Db, now: Date, opts: { collect?: boole
    Taking plan charges from the card
    ------------------------------------------------------------------------ */
 
-/** Takes a payment from a saved card. The Stripe adapter in production; a
+/** Takes a payment from a saved payment method — through Stripe or PayPal,
+ *  whichever the customer saved it with. The real dispatcher in production; a
  *  stub in tests. */
 export type CardCharger = (input: {
-  customerId: string; paymentMethodId: string; amountCents: number; description: string; idempotencyKey: string;
+  processor: "stripe" | "paypal";
+  customerId?: string; paymentMethodId: string; method?: { brand: string; last4: string };
+  amountCents: number; description: string; idempotencyKey: string;
 }) => Promise<{ id: string }>;
 
 /** Declined plan charges are retried once a day, this many tries in all. */
@@ -128,12 +131,17 @@ export async function collectSubscriptionCharges(
     const method = store.data.paymentMethods[line.travelerId];
     const customerId = store.data.stripeCustomers[line.travelerId];
     let outcome: { ref: string } | { reason: string };
-    if (method?.processor !== "stripe" || !method.processorToken || !customerId) {
-      outcome = { reason: "There is no card on file to charge. Add one under Payments." };
+    // A Stripe card needs its customer; a PayPal account needs only its token.
+    const chargeable = method?.processorToken
+      && ((method.processor === "stripe" && customerId) || method.processor === "paypal");
+    if (!method || !chargeable) {
+      outcome = { reason: "There is no card or PayPal account on file to charge. Add one under Payments." };
     } else {
       try {
         const intent = await charge({
-          customerId, paymentMethodId: method.processorToken, amountCents: line.amountCents,
+          processor: method.processor as "stripe" | "paypal",
+          ...(customerId ? { customerId } : {}), paymentMethodId: method.processorToken!,
+          method: { brand: method.brand, last4: method.last4 }, amountCents: line.amountCents,
           description: `Safehubby — ${line.description}`, idempotencyKey: line.id,
         });
         outcome = { ref: intent.id };

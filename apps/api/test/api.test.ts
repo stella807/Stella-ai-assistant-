@@ -4763,6 +4763,75 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
+  describe("real charging through PayPal, with Stripe off", () => {
+    const realFetch = globalThis.fetch;
+    let paypal: { path: string; body: any }[];
+    const flush = () => new Promise((r) => setTimeout(r, 30));
+    beforeEach(() => {
+      delete process.env.STRIPE_SECRET_KEY;
+      Object.assign(process.env, { PAYPAL_CLIENT_ID: "id", PAYPAL_CLIENT_SECRET: "secret", PAYPAL_API_BASE: "https://api-m.sandbox.paypal.com" });
+      paypal = [];
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input);
+        if (!url.startsWith("https://api-m.sandbox.paypal.com")) return realFetch(input, init);
+        const path = new URL(url).pathname;
+        if (path === "/v1/oauth2/token") return Response.json({ access_token: "tok" });
+        paypal.push({ path, body: JSON.parse(String(init?.body ?? "{}")) });
+        if (path === "/v2/checkout/orders") {
+          return Response.json({ status: "COMPLETED", purchase_units: [{ payments: { authorizations: [{ id: "AUTH_T", status: "CREATED" }] } }] });
+        }
+        return Response.json({ status: "COMPLETED" });
+      }) as typeof fetch;
+    });
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+      for (const k of ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_API_BASE"]) delete process.env[k];
+    });
+
+    const bookWithPaypal = async () => {
+      const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` }, "puerto-rico");
+      const assistantId = hired.json.assistant.id as string;
+      await withCard(sam);
+      store.update((db) => {
+        Object.assign(db.paymentMethods[samId]!, { processor: "paypal", processorToken: "VAULT_SAM", brand: "PayPal", last4: "" });
+      });
+      const res = await call("POST", "/api/concierge/tasks", {
+        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
+        location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
+        spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId,
+      }, sam);
+      return { res, assistantId };
+    };
+
+    it("reserves the real amount on the saved PayPal account when a request is booked", async () => {
+      const { res } = await bookWithPaypal();
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const order = paypal.find((c) => c.path === "/v2/checkout/orders")!;
+      const hold = store.data.holds.find((h) => h.id === res.json.task.holdId)!;
+      expect(order.body.intent).toBe("AUTHORIZE");
+      expect(order.body.payment_source.paypal.vault_id).toBe("VAULT_SAM");
+      expect(order.body.purchase_units[0].amount.value).toBe((hold.amountCents / 100).toFixed(2));
+      expect(hold.processorRef).toBe("paypal:AUTH_T");
+    });
+
+    it("takes only what was spent when the task is done", async () => {
+      const { res, assistantId } = await bookWithPaypal();
+      const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
+      await call("POST", `/api/assistant/tasks/${res.json.task.id}/complete`, { billedCents: 400 }, null, cookie);
+      await flush();
+      const capture = paypal.find((c) => c.path === "/v2/payments/authorizations/AUTH_T/capture")!;
+      expect(capture.body.amount.value).toBe(((400 + res.json.task.serviceFeeCents) / 100).toFixed(2));
+      expect(capture.body.final_capture).toBe(true);
+    });
+
+    it("lets the whole hold go when the request is cancelled", async () => {
+      const { res } = await bookWithPaypal();
+      await call("POST", `/api/concierge/tasks/${res.json.task.id}/cancel`, {}, sam);
+      await flush();
+      expect(paypal.some((c) => c.path === "/v2/payments/authorizations/AUTH_T/void")).toBe(true);
+    });
+  });
+
   describe("text alerts", () => {
     /** Twilio, stood in for. Only its own host is intercepted. */
     const realFetch = globalThis.fetch;

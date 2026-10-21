@@ -336,6 +336,32 @@ card, `/api/balance/*`):
 - Not yet covered: plan subscriptions and rides from the balance; recurring
   renewals (each would need the customer to approve again).
 
+### Using PayPal instead of Stripe
+
+Which processor takes a payment is decided by how the customer saved it: a
+saved PayPal or Venmo account is charged through PayPal, a Stripe card through
+Stripe. So Stripe can be left switched off — just do not set its keys — and
+PayPal does the work.
+
+- **Set:** `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from a PayPal REST
+  app. `PAYPAL_API_BASE` defaults to the **live** API; set it to
+  `https://api-m.sandbox.paypal.com` while testing so nothing real moves.
+  Vaulting ("save payment methods") has to be enabled on the PayPal app.
+- **Reserving for a task:** an order with `intent: AUTHORIZE` against the
+  saved account's vault id, flagged merchant-initiated. The hold records
+  `paypal:<authorization id>`. When the task is done, only what was spent is
+  captured (`final_capture`), and a cancelled task voids the authorization.
+- **Plan charges:** an order with `intent: CAPTURE` the same way. Retries,
+  past-due and the end-after-three-declines rules are the same as for Stripe.
+  Every request carries a `PayPal-Request-Id` (the hold's or charge's own id),
+  so a repeated request never charges twice.
+- **What is lost without Stripe:** the typed-in card form, Apple Pay, Google Pay
+  and the other wallets Stripe offered. Customers pay with a PayPal or Venmo
+  account. PayPal's own card fields would bring typed-in cards back; they are
+  not built yet.
+- **Task cards:** PayPal does not issue cards. Keep Stripe Issuing for those,
+  or set `CARD_ISSUER=lithic` (below).
+
 ### Task cards: Stripe Issuing or Lithic
 
 Each task gets its own virtual card capped at the task's spend limit and
@@ -438,10 +464,11 @@ missing. Nothing is ever presented as working when it isn't.
 
 Stated plainly, because the code says the same thing where it matters:
 
-- **PayPal does not move money yet.** Card holds, captures and plan charges
-  go through Stripe (see "Real card charging" below); with no
-  `STRIPE_SECRET_KEY` a card-rail charge still settles inline the moment it
-  is recorded, which is what development and the tests run on.
+- **With no processor keys at all** a card-rail charge still settles inline
+  the moment it is recorded, which is what development and the tests run on.
+  Holds, captures and plan charges go through Stripe or PayPal, whichever the
+  customer saved their payment with ("Real card charging" and "Using PayPal
+  instead of Stripe" below).
 - **Three of the ten options still need a vendor SDK in the browser.** Card,
   Apple Pay, Google Pay, Klarna, Cash App Pay, Amazon Pay and Link are wired
   end to end through Stripe.js — the first three via the Card Element and the
@@ -719,4 +746,4 @@ When `STRIPE_SECRET_KEY` is set and a customer saved a card (or Apple Pay, Googl
 - **Done:** only what was actually spent is captured; the rest of the authorization falls away.
 - **Cancelled or declined by the assistant:** the PaymentIntent is cancelled, releasing the whole hold.
 
-A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid ATH Móvil balance is unchanged. Plan subscriptions are charged to the saved card too — see "When the period turns over". Not yet charged for real: PayPal/Venmo (saved only).
+A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid ATH Móvil balance is unchanged. Plan subscriptions are charged to the saved payment method too — see "When the period turns over" — and a saved PayPal or Venmo account is charged for real through PayPal, see "Using PayPal instead of Stripe".
