@@ -4,6 +4,7 @@ import {
 } from "./billing.ts";
 import { cardChargingReady, chargeOnCard } from "./adapters/stripe.ts";
 import { createApp, makeCtx } from "./server.ts";
+import { createCryptoRoutes } from "./adapters/openreceive.ts";
 import { runFlightSweep, runPayroll } from "./routes.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
@@ -147,7 +148,13 @@ async function main(): Promise<void> {
   const flightTimer = setInterval(sweepFlights, 5 * 60_000);
   flightTimer.unref?.();
 
-  const server = createApp(makeCtx(store));
+  // A bad wallet code must not keep the rest of the app from starting.
+  const cryptoRoutes = await createCryptoRoutes(store).catch((err) => {
+    console.error("[safehubby] Crypto payments are off:", err instanceof Error ? err.message : err);
+    return null;
+  });
+  if (cryptoRoutes) console.log("[safehubby] Crypto payments: set up (OpenReceive) — the wallet is checked on the first payment");
+  const server = createApp(makeCtx(store), cryptoRoutes);
   server.listen(port, () => console.log(`[safehubby] Listening on ${port}`));
 
   // Railway sends SIGTERM on redeploy; finish in-flight writes before exiting

@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { "/api": { target: process.env.API_URL ?? "http://localhost:8787", changeOrigin: true } },
+    proxy: {
+      "/api": { target: process.env.API_URL ?? "http://localhost:8787", changeOrigin: true },
+      "/openreceive": { target: process.env.API_URL ?? "http://localhost:8787", changeOrigin: true },
+    },
   },
 });

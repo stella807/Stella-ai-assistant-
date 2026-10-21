@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BALANCE_MAX_CENTS, BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS,
-  allocateRefund, balanceSummary, validateLoad, type BalanceEntry,
+  allocateRefund, athRefundableCents, balanceSummary, validateLoad, type BalanceEntry,
 } from "../src/balance.ts";
 import { authorizeExactHold, captureHold, releaseHold } from "../src/payment.ts";
 
@@ -73,6 +73,17 @@ describe("allocateRefund", () => {
       { entryId: "b", reference: "ref_b", amountCents: 2000 },
       { entryId: "a", reference: "ref_a", amountCents: 500 },
     ]);
+  });
+  it("offers back only what ATH Móvil loads still have, and only what is free", () => {
+    const entries = [load("a", 1000), load("c", 5000, { source: "crypto" })];
+    expect(athRefundableCents(entries, [], "t1")).toBe(1000);
+    expect(athRefundableCents(entries, [hold("h", 5500)], "t1")).toBe(500);
+  });
+
+  it("never sends a crypto load back through ATH Móvil", () => {
+    const entries = [load("a", 1000), load("c", 5000, { source: "crypto", createdAt: "2026-06-20T00:00:00Z" })];
+    expect(allocateRefund(entries, "t1", 1000)).toEqual([{ entryId: "a", reference: "ref_a", amountCents: 1000 }]);
+    expect(() => allocateRefund(entries, "t1", 1001)).toThrow(/refund/i);
   });
   it("skips what an earlier refund already took", () => {
     const entries = [load("a", 3000), { ...load("p", 2800), kind: "payout" as const, againstEntryId: "a" }];

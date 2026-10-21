@@ -34,7 +34,7 @@ import {
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
   canDelegateTo, whoDoesTheWork, validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
-  BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, balanceSummary, validateLoad,
+  BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, athRefundableCents, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
   canMarkByHand, launchProgress,
@@ -95,6 +95,8 @@ import {
   stripeProcessor,
 } from "./adapters/stripe.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
+import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
+import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { athMovilProcessor, athPublicToken, findAthPayment, refundAthPayment } from "./adapters/ath-movil.ts";
@@ -1814,12 +1816,29 @@ export const routes: Record<string, Handler> = {
     const token = athPublicToken();
     return {
       ...balanceSummary(d.balanceEntries, d.holds, me),
+      refundableCents: athRefundableCents(d.balanceEntries, d.holds, me),
       minLoadCents: BALANCE_MIN_LOAD_CENTS,
       maxLoadCents: BALANCE_MAX_LOAD_CENTS,
       ath: isAutomatic(athMovilProcessor.status)
         ? { ready: true as const, publicToken: token }
         : { ready: false as const, note: athMovilProcessor.status.requires },
+      crypto: cryptoReady() ? { ready: true as const } : { ready: false as const, note: cryptoRequires },
     };
+  },
+
+  /**
+   * Records a crypto load before any invoice exists. The reference returned is
+   * what the checkout pays against; OpenReceive asks this server for the
+   * amount behind it, so the price never comes from the browser.
+   */
+  "POST /api/balance/crypto/start": (ctx, _p, body) => {
+    const me = actor(ctx);
+    if (!cryptoReady()) throw new HttpError(503, cryptoRequires);
+    const amountCents = Number(body?.amountCents);
+    const current = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+    try { validateLoad(amountCents, current.availableCents + current.heldCents); }
+    catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That amount cannot be loaded."); }
+    return { reference: startCryptoLoad(ctx.store, me, amountCents, ctx.now()) };
   },
 
   /** Records what is about to be paid and who is paying it, before the
@@ -1886,10 +1905,16 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     if (!isAutomatic(athMovilProcessor.status)) throw new HttpError(503, athMovilProcessor.status.requires);
     const summary = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
-    const amountCents = body?.amountCents === undefined ? summary.availableCents : Number(body.amountCents);
+    // Crypto loads are not sent back automatically, so "all of it" means all
+    // of what ATH Móvil can take back.
+    const refundable = athRefundableCents(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+    const amountCents = body?.amountCents === undefined ? refundable : Number(body.amountCents);
     if (!Number.isInteger(amountCents) || amountCents <= 0) throw new HttpError(400, "There is nothing to refund.");
     if (amountCents > summary.availableCents) {
       throw new HttpError(400, `Only $${(summary.availableCents / 100).toFixed(2)} is free to refund — the rest is set aside for tasks in progress.`);
+    }
+    if (amountCents > refundable) {
+      throw new HttpError(400, `Only $${(refundable / 100).toFixed(2)} can go back to ATH Móvil. Money added with crypto is refunded by our team — contact us.`);
     }
     let slices;
     try { slices = allocateRefund(ctx.store.data.balanceEntries, me, amountCents); }

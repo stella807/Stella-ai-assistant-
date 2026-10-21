@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@openreceive/http": "0.4.31",
+    "@openreceive/node": "0.4.31",
     "@safehubby/core": "workspace:*",
     "pg": "^8.23.0"
   },

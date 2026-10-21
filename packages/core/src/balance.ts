@@ -36,6 +36,8 @@ export interface BalanceEntry {
   reference: string;
   /** For a payout, the load it was refunded against. */
   againstEntryId?: string;
+  /** Where a load came from. Absent on older entries, which are all ATH Móvil. */
+  source?: "ath-movil" | "crypto";
   createdAt: string;
 }
 
@@ -88,6 +90,20 @@ export function validateLoad(amountCents: number, currentBalanceCents: number): 
   }
 }
 
+/**
+ * How much of the available balance can go back to ATH Móvil automatically:
+ * never more than is free, and never more than ATH Móvil loads still have
+ * left. Crypto loads are refunded by hand — see `allocateRefund`.
+ */
+export function athRefundableCents(entries: BalanceEntry[], holds: PreAuthorization[], travelerId: string): number {
+  const mine = entries.filter((e) => e.travelerId === travelerId);
+  const athLoaded = mine.filter((e) => e.kind === "load" && e.source !== "crypto").reduce((n, e) => n + e.amountCents, 0);
+  const athIds = new Set(mine.filter((e) => e.kind === "load" && e.source !== "crypto").map((e) => e.id));
+  const athRefunded = mine.filter((e) => e.kind === "payout" && e.againstEntryId && athIds.has(e.againstEntryId))
+    .reduce((n, e) => n + e.amountCents, 0);
+  return Math.max(0, Math.min(balanceSummary(entries, holds, travelerId).availableCents, athLoaded - athRefunded));
+}
+
 export interface RefundSlice {
   entryId: string;
   reference: string;
@@ -109,7 +125,9 @@ export function allocateRefund(entries: BalanceEntry[], travelerId: string, amou
   // Reversed first so that, among payments recorded in the same instant, the
   // one recorded last still counts as newest — the sort below is stable.
   const loads = mine
-    .filter((e) => e.kind === "load")
+    // Only ATH Móvil loads can be sent back automatically. A crypto payment
+    // went to a wallet that has no way to pay out, so its refund is manual.
+    .filter((e) => e.kind === "load" && e.source !== "crypto")
     .reverse()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 

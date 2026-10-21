@@ -90,6 +90,17 @@ function match(method: string, path: string) {
   return undefined;
 }
 
+async function readRawBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 1_000_000) throw new HttpError(413, "Request body too large");
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -107,7 +118,10 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
-export function createApp(base: Ctx) {
+/** The OpenReceive routes, when a crypto wallet is configured — see adapters/openreceive.ts. */
+export type CryptoRoutes = (req: IncomingMessage, res: ServerResponse, body: string, travelerId: string | null) => Promise<void>;
+
+export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
@@ -122,6 +136,18 @@ export function createApp(base: Ctx) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const method = req.method ?? "GET";
     // HEAD is routed as GET; the response body is dropped below.
+    if (url.pathname.startsWith("/openreceive/")) {
+      if (!cryptoRoutes) return send(res, 503, { error: "Crypto payments are not set up on this server." });
+      try {
+        const raw = method === "POST" ? await readRawBody(req) : "";
+        await cryptoRoutes(req, res, raw, resolveActor(base, readToken(req)));
+      } catch (err) {
+        if (err instanceof HttpError) return send(res, err.status, { error: err.message });
+        console.error("[safehubby] crypto payment route failed", err);
+        if (!res.headersSent) send(res, 500, { error: "Something went wrong on our end." });
+      }
+      return;
+    }
     const found = match(method === "HEAD" ? "GET" : method, url.pathname);
     if (!found) {
       // Unmatched GET/HEAD falls through to the built web app; unmatched API

@@ -4385,8 +4385,24 @@ describe("hiring somebody and actually sending them to a job", () => {
       expect((await call("POST", "/api/balance/ath/start", { amountCents: 2_000 }, sam)).status).toBe(503);
     });
 
+    it("says when crypto is not set up, and only starts a load for a sound amount once it is", async () => {
+      delete process.env.NWC_URI;
+      expect((await call("GET", "/api/balance", undefined, sam)).json.crypto.ready).toBe(false);
+      expect((await call("POST", "/api/balance/crypto/start", { amountCents: 2_000 }, sam)).status).toBe(503);
+      expect((await call("POST", "/openreceive/checkouts", { reference: "x" }, sam)).status).toBe(503);
+
+      process.env.NWC_URI = "nostr+walletconnect://test";
+      try {
+        expect((await call("POST", "/api/balance/crypto/start", { amountCents: 1 }, sam)).status).toBe(400);
+        const ok = await call("POST", "/api/balance/crypto/start", { amountCents: 2_000 }, sam);
+        expect(ok.status).toBe(200);
+        expect(ok.json.reference).toMatch(/^cl_/);
+        expect(store.data.cryptoLoads?.find((l) => l.reference === ok.json.reference)?.amountCents).toBe(2_000);
+      } finally { delete process.env.NWC_URI; }
+    });
+
     it("needs a session", async () => {
-      for (const [m, path] of [["GET", "/api/balance"], ["POST", "/api/balance/ath/start"],
+      for (const [m, path] of [["GET", "/api/balance"], ["POST", "/api/balance/ath/start"], ["POST", "/api/balance/crypto/start"],
         ["POST", "/api/balance/ath/complete"], ["POST", "/api/balance/refund"]] as const) {
         expect((await call(m, path, m === "GET" ? undefined : {})).status).toBe(401);
       }

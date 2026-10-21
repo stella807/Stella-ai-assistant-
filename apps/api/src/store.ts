@@ -254,6 +254,19 @@ export interface Db {
   /** ATH Móvil loads started but not yet confirmed. The nonce is what ties a
    *  payment to the account that began it. */
   pendingBalanceLoads: PendingBalanceLoad[];
+  /** Balance loads paid in crypto through OpenReceive — see crypto-loads.ts.
+   *  Optional so documents saved before it existed still load. */
+  cryptoLoads?: CryptoLoad[];
+}
+
+export interface CryptoLoad {
+  /** The OpenReceive reference: one per load, never reused. */
+  reference: string;
+  travelerId: string;
+  amountCents: number;
+  createdAt: string;
+  /** Set once the wallet reports the payment final. */
+  paidAt?: string;
 }
 
 export interface PendingBalanceLoad {

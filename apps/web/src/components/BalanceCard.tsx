@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { BALANCE_MAX_CENTS } from "@safehubby/core";
 import { api, type BalanceInfo } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -8,6 +8,9 @@ import {
 } from "../app/ath-checkout.ts";
 
 const PRESETS_CENTS = [1_000, 2_500, 5_000, 10_000];
+
+// Only someone paying in crypto downloads the checkout.
+const CryptoCheckout = lazy(() => import("./CryptoCheckout.tsx"));
 
 const COPY = {
   en: {
@@ -26,6 +29,9 @@ const COPY = {
     yes: "Yes, send it back",
     refunded: "Sent back to your ATH Móvil.",
     notReady: "ATH Móvil isn't turned on yet.",
+    crypto: (amount: string) => `Add ${amount} with crypto`,
+    cryptoNote: "Bitcoin, or USDT, USDC, SOL and ETH where offered. Money added with crypto is refunded by our team, not automatically.",
+    loading: "Loading…",
   },
   es: {
     title: "Balance de Safehubby",
@@ -43,6 +49,9 @@ const COPY = {
     yes: "Sí, devolverlo",
     refunded: "Devuelto a tu ATH Móvil.",
     notReady: "ATH Móvil todavía no está activado.",
+    crypto: (amount: string) => `Añadir ${amount} con cripto`,
+    cryptoNote: "Bitcoin, o USDT, USDC, SOL y ETH donde se ofrezca. El dinero añadido con cripto lo devuelve nuestro equipo, no automáticamente.",
+    loading: "Cargando…",
   },
 } as const;
 
@@ -68,6 +77,7 @@ export function BalanceCard() {
   const [info, setInfo] = useState<BalanceInfo | null>(null);
   const [amount, setAmount] = useState(2_500);
   const [checkout, setCheckout] = useState<{ nonce: string; total: string; metadata1: string; metadata2: string } | null>(null);
+  const [cryptoRef, setCryptoRef] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingRefund, setConfirmingRefund] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -137,6 +147,17 @@ export function BalanceCard() {
     }
   };
 
+  const beginCrypto = async () => {
+    setBusy(true); setError(null); setMessage(null);
+    try {
+      setCryptoRef((await api.startCryptoLoad(amount)).reference);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const refund = async () => {
     setBusy(true); setError(null); setMessage(null);
     try {
@@ -152,11 +173,11 @@ export function BalanceCard() {
   };
 
   if (!info) return null;
-  // ATH Móvil is the only way to load the balance. Until it is turned on there
-  // is nothing to load it with, so the card stays off the screen rather than
+  // ATH Móvil and crypto are the ways to load the balance. Until one is turned
+  // on there is nothing to load it with, so the card stays off the screen rather than
   // showing a button that cannot work — unless money is already in it, which
   // is always shown.
-  if (!ready && info.availableCents === 0 && info.heldCents === 0) return null;
+  if (!ready && !info.crypto.ready && info.availableCents === 0 && info.heldCents === 0) return null;
   const maxLoad = Math.min(info.maxLoadCents, Math.max(0, BALANCE_MAX_CENTS - info.availableCents - info.heldCents));
 
   return (
@@ -175,7 +196,16 @@ export function BalanceCard() {
         </div>
       )}
 
-      {!checkout && ready && (
+      {cryptoRef && (
+        <>
+          <Suspense fallback={<p className="small muted">{c.loading}</p>}>
+            <CryptoCheckout reference={cryptoRef} onSettled={() => { setCryptoRef(null); setMessage(c.added); void refresh(); }} />
+          </Suspense>
+          <button className="btn btn-block btn-ghost" onClick={() => setCryptoRef(null)}>{c.cancel}</button>
+        </>
+      )}
+
+      {!checkout && !cryptoRef && (ready || info.crypto.ready) && (
         <>
           <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 8 }}>
             <legend className="small"><strong>{c.pick}</strong></legend>
@@ -188,9 +218,19 @@ export function BalanceCard() {
               ))}
             </div>
           </fieldset>
-          <button className="btn btn-block btn-primary" disabled={busy || amount > maxLoad} onClick={begin}>
-            {c.pay(money(amount))}
-          </button>
+          {ready && (
+            <button className="btn btn-block btn-primary" disabled={busy || amount > maxLoad} onClick={begin}>
+              {c.pay(money(amount))}
+            </button>
+          )}
+          {info.crypto.ready && (
+            <>
+              <button className={`btn btn-block${ready ? "" : " btn-primary"}`} disabled={busy || amount > maxLoad} onClick={beginCrypto}>
+                {c.crypto(money(amount))}
+              </button>
+              <p className="tiny muted" style={{ margin: 0 }}>{c.cryptoNote}</p>
+            </>
+          )}
         </>
       )}
 
@@ -202,7 +242,7 @@ export function BalanceCard() {
         </>
       )}
 
-      {ready && info.availableCents > 0 && !checkout && (
+      {ready && info.refundableCents > 0 && !checkout && !cryptoRef && (
         confirmingRefund ? (
           <div className="row">
             <button className="btn grow" disabled={busy} onClick={() => setConfirmingRefund(false)}>{c.cancel}</button>
@@ -210,7 +250,7 @@ export function BalanceCard() {
           </div>
         ) : (
           <button className="btn btn-block btn-ghost" onClick={() => setConfirmingRefund(true)}>
-            {c.refund(money(info.availableCents))}
+            {c.refund(money(info.refundableCents))}
           </button>
         )
       )}

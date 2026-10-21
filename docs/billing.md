@@ -336,6 +336,35 @@ card, `/api/balance/*`):
 - Not yet covered: plan subscriptions and rides from the balance; recurring
   renewals (each would need the customer to approve again).
 
+### Crypto loads the prepaid balance (OpenReceive)
+
+Customers can add to the same balance in crypto. It goes through
+[OpenReceive](https://openreceive.org) (`@openreceive/http` and
+`@openreceive/node` on the server, `@openreceive/react` in the app, all pinned
+at 0.4.31) straight into **your own Bitcoin wallet** over Lightning.
+
+- **Turn it on:** set `NWC_URI` on Railway to a *receive-only* NWC code from a
+  wallet that supports it (openreceive.org lists them; Alby Hub is one you can
+  run yourself). A code that can also send money is refused at startup, so a
+  leaked code can never be used to empty the wallet. Add `LSC_URI_PRIMARY` for
+  a swap provider and customers can also pay in USDT, USDC, SOL or ETH; it
+  arrives as Bitcoin.
+- **How a payment works:** `POST /api/balance/crypto/start` records the load
+  and returns a reference. The checkout pays against that reference; the
+  server, never the browser, says what it costs (`cryptoLoadPrice` in
+  `crypto-loads.ts`). The balance is credited only when the wallet itself
+  reports the payment final, once per reference.
+- **Where it keeps its records:** two tables of its own,
+  `openreceive_payments` and `openreceive_meta`, created on startup in the
+  Railway Postgres (a SQLite file in development).
+- **Refunds are by hand.** The wallet connection cannot send money, so a crypto
+  load is never refunded automatically: the "send it back" button only covers
+  money added with ATH Móvil (`athRefundableCents`).
+- **If the wallet is unreachable** the crypto pages answer 503 and the rest of
+  the app carries on.
+- **Bitcoin's price** comes from CoinGecko at the moment of payment; you
+  receive however much Bitcoin the dollar amount was worth then.
+
 ### Configuring ATH Móvil
 
 Needs an ATH Móvil Business account. Both tokens are in the Settings tab of

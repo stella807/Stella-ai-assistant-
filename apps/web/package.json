@@ -20,6 +20,7 @@
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/push-notifications": "^8.1.2",
+    "@openreceive/react": "0.4.31",
     "@safehubby/core": "workspace:*",
     "@stripe/stripe-js": "^9.16.0",
     "leaflet": "^1.9.4",
