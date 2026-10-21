@@ -6,7 +6,7 @@ import {
 } from "@safehubby/core";
 import {
   CONTACT_EMAIL, ERRAND_RUNNERS_HIRING, INCLUDED_GRABS_ENTRY, LANGS, errandTierRows, featuredPlans,
-  formatPhone, mailtoHref, money, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
+  formatPhone, mailtoHref, money, planNameIn, startingPriceCents, whatsappHref, whatsappLabel, type Lang,
 } from "../src/content.ts";
 import { HEADERS, STYLESHEET, THEME, obfuscate, renderPage, renderWorkPage, pathFor, workPathFor } from "../src/render.ts";
 
@@ -26,7 +26,7 @@ describe("the marketing site", () => {
     // the first number to somebody about to pay.
     for (const lang of LANGS) {
       for (const plan of featuredPlans()) {
-        expect(pages[lang], `${plan.id} in ${lang}`).toContain(plan.name);
+        expect(pages[lang], `${plan.id} in ${lang}`).toContain(planNameIn(plan, lang));
         if (plan.monthlyCents > 0) {
           expect(pages[lang], `${plan.id} price in ${lang}`).toContain(money(plan.monthlyCents));
         }

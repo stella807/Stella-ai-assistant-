@@ -11,6 +11,7 @@ import { PlanComparison } from "./PlanComparison.tsx";
 
 import { money } from "../money.ts";
 import { choiceLabel } from "../app/ask-copy.ts";
+import { PlanName } from "../app/plan-name.tsx";
 
 /**
  * What everything costs, before anybody signs up.
@@ -59,7 +60,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
               return (
                 <tr key={p.id}>
                   <td>
-                    {p.name}
+                    <PlanName id={p.id} name={p.name} />
                     {p.id === "premium-plus" && (
                       <div className="plan-tag" style={{ marginTop: 2 }}>{t("plans.mostPicked")}</div>
                     )}
@@ -175,7 +176,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
             <tbody>
               {rungs.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.name}</td>
+                  <td><PlanName id={p.id} name={p.name} /></td>
                   <td>
                     {p.monthlyOffer?.discounted && <s className="plan-was">{money(p.monthlyCents)}</s>}{" "}
                     {money(p.monthlyOffer?.discounted ? p.monthlyOffer.payCents : p.monthlyCents)}

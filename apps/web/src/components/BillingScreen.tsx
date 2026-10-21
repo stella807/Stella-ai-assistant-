@@ -8,6 +8,7 @@ import { PlanPicker } from "./PlanPicker.tsx";
 import { RenewalTermsGate } from "./RenewalTermsGate.tsx";
 
 import { money } from "../money.ts";
+import { PlanName } from "../app/plan-name.tsx";
 
 const dayOf = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -79,7 +80,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
       <section className="card stack">
         <div className="row-between">
           <span className="small muted">{t("billing.last30Days")}</span>
-          <span className="pill">{billing.plan.name}</span>
+          <span className="pill"><PlanName id={billing.plan.id} name={billing.plan.name} /></span>
         </div>
         <div className="plan-price">{money(dueTotal)}</div>
         {statement.pendingCents > 0 && (

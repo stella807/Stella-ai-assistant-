@@ -3,6 +3,7 @@ import { maxCapFor } from "@safehubby/core";
 import type { ConciergeCategory, Feature, Plan, PlanId } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { dollars } from "../money.ts";
+import { PlanName } from "../app/plan-name.tsx";
 
 /**
  * The actual answer to "what's different between the tiers" — a real
@@ -69,7 +70,7 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
             <thead>
               <tr>
                 <th></th>
-                {plans.map((p) => <th key={p.id}>{p.name}</th>)}
+                {plans.map((p) => <th key={p.id}><PlanName id={p.id} name={p.name} /></th>)}
               </tr>
             </thead>
             <tbody>
