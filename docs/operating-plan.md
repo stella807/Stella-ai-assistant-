@@ -68,7 +68,7 @@ insurance to applicants.
 
 Errands will not. At 5¢ each they cover nothing fixed. Two things can:
 
-- **Subscriptions.** Premium is $89.99 a month, about $87 after card fees.
+- **Subscriptions.** Premium is $93.99 a month, which leaves at least $89.99 after PayPal's fee.
   Premium includes 10 no-fee grabs a month, which cost up to $40 in runner pay
   if fully used, so count on **about $47 a month** from each. Pilot insurance
   of ~$525 a month is covered by roughly **11 Premium subscribers**.

@@ -6,7 +6,7 @@ import { statusFor } from "@safehubby/core";
  * still works out every 14 days what each assistant is owed (and holds back
  * the 10% for Hacienda in Puerto Rico), and records the payout with the
  * reason below, so the owner can send it from the business bank account or
- * ATH Business. A provider (for example Stripe Connect) plugs in here later.
+ * ATH Business. A payout provider plugs in here later.
  */
 let statusOverride: ProviderStatus | undefined;
 

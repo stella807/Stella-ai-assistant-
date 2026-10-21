@@ -279,19 +279,19 @@ every paid tier's price absorbs a share of what that costs.** It started as a
 Family-only perk, priced in only there; it's now on `PLUS_FEATURES`, which
 every paid everyday tier shares, so Premium and Premium Plus both went up too. A task's own cost is still capped
 per task, not open-ended like a ride fare — that part hasn't changed. What
-moved is the partner-network retainer and keeping the Stripe Issuing balance funded
+moved is the partner-network retainer and keeping the Lithic card program funded
 that issues each task's card (below), both standing costs in the same
 category as secure transport's insurance contract, now spread across every
 paying subscriber rather than just Family. See `billing.ts` and
 `docs/concierge.md`.
 
-**Paying the assistant is a card issued per task, through Stripe Issuing —
+**Paying the assistant is a card issued per task, through Lithic —
 not the subscriber's own card, and not their bank account directly.** A
 direct bank debit was the original idea; it was replaced with a
 pre-authorization hold on the card already on file (settles same-night, ACH
 does not) plus a single-use, spend-capped virtual card handed to the assistant
 (`apps/api/src/adapters/cards.ts`). Cards hang off one Safehubby company cardholder,
-and Stripe shows the number to the assistant directly. Full details are in
+and Lithic shows the number to the assistant directly. Full details are in
 `docs/concierge.md`.
 
 ## 5. Flight tracking — for `airport-pickup`

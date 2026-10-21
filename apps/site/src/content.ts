@@ -360,7 +360,7 @@ export const COPY: Record<Lang, Copy> = {
     clubHeading: "The Wingman Club",
     clubBody:
       "An add-on, on top of whichever plan you are on. One membership, and once a month the club's pick is revealed — the same outing for everybody that month, booked as a group at a rate none of you would get at the door.",
-    clubDues: "{base} a month, plus that month's outing at exactly what the venue charges us. In practice {low} to {high}, depending on the pick.",
+    clubDues: "{base} a month to run the club and help cover event costs, plus that month's outing at exactly what the venue charges us. In practice {low} to {high}, depending on the pick.",
     clubPerk: "A cigar and a drink of your choice at every event, whatever the month lands on. Folded into the group rate, never an extra line.",
     clubRotation: "In the rotation:",
     pricingNote:
@@ -427,7 +427,7 @@ export const COPY: Record<Lang, Copy> = {
     clubHeading: "El Wingman Club",
     clubBody:
       "Un añadido, sobre el plan que ya tengas. Una sola membresía, y una vez al mes se revela la actividad del club — la misma para todos ese mes, reservada en grupo a un precio que ninguno conseguiría por su cuenta.",
-    clubDues: "{base} al mes, más la actividad de ese mes a exactamente lo que nos cobra el lugar. En la práctica entre {low} y {high}, según la que toque.",
+    clubDues: "{base} al mes para manejar el club y ayudar a cubrir los costos de los eventos, más la actividad de ese mes a exactamente lo que nos cobra el lugar. En la práctica entre {low} y {high}, según la que toque.",
     clubPerk: "Un cigarro y un trago de tu elección en cada evento, sea cual sea la actividad del mes. Va incluido en la tarifa de grupo, nunca como un cargo aparte.",
     clubRotation: "En la rotación:",
     pricingNote:

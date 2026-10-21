@@ -176,11 +176,6 @@ export interface Db {
   pendingOrders: Record<string, PendingOrder[]>;
   partyCarts: Record<string, { sku: string; qty: number }[]>;
   paymentMethods: Record<string, PaymentMethodOnFile>;
-  /** The traveler's Stripe Customer id, created the first time they open a
-   *  payment sheet that needs one. Kept so a member ends up with one Customer
-   *  rather than one per visit — Stripe only reuses a method off-session when
-   *  it is attached to one. See `ensureStripeCustomer` in adapters/stripe.ts. */
-  stripeCustomers: Record<string, string>;
   /** When each hand-ticked launch step was marked done. Only the steps the
    *  app cannot observe for itself live here — see launch-plan.ts. */
   launchStepsMarkedAt: Record<string, string>;
@@ -251,9 +246,6 @@ export interface Db {
   /** Who agreed to be texted, keyed `traveler:<id>` or `assistant:<id>` — see sms.ts. */
   textContacts: Record<string, TextContact>;
   emailContacts?: Record<string, EmailContact>;
-  /** ATH Móvil loads started but not yet confirmed. The nonce is what ties a
-   *  payment to the account that began it. */
-  pendingBalanceLoads: PendingBalanceLoad[];
   /** Balance loads paid in crypto through OpenReceive — see crypto-loads.ts.
    *  Optional so documents saved before it existed still load. */
   cryptoLoads?: CryptoLoad[];
@@ -269,21 +261,14 @@ export interface CryptoLoad {
   paidAt?: string;
 }
 
-export interface PendingBalanceLoad {
-  nonce: string;
-  travelerId: string;
-  amountCents: number;
-  createdAt: string;
-}
-
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, stripeCustomers: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
-  priceOverrides: [], balanceEntries: [], pendingBalanceLoads: [], textContacts: {},
+  priceOverrides: [], balanceEntries: [], textContacts: {},
 };
 
 /** What routes need from a store, so the file and Postgres backings are

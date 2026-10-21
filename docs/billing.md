@@ -44,7 +44,7 @@ actually used more than one.
 | `packages/core/src/payment.ts` | The payment method on file and pre-authorization holds |
 | `packages/core/src/billing.ts` | The plan catalogue and what each plan unlocks |
 | `apps/api/src/billing.ts` | `renewDueSubscriptions` — the sweep that turns periods over |
-| `apps/api/src/adapters/stripe.ts`, `paypal.ts` | Verifying a client-tokenized payment method against the real processor — see "Payment processors" below |
+| `apps/api/src/adapters/paypal.ts`, `charging.ts` | Verifying a client-tokenized payment method with PayPal, then reserving, capturing and charging it — see "Payment processors" below |
 
 `wallet.ts` and `subscription.ts` are pure and fully tested; nothing in either
 talks to a processor.
@@ -58,7 +58,7 @@ by a test going red rather than by someone remembering to update this page,
 which is exactly why the numbers below are read from `billing.ts` rather
 than retyped from memory.
 
-**$1,500/$7,500/$60,000 a month, for 1/2/6 people.** The ladder sells two
+**$1,555/$7,775/$62,175 a month, for 1/2/6 people** (raised from $1,500/$7,500/$60,000 to cover PayPal's fee). The ladder sells two
 things now, not one: a personal assistant's time (the included concierge
 hours — 10/50/200), and a concierge physician's own retainer, paid by
 Safehubby and included in the price rather than billed to the member
@@ -84,7 +84,7 @@ all of them" was not.
 | Concierge medicine retainer | $2,000–$5,000/yr commonly; up to $25,000/yr |
 | Amex-style card concierge | **Free** — you pay only the retail cost of what they buy |
 | Amalfi Jets "Reserve" | **$99/mo** — jets plus hotels, dining, ground transport |
-| **Safehubby Elite (entry)** | **$1,500/mo, one person, retainer included** |
+| **Safehubby Elite (entry)** | **$1,555/mo, one person, retainer included** |
 
 The comparison that actually holds now is against *employing* the
 equivalent, not against a card membership: a house manager alone runs
@@ -253,108 +253,97 @@ forgotten in either direction.
 
 ## Payment processors
 
-`packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
-`apps/api/src/adapters/stripe.ts` / `paypal.ts` implement it — the same
-`ProviderStatus` automatic/handoff pattern as every other adapter in this
-app (Stripe Issuing cards, manual payouts, Uber, DoorDash). Their one job today is
-verification: the browser's own SDK tokenizes a method (Stripe.js, PayPal's
-JS SDK) and hands this server a token, and the adapter asks the real
-processor what that token actually is — brand, last 4, expiry — rather than
-trusting whatever the client claims. Neither adapter is configured without
-`STRIPE_SECRET_KEY` or `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` set, in
-which case `POST /api/account/payment-method` falls back to the same typed
-mock form this screen has always used, and `GET /api/payment/processors`
-reports both as `handoff` so the UI never claims a wallet or PayPal button
-works when it can't.
+How money comes in, and which part of the app each way feeds:
 
-**Most "payment methods" are not processors.** A processor is an account
-Safehubby holds, with its own credentials and its own settlement. There are
-three: Stripe, PayPal, and ATH Móvil.
-
-Everything else a customer recognises as a way to pay is a *brand* one of
-those three surfaces, listed in `PayBrand` in `payment.ts` with
-`PROCESSOR_FOR_BRAND` recording which settles it:
-
-| Brand | Settles through | Why it isn't its own processor |
+| Way to pay | Settles through | Used for |
 |---|---|---|
-| Apple Pay, Google Pay, Link | `stripe` | Wallets Stripe's client SDK surfaces on the same card rails. |
-| Klarna | `stripe` | Enabled on the Stripe account; Stripe settles, Safehubby holds no Klarna account. |
-| Cash App Pay, Amazon Pay | `stripe` | Same — enabled as Stripe payment methods. |
-| Venmo | `paypal` | PayPal's own, on the PayPal account. |
+| A saved **PayPal account** | PayPal (`adapters/paypal.ts`) | Holds for tasks and rides, and plan charges |
+| **Crypto** | OpenReceive (`adapters/openreceive.ts`) | Loads the prepaid balance |
 
-**Affirm and Afterpay are deliberately absent**, and this is the one
-constraint worth understanding before adding another method. Safehubby has
-exactly one payment surface: a method saved on the account, against which a
-hold is placed later, off-session, when a ride or errand is actually booked.
-Stripe's [payment method support
-table](https://docs.stripe.com/payments/payment-methods/payment-method-support)
-marks both Affirm and Afterpay as **unsupported for SetupIntents and for
-`setup_future_usage`** — they underwrite one purchase at one amount, which is
-a different product from a method on file. A tab for either would be one no
-amount of configuration could ever complete, so `PayBrandSpec.savable` gates
-the list and the tests assert every listed brand passes it. If a per-purchase
-checkout ever exists, they belong on that, not here.
+Task cards for assistants come from **Lithic**; PayPal and crypto do not issue
+cards. There is no card form on the payment screen: customers pay with PayPal,
+or load the balance with crypto. ATH Móvil was removed for now (its adapter,
+routes and balance button are in git history, before the commit that removed
+it); it can be put back as a processor that loads the balance. Taking Visa and Mastercard
+directly would use PayPal's own card fields on the same PayPal account; that
+is not built yet.
 
-`PaymentMethodOnFile.processor` records the processor either way; `payWith`
-records the brand, for display only. Adding one of these to
-`PaymentProcessor` instead would claim an integration that does not exist,
-so the mapping is a table the tests assert against rather than a rule.
+`packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
+`adapters/paypal.ts` implements it — the same
+`ProviderStatus` automatic/handoff pattern as every other adapter in this
+app (Lithic cards, manual payouts, Uber, DoorDash). Its job is verification:
+the browser's own SDK tokenizes a method (PayPal's JS SDK) and hands this
+server a token, and the adapter asks the real processor what that token
+actually is, rather than trusting whatever the client claims. Without
+`PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`, `POST /api/account/payment-method`
+falls back to the typed stand-in used in development, and
+`GET /api/payment/processors` reports it as `handoff` so the UI never claims a
+PayPal button works when it can't.
 
-**ATH Móvil is the one genuine third processor.** Puerto Rico's own network,
-run by Evertec, reachable through neither Stripe nor PayPal, so it needs its
-own merchant account and its own adapter (`adapters/ath-movil.ts`). It is an
-account tied to a phone number rather than a card, which is why
+`PaymentMethodOnFile.processor` is `paypal`, and nothing else: that list is
+what decides what is real, so a way to pay is only added to it with an account
+Safehubby actually holds. A PayPal account has no card behind it, which is why
 `PaymentMethodOnFile`'s expiry is optional — there is nothing to expire, and
 treating a missing expiry as expired would lock the method out immediately.
 
-**Mastercard is not a processor or a brand.** It is a card network the card
-path already accepts, through Stripe, like Visa, Amex and Discover.
-`CARD_NETWORKS` lists them so the payment screen and the footer badges read
-off one source; "supporting Mastercard" means nothing more than the card form
-already working.
+### Crypto loads a prepaid balance
 
-### ATH Móvil loads a prepaid balance
-
-ATH Móvil debits the customer the moment they confirm in their app (Evertec's
-docs describe no hold, no saved method and no recurring charge, and there is
-no sandbox), so it cannot back a card-style hold. It funds a **Safehubby
+A crypto payment settles the moment it is made — no hold, no saved method, no
+recurring charge — so it cannot back a card-style hold. It funds a **Safehubby
 balance** instead (`balance.ts`, the Payments screen's *Safehubby balance*
-card, `/api/balance/*`):
+card, `/api/balance/*`); see "Crypto loads the prepaid balance (OpenReceive)"
+below for how a load is paid and credited. Limits: $5–$500 per load, $1,000
+total.
 
-- **Load:** `POST /api/balance/ath/start` records the amount and a nonce for
-  this account; Evertec's button carries the nonce in `metadata2`; the browser
-  reports an `ecommerceId`; `POST /api/balance/ath/complete` asks Evertec
-  (`findPayment`) and credits only a `COMPLETED` payment whose amount and nonce
-  match, once. Limits: $5–$500 per load, $1,000 total.
 - **Spend:** an errand or assistant booking reserves from the balance when it
-  covers the whole amount (never split with a card); otherwise it uses the
-  card, or refuses naming the shortfall. The balance is derived from loads and
-  from holds marked `fundedBy: "balance"`, so a capture or release adjusts it
-  with no second write. Rides and plan payments still go on a card.
-- **Refund:** `POST /api/balance/refund` sends unused money back through ATH
-  Móvil's refund endpoint against the original payments, newest first.
+  covers the whole amount (never split with a PayPal account); otherwise it
+  uses the saved PayPal account, or refuses naming the shortfall. The balance
+  is derived from loads and from holds marked `fundedBy: "balance"`, so a
+  capture or release adjusts it with no second write. Rides and plan payments
+  still go on a saved PayPal account.
+- **Refund:** by hand. The wallet connection cannot send money out, so there is
+  no automatic refund of the balance.
 - Not yet covered: plan subscriptions and rides from the balance; recurring
   renewals (each would need the customer to approve again).
 
-### Task cards: Stripe Issuing or Lithic
+### PayPal takes the money
+
+PayPal is the processor for a saved payment method: it reserves for tasks and
+charges plans.
+
+- **Set:** `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from a PayPal REST
+  app. `PAYPAL_API_BASE` defaults to the **live** API; set it to
+  `https://api-m.sandbox.paypal.com` while testing so nothing real moves.
+  Vaulting ("save payment methods") has to be enabled on the PayPal app.
+- **Saving an account:** PayPal's own button (setup token, then payment token,
+  `/api/payment/paypal/*`). The server reads the account back from PayPal's
+  Vault before storing its masked email.
+- **Reserving for a task:** an order with `intent: AUTHORIZE` against the
+  saved account's vault id, flagged merchant-initiated. The hold records
+  `paypal:<authorization id>`. When the task is done, only what was spent is
+  captured (`final_capture`), and a cancelled task voids the authorization.
+- **Plan charges:** an order with `intent: CAPTURE` the same way, with retries,
+  past-due and the end-after-three-declines rules in "When the period turns
+  over". Every request carries a `PayPal-Request-Id` (the hold's or charge's
+  own id), so a repeated request never charges twice.
+- **Not exercised against a live PayPal account.** The code follows PayPal's
+  documented Orders and Payments APIs and is tested against a stand-in for
+  PayPal's servers. Run a sandbox app through it, with *Save payment methods*
+  enabled, before trusting it with real money.
+
+### Task cards through Lithic
 
 Each task gets its own virtual card capped at the task's spend limit and
-closed when the task ends. Two issuers do this, chosen by one setting:
+closed when the task ends.
 
-- **Stripe Issuing** (default): `STRIPE_SECRET_KEY` and
-  `STRIPE_ISSUING_CARDHOLDER`. The card shows in the assistant's portal through
-  Stripe's Issuing Elements.
-- **Lithic** (`CARD_ISSUER=lithic`): `LITHIC_API_KEY`, and `LITHIC_ENV=production`
-  once live (the sandbox otherwise). Cards are `VIRTUAL` with a `FOREVER`
-  spend limit equal to the task's cap, and `CLOSED` when the task ends. The
-  card shows through Lithic's embedded card (`lithic-embed`, pinned at
+- **Set:** `LITHIC_API_KEY`, and `LITHIC_ENV=production` once live (the sandbox
+  otherwise, so a key pasted in for testing can never move real money). Cards
+  are `VIRTUAL` with a `FOREVER` spend limit equal to the task's cap, and
+  `CLOSED` when the task ends.
+- **Showing the number:** Lithic's embedded card (`lithic-embed`, pinned at
   0.1.0-beta.0), which needs `SAFEHUBBY_PUBLIC_URL` to be the app's https
-  address. Masked until the assistant taps Show.
-
-Either way the card number goes from the issuer to the assistant's browser
-and never through Safehubby. Switching issuers only affects cards issued
-after the switch; a card already issued keeps working with the issuer that
-made it, so switch between tasks, not during them.
+  address. Masked until the assistant taps Show. The number goes from Lithic to
+  the assistant's browser and never through Safehubby.
 
 ### Crypto loads the prepaid balance (OpenReceive)
 
@@ -385,93 +374,36 @@ at 0.4.31) straight into **your own Bitcoin wallet** over Lightning.
 - **Bitcoin's price** comes from CoinGecko at the moment of payment; you
   receive however much Bitcoin the dollar amount was worth then.
 
-### Configuring ATH Móvil
+### Configuring PayPal
 
-Needs an ATH Móvil Business account. Both tokens are in the Settings tab of
-the ATH Móvil Business app:
-
-```bash
-railway variables --set "ATH_MOVIL_PUBLIC_TOKEN=..."
-railway variables --set "ATH_MOVIL_PRIVATE_TOKEN=..."
-```
-
-The private token is only strictly needed for refunds, and is required here
-anyway — a processor that can take money but not give it back is not one
-worth turning on. Evertec accepts the literal public token `dummy` for
-simulated payments against production, so there is no separate sandbox host
-to point at the way PayPal needs one. Endpoints are documented at
-[github.com/evertec/ATHM-Payment-Button-API](https://github.com/evertec/ATHM-Payment-Button-API).
-
-### Configuring Stripe
-
-Stripe needs **two** keys, in two different places, and the UI reports them
-separately so a half-configured setup doesn't look like one vague failure:
+Create a REST app in PayPal's developer dashboard, turn on *Save payment
+methods*, and set its keys (the sandbox first, with `PAYPAL_API_BASE` pointing
+at `https://api-m.sandbox.paypal.com`):
 
 ```bash
-# Server — verifies whatever token the browser produces. Never shipped to a client.
-railway variables --set "STRIPE_SECRET_KEY=sk_live_..."
-
-# Web build — baked into the bundle at build time, like VITE_API_URL.
-# A publishable key is designed to ship to browsers and is not a secret.
-VITE_STRIPE_PUBLISHABLE_KEY=pk_live_... pnpm --filter @safehubby/web build
+railway variables --set "PAYPAL_CLIENT_ID=..."
+railway variables --set "PAYPAL_CLIENT_SECRET=..."
 ```
 
-With both set, `PaymentMethodCard.tsx` loads Stripe.js
-(`apps/web/src/native/stripe.ts`) and:
-
-- **Card** mounts Stripe's real Card Element, so the card fields live in
-  Stripe's iframe and neither this app nor its server ever sees a raw card
-  number — only the PaymentMethod id, which `adapters/stripe.ts` then
-  re-verifies against Stripe's API rather than trusting the browser.
-- **Apple Pay / Google Pay** go through Stripe's Payment Request sheet.
-  Availability comes from Stripe's own `canMakePayment()` — the real answer
-  for both wallets, replacing the earlier `ApplePaySession` sniff. The sheet
-  asks for a zero total and never confirms a payment: attaching a method is
-  not a purchase, and the actual money movement happens later via
-  `authorizeExactHold` at booking time.
-
-With the publishable key missing, Card falls back to the typed-in stand-in
-form this screen has always had, and the wallet tabs say which half is
-missing. Nothing is ever presented as working when it isn't.
+The client id is also what the browser's PayPal button needs; the app fetches
+it from the server (`GET /api/payment/paypal/config`), so there is nothing to
+set in the web build. The secret never leaves the server.
 
 ## What is not wired yet
 
 Stated plainly, because the code says the same thing where it matters:
 
-- **PayPal does not move money yet.** Card holds, captures and plan charges
-  go through Stripe (see "Real card charging" below); with no
-  `STRIPE_SECRET_KEY` a card-rail charge still settles inline the moment it
-  is recorded, which is what development and the tests run on.
-- **Three of the ten options still need a vendor SDK in the browser.** Card,
-  Apple Pay, Google Pay, Klarna, Cash App Pay, Amazon Pay and Link are wired
-  end to end through Stripe.js — the first three via the Card Element and the
-  Payment Request sheet, the rest via the Payment Element against a
-  SetupIntent from `POST /api/payment/setup-intent`. Still pending, tracked
-  as `wiring: "sdk-pending"` in `TABS` in `PaymentMethodCard.tsx`, and each
-  saying so on its own tab rather than offering a button that would fail:
-  - **Venmo** still needs its own PayPal SDK wiring (its tab says so).
-  - **PayPal** is wired: PayPal's own button saves the customer's PayPal
-    account without charging (setup token -> payment token, `/api/payment/paypal/*`),
-    and the server reads the account back from PayPal's Vault before storing
-    its masked email. Verified here only against a stand-in for PayPal's servers
-    and script; try it in PayPal's sandbox first (`PAYPAL_API_BASE=https://api-m.sandbox.paypal.com`,
-    sandbox client id and secret), with *Save payment methods* enabled on the app.
-  - **ATH Móvil** is wired as a balance load (see above), not as a saved
-    method. Verified here only against a stand-in for Evertec's servers and
-    script, since Evertec offers no sandbox: try a small real load first.
-- **The Payment Element path has not been exercised against a live Stripe
-  account either.** `createSetupIntent` and `ensureStripeCustomer` follow
-  Stripe's documented SetupIntents and Customers APIs, and the screen follows
-  the documented `elements.submit()` → `confirmSetup()` sequence, but with no
-  test keys here it is verified only to compile, lint, pass the suite, and
-  return an honest 503 when unconfigured. Run a Stripe test-mode key through
-  it — and actually complete a Klarna redirect — before trusting it.
-- **The Stripe integration has not been exercised against a live account.**
-  The code follows Stripe's documented Elements and Payment Request APIs, but
-  with no test keys available here it has only been verified to compile, to
-  pass lint and the suite, and to degrade correctly to the stand-in form when
-  unconfigured. Run a Stripe test-mode key through it before trusting it in
-  production.
+- **With no processor keys at all** a card-rail charge still settles inline
+  the moment it is recorded, which is what development and the tests run on.
+  Holds, captures and plan charges go through PayPal once its keys are set
+  ("PayPal takes the money" above).
+- **PayPal has not been exercised against a live account.** PayPal's button
+  saves an account without charging (setup token, then payment token) and the
+  server reads the account back before storing its masked email; try it in
+  PayPal's sandbox first, with *Save payment methods* enabled. It is verified
+  here only against a stand-in for PayPal's servers and script.
+- **No typed-in card form.** Accepting Visa and Mastercard directly needs
+  PayPal's own card fields, which are not built yet.
 - **No store receipt verification.** `POST /api/billing/charges/:id/confirm`
   records the receipt the client hands back and settles the line. A real
   deployment verifies it with Apple or Google first; the response says
@@ -497,40 +429,48 @@ Two things renew, and they agree:
   billing question, so a trial that ended an hour ago is over the moment the
   user opens the screen rather than whenever a timer next fires.
 
-With Stripe set up, a card-rail renewal is left **pending** by the sweep and
-then taken from the member's saved card (`collectSubscriptionCharges` in
-`billing.ts`, using `chargeOnCard`). The charge's id is the Stripe idempotency
-key, so a sweep that runs twice never bills twice.
+With PayPal set up, a card-rail renewal is left **pending** by the sweep and
+then taken from the member's saved PayPal account (`collectSubscriptionCharges`
+in `billing.ts`, through `chargeSaved`). The charge's id is the PayPal request
+id, so a sweep that runs twice never bills twice.
 
-- **Declined:** the charge fails with the bank's reason and the plan goes
+- **Declined:** the charge fails with PayPal's reason and the plan goes
   `past-due`. Past-due keeps working, the same as before.
 - **Retried** once a day (`retryPastDueSubscriptions`), and straight away when
-  the member saves a new card.
+  the member saves a new payment method.
 - **After three declined tries** the plan ends that moment and the account
   goes back to Free. SOS and check-ins keep working.
 - **Choosing a plan after the trial** (`POST /api/subscription`) charges the
-  card on the spot and answers 402 with the bank's reason if it is declined.
+  saved account on the spot and answers 402 with PayPal's reason if it is declined.
 
 ## What the plans cost, and why
 
-Premium ($89.99), Premium Plus ($99.99), and Family ($539.94) are all
+Premium ($93.99), Premium Plus ($104.99), and Family ($563.94) are all
 priced at ownership's explicit direction, a deliberate move away from
 anchoring against personal-safety apps (Life360, Noonlight) or the
 mid-market concierge-app band this ladder used before. The one rule every
 round of this ladder has still held: seats and price climb together, never
 seats-up-price-down (see the seat-ordering test in `billing.test.ts`,
 scoped to exclude only Elite) — but Family's own per-seat number is no
-longer a discount against Premium Plus's ($89.99/seat against Premium
-Plus's $49.995/seat). See the full rationale in
+longer a discount against Premium Plus's ($93.99/seat against Premium
+Plus's $52.495/seat). See the full rationale in
 `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
-| Premium | $89.99 | $899.99 | 1 |
-| Premium Plus | $99.99 | $999.99 | 2 |
-| Family | $539.94 | $5,399.99 | 6 |
-| Elite (entry rung, live) | $1,500.00 | $14,999.99 | 1 |
+| Premium | $93.99 | $939.99 | 1 |
+| Premium Plus | $104.99 | $1,049.99 | 2 |
+| Family | $563.94 | $5,639.99 | 6 |
+| Elite (entry rung, live) | $1,555.00 | $15,549.99 | 1 |
+
+**Every paid price includes PayPal's fee.** PayPal keeps 3.49% + $0.49 of
+each payment, and a separate card fee is illegal in Puerto Rico (Law 150), so
+the fee is built into the price instead: each price was raised from its
+earlier figure ($89.99, $99.99, $539.94, $1,500, $7,500, $60,000, and the
+yearly prices the same way) to the amount that leaves at least that figure
+after the fee. `PROCESSOR_FEE_RATE` and `PROCESSOR_FEE_FIXED_CENTS` in
+`billing.ts` hold the rate, and a test fails if any price stops covering it.
 
 Premium, Premium Plus and Family carry almost the identical feature set
 (`PLUS_FEATURES` in `billing.ts`) — automatic ride/delivery booking, secure
@@ -711,12 +651,12 @@ routing an in-app subscription around Apple's billing, which is the operator's
 compliance problem — it cannot take a user's money twice or reach anyone else's
 data. It is stored on the subscription so the rail is auditable afterwards.
 
-## Real card charging (Stripe)
+## Real charging (PayPal)
 
-When `STRIPE_SECRET_KEY` is set and a customer saved a card (or Apple Pay, Google Pay, Link, Cash App Pay…) through Stripe, every hold in the ledger is matched by a real Stripe authorization:
+When PayPal's keys are set and a customer saved a PayPal account, every hold in the ledger is matched by a real PayPal authorization:
 
-- **Booked:** a manual-capture PaymentIntent for the exact amount, charged off-session to the saved method (the hold's id is the idempotency key). A decline, or a bank asking the cardholder to approve it (3-D Secure), stops the booking with the bank's own reason — nothing is booked on a hold that does not exist.
+- **Booked:** an `AUTHORIZE` order for the exact amount, charged to the saved account with nobody present (the hold's id is the PayPal request id). A decline, or PayPal wanting the customer to approve it themselves, stops the booking with PayPal's own reason — nothing is booked on a hold that does not exist.
 - **Done:** only what was actually spent is captured; the rest of the authorization falls away.
-- **Cancelled or declined by the assistant:** the PaymentIntent is cancelled, releasing the whole hold.
+- **Cancelled or declined by the assistant:** the authorization is voided, releasing the whole hold.
 
-A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid ATH Móvil balance is unchanged. Plan subscriptions are charged to the saved card too — see "When the period turns over". Not yet charged for real: PayPal/Venmo (saved only).
+A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid balance, loaded with ATH Móvil or crypto, is unchanged. Plan subscriptions are charged to the saved PayPal account too — see "When the period turns over".

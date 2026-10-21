@@ -11,127 +11,40 @@ import type { Iso8601 } from "./types.ts";
  * Safehubby never pays the provider until money is already reserved on the
  * user's card, so the subscription price only has to cover the software again.
  *
- * This models the mechanics; it does not talk to a card network. A real
- * deployment wires this behind a processor (Stripe's manual-capture PaymentIntents
- * fit this exactly), and the domain rules — hold before spend, capture only up
- * to what was held, release what was not used — do not change when it does.
+ * This models the mechanics; it does not talk to a payment network. A real
+ * deployment wires this behind a processor (a PayPal authorization, captured
+ * for what was spent, fits this exactly), and the domain rules — hold before
+ * spend, capture only up to what was held, release what was not used — do not
+ * change when it does.
  */
 
 /**
  * The real backend that settles a method — an account Safehubby holds, with
  * its own credentials, its own rails and its own settlement.
  *
- * Deliberately short, and it is the list that decides what is real. Most of
- * what a customer recognises as "a way to pay" is not one of these: Apple
- * Pay, Google Pay, Klarna, Amazon Pay and the rest are brands Stripe
- * surfaces on top of the Stripe account Safehubby already has, and Venmo is
- * one PayPal surfaces on PayPal's. Those belong in `PayBrand` below, not
- * here — adding one here would claim an integration that does not exist.
- *
- * ATH Móvil is the exception that earns a place: Puerto Rico's own network,
- * run by Evertec, reachable through neither Stripe nor PayPal, so supporting
- * it means a third set of credentials and a third adapter. See
- * `ChargeProcessorPort` in fulfillment.ts and `adapters/ath-movil.ts`.
+ * Deliberately short, and it is the list that decides what is real. PayPal
+ * takes saved PayPal accounts for holds and plan charges. Crypto loads a
+ * prepaid balance instead, but it is not a method on file — see
+ * crypto-loads.ts in the API. See `ChargeProcessorPort` in fulfillment.ts and
+ * `adapters/paypal.ts`.
  */
-export type PaymentProcessor = "stripe" | "paypal" | "ath-movil";
-
-/**
- * A branded way to pay that rides on a processor Safehubby already has,
- * rather than being a backend of its own.
- *
- * Tapping one of these still produces an ordinary payment-method token from
- * the processor underneath, verified the same way a typed card is, and the
- * stored method's `processor` is still that processor. Recording which was
- * tapped is for display: it changes nothing about how the money moves.
- *
- * Which is exactly why the mapping below is a table rather than a rule —
- * the old "a wallet always means Stripe" shortcut stopped being true the
- * moment Venmo arrived on PayPal's side.
- */
-export type PayBrand =
-  | "apple-pay" | "google-pay" | "link"
-  | "klarna" | "cashapp" | "amazon-pay"
-  | "venmo";
-
-/**
- * Every brand, and the two facts about it that decide whether it can appear
- * on this app's payment screen at all.
- *
- * `savable` is the one that does real work. Safehubby has exactly one
- * payment surface: a method stored on the account, against which a hold is
- * placed later, off-session, when a ride or an errand is actually booked
- * (see `authorizeExactHold`). A method that cannot be stored for later
- * off-session use therefore has nowhere to live here, whatever else it
- * supports.
- *
- * That is why Affirm and Afterpay are absent rather than listed as
- * unavailable. Stripe's own payment-method support table marks both as
- * unsupported for SetupIntents and for `setup_future_usage` — they
- * underwrite one specific purchase at one specific amount, which is a
- * different product from a card on file. Offering them here would be a tab
- * that could never be completed, no matter what got configured. If a
- * per-purchase checkout ever exists, they belong on it, not here.
- */
-export interface PayBrandSpec {
-  label: string;
-  processor: PaymentProcessor;
-  savable: boolean;
-}
-
-export const PAY_BRAND_SPEC: Record<PayBrand, PayBrandSpec> = {
-  "apple-pay": { label: "Apple Pay", processor: "stripe", savable: true },
-  "google-pay": { label: "Google Pay", processor: "stripe", savable: true },
-  "link": { label: "Link", processor: "stripe", savable: true },
-  "klarna": { label: "Klarna", processor: "stripe", savable: true },
-  "cashapp": { label: "Cash App Pay", processor: "stripe", savable: true },
-  "amazon-pay": { label: "Amazon Pay", processor: "stripe", savable: true },
-  "venmo": { label: "Venmo", processor: "paypal", savable: true },
-};
-
-export const PAY_BRANDS = Object.keys(PAY_BRAND_SPEC) as PayBrand[];
-
-/** Which processor actually settles each brand. */
-export const PROCESSOR_FOR_BRAND = Object.fromEntries(
-  PAY_BRANDS.map((b) => [b, PAY_BRAND_SPEC[b].processor]),
-) as Record<PayBrand, PaymentProcessor>;
-
-export const PAY_BRAND_LABEL = Object.fromEntries(
-  PAY_BRANDS.map((b) => [b, PAY_BRAND_SPEC[b].label]),
-) as Record<PayBrand, string>;
-
-/** The brands a given processor can settle, for building a payment sheet. */
-export function brandsFor(processor: PaymentProcessor): PayBrand[] {
-  return PAY_BRANDS.filter((b) => PROCESSOR_FOR_BRAND[b] === processor);
-}
-
-/**
- * The card networks accepted on the card path.
- *
- * Not processors, and the distinction is the point: a Mastercard is accepted
- * because Stripe accepts it, so "adding Mastercard" is not an integration —
- * it is already true of every card typed into the card form. Listing the
- * networks here keeps the badge row and the payment screen reading off one
- * source instead of each hardcoding its own guess.
- */
-export const CARD_NETWORKS = ["Visa", "Mastercard", "American Express", "Discover"] as const;
+export type PaymentProcessor = "paypal";
 
 export interface PaymentMethodOnFile {
   id: string;
   /** See `AttachMethodInput.processorToken`. */
   processorToken?: string;
   processor: PaymentProcessor;
-  payWith?: PayBrand;
   /** Never a full card number. This is the only thing worth storing that way. */
   brand: string;
-  /** Last four of the card, or of the linked phone number for an
-   *  account-based method like ATH Móvil. */
+  /** Last four of the card. Empty for a PayPal account, which has no digits. */
   last4: string;
   /** What a person recognises an account by when there are no card digits —
    *  a masked PayPal email. Display only. */
   accountLabel?: string;
-  /** Absent on a method with no card behind it — an ATH Móvil account, a
-   *  PayPal or Cash App balance. There is nothing to expire, and treating a
-   *  missing expiry as "expired" would lock those methods out permanently.
+  /** Absent on a method with no card behind it — a PayPal account. There is
+   *  nothing to expire, and treating a missing expiry as "expired" would lock
+   *  those methods out permanently.
    *  Validated strictly whenever it is present. */
   expMonth?: number;
   expYear?: number;
@@ -141,13 +54,12 @@ export interface PaymentMethodOnFile {
 export interface AttachMethodInput {
   id: string;
   processor: PaymentProcessor;
-  payWith?: PayBrand;
   brand: string;
   last4: string;
   accountLabel?: string;
   expMonth?: number;
   expYear?: number;
-  /** The processor's reusable id for the method (a Stripe PaymentMethod id),
+  /** The processor's reusable id for the method (a PayPal vaulted payment token),
    *  so it can actually be charged later. Never a card number. */
   processorToken?: string;
   now: Date;
@@ -159,9 +71,6 @@ export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFi
   const digitless = input.processor === "paypal" && input.last4 === "" && Boolean(input.accountLabel);
   if (!digitless && !/^\d{4}$/.test(input.last4)) throw new Error("Card number is not right.");
   if (!input.brand.trim()) throw new Error("Missing card brand.");
-  if (input.payWith && PROCESSOR_FOR_BRAND[input.payWith] !== input.processor) {
-    throw new Error(`${PAY_BRAND_LABEL[input.payWith]} settles through ${PROCESSOR_FOR_BRAND[input.payWith]}, not ${input.processor}.`);
-  }
 
   const hasExpiry = input.expMonth !== undefined || input.expYear !== undefined;
   if (hasExpiry) {
@@ -175,7 +84,6 @@ export function attachPaymentMethod(input: AttachMethodInput): PaymentMethodOnFi
   return {
     id: input.id,
     processor: input.processor,
-    ...(input.payWith ? { payWith: input.payWith } : {}),
     brand: input.brand.trim(),
     last4: input.last4,
     ...(input.accountLabel ? { accountLabel: input.accountLabel } : {}),
@@ -217,8 +125,8 @@ export interface PreAuthorization {
   reference?: string;
   /** Set when this hold reserves the customer's prepaid balance rather than a card. */
   fundedBy?: "balance";
-  /** The processor's own record of the real authorization (a Stripe
-   *  PaymentIntent id), once money is actually reserved on the card. */
+  /** The processor's own record of the real authorization (`paypal:` and a
+   *  PayPal authorization id), once money is actually reserved. */
   processorRef?: string;
 }
 

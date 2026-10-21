@@ -1,285 +1,62 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  api, type PayBrand, type PaymentMethod, type PaymentProcessor, type ProcessorStatus,
-} from "../api.ts";
-import {
-  availableWallets, confirmSetup, isStripeConfigured, mountPaymentElement, stripe, walletRequest,
-  type StripeCardElement, type StripeElements,
-} from "../native/stripe.ts";
+import { useEffect, useState } from "react";
+import { api, type PaymentMethod, type ProcessorStatus } from "../api.ts";
 import { PayPalButton } from "./PayPalButton.tsx";
 
-type Tab = "card" | "paypal" | "ath-movil" | PayBrand;
-
 /**
- * How the browser half of each option is actually produced today. This is
- * the honest half of the screen: the server can be fully configured for a
- * method whose checkout SDK is not loaded here yet, and saying "not
- * available" would blame the wrong side.
- *
- * - `card`, `payment-request` and `payment-element` are wired, through
- *   Stripe.js (see native/stripe.ts). The last of those collects a method
- *   against a SetupIntent from our own server, which is what Klarna, Cash
- *   App Pay, Amazon Pay and Link need in order to render at all.
- * - `sdk-pending` means the server adapter is ready and the vendor's own
- *   client SDK is not loaded on this screen: PayPal and Venmo need PayPal's
- *   JS SDK. ATH Móvil is not a tab: see BalanceCard.tsx.
- *
- * Affirm and Afterpay are not here, and not merely unwired: Stripe does not
- * support them on SetupIntents at all, so they cannot be a method on file.
- * See `PayBrandSpec.savable` in core's payment.ts.
+ * PayPal's own logo, the files PayPal itself serves (public/img/paypal-logo.svg
+ * and paypal-mark.svg), never redrawn or recoloured. The full-colour logo has a
+ * dark-blue "Pay" that vanishes on this app's dark background, so it sits on a
+ * white chip, which is how PayPal's brand guidelines have it used.
  */
-type Wiring = "card" | "payment-request" | "payment-element" | "paypal-button" | "sdk-pending";
+function PayPalLogo({ mark = false }: { mark?: boolean }) {
+  return (
+    <span className="paypal-chip">
+      <img src={mark ? "/img/paypal-mark.svg" : "/img/paypal-logo.svg"} alt="PayPal" height={mark ? 22 : 24}
+        width={mark ? 22 : 85} />
+    </span>
+  );
+}
 
 /**
- * Every option the screen offers, and what sits behind each one.
+ * The one payment method on the account: a PayPal account. It backs every
+ * charge that is not a store-billed subscription — rides, secure transport,
+ * pharmacy runs, and the subscription itself on the web. Adding one does not
+ * charge anything by itself — it lets a hold be placed at the moment a trip is
+ * actually booked, and Safehubby never spends before that hold exists.
  *
- * `processor` is the account that actually settles it, and most of these
- * share one: Klarna, Amazon Pay, Cash App, Affirm, Afterpay and Link are
- * brands Stripe surfaces on the Stripe account this app already has, not
- * integrations of their own, so they carry `brand` and settle as `stripe`.
- * Venmo is the same story on PayPal's side. Only ATH Móvil is a genuinely
- * separate backend — see `PayBrand` and `PaymentProcessor` in core's
- * payment.ts, which this table mirrors rather than redefines.
+ * PayPal's own button does the approving inside PayPal's window; this app
+ * never touches a PayPal login or a card number. What it sends to its own
+ * server is the payment token PayPal hands back, which the server then
+ * re-verifies against PayPal's API rather than trusting the browser's claim
+ * about it. ATH Móvil and crypto are not here: they load the prepaid balance
+ * above this card instead (BalanceCard.tsx).
  *
- * Mastercard is deliberately absent: it is a card network the Card tab
- * already accepts, not a method of its own. The network list lives beside
- * the card form.
- */
-const TABS: { id: Tab; label: string; processor: PaymentProcessor; brand?: PayBrand; wiring: Wiring }[] = [
-  { id: "card", label: "Card", processor: "stripe", wiring: "card" },
-  { id: "apple-pay", label: "Apple Pay", processor: "stripe", brand: "apple-pay", wiring: "payment-request" },
-  { id: "google-pay", label: "Google Pay", processor: "stripe", brand: "google-pay", wiring: "payment-request" },
-  { id: "klarna", label: "Klarna", processor: "stripe", brand: "klarna", wiring: "payment-element" },
-  { id: "amazon-pay", label: "Amazon Pay", processor: "stripe", brand: "amazon-pay", wiring: "payment-element" },
-  { id: "cashapp", label: "Cash App Pay", processor: "stripe", brand: "cashapp", wiring: "payment-element" },
-  { id: "link", label: "Link", processor: "stripe", brand: "link", wiring: "payment-element" },
-  { id: "paypal", label: "PayPal", processor: "paypal", wiring: "paypal-button" },
-  { id: "venmo", label: "Venmo", processor: "paypal", brand: "venmo", wiring: "sdk-pending" },
-  // ATH Móvil is not here on purpose: it debits on the spot and cannot be saved
-  // or held, so it loads the balance above this card instead (BalanceCard.tsx).
-];
-
-const TAB = Object.fromEntries(TABS.map((t) => [t.id, t])) as Record<Tab, (typeof TABS)[number]>;
-
-/**
- * The one payment method on the account. It backs every charge that is not a
- * store-billed subscription: rides, secure transport, pharmacy runs, and the
- * subscription itself on the web. Adding one does not charge anything by
- * itself — it lets a hold be placed at the moment a trip is actually booked,
- * and Safehubby never spends before that hold exists.
- *
- * Twelve options, three real backends — see `TABS` above for which is which.
- * Stripe, PayPal and ATH Móvil are independent processors with their own
- * credentials (adapters/stripe.ts, paypal.ts, ath-movil.ts); everything else
- * on the row is a brand one of those three surfaces, settled by it and
- * recorded in `payWith` for display only.
- *
- * Card entry and the wallet sheets all happen inside Stripe.js — this app
- * never touches a raw card number. What it sends to its own server is the
- * PaymentMethod id Stripe hands back, which the server then re-verifies
- * against Stripe's API rather than trusting the browser's claim about it.
- *
- * Two independent things have to be configured for any of this to work, and
- * the UI distinguishes them instead of showing one vague failure:
- * `VITE_STRIPE_PUBLISHABLE_KEY` in this build (checked via
- * `isStripeConfigured`), and the secret key on the server (reported by
- * `GET /api/payment/processors`). With either missing, the tabs say so and
- * Card falls back to the typed-in stand-in form this screen has always had.
- * See docs/billing.md.
+ * With PayPal not connected on the server and nothing on file, the card is
+ * left off the screen rather than showing a button that cannot finish. See
+ * docs/billing.md.
  */
 export function PaymentMethodCard() {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
-  const [processors, setProcessors] = useState<ProcessorStatus[]>([]);
-  const [cardNetworks, setCardNetworks] = useState<string[]>([]);
+  const [paypal, setPaypal] = useState<ProcessorStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [tab, setTab] = useState<Tab>("card");
-  const [wallets, setWallets] = useState({ applePay: false, googlePay: false });
-  const [brand, setBrand] = useState("Visa");
-  const [last4, setLast4] = useState("");
-  const [expMonth, setExpMonth] = useState("");
-  const [expYear, setExpYear] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [elementError, setElementError] = useState<string | null>(null);
-
-  const cardMount = useRef<HTMLDivElement>(null);
-  const cardElement = useRef<StripeCardElement | null>(null);
-  const elementMount = useRef<HTMLDivElement>(null);
-  const elementsRef = useRef<StripeElements | null>(null);
 
   useEffect(() => {
     Promise.all([api.paymentMethod(), api.paymentProcessors()])
       .then(([m, p]) => {
         setMethod(m.method);
-        setProcessors(p.processors);
-        setCardNetworks(p.cardNetworks);
+        setPaypal(p.processors.find((x) => x.id === "paypal") ?? null);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
-
-    // Straight from Stripe rather than sniffed off the user agent. Resolves
-    // to both-false when Stripe isn't configured, which is the honest answer.
-    availableWallets().then(setWallets).catch(() => {});
   }, []);
 
-  const statusOf = (processor: PaymentProcessor) => processors.find((p) => p.id === processor) ?? null;
-  const active = TAB[tab];
-  const activeStatus = statusOf(active.processor);
-  /** Both halves present: this build has the publishable key, and the server
-   *  has the secret key to verify the resulting token with. */
-  const stripeLive = isStripeConfigured() && statusOf("stripe")?.mode === "automatic";
-
-  /**
-   * Only the options that can actually be completed here are offered: the
-   * processor connected on the server, Stripe's key in this build, the wallet
-   * offered by this browser, and the vendor's checkout wired into this screen.
-   * An option that would only explain why it doesn't work is left off, so a
-   * customer never meets a payment button that cannot take a payment. Each
-   * one comes back on its own as soon as its account is connected.
-   */
-  const canComplete = (t: (typeof TABS)[number]): boolean => {
-    if (statusOf(t.processor)?.mode !== "automatic") return false;
-    if (t.wiring === "paypal-button") return true;
-    if (t.wiring === "sdk-pending" || !stripeLive) return false;
-    if (t.id === "apple-pay") return wallets.applePay;
-    if (t.id === "google-pay") return wallets.googlePay;
-    return true;
-  };
-  const usableTabs = TABS.filter(canComplete);
-
-  // Stripe's Card Element has to be mounted into a real node, so it can only
-  // be created once the Card tab is actually on screen.
-  useEffect(() => {
-    if (!adding || tab !== "card" || !stripeLive || !cardMount.current) return;
-    let unmounted = false;
-    stripe().then((s) => {
-      if (!s || unmounted || !cardMount.current) return;
-      const element = s.elements().create("card");
-      element.mount(cardMount.current);
-      cardElement.current = element;
-    });
-    return () => {
-      unmounted = true;
-      cardElement.current?.unmount();
-      cardElement.current = null;
-    };
-  }, [adding, tab, stripeLive]);
-
-  /**
-   * The Payment Element needs a SetupIntent before it can render, so this
-   * asks the server for one whenever a tab that uses it is opened. Scoped to
-   * the chosen brand, so the widget shows that method and not a menu.
-   */
-  useEffect(() => {
-    if (!adding || active.wiring !== "payment-element" || !stripeLive || !elementMount.current) return;
-    let cancelled = false;
-    setElementError(null);
-    elementsRef.current = null;
-    api.paymentSetupIntent(active.brand!)
-      .then(({ clientSecret }) => {
-        if (cancelled || !elementMount.current) return null;
-        return mountPaymentElement(clientSecret, elementMount.current);
-      })
-      .then((mounted) => { if (mounted && !cancelled) elementsRef.current = mounted.elements; })
-      .catch((e) => { if (!cancelled) setElementError(e instanceof Error ? e.message : "Could not start that method."); });
-    return () => { cancelled = true; elementsRef.current = null; };
-  }, [adding, tab, stripeLive, active.wiring, active.brand]);
-
-  /**
-   * Confirms the SetupIntent and stores whatever Stripe saved. The method id
-   * goes to our own server as a token, which re-verifies it against Stripe
-   * rather than trusting this screen — the same rule the card path follows.
-   */
-  const attachViaPaymentElement = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const elements = elementsRef.current;
-      if (!elements) throw new Error("That payment method didn't finish loading. Try again.");
-      const token = await confirmSetup(elements, window.location.href);
-      await save({ processor: "stripe", payWith: active.brand, token });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save that method");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const save = async (input: Parameters<typeof api.attachPaymentMethod>[0]) => {
-    const res = await api.attachPaymentMethod(input);
+  const save = async (token: string) => {
+    const res = await api.attachPaymentMethod({ processor: "paypal", token });
     setMethod(res.method);
     setAdding(false);
-    setLast4("");
-    setExpMonth("");
-    setExpYear("");
-  };
-
-  /** Stripe.js tokenizes the typed card in its own iframe; only the resulting
-   *  PaymentMethod id reaches this app or its server. */
-  const attachStripeCard = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const s = await stripe();
-      if (!s || !cardElement.current) throw new Error("Stripe didn't finish loading. Try again.");
-      const { error: stripeError, paymentMethod } = await s.createPaymentMethod({
-        type: "card", card: cardElement.current,
-      });
-      if (stripeError || !paymentMethod) throw new Error(stripeError?.message ?? "Stripe could not read that card.");
-      await save({ processor: "stripe", token: paymentMethod.id });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add that card");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /** The stand-in for builds with no Stripe key: stores a brand and last 4
-   *  only, exactly as this screen did before Stripe existed. */
-  const attachTypedCard = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await save({
-        processor: "stripe", brand, last4: last4.trim(), expMonth: Number(expMonth), expYear: Number(expYear),
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add that card");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /**
-   * Apple Pay and Google Pay both go through Stripe's Payment Request sheet.
-   * The sheet needs a total, so `walletRequest` asks for zero and never
-   * confirms a payment — the point is the tokenized method it hands back,
-   * which later holds are placed against at booking time.
-   */
-  const attachWallet = async (payWith: PayBrand) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const request = await walletRequest();
-      if (!request) throw new Error("Stripe isn't configured in this build.");
-      const supported = await request.canMakePayment();
-      if (!supported) throw new Error("This device can't complete that wallet.");
-
-      const token = await new Promise<string>((resolve, reject) => {
-        request.on("paymentmethod", (event) => {
-          event.complete("success");
-          resolve(event.paymentMethod.id);
-        });
-        request.on("cancel", () => reject(new Error("Cancelled.")));
-        request.show();
-      });
-      await save({ processor: "stripe", payWith, token });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add that wallet");
-    } finally {
-      setBusy(false);
-    }
   };
 
   const remove = async () => {
@@ -296,62 +73,28 @@ export function PaymentMethodCard() {
   };
 
   if (!loaded) return null;
-  // Nothing on file and nothing that can be added: no card at all, rather
-  // than an "Add" button that leads to options which cannot finish.
-  if (!method && usableTabs.length === 0) return null;
-
-  /**
-   * Why a tab can't be completed right now, in the user's terms — and whose
-   * side the gap is on. Server credentials, this build's keys, this device,
-   * and an unloaded vendor SDK are four different problems, and collapsing
-   * them into one "unavailable" would leave nobody able to act on it.
-   */
-  const blockedReason = (): string | null => {
-    if (activeStatus?.mode !== "automatic") {
-      // Name the processor, not the tab: "Card isn't connected" is not a
-      // thing that can be true, and for a brand it is worth saying whose
-      // rails it is actually waiting on — that is the account the operator
-      // has to go and connect.
-      const name = activeStatus?.name ?? active.label;
-      const lead = active.brand && name !== active.label
-        ? `${active.label} settles through ${name}, which isn't connected on this server yet`
-        : `${name} isn't connected on this server yet`;
-      // The `requires` strings are written as standalone sentences by each
-      // adapter, so they arrive capitalised and full-stopped; both are wrong
-      // once they continue a clause here.
-      const needs = activeStatus?.requires?.replace(/\.$/, "").replace(/^./, (c) => c.toLowerCase());
-      return `${lead}${needs ? ` — needs ${needs}.` : "."}`;
-    }
-    if (active.processor === "stripe" && !isStripeConfigured()) {
-      return "This build has no Stripe publishable key — see docs/billing.md.";
-    }
-    if (tab === "apple-pay" && !wallets.applePay) {
-      return "Apple Pay needs Safari on an iPhone, iPad, or Mac — this browser doesn't offer it.";
-    }
-    if (tab === "google-pay" && !wallets.googlePay) {
-      return "Google Pay isn't available in this browser, or has no card saved in it.";
-    }
-    if (active.wiring === "sdk-pending") {
-      return `${active.label}'s server side is ready, but its checkout isn't wired into this screen yet.`;
-    }
-    return null;
-  };
-  const blocked = blockedReason();
+  const ready = paypal?.mode === "automatic";
+  // Nothing on file and nothing that can be added: no card at all.
+  if (!method && !ready) return null;
 
   return (
     <section className="card">
-      <h3>Payment method</h3>
+      <div className="row-between">
+        <h3 style={{ margin: 0 }}>Payment method</h3>
+        <PayPalLogo />
+      </div>
       <p className="small muted">
-        One method for everything: rides, secure transport, pharmacy runs, and your plan. Nothing is charged
-        when you add it — only when something actually happens, and only up to what that thing costs.
+        Pay with your PayPal account for everything: rides, secure transport, pharmacy runs, and your plan.
+        Nothing is charged when you add it — only when something actually happens, and only up to what that
+        thing costs.
       </p>
 
       {method && !adding && (
         <>
           <div className="row-between">
-            <span className="small">
-              {method.payWith ? `${TAB[method.payWith]?.label ?? method.payWith} — ` : ""}
-              {method.accountLabel ? `${method.brand} — ${method.accountLabel}` : `${method.brand} ···· ${method.last4}`}
+            <span className="small row" style={{ gap: 8, alignItems: "center" }}>
+              {method.processor === "paypal" && <PayPalLogo mark />}
+              {method.accountLabel ?? `${method.brand} ···· ${method.last4}`}
             </span>
             {/* An account-based method has no card behind it and so no
                 expiry — see PaymentMethodOnFile in core's payment.ts. */}
@@ -363,145 +106,24 @@ export function PaymentMethodCard() {
         </>
       )}
 
-      {!method && !adding && usableTabs.length > 0 && (
-        <button className="btn btn-block" disabled={busy}
-          onClick={() => { setTab(usableTabs[0]?.id ?? "card"); setAdding(true); }}>
-          Add a payment method
+      {!method && !adding && (
+        <button className="btn btn-block" disabled={busy} onClick={() => setAdding(true)}>
+          Add your PayPal account
         </button>
       )}
 
       {adding && (
         <>
-          {/* Only the options that can finish here — see `canComplete`. */}
-          <div className="tabs tabs-scroll" role="tablist">
-            {usableTabs.map((t) => (
-              <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {blocked && <p className="small muted">{blocked}</p>}
-
-          {tab === "card" && (
-            <>
-              {/* Served rather than hardcoded — CARD_NETWORKS in core's
-                  payment.ts. Mastercard is accepted here, on this tab, which
-                  is the whole of what "supporting Mastercard" means. */}
-              {cardNetworks.length > 0 && (
-                <p className="tiny muted" style={{ margin: 0 }}>
-                  We accept {cardNetworks.join(", ")}.
-                </p>
-              )}
-              {stripeLive ? (
-                <>
-                  {/* Stripe.js renders the real card fields into this node,
-                      inside its own iframe — the inputs are never ours. */}
-                  <div className="field"><div ref={cardMount} /></div>
-                  <div className="row">
-                    <button className="btn grow" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-                    <button className="btn btn-primary grow" disabled={busy} onClick={attachStripeCard}>
-                      Save card
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="field">
-                    <label htmlFor="pm-brand">Card brand</label>
-                    <select id="pm-brand" value={brand} onChange={(e) => setBrand(e.target.value)}>
-                      <option>Visa</option>
-                      <option>Mastercard</option>
-                      <option>American Express</option>
-                      <option>Discover</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="pm-last4">Last 4 digits</label>
-                    <input id="pm-last4" inputMode="numeric" maxLength={4} value={last4}
-                      onChange={(e) => setLast4(e.target.value.replace(/\D/g, ""))} />
-                  </div>
-                  <div className="row">
-                    <div className="field grow">
-                      <label htmlFor="pm-month">Exp. month</label>
-                      <input id="pm-month" inputMode="numeric" placeholder="MM" maxLength={2} value={expMonth}
-                        onChange={(e) => setExpMonth(e.target.value.replace(/\D/g, ""))} />
-                    </div>
-                    <div className="field grow">
-                      <label htmlFor="pm-year">Exp. year</label>
-                      <input id="pm-year" inputMode="numeric" placeholder="YYYY" maxLength={4} value={expYear}
-                        onChange={(e) => setExpYear(e.target.value.replace(/\D/g, ""))} />
-                    </div>
-                  </div>
-                  <div className="row">
-                    <button className="btn grow" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-                    <button className="btn btn-primary grow"
-                      disabled={busy || last4.length !== 4 || !expMonth || !expYear} onClick={attachTypedCard}>
-                      Save card
-                    </button>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {active.wiring === "payment-request" && (
-            <>
-              <button className="btn btn-block btn-primary" disabled={busy || Boolean(blocked)}
-                onClick={() => attachWallet(active.brand!)}>
-                Pay with {active.label}
-              </button>
-              <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-            </>
-          )}
-
-          {active.wiring === "paypal-button" && !blocked && (
-            <>
-              <PayPalButton
-                key={tab}
-                onToken={(token) => {
-                  setBusy(true); setError(null);
-                  save({ processor: "paypal", token })
-                    .catch((e) => setError(e instanceof Error ? e.message : "Could not save that account"))
-                    .finally(() => setBusy(false));
-                }}
-                onError={setError}
-              />
-              <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-            </>
-          )}
-          {active.wiring === "paypal-button" && blocked && (
-            <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-          )}
-
-          {active.wiring === "payment-element" && (
-            <>
-              {/* Stripe renders this method's own fields or redirect prompt
-                  into this node, against the SetupIntent above. */}
-              <div className="field"><div ref={elementMount} /></div>
-              {elementError && <p className="small muted">{elementError}</p>}
-              <div className="row">
-                <button className="btn grow" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-                <button className="btn btn-primary grow"
-                  disabled={busy || Boolean(blocked) || Boolean(elementError)}
-                  onClick={attachViaPaymentElement}>
-                  Save {active.label}
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* The button stays, disabled, rather than disappearing: the
-              blocked reason above names what is missing, and an option that
-              vanishes reads as one that doesn't exist. */}
-          {active.wiring === "sdk-pending" && (
-            <>
-              <button className="btn btn-block btn-primary" disabled aria-disabled="true">
-                Continue with {active.label}
-              </button>
-              <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
-            </>
-          )}
+          <PayPalButton
+            onToken={(token) => {
+              setBusy(true); setError(null);
+              save(token)
+                .catch((e) => setError(e instanceof Error ? e.message : "Could not save that account"))
+                .finally(() => setBusy(false));
+            }}
+            onError={setError}
+          />
+          <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
         </>
       )}
 

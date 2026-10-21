@@ -95,9 +95,6 @@ importers:
       '@safehubby/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@stripe/stripe-js':
-        specifier: ^9.16.0
-        version: 9.16.0
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -797,10 +794,6 @@ packages:
 
   '@scure/bip39@2.0.1':
     resolution: {integrity: sha512-PsxdFj/d2AcJcZDX1FXN3dDgitDDTmwf78rKZq1a6c1P1Nan1X/Sxc7667zU3U+AN60g7SxxP0YCVw2H/hBycg==}
-
-  '@stripe/stripe-js@9.16.0':
-    resolution: {integrity: sha512-PNZmy9hbuiuiyjAsigMlQChzJqrNEzQUtYIL/z5w0dsx27Ha69SBTYa2o8/M0Hbfiz9V2qctqX2DBd5sa57qoA==}
-    engines: {node: '>=12.16'}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -2165,8 +2158,6 @@ snapshots:
     dependencies:
       '@noble/hashes': 2.0.1
       '@scure/base': 2.0.0
-
-  '@stripe/stripe-js@9.16.0': {}
 
   '@types/babel__core@7.20.5':
     dependencies:

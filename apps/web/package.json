@@ -22,7 +22,6 @@
     "@capacitor/push-notifications": "^8.1.2",
     "@openreceive/react": "0.4.31",
     "@safehubby/core": "workspace:*",
-    "@stripe/stripe-js": "^9.16.0",
     "leaflet": "^1.9.4",
     "lithic-embed": "0.1.0-beta.0",
     "react": "^18.3.1",

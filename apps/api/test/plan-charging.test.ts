@@ -21,8 +21,7 @@ function storeWith(opts: { card?: boolean } = { card: true }): StoreLike {
     },
   }).subscription;
   if (opts.card) {
-    db.paymentMethods.t1 = { id: "pm_local", processor: "stripe", processorToken: "pm_1", brand: "visa", last4: "4242", addedAt: now.toISOString() };
-    db.stripeCustomers.t1 = "cus_1";
+    db.paymentMethods.t1 = { id: "pm_local", processor: "paypal", processorToken: "VAULT_1", brand: "PayPal", last4: "", accountLabel: "t***@example.com", addedAt: now.toISOString() };
   }
   return { data: db, update: (fn) => fn(db), reset: () => {}, save: () => {} };
 }
@@ -34,10 +33,10 @@ function renewForCard(store: StoreLike, at: Date): string[] {
   return ids;
 }
 
-const approves: CardCharger = vi.fn(async () => ({ id: "pi_ok" }));
+const approves: CardCharger = vi.fn(async () => ({ id: "CAP_OK" }));
 const declines: CardCharger = async () => { throw new Error("Your card was declined."); };
 
-describe("taking plan charges from the card", () => {
+describe("taking plan charges from the PayPal account", () => {
   it("leaves the renewal pending until the card is actually charged", () => {
     const store = storeWith();
     const ids = renewForCard(store, days(20));
@@ -45,18 +44,18 @@ describe("taking plan charges from the card", () => {
     expect(store.data.charges[0]).toMatchObject({ status: "pending", amountCents: findPlan("premium-plus").monthlyCents });
   });
 
-  it("charges the saved card once, for the exact amount, keyed so a re-run never bills twice", async () => {
+  it("charges the saved account once, for the exact amount, keyed so a re-run never bills twice", async () => {
     const store = storeWith();
     const ids = renewForCard(store, days(20));
-    const charger = vi.fn<CardCharger>(async () => ({ id: "pi_ok" }));
+    const charger = vi.fn<CardCharger>(async () => ({ id: "CAP_OK" }));
     await collectSubscriptionCharges(store, days(20), ids, charger);
     await collectSubscriptionCharges(store, days(20), ids, charger);
 
     expect(charger).toHaveBeenCalledTimes(1);
     expect(charger.mock.calls[0]![0]).toMatchObject({
-      customerId: "cus_1", paymentMethodId: "pm_1", amountCents: findPlan("premium-plus").monthlyCents, idempotencyKey: ids[0],
+      processor: "paypal", paymentMethodId: "VAULT_1", amountCents: findPlan("premium-plus").monthlyCents, idempotencyKey: ids[0],
     });
-    expect(store.data.charges[0]).toMatchObject({ status: "settled", reference: "pi_ok" });
+    expect(store.data.charges[0]).toMatchObject({ status: "settled", reference: "CAP_OK" });
     expect(store.data.subscriptions.t1!.status).toBe("active");
   });
 
@@ -69,10 +68,10 @@ describe("taking plan charges from the card", () => {
     expect(store.data.travelers.find((t) => t.id === "t1")!.planId).toBe("premium-plus");
   });
 
-  it("says plainly when there is no card to charge", async () => {
+  it("says plainly when there is no PayPal account to charge", async () => {
     const store = storeWith({ card: false });
     await collectSubscriptionCharges(store, days(20), renewForCard(store, days(20)), approves);
-    expect(store.data.charges[0]!.failureReason).toMatch(/no card on file/i);
+    expect(store.data.charges[0]!.failureReason).toMatch(/no PayPal account on file/i);
     expect(store.data.subscriptions.t1!.status).toBe("past-due");
   });
 

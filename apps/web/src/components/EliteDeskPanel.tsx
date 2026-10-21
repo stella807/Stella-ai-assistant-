@@ -27,7 +27,7 @@ export function EliteDeskPanel() {
   const [spendingCard, setSpendingCard] = useState<Awaited<ReturnType<typeof api.eliteSpendingCard>> | null>(null);
   const [spendingBusy, setSpendingBusy] = useState(false);
   const [showCard, setShowCard] = useState(false);
-  const getKey = useCallback((nonce?: string) => api.eliteSpendingCardKey(nonce), []);
+  const getKey = useCallback(() => api.eliteSpendingCardKey(), []);
   const [selected, setSelected] = useState<EliteServiceId | null>(null);
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
@@ -129,7 +129,7 @@ export function EliteDeskPanel() {
           ) : (
             <p className="tiny muted" style={{ margin: 0 }}>
               Card issuing isn't set up on this server yet, so there is nothing to activate — the allowance is
-              real and disclosed, just not live without Stripe Issuing configured. See adapters/cards.ts.
+              real and disclosed, just not live without Lithic configured. See adapters/cards.ts.
             </p>
           )}
         </section>

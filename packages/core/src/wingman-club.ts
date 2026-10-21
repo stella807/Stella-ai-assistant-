@@ -97,10 +97,15 @@ export const CLUB_PERKS = [
 /**
  * The flat part of the due: the desk work behind running the club at all —
  * arranging each booking, the venue relationships, the reveal and the
- * roster — independent of which experience the month lands on. This is the
- * only part of the due that does not move with the pick.
+ * roster — and, since the last revision, a share of what the events cost
+ * beyond the venue's own price. Independent of which experience the month
+ * lands on, and the only part of the due that does not move with the pick.
+ *
+ * Raised from $29 to $39 so the membership helps pay for the events rather
+ * than only for the desk behind them. It is the one number to change to
+ * make the club cost more or less.
  */
-export const CLUB_BASE_DUES_CENTS = 2900;
+export const CLUB_BASE_DUES_CENTS = 3900;
 
 /**
  * Fixed monthly overhead the base due exists to cover. Stated as a flat
@@ -210,6 +215,7 @@ export const CLUB_DISCLOSURES = [
   "The month's experience is revealed, not chosen by any one member — everyone on the roster gets the same pick.",
   "A reveal is not a booking. Safehubby confirms dates and capacity with the venue afterward, and multiple dates may be offered so one facility does not need the whole roster at once.",
   "Attendance is optional. Skipping a month is not a credit toward a future one — dues fund the month's pick for whoever comes, not a personal balance.",
+  "The flat monthly fee runs the club and helps cover the cost of the events. The venue's price for the month's outing is added on top, at exactly what the venue charges.",
   "Dues track the pick, not a rotation average — a pricier month costs more, a simple one costs less, and that due is the same for every member whether or not they attend.",
   "Venues only give a group rate to a group. Until the club has 10 members, dues are built on the venue's regular price, so the first events are covered; once it reaches 10 they drop to the group rate.",
   "The cigar and drink of your choice at the event are included in the due above — never a separate charge at the venue.",

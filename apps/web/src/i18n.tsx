@@ -241,7 +241,7 @@ const EN = {
 
   "footer.paymentsAccepted": "Payments accepted",
   "footer.paymentsVarious": "Various payment methods accepted",
-  "footer.paymentsSecured": "Card details are handled by Stripe; PayPal payments by PayPal. Safehubby never sees or stores a full card number.",
+  "footer.paymentsSecured": "Payments are handled by PayPal. Safehubby never sees or stores your PayPal login or a full card number.",
 
   "billing.heading": "Payments",
   "billing.subtitle": "Your plan, your rides, your deliveries — one account, one card, one total.",
@@ -519,7 +519,7 @@ const ES: Record<TranslationKey, string> = {
 
   "footer.paymentsAccepted": "Formas de pago aceptadas",
   "footer.paymentsVarious": "Aceptamos varias formas de pago",
-  "footer.paymentsSecured": "Los datos de la tarjeta los procesa Stripe; los pagos de PayPal, PayPal. Safehubby nunca ve ni almacena un número de tarjeta completo.",
+  "footer.paymentsSecured": "Los pagos los procesa PayPal. Safehubby nunca ve ni almacena tu acceso a PayPal ni un número de tarjeta completo.",
 
   "billing.heading": "Pagos",
   "billing.subtitle": "Tu plan, tus viajes, tus entregas — una cuenta, una tarjeta, un total.",

@@ -2,11 +2,8 @@ import type { CardIssuingPort, IssuedCard, ProviderStatus } from "@safehubby/cor
 import { statusFor } from "@safehubby/core";
 
 /**
- * Task cards through Lithic (lithic.com), the alternative to Stripe Issuing.
- * Chosen with `CARD_ISSUER=lithic`; see cards.ts.
- *
- * Same shape as the Stripe adapter: one virtual card per task, capped at the
- * task's spend limit for the life of the card, closed when the task ends.
+ * Task cards through Lithic (lithic.com): one virtual card per task, capped at
+ * the task's spend limit for the life of the card, closed when the task ends.
  * The number is never fetched here — Lithic's embedded card shows it to the
  * assistant straight from Lithic, using a short-lived session this server
  * asks for (`lithicEmbedSession`).

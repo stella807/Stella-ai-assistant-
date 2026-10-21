@@ -46,8 +46,8 @@ const THEME = {
     ["The customer’s app", "Ask an assistant", "One grid of nine choices, one “What do you need?” box, one Send it. No prices on screen — the cost is emailed. Each request has its own page with a Send box, the map, and who is with her.", "08-ask-an-assistant.png", "09-request-live.png"],
     ["The customer’s app", "Rides, on the map", "Drop a pin and someone books the ride for you. The moment a driver is assigned, a map pops up with who is coming and buttons to call or text.", "10-rides.png", "11-ride-map-popup.png"],
     ["The customer’s app", "How it works", "Four steps: tell us what you need, choose your assistant, follow it from your phone, pay only for what was used. Then what each plan includes and costs.", "12-how-it-works.png", "13-how-pricing.png"],
-    ["The customer’s app", "Payments and plans", "Your plan, an ATH Móvil balance, your card or PayPal. Premium ($89.99), Premium Plus ($99.99) and Family ($539.94) a month, side by side.", "14-payments.png", "15-plans.png"],
-    ["The customer’s app", "Elite, and watching over someone", "Elite memberships from $1,500 a month: jets, villas, yachts and a 24/7 desk. Watch lets family follow a night out with check-ins and SOS, always free.", "16-elite.png", "19-watch.png"],
+    ["The customer’s app", "Payments and plans", "Your plan, paid with PayPal, and a balance you can top up with crypto. Premium ($93.99), Premium Plus ($104.99) and Family ($563.94) a month, side by side.", "14-payments.png", "15-plans.png"],
+    ["The customer’s app", "Elite, and watching over someone", "Elite memberships from $1,555 a month: jets, villas, yachts and a 24/7 desk. Watch lets family follow a night out with check-ins and SOS, always free.", "16-elite.png", "19-watch.png"],
     ["The customer’s app", "Your account, your alerts", "Your plan at a glance, and alerts by text, by email, or both. Each says only “open the app” — never a place or an amount.", "17-account.png", "18-alerts.png"],
     ["En español", "Hola, Maria.", "One tap on ES and the home screen and Get help speak Spanish: “Habla con tu asistente”, “Pide un viaje”, and every choice — Acompañar a alguien, Sacar una cita, Trámites.", "es-home.png", "es-help.png"],
     ["The Wingman Club", "By invitation only", "Your club assistant signs in with their own key, sees how the business is doing, and invites customers. Only then does the club appear on their home screen.", "21-club-assistant-desk.png", "22-home-club-invited.png", "The Wingman Club"],
@@ -87,8 +87,8 @@ const THEME = {
   s.addText("BEHIND THE SCENES", { x: 0.7, y: 0.8, w: 8, h: 0.4, fontSize: 13, bold: true, charSpacing: 4, color: C.accent2, margin: 0, isTextBox: true });
   s.addText("How the money moves", { x: 0.7, y: 1.25, w: 12, h: 0.9, fontSize: 40, bold: true, fontFace: "Cambria", color: C.background1, margin: 0, isTextBox: true });
   const cards = [
-    ["The customer pays", "Their saved card is held through Stripe when they ask, charged only what was spent when it’s done, and emailed both amounts."],
-    ["The assistant spends", "A one-task Stripe card capped at the limit. Stripe shows the number in their portal; they can add it to Apple Wallet."],
+    ["The customer pays", "Their saved PayPal account is held when they ask, charged only what was spent when it’s done, and emailed both amounts. ATH Móvil and crypto load a prepaid balance."],
+    ["The assistant spends", "A one-task Lithic card capped at the limit. Lithic shows the number in their portal; they can add it to Apple Wallet."],
     ["The assistant is paid", "Every 14 days, worked out for you, with 10% held back for Hacienda in Puerto Rico. You send it from the bank or ATH Business."],
   ];
   cards.forEach(([h, t], i) => {
@@ -97,7 +97,7 @@ const THEME = {
     s.addText(h, { x: x + 0.35, y: 2.95, w: 3.1, h: 0.6, fontSize: 24, bold: true, fontFace: "Cambria", color: C.accent5, margin: 0, isTextBox: true });
     s.addText(t, { x: x + 0.35, y: 3.65, w: 3.1, h: 2.3, fontSize: 16, color: C.background2, valign: "top", margin: 0, isTextBox: true });
   });
-  s.addNotes("Needs Stripe keys and Stripe Issuing approval before real money moves. PayPal and plan subscriptions are not charged yet.");
+  s.addNotes("Needs PayPal keys and an approved Lithic card program before real money moves.");
 
   // Closing
   s = pres.addSlide({ masterName: "Feature", sectionTitle: "Behind the scenes" });

@@ -114,19 +114,20 @@ payment method on file, and every ride, secure-transport trip and pharmacy
 run, adding up to one total for the last 30 days. Plans start on a 14-day
 trial with nothing taken, changes mid-period are prorated rather than
 charged twice, and cancelling keeps the plan on until the period already
-paid for runs out. Card, Apple Pay, Google Pay, and PayPal are all offered
-as options for the one method on the account — see below for what's real
-and what's a labeled placeholder.
+paid for runs out. A PayPal account is the one method on file; ATH Móvil and
+crypto load a prepaid balance — see below for what's real and what's a
+labeled placeholder.
 
 The one thing that cannot be single is the *settlement*: Apple and Google
 require a subscription bought inside their app to go through their billing, and
 forbid a delivery or a ride from going through it. So a line's rail is picked
 per charge, the screen says so when an account has actually used both, and
 everything else — the statement, the history, the total — is one account.
-Stripe and PayPal verify a payment method's real brand/last4/expiry once
-configured (Apple Pay and Google Pay ride on Stripe as wallets, not separate
-processors), but no receipt verification or real hold-capture call is wired
-in yet; `docs/billing.md` says exactly what is and is not connected.
+PayPal verifies a saved account once configured and then takes the money:
+it reserves for a task, captures only what was spent, and charges plans
+(ATH Móvil and crypto load a prepaid balance instead). No store receipt
+verification is wired in yet; `docs/billing.md` says exactly what is and is
+not connected.
 
 **Drive for Safehubby.** A public application form, reachable before signing
 in, for people who want to drive directly for Safehubby rather than through
@@ -141,7 +142,7 @@ spend cap you set that is never exceeded. Deliberately a booking layer on an
 already-vetted partner, the same shape as secure transport, rather than an
 in-house hiring marketplace: Safehubby vets and employs nobody here. The
 assistant pays with a single-use, spend-capped virtual card issued through
-Stripe Issuing — never the subscriber's own card, and never a same-night
+Lithic — never the subscriber's own card, and never a same-night
 bank debit, which is too slow to fund one. On every paid tier, not just
 Family — Premium included — and every paid tier's price reflects that: not for
 a salary, but for the same category of standing cost that funds secure
@@ -177,8 +178,8 @@ voice, take their own selfie and an optional completion photo of what they
 delivered, and mark a task done or decline it. Assistants are paid biweekly
 — an hourly sweep totals up what each one earned in the most recently closed
 14-day period and sends it to the bank account they entered for themselves,
-through the same Stripe Issuing account that issues task cards; paying a
-contractor on a schedule like this is the same thing Uber and DoorDash do,
+as a manual transfer the owner sends from the business bank account or
+ATH Business; paying a contractor on a schedule like this is the same thing Uber and DoorDash do,
 and doesn't make Safehubby anyone's employer. If a customer disputes a
 completed task — never delivered, or the money was kept — they get a full,
 immediate refund, and the same amount becomes a debt against that assistant's

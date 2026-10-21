@@ -141,10 +141,10 @@ them are not code:
    so this needs a Capacitor plugin bridging
    `PKAddPaymentPassViewController` into the web layer. That is the one piece
    that is purely work rather than permission.
-3. **Provisioning data from the issuer.** Stripe Issuing would have to expose the
+3. **Provisioning data from the issuer.** Lithic would have to expose the
    encrypted payload Apple requires (`encryptedPassData`, `activationData`,
    `ephemeralPublicKey`, `wrappedKey`) for a card issued through its Business
-   API. **Whether Stripe Issuing supports push provisioning for expense-management
+   API. **Whether Lithic supports push provisioning for single-use
    virtual cards is unconfirmed** — check before planning around it, because
    if the answer is no, the entitlement and the plugin buy nothing.
 4. **Apple Pay eligibility for the card program itself**, which is part of the

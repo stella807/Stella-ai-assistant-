@@ -22,7 +22,6 @@ export const SEED: Db = {
   pendingOrders: {},
   partyCarts: {},
   paymentMethods: {},
-  stripeCustomers: {},
   launchStepsMarkedAt: {},
   charges: [],
   subscriptions: {},
@@ -43,5 +42,5 @@ export const SEED: Db = {
   deskTasks: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
   priceOverrides: [],
-  balanceEntries: [], pendingBalanceLoads: [], textContacts: {},
+  balanceEntries: [], textContacts: {},
 };
