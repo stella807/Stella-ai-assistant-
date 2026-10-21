@@ -101,6 +101,9 @@ importers:
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
+      lithic-embed:
+        specifier: 0.1.0-beta.0
+        version: 0.1.0-beta.0
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -1133,6 +1136,9 @@ packages:
   leaflet@1.9.4:
     resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==}
 
+  lithic-embed@0.1.0-beta.0:
+    resolution: {integrity: sha512-uWnN+6/2XJFtXkVRMTd0cIUlLRi4339mXuifhnoBgfbSKvkYN9Ly+cV76AyQjTJiWbU0RrUoHHc/i1vwdWWQLA==}
+
   locate-path@5.0.0:
     resolution: {integrity: sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==}
     engines: {node: '>=8'}
@@ -1433,6 +1439,9 @@ packages:
   strip-ansi@6.0.1:
     resolution: {integrity: sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==}
     engines: {node: '>=8'}
+
+  style-observer@0.1.2:
+    resolution: {integrity: sha512-VdGkVx7dGqEzosau63CI33vRJsAGKPJCXyS9f5ze7gFbgsXm0wt5liXUNB9+YjyfhMyD+iTwNa7sM4cvpP3N9Q==}
 
   tar@7.5.22:
     resolution: {integrity: sha512-MFO/QzvtAOmJbkhOaCTvbGcFN9L9b+JunIsDwaKljSOdcLMea3NJ1k9Usz/rjdfSXTq4dfzfeS7W4p4YOAAHeA==}
@@ -2486,6 +2495,11 @@ snapshots:
 
   leaflet@1.9.4: {}
 
+  lithic-embed@0.1.0-beta.0:
+    dependencies:
+      csstype: 3.2.3
+      style-observer: 0.1.2
+
   locate-path@5.0.0:
     dependencies:
       p-locate: 4.1.0
@@ -2801,6 +2815,8 @@ snapshots:
   strip-ansi@6.0.1:
     dependencies:
       ansi-regex: 5.0.1
+
+  style-observer@0.1.2: {}
 
   tar@7.5.22:
     dependencies:

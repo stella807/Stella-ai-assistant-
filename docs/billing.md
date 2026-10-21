@@ -336,6 +336,26 @@ card, `/api/balance/*`):
 - Not yet covered: plan subscriptions and rides from the balance; recurring
   renewals (each would need the customer to approve again).
 
+### Task cards: Stripe Issuing or Lithic
+
+Each task gets its own virtual card capped at the task's spend limit and
+closed when the task ends. Two issuers do this, chosen by one setting:
+
+- **Stripe Issuing** (default): `STRIPE_SECRET_KEY` and
+  `STRIPE_ISSUING_CARDHOLDER`. The card shows in the assistant's portal through
+  Stripe's Issuing Elements.
+- **Lithic** (`CARD_ISSUER=lithic`): `LITHIC_API_KEY`, and `LITHIC_ENV=production`
+  once live (the sandbox otherwise). Cards are `VIRTUAL` with a `FOREVER`
+  spend limit equal to the task's cap, and `CLOSED` when the task ends. The
+  card shows through Lithic's embedded card (`lithic-embed`, pinned at
+  0.1.0-beta.0), which needs `SAFEHUBBY_PUBLIC_URL` to be the app's https
+  address. Masked until the assistant taps Show.
+
+Either way the card number goes from the issuer to the assistant's browser
+and never through Safehubby. Switching issuers only affects cards issued
+after the switch; a card already issued keeps working with the issuer that
+made it, so switch between tasks, not during them.
+
 ### Crypto loads the prepaid balance (OpenReceive)
 
 Customers can add to the same balance in crypto. It goes through
