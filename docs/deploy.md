@@ -48,6 +48,9 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_TOKEN`, `EMAIL_FROM` | to send email | Sends through Cloudflare Email Service: cost emails, email alerts, and applicant updates (received, reviewed, hired). See "Email through Cloudflare" below. `EMAIL_API_URL` + `EMAIL_API_KEY` is the alternative for any other sender. |
 | `OWNER_ALERT_EMAIL` | optional | Your address, emailed when a job application comes in (needs the email provider settings above). |
 | `STRIPE_ISSUING_CARDHOLDER` | for task cards | The company cardholder id (`ich_…`) from Stripe Issuing; task cards are issued under it. |
+| `CARD_ISSUER` | optional | `lithic` issues task cards through Lithic instead of Stripe Issuing. Anything else, or unset, is Stripe. |
+| `LITHIC_API_KEY` | with `CARD_ISSUER=lithic` | Your Lithic API key. Uses Lithic's **sandbox** (no real money) unless `LITHIC_ENV=production`. |
+| `LITHIC_ENV` | with Lithic | `production` once your Lithic card program is live. |
 | `NWC_URI` | for crypto | A **receive-only** NWC code from your Bitcoin wallet. Turns on crypto balance loads through OpenReceive — see `docs/billing.md`. The server refuses a code that can also send money. |
 | `LSC_URI_PRIMARY`, `LSC_URI_BACKUP` | optional, for crypto | A swap provider, so customers can pay in USDT, USDC, SOL or ETH and you still receive Bitcoin. |
 | `PORT` | no | Railway injects it. |

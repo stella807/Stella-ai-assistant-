@@ -1,5 +1,6 @@
 import type { CardIssuingPort, IssuedCard, ProviderStatus } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
+import { lithicEmbedSession, lithicEnvironment, lithicTaskCards } from "./lithic-cards.ts";
 
 /**
  * Single-use, spend-capped virtual cards for tasks, issued with Stripe
@@ -39,7 +40,7 @@ async function stripeForm(path: string, fields: Record<string, string | number>)
 
 let statusOverride: ProviderStatus | undefined;
 
-export const taskCards: CardIssuingPort = {
+export const stripeTaskCards: CardIssuingPort = {
   // A getter so the key can be set without a restart; the setter lets tests stand a status in.
   get status() {
     return statusOverride ?? statusFor(
@@ -108,4 +109,51 @@ export async function cardViewKey(cardId: string, nonce: string): Promise<string
   const key = (await res.json()) as { secret?: string };
   if (!key.secret) throw new Error("Stripe returned no key for this card.");
   return key.secret;
+}
+
+/* ---------------------------------------------------------------------------
+   Which issuer: Stripe (default) or Lithic
+   ------------------------------------------------------------------------ */
+
+/** `CARD_ISSUER=lithic` switches task cards to Lithic; anything else is Stripe. */
+export const cardIssuer = (): "stripe" | "lithic" => (process.env.CARD_ISSUER === "lithic" ? "lithic" : "stripe");
+const active = () => (cardIssuer() === "lithic" ? lithicTaskCards : stripeTaskCards);
+
+/** The task-card issuer in use, read on every call so the setting takes effect without a code change. */
+export const taskCards: CardIssuingPort = {
+  get status() { return active().status; },
+  set status(value) { (active() as { status: ProviderStatus }).status = value; },
+  issueCard: (input) => active().issueCard(input),
+  revealCard: (id) => active().revealCard(id),
+  cancelCard: (id) => active().cancelCard(id),
+};
+
+/** What the browser needs to show one card, from whichever issuer made it. */
+export type CardView =
+  | { provider: "stripe"; ephemeralKeySecret: string }
+  | { provider: "lithic"; embedSession: string; environment: "sandbox" | "production" };
+
+/**
+ * Stripe needs a nonce from Stripe.js in the page first, so its first call
+ * returns null and the browser asks again with the nonce. Lithic needs only
+ * the page's origin, which is the app's public address.
+ */
+export async function cardViewFor(cardId: string, nonce: string): Promise<CardView | null> {
+  if (cardIssuer() === "lithic") {
+    const origin = publicOrigin();
+    if (!origin) throw new Error("Set SAFEHUBBY_PUBLIC_URL to the app's https address so Lithic can show the card there.");
+    return { provider: "lithic", embedSession: await lithicEmbedSession(cardId, origin), environment: lithicEnvironment() };
+  }
+  if (!nonce) return null;
+  return { provider: "stripe", ephemeralKeySecret: await cardViewKey(cardId, nonce) };
+}
+
+/** The app's https origin, for Lithic's embed (which refuses anything else). */
+function publicOrigin(): string | null {
+  try {
+    const url = new URL(process.env.SAFEHUBBY_PUBLIC_URL ?? "");
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
 }

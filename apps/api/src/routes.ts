@@ -91,7 +91,7 @@ import {
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { flightTracking } from "./adapters/flight-tracking.ts";
-import { cardViewKey, taskCards } from "./adapters/cards.ts";
+import { cardViewFor, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
 import {
   captureOnCard, cardChargingReady, chargeOnCard, createSetupIntent, ensureStripeCustomer, holdOnCard, releaseOnCard,
@@ -847,9 +847,9 @@ async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: stri
 }
 
 /** Stripe's key for showing one card in the browser, with its refusal said plainly. */
-async function cardViewKeyOrFail(cardId: string, nonce: string): Promise<string> {
-  try { return await cardViewKey(cardId, nonce); }
-  catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "Stripe would not open this card."); }
+async function cardViewOrFail(cardId: string, nonce: string) {
+  try { return await cardViewFor(cardId, nonce); }
+  catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "The card issuer would not open this card."); }
 }
 
 /** Takes what was spent, or lets the whole hold go. Never fails the request
@@ -4370,13 +4370,12 @@ export const routes: Record<string, Handler> = {
     }
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
 
-    // Two steps: the card's id first, so Stripe.js can make a nonce for it,
-    // then a short-lived key for that nonce. The number itself goes from
-    // Stripe to the assistant's browser, never through here.
-    const nonce = String(body?.nonce ?? "");
-    if (!nonce) return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents };
-    const ephemeralKeySecret = await cardViewKeyOrFail(task.card.id, nonce);
-    return { cardId: task.card.id, ephemeralKeySecret, card: task.card, spendCapCents: task.spendCapCents };
+    // With Stripe, two steps: the card's id first, so Stripe.js can make a
+    // nonce for it, then a short-lived key for that nonce. Lithic needs one.
+    // Either way the number goes from the issuer to the assistant's browser,
+    // never through here.
+    const view = await cardViewOrFail(task.card.id, String(body?.nonce ?? ""));
+    return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents, ...(view ? { view } : {}) };
   },
 
   /**
@@ -5324,9 +5323,8 @@ export const routes: Record<string, Handler> = {
     const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
     if (!card) throw notFound("Spending card");
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
-    const nonce = String(body?.nonce ?? "");
-    if (!nonce) return { cardId: card.cardId, card };
-    return { cardId: card.cardId, ephemeralKeySecret: await cardViewKeyOrFail(card.cardId, nonce), card };
+    const view = await cardViewOrFail(card.cardId, String(body?.nonce ?? ""));
+    return { cardId: card.cardId, card, ...(view ? { view } : {}) };
   },
 
   /**
