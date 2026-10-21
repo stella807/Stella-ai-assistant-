@@ -6,6 +6,7 @@ import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/
 import { downloadBase64 } from "../files.ts";
 import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
+import { TeamActivitySection } from "./TeamActivitySection.tsx";
 
 /**
  * The master (owner/secretary) dashboard — a third area of the app, reached
@@ -305,6 +306,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.scopes.includes("club") && <ClubDeskSection />}
 
       {overview.customers && <CustomersSection customers={overview.customers} />}
+      {overview.operations && <TeamActivitySection team={overview.operations.team} />}
       {overview.operations && (
         <OperationsSection operations={overview.operations}
           canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />

@@ -4065,6 +4065,21 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(idsAfter).not.toContain(json.id);
   });
 
+  it("lists a newly hired assistant on the team, available until given a job", async () => {
+    const { json } = await apply({ email: "teamtrack@example.com" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    const hired = await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas", maxConcurrentCustomers: 2 });
+    const created = await callAdmin("POST", "/api/admin/master-accounts",
+      { name: "Team Watch", email: "teamwatch@example.com", role: "owner" });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    const overview = await call("GET", "/api/master/overview", undefined, null, { Cookie: `sh_master_session=${token}` });
+    const member = overview.json.operations.team.members.find((m: { id: string }) => m.id === hired.json.assistant?.id
+      || m.id === hired.json.id);
+    expect(member).toMatchObject({ status: "available", current: [] });
+  });
+
   it("lets a secretary see the queue but never act on it", async () => {
     // The master dashboard hides the review and hire buttons without the
     // `write` scope, which a secretary does not hold. That is a convenience,

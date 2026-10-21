@@ -61,7 +61,7 @@ import {
   applyAdjustments, outstandingClawbackCents,
   isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, REFERENCE_MARKET,
   type LaunchMarketId,
-  hireFromApplication, isOnRoster, rosterFor, standDown,
+  hireFromApplication, isOnRoster, rosterFor, standDown, teamActivity,
   canAccess, isActive as isMasterAccountActive, recordAccess, revoke as revokeMasterAccess, scopesFor,
   type MasterAccount, type MasterAuditEntry, type MasterScope,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
@@ -3641,6 +3641,16 @@ export const routes: Record<string, Handler> = {
         approvedDrivers: ctx.store.data.driverApplications
           .filter((a) => a.status === "approved")
           .map((a) => ({ id: a.id, fullName: a.fullName, phone: a.phone, tier: a.tier })),
+        // What each assistant, errand runner and driver is doing, read off
+        // the tasks and pickups themselves — see team-activity.ts.
+        team: teamActivity({
+          assistants: ctx.store.data.assistants,
+          tasks: ctx.store.data.conciergeTasks,
+          drivers: ctx.store.data.driverApplications
+            .filter((a) => a.status === "approved").map((a) => ({ id: a.id, name: a.fullName })),
+          pickups: ctx.store.data.pickupRequests,
+          now,
+        }),
       };
       record("operations", "operations overview");
     }
