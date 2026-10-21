@@ -45,6 +45,7 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `SAFEHUBBY_PUBLIC_URL` | recommended | Your app's address, e.g. `https://app.yourdomain.com`. Used to build invite links; without it they point at a placeholder. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | for text alerts | See `docs/text-alerts.md`. Without them nothing is texted. |
 | `OWNER_ALERT_PHONE` | optional | Your number, texted when a job application comes in. |
+| `BREVO_API_KEY`, `EMAIL_FROM` | to send email (free) | Sends through Brevo: cost emails, email alerts and applicant updates. Free for 300 emails a day. `EMAIL_FROM` is an address on your authenticated domain, e.g. `hello@safehubby.com`; `EMAIL_FROM_NAME` is the name people see (default "Safehubby"). Used first if set. See "Email through Brevo" below. |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_TOKEN`, `EMAIL_FROM` | to send email | Sends through Cloudflare Email Service: cost emails, email alerts, and applicant updates (received, reviewed, hired). See "Email through Cloudflare" below. `EMAIL_API_URL` + `EMAIL_API_KEY` is the alternative for any other sender. |
 | `OWNER_ALERT_EMAIL` | optional | Your address, emailed when a job application comes in (needs the email provider settings above). |
 | `STRIPE_ISSUING_CARDHOLDER` | for task cards | The company cardholder id (`ich_…`) from Stripe Issuing; task cards are issued under it. |
@@ -77,6 +78,29 @@ subscription saved with Apple Pay is charged each period like any card.
 
 Apple's App Store rules generally require in-app purchase for subscriptions
 bought inside an iOS app; the website is unaffected.
+
+## Email through Brevo (free)
+
+Brevo's free plan sends 300 emails a day from your own domain, and the server
+calls its API directly.
+
+1. Sign up at brevo.com (no card needed).
+2. **Settings → Senders, Domains & Dedicated IPs → Domains → Add a domain**,
+   and enter `safehubby.com`. Brevo shows the records to add: a Brevo
+   verification code (TXT), DKIM, and DMARC.
+3. Add them in **Cloudflare → DNS**. If the DKIM record is a CNAME, set its
+   proxy to **DNS only** (grey cloud) and keep CNAME flattening off, or the
+   check fails. Verification can take up to 48 hours; the domain shows green
+   ticks when it is done.
+4. **Settings → SMTP & API → API Keys → Generate a new API key.**
+5. On Railway set `BREVO_API_KEY` to the key and `EMAIL_FROM` to an address on
+   the domain, e.g. `hello@safehubby.com`, then deploy.
+
+If more than 300 go out in a day, Brevo refuses the rest; the reason is
+written to the server log and the rest go the next day.
+
+Which sender is used: Brevo if `BREVO_API_KEY` is set, otherwise Cloudflare,
+otherwise a generic relay (`EMAIL_API_URL`). Without any, nothing is emailed.
 
 ## Email through Cloudflare
 
