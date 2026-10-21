@@ -591,7 +591,7 @@ function TaskCardPopup({ task, onClose, onChanged }: {
   };
 
   const [showCard, setShowCard] = useState(false);
-  const getKey = useCallback((nonce?: string) => api.assistantCardKey(task.id, nonce), [task.id]);
+  const getKey = useCallback(() => api.assistantCardKey(task.id), [task.id]);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Task card">

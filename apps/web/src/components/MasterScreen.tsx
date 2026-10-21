@@ -606,9 +606,9 @@ function OperationsSection({ operations, canWrite, onChanged }: {
 
 /**
  * The route from here to a business that pays for itself, as the dashboard
- * reads it. Most rows are observed — Stripe, the roster, paying clients — so
+ * reads it. Most rows are observed — payments, the roster, paying clients — so
  * they have no button and cannot be ticked; the ones the app genuinely
- * cannot see (a broker's quote, an application to Stripe, the App Store) are
+ * cannot see (a broker's quote, an application to Apple, the App Store) are
  * the only ones with a "Mark done". See launch-plan.ts for why that split is
  * enforced on the server too rather than just being a UI habit.
  */

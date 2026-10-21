@@ -127,20 +127,18 @@ export interface Account {
   homeLabel: string;
 }
 
-export type PaymentProcessor = "stripe" | "paypal" | "ath-movil";
-export type PayBrand =
-  | "apple-pay" | "google-pay" | "link"
-  | "klarna" | "cashapp" | "amazon-pay"
-  | "venmo";
+export type PaymentProcessor = "paypal" | "ath-movil";
 
 export interface TextAlertsState { enabled: boolean; phoneLast4?: string; language?: "en" | "es"; providerReady: boolean }
 
 export interface EmailAlertsState { enabled: boolean; emailHint?: string; language?: "en" | "es"; providerReady: boolean }
 
 /** What the server sends to show one task card — see adapters/cards.ts. */
-export type CardView =
-  | { provider: "stripe"; ephemeralKeySecret: string }
-  | { provider: "lithic"; embedSession: string; environment: "sandbox" | "production" };
+export interface CardView {
+  provider: "lithic";
+  embedSession: string;
+  environment: "sandbox" | "production";
+}
 
 export interface BalanceSummary {
   loadedCents: number; refundedCents: number; heldCents: number; spentCents: number; availableCents: number;
@@ -157,7 +155,6 @@ export type BalanceInfo = BalanceSummary & {
 export interface PaymentMethod {
   id: string;
   processor: PaymentProcessor;
-  payWith?: PayBrand;
   brand: string;
   last4: string;
   /** Masked account name where there are no digits, e.g. a PayPal email. */
@@ -165,16 +162,6 @@ export interface PaymentMethod {
   /** Absent on an account-based method — see PaymentMethodOnFile in core. */
   expMonth?: number;
   expYear?: number;
-}
-
-/** A brand the payment sheet can offer, and whether the processor behind it
- *  is configured. Served rather than hardcoded so the sheet can never offer
- *  a button that would fail — see GET /api/payment/processors. */
-export interface PayBrandOption {
-  id: PayBrand;
-  label: string;
-  processor: PaymentProcessor;
-  available: boolean;
 }
 
 export interface ProcessorStatus {
@@ -186,9 +173,8 @@ export interface ProcessorStatus {
 
 export interface AttachPaymentMethodInput {
   processor: PaymentProcessor;
-  payWith?: PayBrand;
-  /** The processor's own client-tokenized id — a Stripe PaymentMethod id or a
-   *  PayPal payment-token id. Required only once the processor is
+  /** The processor's own client-tokenized id — a PayPal payment-token id.
+   *  Required only once the processor is
    *  `automatic`; the manual fields below are the handoff-mode fallback. */
   token?: string;
   brand?: string;
@@ -370,17 +356,7 @@ export const api = {
   refundBalance: (amountCents?: number) =>
     request<BalanceSummary>("POST", "/api/balance/refund", amountCents === undefined ? {} : { amountCents }),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),
-  /** A SetupIntent for the Payment Element, scoped to one brand. Only the
-   *  Stripe-settled methods that can be saved off-session accept this — see
-   *  POST /api/payment/setup-intent. */
-  paymentSetupIntent: (brand: PayBrand) =>
-    request<{ clientSecret: string }>("POST", "/api/payment/setup-intent", { brand }),
-
-  paymentProcessors: () => request<{
-    processors: ProcessorStatus[];
-    brands: PayBrandOption[];
-    cardNetworks: string[];
-  }>("GET", "/api/payment/processors"),
+  paymentProcessors: () => request<{ processors: ProcessorStatus[] }>("GET", "/api/payment/processors"),
   attachPaymentMethod: (input: AttachPaymentMethodInput) =>
     request<{ method: PaymentMethod }>("POST", "/api/account/payment-method", input),
   removePaymentMethod: () => request<{ removed: true }>("POST", "/api/account/payment-method/remove", {}),
@@ -539,8 +515,8 @@ export const api = {
   issueEliteSpendingCard: () => request<{
     card: { id: string; monthKey: string; capCents: number; last4: string; network: string; expMonth: number; expYear: number };
   }>("POST", "/api/elite/spending-card", {}),
-  eliteSpendingCardKey: (nonce?: string) =>
-    request<{ cardId: string; view?: CardView }>("POST", "/api/elite/spending-card/reveal", { nonce }),
+  eliteSpendingCardKey: () =>
+    request<{ cardId: string; view: CardView }>("POST", "/api/elite/spending-card/reveal", {}),
   eliteEvents: () => request<{
     events: {
       id: string; label: string; emoji: string; description: string; city: string; date: string;
@@ -675,8 +651,8 @@ export const api = {
       "POST", `/api/concierge/tasks/${taskId}/spend-requests/${requestId}/decision`, { approve }),
   /** A one-time link to the task card's full number, for paying with it. The
    *  number itself never comes through this API — see revealCard in core. */
-  assistantCardKey: (taskId: string, nonce?: string) =>
-    request<{ cardId: string; view?: CardView }>("POST", `/api/assistant/tasks/${taskId}/card`, { nonce }),
+  assistantCardKey: (taskId: string) =>
+    request<{ cardId: string; view: CardView }>("POST", `/api/assistant/tasks/${taskId}/card`, {}),
   assistantComplete: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
   assistantRunners: () =>

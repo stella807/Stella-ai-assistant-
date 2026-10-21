@@ -1527,8 +1527,8 @@ describe("personal concierge", () => {
   it("reports card issuing separately from dispatch — no credentials in tests, so it hands off", async () => {
     const res = (await call("GET", "/api/fulfillment/status", undefined, sam)).json;
     expect(res.cardIssuing.mode).toBe("handoff");
-    expect(res.cardIssuing.name).toBe("Stripe Issuing");
-    expect(res.cardIssuing.requires).toMatch(/Stripe Issuing/i);
+    expect(res.cardIssuing.name).toBe("Lithic");
+    expect(res.cardIssuing.requires).toMatch(/Lithic/i);
   });
 
   it("still lets a task book with no card issuer configured — issuing one is an add-on, not a precondition", async () => {
@@ -2222,7 +2222,7 @@ describe("assistant portal", () => {
       }, null, cookie);
       const res = await call("POST", `/api/assistant/tasks/${cardedTaskId}/card`, {}, null, cookie);
       expect(res.status).toBe(503);
-      expect(res.json.error).toMatch(/stripe issuing/i);
+      expect(res.json.error).toMatch(/lithic/i);
     });
 
     it("records the purchase with its photo and reports what's left of the cap", async () => {
@@ -3155,12 +3155,11 @@ describe("payment method on file", () => {
     expect(jordanCheck.json.method).toBeNull();
   });
 
-  it("defaults an unspecified method to the stripe processor", async () => {
+  it("defaults an unspecified method to the PayPal processor", async () => {
     const res = await call("POST", "/api/account/payment-method", {
       brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
-    expect(res.json.method.processor).toBe("stripe");
-    expect(res.json.method.payWith).toBeUndefined();
+    expect(res.json.method.processor).toBe("paypal");
   });
 
   it("records a paypal method with no brand", async () => {
@@ -3168,49 +3167,15 @@ describe("payment method on file", () => {
       processor: "paypal", brand: "PayPal", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
     expect(res.json.method.processor).toBe("paypal");
-    expect(res.json.method.payWith).toBeUndefined();
   });
 
-  it("records which brand was used through Stripe", async () => {
+  it("no longer knows Stripe or the wallets that rode on it", async () => {
+    // A client still asking for them gets PayPal's stand-in, not a made-up processor.
     const res = await call("POST", "/api/account/payment-method", {
       processor: "stripe", payWith: "apple-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
-    expect(res.json.method.processor).toBe("stripe");
-    expect(res.json.method.payWith).toBe("apple-pay");
-  });
-
-  it("records a Stripe-surfaced brand like Klarna as settling through Stripe", async () => {
-    // Klarna, Amazon Pay and the rest are not processors of their own — they
-    // ride on the Stripe account this app already has, so the stored method
-    // must say `stripe`. Recording them as their own backend would claim an
-    // integration that does not exist.
-    for (const payWith of ["klarna", "amazon-pay", "cashapp", "link"]) {
-      const res = await call("POST", "/api/account/payment-method", {
-        processor: "stripe", payWith, brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
-      }, sam);
-      expect(res.status, payWith).toBe(200);
-      expect(res.json.method.processor, payWith).toBe("stripe");
-      expect(res.json.method.payWith, payWith).toBe(payWith);
-    }
-  });
-
-  it("records Venmo as settling through PayPal, not Stripe", async () => {
-    const ok = await call("POST", "/api/account/payment-method", {
-      processor: "paypal", payWith: "venmo", brand: "Venmo", last4: "4242", expMonth: 12, expYear: 2030,
-    }, sam);
-    expect(ok.status).toBe(200);
-    expect(ok.json.method.processor).toBe("paypal");
-  });
-
-  it("rejects a brand claimed against the wrong processor, either direction", async () => {
-    const wrongWay = await call("POST", "/api/account/payment-method", {
-      processor: "paypal", payWith: "google-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
-    }, sam);
-    expect(wrongWay.status).toBe(400);
-    const otherWay = await call("POST", "/api/account/payment-method", {
-      processor: "stripe", payWith: "venmo", brand: "Venmo", last4: "4242", expMonth: 12, expYear: 2030,
-    }, sam);
-    expect(otherWay.status).toBe(400);
+    expect(res.json.method.processor).toBe("paypal");
+    expect(res.json.method.payWith).toBeUndefined();
   });
 
   it("accepts an ATH Móvil account, which has no card expiry to give", async () => {
@@ -3311,70 +3276,19 @@ describe("saving a PayPal account with PayPal's own button", () => {
   });
 });
 
-describe("the SetupIntent behind the Payment Element", () => {
-  it("requires a session", async () => {
-    expect((await call("POST", "/api/payment/setup-intent", { brand: "klarna" })).status).toBe(401);
-  });
-
-  it("refuses a brand it cannot collect this way, before reaching Stripe", async () => {
-    // Apple Pay and Google Pay are savable Stripe brands, but they come
-    // through the Payment Request sheet and never need an intent — so they
-    // are a 400 here, not a 503, however Stripe is configured.
-    for (const brand of ["apple-pay", "google-pay", "venmo", "nonsense", undefined]) {
-      const res = await call("POST", "/api/payment/setup-intent", { brand }, sam);
-      expect(res.status, String(brand)).toBe(400);
-    }
-  });
-
-  it("reports Stripe as unconfigured rather than pretending, for a brand it would collect", async () => {
-    // No STRIPE_SECRET_KEY in tests, so the honest answer is 503 with what's
-    // missing — never a fabricated client secret.
-    for (const brand of ["klarna", "cashapp", "amazon-pay", "link"]) {
-      const res = await call("POST", "/api/payment/setup-intent", { brand }, sam);
-      expect(res.status, brand).toBe(503);
-      expect(res.json.error, brand).toMatch(/stripe/i);
-      expect(res.json.clientSecret, brand).toBeUndefined();
-    }
-  });
-});
-
 describe("payment processor status", () => {
-  it("reports all three processors as handoff without real credentials configured", async () => {
+  it("reports both processors as handoff without real credentials configured", async () => {
     const res = await call("GET", "/api/payment/processors", undefined, sam);
     expect(res.status).toBe(200);
     const ids = res.json.processors.map((p: { id: string }) => p.id);
-    expect(ids).toEqual(["stripe", "paypal", "ath-movil"]);
+    expect(ids).toEqual(["paypal", "ath-movil"]);
     for (const p of res.json.processors) expect(p.mode).toBe("handoff");
   });
 
-  it("lists each brand against the processor that settles it, and none as available", async () => {
+  it("serves no wallet brands and no card networks — only processors", async () => {
     const res = await call("GET", "/api/payment/processors", undefined, sam);
-    const brands = res.json.brands as { id: string; processor: string; available: boolean }[];
-    expect(brands.find((b) => b.id === "klarna")?.processor).toBe("stripe");
-    expect(brands.find((b) => b.id === "amazon-pay")?.processor).toBe("stripe");
-    expect(brands.find((b) => b.id === "venmo")?.processor).toBe("paypal");
-    // Nothing is configured in tests, so no brand may claim to be usable —
-    // the sheet reads this to avoid offering a button that would fail.
-    for (const b of brands) expect(b.available, b.id).toBe(false);
-  });
-
-  it("offers no brand that cannot be saved for a later off-session hold", async () => {
-    // The whole payment surface is "a method on file, charged later with
-    // nobody present". Affirm and Afterpay cannot do that — Stripe supports
-    // neither on SetupIntents — so they must not appear at all. A tab for
-    // them would be one no amount of configuration could ever complete.
-    const res = await call("GET", "/api/payment/processors", undefined, sam);
-    const ids = (res.json.brands as { id: string }[]).map((b) => b.id);
-    expect(ids).not.toContain("affirm");
-    expect(ids).not.toContain("afterpay-clearpay");
-  });
-
-  it("serves the card networks the card path accepts, Mastercard among them", async () => {
-    // Not a processor and not a brand: accepting Mastercard is a property of
-    // the card path, which Stripe already gives. See CARD_NETWORKS in core.
-    const res = await call("GET", "/api/payment/processors", undefined, sam);
-    expect(res.json.cardNetworks).toContain("Mastercard");
-    expect(res.json.processors.map((p: { id: string }) => p.id)).not.toContain("mastercard");
+    expect(res.json.brands).toBeUndefined();
+    expect(res.json.cardNetworks).toBeUndefined();
   });
 });
 
@@ -4699,76 +4613,11 @@ describe("hiring somebody and actually sending them to a job", () => {
     });
   });
 
-  describe("real card charging through Stripe", () => {
-    const realFetch = globalThis.fetch;
-    let stripe: { path: string; body: URLSearchParams }[];
-    const flush = () => new Promise((r) => setTimeout(r, 30));
-    beforeEach(() => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_x";
-      stripe = [];
-      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-        const url = String(input);
-        if (!url.startsWith("https://api.stripe.com")) return realFetch(input, init);
-        const path = new URL(url).pathname;
-        stripe.push({ path, body: new URLSearchParams(String(init?.body ?? "")) });
-        const status = path.endsWith("/capture") ? "succeeded" : path.endsWith("/cancel") ? "canceled" : "requires_capture";
-        return Response.json({ id: "pi_test", status });
-      }) as typeof fetch;
-    });
-    afterEach(() => { globalThis.fetch = realFetch; delete process.env.STRIPE_SECRET_KEY; });
-
-    const bookOnCard = async () => {
-      const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` }, "puerto-rico");
-      const assistantId = hired.json.assistant.id as string;
-      await withCard(sam);
-      store.update((db) => {
-        db.paymentMethods[samId]!.processor = "stripe";
-        db.paymentMethods[samId]!.processorToken = "pm_saved";
-        db.stripeCustomers[samId] = "cus_sam";
-      });
-      const res = await call("POST", "/api/concierge/tasks", {
-        category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
-        location: { lat: 18.4655, lng: -66.1057, label: "San Juan" },
-        spendCapCents: 1_000, acknowledgedDisclosures: true, assistantId,
-      }, sam);
-      return { res, assistantId };
-    };
-
-    it("reserves the real amount on the saved card when a request is booked", async () => {
-      const { res } = await bookOnCard();
-      expect(res.status, JSON.stringify(res.json)).toBe(200);
-      const intent = stripe.find((c) => c.path === "/v1/payment_intents")!;
-      expect(intent.body.get("customer")).toBe("cus_sam");
-      expect(intent.body.get("payment_method")).toBe("pm_saved");
-      expect(intent.body.get("capture_method")).toBe("manual");
-      const hold = store.data.holds.find((h) => h.id === res.json.task.holdId)!;
-      expect(intent.body.get("amount")).toBe(String(hold.amountCents));
-      expect(hold.processorRef).toBe("pi_test");
-    });
-
-    it("takes only what was spent when the task is done", async () => {
-      const { res, assistantId } = await bookOnCard();
-      const { cookie } = await assistantLogin(assistantId, "a-fine-assistant-password", false);
-      await call("POST", `/api/assistant/tasks/${res.json.task.id}/complete`, { billedCents: 400 }, null, cookie);
-      await flush();
-      const capture = stripe.find((c) => c.path === "/v1/payment_intents/pi_test/capture")!;
-      expect(Number(capture.body.get("amount_to_capture"))).toBe(400 + res.json.task.serviceFeeCents);
-    });
-
-    it("lets the whole hold go when the request is cancelled", async () => {
-      const { res } = await bookOnCard();
-      await call("POST", `/api/concierge/tasks/${res.json.task.id}/cancel`, {}, sam);
-      await flush();
-      expect(stripe.some((c) => c.path === "/v1/payment_intents/pi_test/cancel")).toBe(true);
-    });
-  });
-
-  describe("real charging through PayPal, with Stripe off", () => {
+  describe("real charging through PayPal", () => {
     const realFetch = globalThis.fetch;
     let paypal: { path: string; body: any }[];
     const flush = () => new Promise((r) => setTimeout(r, 30));
     beforeEach(() => {
-      delete process.env.STRIPE_SECRET_KEY;
       Object.assign(process.env, { PAYPAL_CLIENT_ID: "id", PAYPAL_CLIENT_SECRET: "secret", PAYPAL_API_BASE: "https://api-m.sandbox.paypal.com" });
       paypal = [];
       globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
@@ -4791,9 +4640,11 @@ describe("hiring somebody and actually sending them to a job", () => {
     const bookWithPaypal = async () => {
       const hired = await hireOne({ role: "errand-runner", fullName: "Kit Moreno", email: `kit${Math.random()}@example.com` }, "puerto-rico");
       const assistantId = hired.json.assistant.id as string;
-      await withCard(sam);
       store.update((db) => {
-        Object.assign(db.paymentMethods[samId]!, { processor: "paypal", processorToken: "VAULT_SAM", brand: "PayPal", last4: "" });
+        db.paymentMethods[samId] = {
+          id: "pm_sam", processor: "paypal", processorToken: "VAULT_SAM", brand: "PayPal", last4: "",
+          accountLabel: "s***@example.com", addedAt: clock.toISOString(),
+        };
       });
       const res = await call("POST", "/api/concierge/tasks", {
         category: "grab-something", quickTask: true, errandTier: "in-building", note: "A cold juice.",
@@ -6007,15 +5858,15 @@ describe("the launch plan on the master dashboard", () => {
   });
 
   it("refuses to let an observed step be ticked, so the dashboard cannot lie", async () => {
-    // The whole value of "Connect Stripe" being observed is that saying it is
+    // The whole value of "Connect PayPal" being observed is that saying it is
     // done does not make the dashboard say so. Enforced here, not just hidden
     // in the UI.
     const { cookie } = await masterLogin("owner", "Own Lie", "ownlie@example.com");
-    const res = await call("POST", "/api/master/launch/stripe-configured", { done: true }, null, cookie);
+    const res = await call("POST", "/api/master/launch/payments-configured", { done: true }, null, cookie);
     expect(res.status).toBe(400);
 
     const after = stepsOf(await call("GET", "/api/master/overview", undefined, null, cookie));
-    expect(after["stripe-configured"].done).toBe(false);
+    expect(after["payments-configured"].done).toBe(false);
   });
 
   it("refuses a secretary outright — marking is a write", async () => {

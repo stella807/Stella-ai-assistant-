@@ -4,14 +4,14 @@ import type { Iso8601 } from "./types.ts";
  * The route from a deployed app to a business that pays for itself, as steps
  * the dashboard can check rather than a list somebody has to remember.
  *
- * Most of these are **observed, not ticked**. Whether Stripe is configured,
+ * Most of these are **observed, not ticked**. Whether payments are configured,
  * whether anybody is on the roster, how many people are actually paying —
  * the app already knows all of that, and a checklist that made the owner
  * assert it by hand would drift from the truth the first time something was
  * ticked hopefully. `derivedFrom` names the fact each step reads.
  *
  * The rest are things happening outside this system — a broker's quote, an
- * application to Stripe — which nothing here can see. Those carry
+ * application to Apple — which nothing here can see. Those carry
  * `manual: true` and are stored as a date when the owner says so. The
  * distinction is the point: a step that claims to be observed had better be,
  * and one that cannot be is labelled rather than quietly faked.
@@ -21,7 +21,7 @@ import type { Iso8601 } from "./types.ts";
  */
 
 export type LaunchStepId =
-  | "stripe-configured"
+  | "payments-configured"
   | "small-business-program"
   | "insurance-quote"
   | "on-the-roster"
@@ -44,15 +44,15 @@ export interface LaunchStep {
 
 export const LAUNCH_STEPS: LaunchStep[] = [
   {
-    id: "stripe-configured",
-    label: "Connect Stripe",
-    detail: "Until a secret key is set, no plan can be charged and no hold can be placed. Nothing else earns anything without this.",
+    id: "payments-configured",
+    label: "Connect PayPal",
+    detail: "Until PayPal's keys are set, no plan can be charged and no hold can be placed. Nothing else earns anything without this.",
     manual: false,
-    derivedFrom: "the Stripe adapter reporting automatic rather than handoff",
+    derivedFrom: "a payment processor reporting automatic rather than handoff",
   },
   {
     id: "small-business-program",
-    label: "Apply to Stripe's Small Business Program",
+    label: "Apply to Apple's App Store Small Business Program",
     detail: "15% rather than 30% on anything sold through an app store, under $1M a year. It is not applied retroactively, so the cost of waiting is permanent.",
     manual: true,
   },
@@ -107,7 +107,7 @@ export const LAUNCH_STEPS: LaunchStep[] = [
 
 /** What the app can see about itself, gathered by the caller. */
 export interface LaunchFacts {
-  stripeConfigured: boolean;
+  paymentsConfigured: boolean;
   serviceLive: boolean;
   rosterActive: number;
   payingClients: number;
@@ -134,7 +134,7 @@ export interface LaunchProgress {
  * ticked by hand.
  *
  * An observed step ignores its manual tick entirely, rather than letting one
- * override the other. Ticking "Connect Stripe" when Stripe is not connected
+ * override the other. Ticking "Connect PayPal" when PayPal is not connected
  * should not make a dashboard say it is — the whole value of an observed
  * step is that it cannot be wished true.
  */
@@ -143,7 +143,7 @@ export function launchProgress(
   markedAt: Partial<Record<LaunchStepId, Iso8601>> = {},
 ): LaunchProgress {
   const observed: Record<LaunchStepId, boolean> = {
-    "stripe-configured": facts.stripeConfigured,
+    "payments-configured": facts.paymentsConfigured,
     "small-business-program": false,
     "insurance-quote": false,
     "on-the-roster": facts.rosterActive >= 1,

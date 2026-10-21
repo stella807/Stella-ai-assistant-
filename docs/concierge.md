@@ -161,7 +161,7 @@ the picker offers exactly the right seats instead of guessing.
 
 **What it does not touch: the spend cap, and therefore the card.** Scaling is
 applied to the *payout* only. The spend cap stays exactly what the subscriber
-chose, and the single-use Stripe Issuing card issued for the task is still capped at
+chose, and the single-use Lithic card issued for the task is still capped at
 precisely that amount (`authorizeExactHold` + `issueCard`) — a bigger
 household means the subscriber may *choose* a bigger cap for a bigger grocery
 run, but nothing about paying the assistant more can raise the purchasing
@@ -271,7 +271,7 @@ what was bought, and Safehubby pays the runner.
   resetsAt }`. The task is stamped `feeIncluded` at booking, so a later change
   to the table never rewrites what a past month counted.
 - **Decided after the last await before the hold, and reserved until saved.**
-  Card issuing awaits Stripe Issuing between the fee decision and the save, so two
+  Card issuing awaits Lithic between the fee decision and the save, so two
   taps landing together could both take the last free grab; an in-process
   reservation closes that (safe because the store already requires one
   replica).
@@ -323,20 +323,20 @@ that before it shipped, and both were load-bearing:
   Safehubby recoups that hold once the task settles. Safehubby fronts the
   money for a short window; the cap bounds how much and the exact-hold rule
   means the recoup is never short.
-- **The card is issued through Stripe Issuing** (`apps/api/src/adapters/cards.ts`),
+- **The card is issued through Lithic** (`apps/api/src/adapters/lithic-cards.ts`),
   capped at exactly the task's spend cap, single-use, and killed the moment
   the task completes or cancels — never a card that outlives the task it was
   issued for.
 
-Cards are issued under one company cardholder on Safehubby's own Stripe
-account (`STRIPE_ISSUING_CARDHOLDER`), so assistants do not need accounts of
-their own. The number is shown to the assistant by Stripe's Issuing Elements,
-straight from Stripe to their browser (`IssuingCardView.tsx`); Safehubby's
-server only hands over a short-lived key for that one card. Stripe has to
-approve Issuing on the account before any of this runs.
+Cards are issued on Safehubby's own Lithic card program (`LITHIC_API_KEY`), so
+assistants do not need accounts of their own. The number is shown to the
+assistant by Lithic's embedded card, straight from Lithic to their browser
+(`IssuingCardView.tsx`); Safehubby's server only hands over a short-lived
+session for that one card. Lithic has to approve the card program before any
+of this runs.
 
-**Card issuing is an add-on, not a precondition.** If `STRIPE_ISSUING_CARDHOLDER` isn't
-set, or Stripe Issuing is briefly unreachable, a concierge task still books — the
+**Card issuing is an add-on, not a precondition.** If `LITHIC_API_KEY` isn't
+set, or Lithic is briefly unreachable, a concierge task still books — the
 partner network can bill Safehubby directly with no card in the loop, the same
 way it would if this integration didn't exist at all. `cardIssuing.mode` on
 `GET /api/fulfillment/status` reports this independently of `concierge.mode`,
@@ -666,7 +666,7 @@ Three gates, all checked live rather than once at issue:
    card the moment a task is marked done, and this refuses afterwards with a
    `400`. The window in which a stranger holds spending power is exactly as
    long as the job.
-3. **Card issuing has to actually be configured.** Without Stripe Issuing credentials
+3. **Card issuing has to actually be configured.** Without Lithic credentials
    the route returns a `503` naming what's missing, and a cancelled or expired
    card returns a `410` rather than a dead link.
 
@@ -699,7 +699,7 @@ one place that decides, so the two features can never drift out of sync
 across the quote, roster and booking routes.
 
 - The partner-network retainer itself.
-- Keeping the Stripe Issuing balance funded that issues each task's card —
+- Keeping the Lithic card program funded that issues each task's card —
   Safehubby is fronting real money for the window between issuing a card and
   capturing the matching hold, even though each card's cap bounds it tightly.
 
@@ -747,11 +747,12 @@ which, for the most recently *closed* period:
    paid (`earningsFor` — a task tagged with a `payoutId` never counts twice).
 2. Sums what's owed per assistant (`totalEarningsCents`).
 3. Sends one transfer per assistant through `PayoutPort`
-   (`apps/api/src/adapters/payouts.ts`, reusing the same Stripe Issuing
-   account and credentials already used for card issuing in `cards.ts`), to
-   the bank account the assistant entered for themselves in the employee
-   portal (`POST /api/assistant/payout-destination` — never collected by
-   Safehubby staff on their behalf).
+   (`apps/api/src/adapters/payouts.ts`; there is no automatic payout provider
+   yet, so each payout is recorded for the owner to send from the business
+   bank account or ATH Business), to the bank account the assistant entered
+   for themselves in the employee portal
+   (`POST /api/assistant/payout-destination` — never collected by Safehubby
+   staff on their behalf).
 4. Records an `AssistantPayout` either way — `paid` with the provider's own
    reference, or `failed` with a stated reason (no destination on file, no
    encryption key configured, or the payout provider itself not configured)
@@ -811,7 +812,7 @@ earned that period, and returns what's actually payable. A period fully or
 partially absorbed by debt still settles — as `paid`, at whatever's left
 over, even `$0` — and its tasks still get tagged with a `payoutId`, since
 that pay was legitimately spent, just against a debt instead of a wire
-transfer. A `$0` payout skips the bank-destination and Stripe Issuing-provider
+transfer. A `$0` payout skips the bank-destination and payout-provider
 checks entirely, since there's nothing to actually transfer; only a payout
 with something left to pay after debt still needs a destination on file and
 a configured payout provider, with the same retry-next-run behavior as
@@ -826,14 +827,13 @@ railway variables \
   --set "CONCIERGE_PROVIDER=Nearby Aide" \
   --set "CONCIERGE_API_BASE=https://..." \
   --set "CONCIERGE_API_KEY=..." \
-  --set "STRIPE_ISSUING_CARDHOLDER=https://..." \
-  --set "STRIPE_SECRET_KEY=..." \
+  --set "LITHIC_API_KEY=..." \
   --set "SAFEHUBBY_ENCRYPTION_KEY=..."
 ```
 
-The first three turn on dispatch; `STRIPE_ISSUING_CARDHOLDER`/`STRIPE_SECRET_KEY` turn on
-both card issuing (`cards.ts`) and biweekly payouts (`payouts.ts`) — the same
-Stripe Issuing account does both. `SAFEHUBBY_ENCRYPTION_KEY` is required
+The first three turn on dispatch; `LITHIC_API_KEY` turns on card issuing
+(`lithic-cards.ts`); payouts are manual for now (`payouts.ts`).
+`SAFEHUBBY_ENCRYPTION_KEY` is required
 before any assistant can be paid at all, since it's what lets a payout
 destination be stored. Set `GOOGLE_PLACES_API_KEY` (shared with
 `venues.ts`/`grocery.ts`) to turn on the place picker, and

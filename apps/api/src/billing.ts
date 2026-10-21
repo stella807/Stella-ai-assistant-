@@ -37,7 +37,7 @@ export interface RenewalResult {
  * `collect` is true when a card processor is set up: the renewal's charge is
  * then left pending, to be taken from the card by `collectSubscriptionCharges`
  * once this synchronous sweep has saved. Without one it is settled on the spot,
- * the way it always was, so a server with no Stripe key behaves as before.
+ * the way it always was, so a server with no payment processor behaves as before.
  */
 export function renewDueSubscriptions(db: Db, now: Date, opts: { collect?: boolean } = {}): RenewalResult {
   const result: RenewalResult = { renewed: 0, chargedCents: 0, discountedCents: 0, storeRailPending: 0, toCollect: [] };
@@ -99,12 +99,11 @@ export function renewDueSubscriptions(db: Db, now: Date, opts: { collect?: boole
    Taking plan charges from the card
    ------------------------------------------------------------------------ */
 
-/** Takes a payment from a saved payment method — through Stripe or PayPal,
- *  whichever the customer saved it with. The real dispatcher in production; a
- *  stub in tests. */
+/** Takes a payment from a saved payment method. The PayPal charge in
+ *  production; a stub in tests. */
 export type CardCharger = (input: {
-  processor: "stripe" | "paypal";
-  customerId?: string; paymentMethodId: string; method?: { brand: string; last4: string };
+  processor: "paypal";
+  paymentMethodId: string; method?: { brand: string; last4: string };
   amountCents: number; description: string; idempotencyKey: string;
 }) => Promise<{ id: string }>;
 
@@ -113,7 +112,7 @@ export const SUBSCRIPTION_CHARGE_ATTEMPTS = 3;
 const RETRY_AFTER_MS = 24 * 60 * 60_000;
 
 /**
- * Takes each pending plan charge from the member's saved card.
+ * Takes each pending plan charge from the member's saved PayPal account.
  *
  * A decline fails the charge with the bank's reason and puts the plan
  * past-due. Past-due keeps working (see `effectivePlan`), because cutting off
@@ -129,24 +128,19 @@ export async function collectSubscriptionCharges(
     const line = store.data.charges.find((c) => c.id === id);
     if (!line || line.status !== "pending") continue;
     const method = store.data.paymentMethods[line.travelerId];
-    const customerId = store.data.stripeCustomers[line.travelerId];
     let outcome: { ref: string } | { reason: string };
-    // A Stripe card needs its customer; a PayPal account needs only its token.
-    const chargeable = method?.processorToken
-      && ((method.processor === "stripe" && customerId) || method.processor === "paypal");
-    if (!method || !chargeable) {
-      outcome = { reason: "There is no card or PayPal account on file to charge. Add one under Payments." };
+    if (method?.processor !== "paypal" || !method.processorToken) {
+      outcome = { reason: "There is no PayPal account on file to charge. Add one under Payments." };
     } else {
       try {
         const intent = await charge({
-          processor: method.processor as "stripe" | "paypal",
-          ...(customerId ? { customerId } : {}), paymentMethodId: method.processorToken!,
+          processor: "paypal", paymentMethodId: method.processorToken,
           method: { brand: method.brand, last4: method.last4 }, amountCents: line.amountCents,
           description: `Safehubby — ${line.description}`, idempotencyKey: line.id,
         });
         outcome = { ref: intent.id };
       } catch (err) {
-        outcome = { reason: err instanceof Error ? err.message : "Your card could not be charged." };
+        outcome = { reason: err instanceof Error ? err.message : "Your payment could not be taken." };
       }
     }
     store.update((db) => {

@@ -39,7 +39,6 @@ import {
   canDelegateTo, whoDoesTheWork, validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
   BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, athRefundableCents, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
-  CARD_NETWORKS, PAY_BRANDS, PAY_BRAND_LABEL, PAY_BRAND_SPEC, PROCESSOR_FOR_BRAND,
   canMarkByHand, launchProgress,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor,
@@ -82,7 +81,7 @@ import type {
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
-  PaymentProcessor, PayBrand, ChargeProcessorPort, LaunchStepId,
+  PaymentProcessor, ChargeProcessorPort, LaunchStepId,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -93,9 +92,6 @@ import {
 import { flightTracking } from "./adapters/flight-tracking.ts";
 import { cardViewFor, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
-import {
-  createSetupIntent, ensureStripeCustomer, stripeProcessor,
-} from "./adapters/stripe.ts";
 import { captureHeld, chargeSaved, chargingReady, holdSaved, processorReady, releaseHeld } from "./adapters/charging.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
@@ -271,26 +267,11 @@ function requirePaymentMethod(ctx: Ctx, userId: string): void {
 /**
  * Every processor Safehubby holds an account with, keyed by the id stored on
  * a payment method. Keeping it as one table is what lets the status endpoint
- * and the attach handler stay in agreement — the previous pair of ternaries
- * had to be edited in two places to add a third processor, and silently
- * defaulted anything unrecognised to Stripe.
+ * and the attach handler stay in agreement.
  */
 const PROCESSOR_PORTS: Record<PaymentProcessor, ChargeProcessorPort> = {
-  stripe: stripeProcessor,
   paypal: paypalProcessor,
   "ath-movil": athMovilProcessor,
-};
-
-/**
- * Stripe's own `payment_method_types` enum for each brand it settles. Their
- * spelling, not ours — `cashapp` and `amazon_pay` are what the API expects,
- * and guessing at either produces a SetupIntent Stripe rejects.
- */
-const STRIPE_PAYMENT_METHOD_TYPE: Partial<Record<PayBrand, string>> = {
-  klarna: "klarna",
-  cashapp: "cashapp",
-  "amazon-pay": "amazon_pay",
-  link: "link",
 };
 
 /**
@@ -822,22 +803,19 @@ function chargeForSupplies(ctx: Ctx, travelerId: string, basket: Basket, deliver
  * explaining it, or a line on their statement that no hold backs.
  */
 /**
- * Real money on the customer's saved card. Each hold in the ledger is matched
- * by a real Stripe authorization when the customer pays by card through
- * Stripe and the server has a Stripe key; otherwise (the prepaid balance, a
- * method saved before keys were set, or a dev server) the ledger is the only
- * record, as before.
+ * Real money on the customer's saved PayPal account. Each hold in the ledger
+ * is matched by a real PayPal authorization when the customer pays with PayPal
+ * and the server has PayPal's keys; otherwise (the prepaid balance, a method
+ * saved before keys were set, or a dev server) the ledger is the only record,
+ * as before.
  */
 async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: string): Promise<void> {
   if (hold.fundedBy === "balance") return;
   const method = ctx.store.data.paymentMethods[hold.travelerId];
-  if (!method?.processorToken || !processorReady(method.processor)) return;
-  const customerId = ctx.store.data.stripeCustomers[hold.travelerId];
-  const processor = method.processor === "paypal" ? "paypal" : method.processor === "stripe" && customerId ? "stripe" : null;
-  if (!processor) return;
+  if (method?.processor !== "paypal" || !method.processorToken || !processorReady("paypal")) return;
   try {
     const intent = await holdSaved({
-      processor, ...(customerId ? { customerId } : {}), paymentMethodId: method.processorToken,
+      processor: "paypal", paymentMethodId: method.processorToken,
       method: { brand: method.brand, last4: method.last4 }, amountCents: hold.amountCents, description, idempotencyKey: hold.id,
     });
     ctx.store.update((db) => {
@@ -849,9 +827,9 @@ async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: stri
   }
 }
 
-/** Stripe's key for showing one card in the browser, with its refusal said plainly. */
-async function cardViewOrFail(cardId: string, nonce: string) {
-  try { return await cardViewFor(cardId, nonce); }
+/** The view that shows one card in the browser, with the issuer's refusal said plainly. */
+async function cardViewOrFail(cardId: string) {
+  try { return await cardViewFor(cardId); }
   catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "The card issuer would not open this card."); }
 }
 
@@ -1665,69 +1643,10 @@ export const routes: Record<string, Handler> = {
    * the money. Never returns a full card number — there is nothing here to
    * leak past the last four digits and an expiry.
    */
-  /**
-   * Which processors can actually verify a payment method right now. Apple
-   * Pay and Google Pay aren't listed separately — both are wallets Stripe
-   * surfaces on its own, so their availability is a client-side capability
-   * check (`PaymentRequest.canMakePayment()`) against the same `stripe`
-   * entry, not a separate backend integration. See stripe.ts's doc comment.
-   */
+  /** Which processors can actually verify and charge a payment method right now. */
   "GET /api/payment/processors": () => ({
     processors: Object.values(PROCESSOR_PORTS).map((p) => p.status),
-    // The brands each configured processor can surface, and the card
-    // networks the card path already accepts. Both are display data the
-    // payment sheet reads rather than hardcoding — see `PayBrand` and
-    // `CARD_NETWORKS` in payment.ts for why neither is a processor.
-    brands: PAY_BRANDS.map((id) => ({
-      id, label: PAY_BRAND_LABEL[id], processor: PROCESSOR_FOR_BRAND[id],
-      available: isAutomatic(PROCESSOR_PORTS[PROCESSOR_FOR_BRAND[id]].status),
-    })),
-    cardNetworks: CARD_NETWORKS,
   }),
-
-  /**
-   * A SetupIntent for the Payment Element, so a method that is not a typed
-   * card can be collected without charging anything.
-   *
-   * The card and wallet paths do not come through here — Stripe.js tokenizes
-   * those directly — but Klarna, Cash App Pay, Amazon Pay and Link all need
-   * an intent to render against. `brand` picks which, and is checked against
-   * core's own table rather than passed through: a brand that cannot be
-   * saved off-session, or that settles somewhere other than Stripe, has no
-   * business creating a Stripe SetupIntent.
-   */
-  "POST /api/payment/setup-intent": async (ctx, _p, body) => {
-    const me = actor(ctx);
-    const brand = body?.brand as PayBrand | undefined;
-    const spec = brand ? PAY_BRAND_SPEC[brand] : undefined;
-    const type = brand ? STRIPE_PAYMENT_METHOD_TYPE[brand] : undefined;
-    // `type` is the narrower check and the one that matters: Apple Pay and
-    // Google Pay are savable Stripe brands with no entry here on purpose,
-    // because they are collected through the Payment Request sheet instead
-    // and never need an intent from this route.
-    if (!spec || !type || spec.processor !== "stripe" || !spec.savable) {
-      throw new HttpError(400, "That isn't a payment method this screen collects with a SetupIntent.");
-    }
-    if (!isAutomatic(stripeProcessor.status)) {
-      throw new HttpError(503, `Stripe isn't configured. ${stripeProcessor.status.requires}`);
-    }
-
-    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
-    if (!traveler) throw new HttpError(404, "No such traveler.");
-
-    const customerId = await ensureStripeCustomer({
-      existingId: ctx.store.data.stripeCustomers[me],
-      email: traveler.email,
-      name: traveler.displayName,
-    });
-    ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
-
-    const { clientSecret } = await createSetupIntent({
-      customerId,
-      paymentMethodType: type,
-    });
-    return { clientSecret };
-  },
 
   "GET /api/account/payment-method": (ctx) => {
     const me = actor(ctx);
@@ -1766,14 +1685,7 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/account/payment-method": async (ctx, _p, body) => {
     const me = actor(ctx);
-    const processor: PaymentProcessor =
-      body?.processor === "paypal" || body?.processor === "ath-movil" ? body.processor : "stripe";
-    // A brand the client does not recognise is dropped rather than rejected —
-    // it is display-only. One that settles through a different processor is
-    // not dropped, though: `attachPaymentMethod` refuses it, since claiming
-    // Venmo against Stripe would misreport where the money actually went.
-    const payWith: PayBrand | undefined =
-      PAY_BRANDS.includes(body?.payWith) ? body.payWith : undefined;
+    const processor: PaymentProcessor = body?.processor === "ath-movil" ? "ath-movil" : "paypal";
     const port = PROCESSOR_PORTS[processor];
 
     let brand = String(body?.brand ?? "");
@@ -1801,7 +1713,6 @@ export const routes: Record<string, Handler> = {
     const method = attachPaymentMethod({
       id: newId("pm"),
       processor,
-      ...(payWith ? { payWith } : {}),
       brand,
       last4,
       ...(accountLabel ? { accountLabel } : {}),
@@ -1811,7 +1722,7 @@ export const routes: Record<string, Handler> = {
       now: ctx.now(),
     });
     ctx.store.update((db) => { db.paymentMethods[me] = method; });
-    // A plan that went past-due on the old card is tried again on this one
+    // A plan that went past-due on the old payment method is tried again on this one
     // now, rather than at tomorrow's retry.
     if (processorReady(method.processor)) {
       await retryPastDueSubscriptions(ctx.store, ctx.now(), chargeSaved, { travelerId: me, immediately: true });
@@ -2606,7 +2517,7 @@ export const routes: Record<string, Handler> = {
       if (isElitePlan(traveler.planId as PlanId)) traveler.clubMember = true;
     });
 
-    // A card charge is taken from the saved card through Stripe when it is set
+    // A card-rail charge is taken from the saved PayPal account when PayPal is set
     // up, and settled inline when it is not; a store charge cannot be either,
     // because only the store's receipt can say it happened.
     if (charge && charge.rail === "card") {
@@ -3870,7 +3781,7 @@ export const routes: Record<string, Handler> = {
         // Where the business is, read off real state rather than ticked —
         // see launch-plan.ts for which steps are observed and which are not.
         launch: launchProgress({
-          stripeConfigured: isAutomatic(stripeProcessor.status),
+          paymentsConfigured: isAutomatic(paypalProcessor.status),
           serviceLive: serviceIsLive(now),
           rosterActive: ctx.store.data.assistants.filter((a) => isOnRoster(a, now)).length,
           payingClients: Object.values(ctx.store.data.subscriptions)
@@ -4354,7 +4265,7 @@ export const routes: Record<string, Handler> = {
    * window in which a stranger holds spending power stays exactly as long as
    * the job does.
    */
-  "POST /api/assistant/tasks/:taskId/card": async (ctx, p, body) => {
+  "POST /api/assistant/tasks/:taskId/card": async (ctx, p) => {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     if (task.status !== "in-progress") {
@@ -4373,12 +4284,10 @@ export const routes: Record<string, Handler> = {
     }
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
 
-    // With Stripe, two steps: the card's id first, so Stripe.js can make a
-    // nonce for it, then a short-lived key for that nonce. Lithic needs one.
-    // Either way the number goes from the issuer to the assistant's browser,
-    // never through here.
-    const view = await cardViewOrFail(task.card.id, String(body?.nonce ?? ""));
-    return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents, ...(view ? { view } : {}) };
+    // The number goes from the issuer to the assistant's browser, never
+    // through here: this only hands over a short-lived session to open it.
+    const view = await cardViewOrFail(task.card.id);
+    return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents, view };
   },
 
   /**
@@ -5319,15 +5228,14 @@ export const routes: Record<string, Handler> = {
 
   /** The one-time reveal link, fetched fresh each time — never stored. Same
    *  discipline as the assistant task card's own reveal route. */
-  "POST /api/elite/spending-card/reveal": async (ctx, _p, body) => {
+  "POST /api/elite/spending-card/reveal": async (ctx) => {
     const me = actor(ctx);
     requireElite(ctx);
     const monthKey = clubMonthKey(ctx.now());
     const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
     if (!card) throw notFound("Spending card");
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
-    const view = await cardViewOrFail(card.cardId, String(body?.nonce ?? ""));
-    return { cardId: card.cardId, card, ...(view ? { view } : {}) };
+    return { cardId: card.cardId, card, view: await cardViewOrFail(card.cardId) };
   },
 
   /**
@@ -5643,9 +5551,9 @@ export const routes: Record<string, Handler> = {
    */
   /**
    * Ticks one of the launch steps this app cannot observe for itself — a
-   * broker's quote, an application to Stripe. `canMarkByHand` refuses the
+   * broker's quote, an application to Apple. `canMarkByHand` refuses the
    * rest: a step that reads real state must not be settable, or the
-   * dashboard could be made to claim Stripe was connected when it was not.
+   * dashboard could be made to claim payments were connected when they were not.
    */
   "POST /api/master/launch/:id": (ctx, p, body) => {
     const account = masterAccountOf(ctx);

@@ -292,7 +292,7 @@ const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-pro
  *     shape as secure transport's insurance contract, and priced the same
  *     way, as a fixed cost spread across subscribers rather than billed at
  *     cost per task.
- *   - Funding the Stripe Issuing balance that issues each task's spend-
+ *   - Funding the Lithic card program that issues each task's spend-
  *     capped virtual card (see docs/concierge.md and adapters/cards.ts).
  *     Safehubby fronts that money for the (short) window between the card
  *     being issued and the subscriber's own hold being captured — a real

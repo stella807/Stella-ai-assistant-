@@ -85,7 +85,7 @@ Information.
 ## Payments: the rule that decides your margin
 
 In-app subscriptions on iOS **must** use Apple's in-app purchase, and Apple
-takes 15–30%. Card-on-file through Stripe is only allowed for goods and
+takes 15–30%. A saved payment method (PayPal) is only allowed for goods and
 services consumed outside the app.
 
 Safehubby has both kinds and the code already knows the difference:
@@ -97,7 +97,7 @@ the store rail records a charge as pending until its receipt confirms it.
   Store Connect. **This is the one remaining piece of real work before a
   paid submission.**
 - **Rides, concierge tasks, deliveries** → real-world services delivered by a
-  person, so Stripe is correct and Apple's cut does not apply.
+  person, so PayPal is correct and Apple's cut does not apply.
 
 Apple's 15% Small Business Program applies under $1M/yr — worth applying for
 on day one.

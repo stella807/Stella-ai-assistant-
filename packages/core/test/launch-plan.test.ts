@@ -4,24 +4,24 @@ import {
 } from "../src/launch-plan.ts";
 
 const nothing: LaunchFacts = {
-  stripeConfigured: false, serviceLive: false, rosterActive: 0, payingClients: 0,
+  paymentsConfigured: false, serviceLive: false, rosterActive: 0, payingClients: 0,
 };
 
 describe("the launch plan", () => {
-  it("starts with everything undone and Stripe as the next thing", () => {
+  it("starts with everything undone and payments as the next thing", () => {
     const p = launchProgress(nothing);
     expect(p.done).toBe(0);
     expect(p.total).toBe(LAUNCH_STEPS.length);
     // Taking money blocks everything else, so it has to be first.
-    expect(p.next?.id).toBe("stripe-configured");
+    expect(p.next?.id).toBe("payments-configured");
   });
 
   it("observes each step from real state rather than a tick", () => {
     const p = launchProgress({
-      stripeConfigured: true, serviceLive: true, rosterActive: 2, payingClients: 3,
+      paymentsConfigured: true, serviceLive: true, rosterActive: 2, payingClients: 3,
     });
     const done = (id: LaunchStepId) => p.steps.find((s) => s.id === id)!.done;
-    expect(done("stripe-configured")).toBe(true);
+    expect(done("payments-configured")).toBe(true);
     expect(done("service-live")).toBe(true);
     expect(done("on-the-roster")).toBe(true);
     expect(done("first-hire")).toBe(true);
@@ -31,20 +31,20 @@ describe("the launch plan", () => {
 
   it("will not let an observed step be ticked true", () => {
     // The point of an observed step is that it cannot be wished into being
-    // done. A dashboard that said Stripe was connected when it was not would
+    // done. A dashboard that said payments were connected when it was not would
     // be worse than having no checklist at all.
     const p = launchProgress(nothing, {
-      "stripe-configured": "2026-09-19T00:00:00.000Z",
+      "payments-configured": "2026-09-19T00:00:00.000Z",
       "first-client": "2026-09-19T00:00:00.000Z",
     });
-    expect(p.steps.find((s) => s.id === "stripe-configured")!.done).toBe(false);
+    expect(p.steps.find((s) => s.id === "payments-configured")!.done).toBe(false);
     expect(p.steps.find((s) => s.id === "first-client")!.done).toBe(false);
-    expect(canMarkByHand("stripe-configured")).toBe(false);
+    expect(canMarkByHand("payments-configured")).toBe(false);
     expect(canMarkByHand("first-client")).toBe(false);
   });
 
   it("does let the steps nothing here can see be ticked", () => {
-    // A broker's quote and an application to Stripe happen outside this
+    // A broker's quote and an application to Apple happen outside this
     // system entirely. Labelling them is honest; pretending to observe them
     // would not be.
     for (const id of ["small-business-program", "insurance-quote", "app-store"] as LaunchStepId[]) {
@@ -70,11 +70,11 @@ describe("the launch plan", () => {
   });
 
   it("points at the first thing not done, and at nothing once finished", () => {
-    const partway = launchProgress({ ...nothing, stripeConfigured: true });
+    const partway = launchProgress({ ...nothing, paymentsConfigured: true });
     expect(partway.next?.id).toBe("small-business-program");
 
     const finished = launchProgress(
-      { stripeConfigured: true, serviceLive: true, rosterActive: 2, payingClients: 3 },
+      { paymentsConfigured: true, serviceLive: true, rosterActive: 2, payingClients: 3 },
       {
         "small-business-program": "2026-09-19T00:00:00.000Z",
         "insurance-quote": "2026-09-19T00:00:00.000Z",

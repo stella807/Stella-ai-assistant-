@@ -22,7 +22,6 @@ export const SEED: Db = {
   pendingOrders: {},
   partyCarts: {},
   paymentMethods: {},
-  stripeCustomers: {},
   launchStepsMarkedAt: {},
   charges: [],
   subscriptions: {},

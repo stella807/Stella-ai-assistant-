@@ -44,13 +44,13 @@ is no data-processing agreement template or retention commitment from a real
 partner yet; get one in place, and reviewed, before a real `CONCIERGE_API_KEY`
 is ever set. See `docs/concierge.md`.
 
-**Task cards through Stripe Issuing.** `apps/api/src/adapters/cards.ts`
-issues each task a virtual card under one company cardholder on Safehubby's
-own Stripe account, capped at the task's limit and cancelled when the task
-ends. The full card number is never fetched by this server — Stripe's own
-Issuing Elements is the way to show it to an assistant, which keeps
-Safehubby out of PCI scope; until that is wired, the portal says the number
-is not available here. Assistant payouts have no automatic provider
+**Task cards through Lithic.** `apps/api/src/adapters/lithic-cards.ts`
+issues each task a virtual card on Safehubby's own Lithic card program, capped
+at the task's limit and closed when the task ends. The full card number is
+never fetched by this server — Lithic's embedded card shows it to the
+assistant straight from Lithic, using a ten-minute session this server asks
+for. Lithic says this reduces card-security (PCI) obligations rather than
+removing them, so confirm what still applies to you. Assistant payouts have no automatic provider
 (`apps/api/src/adapters/payouts.ts`): payroll computes what is owed and the
 owner pays it by hand. See `docs/concierge.md`.
 
@@ -76,18 +76,14 @@ debt is final, since as built a customer (or a compromised account) can
 single-handedly put an assistant into debt with an unverifiable claim. See
 "Disputes" in `docs/concierge.md`.
 
-**Payment-method tokens are verified against the real processor, but nothing
-downstream charges through one yet.** `apps/api/src/adapters/stripe.ts` and
-`paypal.ts` correctly refuse to trust a client-claimed brand/last4/expiry
-once real credentials are configured — they resolve the browser SDK's own
-token against Stripe/PayPal's API instead. Stripe's client half is now wired
-end to end (Card Element and the Payment Request sheet, via
-`apps/web/src/native/stripe.ts`), though it has not been exercised against a
-live Stripe account; PayPal's checkout SDK is still a labeled gap
-(`attachPaypal` in `PaymentMethodCard.tsx`). Either way the existing
-hold/capture flow (`payment.ts`) still settles without a real processor call
-regardless of which one verified the method — see "Payment settlement" above
-and `docs/billing.md`.
+**Payment-method tokens are verified against PayPal, which then takes the
+money.** `apps/api/src/adapters/paypal.ts` refuses to trust a client-claimed
+brand/last4/expiry once real credentials are configured — it resolves the
+browser SDK's own token against PayPal's Vault API instead — and then reserves,
+captures and charges the saved account with a request id on every call, so a
+repeat never charges twice. This has been tested against a stand-in for
+PayPal's servers, not a live account: run a sandbox app through it first. See
+"Payment settlement" above and `docs/billing.md`.
 
 **The task card's number is reachable by the assigned assistant, by design.**
 `POST /api/assistant/tasks/:taskId/card` hands them a one-time,

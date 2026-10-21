@@ -25,7 +25,6 @@ function stubPaypal(reply: (call: Call) => { ok?: boolean; status?: number; body
 const withPaypal = () => {
   process.env.PAYPAL_CLIENT_ID = "id"; process.env.PAYPAL_CLIENT_SECRET = "secret";
   process.env.PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com";
-  delete process.env.STRIPE_SECRET_KEY;
 };
 const account = { brand: "PayPal", last4: "" };
 const authorized = { status: "COMPLETED", purchase_units: [{ payments: { authorizations: [{ id: "AUTH1", status: "CREATED" }] } }] };
@@ -34,8 +33,8 @@ const captured = { status: "COMPLETED", purchase_units: [{ payments: { captures:
 describe("charging a saved PayPal account", () => {
   afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ENV }; });
 
-  it("is ready with PayPal's keys alone, no Stripe needed", () => {
-    delete process.env.PAYPAL_CLIENT_ID; delete process.env.STRIPE_SECRET_KEY;
+  it("is ready with PayPal's keys alone", () => {
+    delete process.env.PAYPAL_CLIENT_ID;
     expect(chargingReady()).toBe(false);
     withPaypal();
     expect(chargingReady()).toBe(true);
@@ -43,7 +42,6 @@ describe("charging a saved PayPal account", () => {
 
   it("knows what kind of source a saved method is", () => {
     expect(sourceKeyFor({ brand: "PayPal", last4: "" })).toBe("paypal");
-    expect(sourceKeyFor({ brand: "Venmo", last4: "" })).toBe("venmo");
     expect(sourceKeyFor({ brand: "Visa", last4: "4242" })).toBe("card");
   });
 
@@ -122,7 +120,7 @@ describe("plan billing for a customer who saved PayPal", () => {
   afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ENV }; });
   const now = new Date("2027-01-01T00:00:00Z");
 
-  it("charges the PayPal account for the renewal, with no Stripe customer involved", async () => {
+  it("charges the PayPal account for the renewal", async () => {
     withPaypal();
     const db: Db = structuredClone(SEED);
     db.travelers.push({ id: "t1", email: "t1@example.com", passwordHash: "x", displayName: "t1", planId: "premium-plus", homeLabel: "Home", emergencyContacts: [] });

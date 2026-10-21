@@ -87,8 +87,8 @@ const THEME = {
   s.addText("BEHIND THE SCENES", { x: 0.7, y: 0.8, w: 8, h: 0.4, fontSize: 13, bold: true, charSpacing: 4, color: C.accent2, margin: 0, isTextBox: true });
   s.addText("How the money moves", { x: 0.7, y: 1.25, w: 12, h: 0.9, fontSize: 40, bold: true, fontFace: "Cambria", color: C.background1, margin: 0, isTextBox: true });
   const cards = [
-    ["The customer pays", "Their saved card is held through Stripe when they ask, charged only what was spent when it’s done, and emailed both amounts."],
-    ["The assistant spends", "A one-task Stripe card capped at the limit. Stripe shows the number in their portal; they can add it to Apple Wallet."],
+    ["The customer pays", "Their saved PayPal account is held when they ask, charged only what was spent when it’s done, and emailed both amounts. ATH Móvil and crypto load a prepaid balance."],
+    ["The assistant spends", "A one-task Lithic card capped at the limit. Lithic shows the number in their portal; they can add it to Apple Wallet."],
     ["The assistant is paid", "Every 14 days, worked out for you, with 10% held back for Hacienda in Puerto Rico. You send it from the bank or ATH Business."],
   ];
   cards.forEach(([h, t], i) => {
@@ -97,7 +97,7 @@ const THEME = {
     s.addText(h, { x: x + 0.35, y: 2.95, w: 3.1, h: 0.6, fontSize: 24, bold: true, fontFace: "Cambria", color: C.accent5, margin: 0, isTextBox: true });
     s.addText(t, { x: x + 0.35, y: 3.65, w: 3.1, h: 2.3, fontSize: 16, color: C.background2, valign: "top", margin: 0, isTextBox: true });
   });
-  s.addNotes("Needs Stripe keys and Stripe Issuing approval before real money moves. PayPal and plan subscriptions are not charged yet.");
+  s.addNotes("Needs PayPal keys and an approved Lithic card program before real money moves.");
 
   // Closing
   s = pres.addSlide({ masterName: "Feature", sectionTitle: "Behind the scenes" });

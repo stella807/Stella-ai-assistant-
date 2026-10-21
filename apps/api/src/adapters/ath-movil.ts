@@ -4,19 +4,15 @@ import { statusFor } from "@safehubby/core";
 /**
  * ATH Móvil, Puerto Rico's own payment network, run by Evertec.
  *
- * The third real processor here, and the only one of the recent additions
- * that earns that: Klarna, Amazon Pay, Cash App and the rest are brands
- * Stripe surfaces on the Stripe account this app already has, so they need
- * no backend of their own (see `PayBrand` in payment.ts). ATH Móvil is
- * reachable through neither Stripe nor PayPal — it is a separate merchant
- * account, separate credentials, separate settlement — so it gets an adapter.
+ * A processor of its own, separate from PayPal: a separate merchant account,
+ * separate credentials, separate settlement — so it gets an adapter.
  *
  * Worth supporting for the obvious reason: on the island ATH Móvil is not an
  * alternative to cards, it is the default way people pay each other, and a
  * meaningful number of customers have it where they do not have a card they
  * would type into a form.
  *
- * As with Stripe and PayPal, the customer-facing half lives in the browser:
+ * As with PayPal, the customer-facing half lives in the browser:
  * Evertec's own `athmovil-javascript-api` renders the Payment Button, the
  * customer confirms in the ATH Móvil app, and the button hands back an
  * `ecommerceId`. This server never sees an ATH Móvil login. `verifyMethod`

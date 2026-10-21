@@ -2,22 +2,21 @@ import type { ChargeProcessorPort, VerifiedMethod } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
 
 /**
- * PayPal as a second, independent payment processor — genuinely separate
- * from Stripe, unlike Apple Pay/Google Pay (see stripe.ts), since PayPal is
- * its own account, its own rails, and its own settlement.
+ * PayPal, Safehubby's processor for saved payment methods: its own account,
+ * its own rails and its own settlement.
  *
- * As with Stripe, the customer's PayPal button lives entirely in the
- * browser via PayPal's own JS SDK, which vaults the payment source and hands
- * back a payment-token id. This server never sees PayPal login credentials —
- * only that token, which `verifyMethod` resolves against PayPal's Vault API
- * to read back what was actually vaulted.
+ * The customer's PayPal button lives entirely in the browser via PayPal's own
+ * JS SDK, which vaults the payment source and hands back a payment-token id.
+ * This server never sees PayPal login credentials — only that token, which
+ * `verifyMethod` resolves against PayPal's Vault API to read back what was
+ * actually vaulted. Taking money from it later is at the bottom of this file.
  *
  * Verified against PayPal's public API docs (developer.paypal.com/api/rest):
  *   POST /v1/oauth2/token             client-credentials → short-lived access token
  *   GET  /v3/vault/payment-tokens/{id} the vaulted payment source
  * `PAYPAL_API_BASE` should point at `api-m.sandbox.paypal.com` for testing
  * and `api-m.paypal.com` in production — PayPal does not use a query-param
- * or header flag to pick the environment the way Uber's sandbox does.
+ * or header flag to pick the environment.
  */
 
 // Read when used, not at import, so a redeploy or a test is never stuck with
@@ -120,17 +119,16 @@ export const paypalProcessor: ChargeProcessorPort = {
       payment_source?: {
         card?: { brand?: string; last_digits?: string; expiry?: string };
         paypal?: { email_address?: string };
-        venmo?: { email_address?: string };
       };
     };
     const source = data.payment_source ?? {};
 
-    // A vaulted PayPal or Venmo account has no card behind it: no digits and
-    // nothing to expire. It is recognised by its masked email.
-    const wallet = source.paypal ?? source.venmo;
+    // A vaulted PayPal account has no card behind it: no digits and nothing
+    // to expire. It is recognised by its masked email.
+    const wallet = source.paypal;
     if (wallet) {
       return {
-        brand: source.venmo ? "Venmo" : "PayPal",
+        brand: "PayPal",
         last4: "",
         accountLabel: maskEmail(String(wallet.email_address ?? "")),
       };
@@ -158,8 +156,7 @@ export const PAYPAL_REF_PREFIX = "paypal:";
 const dollarString = (cents: number) => (cents / 100).toFixed(2);
 
 /** Which `payment_source` key a saved method belongs under. */
-export function sourceKeyFor(method: { brand: string; last4: string }): "paypal" | "venmo" | "card" {
-  if (method.brand.toLowerCase() === "venmo") return "venmo";
+export function sourceKeyFor(method: { brand: string; last4: string }): "paypal" | "card" {
   return method.last4 ? "card" : "paypal";
 }
 
@@ -219,7 +216,7 @@ function orderFor(input: {
 
 /**
  * Reserves an exact amount on a saved PayPal account without taking it — the
- * counterpart of Stripe's manual-capture hold. PayPal keeps an authorization
+ * a held amount that is captured later or released. PayPal keeps an authorization
  * open for 29 days (honoured for the first 3), far longer than the 24-hour
  * hold the app places, so it is captured or voided well inside that.
  */
