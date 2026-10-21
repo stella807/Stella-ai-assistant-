@@ -46,16 +46,24 @@ const usd = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
  * actually paid with, never typed. An applicant deciding whether to apply is
  * the reader a stale number costs the most.
  */
-export function payLabelFor(role: StaffRole): string {
+export function payLabelFor(role: StaffRole, language: "en" | "es" = "en"): string {
+  const es = language === "es";
   if (role === "errand-runner") {
     const pays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
-    return `${usd(Math.min(...pays))} to ${usd(Math.max(...pays))} per errand, by size, plus ${usd(ERRAND_MILEAGE_CENTS)} a mile`;
+    const [lo, hi, mile] = [usd(Math.min(...pays)), usd(Math.max(...pays)), usd(ERRAND_MILEAGE_CENTS)];
+    return es
+      ? `De ${lo} a ${hi} por encargo, según el tamaño, más ${mile} por milla`
+      : `${lo} to ${hi} per errand, by size, plus ${mile} a mile`;
   }
-  if (role === "personal-assistant") return `${usd(PA_HOURLY_RATE_CENTS)} an hour, per booking`;
+  if (role === "personal-assistant") {
+    return es ? `${usd(PA_HOURLY_RATE_CENTS)} la hora, por reserva` : `${usd(PA_HOURLY_RATE_CENTS)} an hour, per booking`;
+  }
   const info = STAFF_ROLES.find((r) => r.id === role);
   if (info && info.hourlyCents > 0) {
-    return `${usd(info.hourlyCents)} an hour, about ${info.prelaunchHoursPerWeek} hours a week`;
+    return es
+      ? `${usd(info.hourlyCents)} la hora, unas ${info.prelaunchHoursPerWeek} horas a la semana`
+      : `${usd(info.hourlyCents)} an hour, about ${info.prelaunchHoursPerWeek} hours a week`;
   }
   // Paid per trip and not yet live: see driver-pay.ts. Said rather than skipped.
-  return "Paid per trip — see the driver application for the rates";
+  return es ? "Pago por viaje: las tarifas están en la solicitud para manejar" : "Paid per trip — see the driver application for the rates";
 }
