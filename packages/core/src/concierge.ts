@@ -117,7 +117,7 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
  * costs nothing to anyone who sets it lower.
  */
 export const CONCIERGE_MIN_CAP_CENTS = 1000;
-export const CONCIERGE_MAX_CAP_CENTS = 60000;
+export const CONCIERGE_MAX_CAP_CENTS = 75000;
 
 /**
  * `grab-something`'s own range, wider on both ends than every other capped
@@ -140,7 +140,7 @@ export const CONCIERGE_MAX_CAP_CENTS = 60000;
  * the trip rather than by what is bought at the end of it.
  */
 export const GRAB_SOMETHING_MIN_CAP_CENTS = 0;
-export const GRAB_SOMETHING_MAX_CAP_CENTS = 100000;
+export const GRAB_SOMETHING_MAX_CAP_CENTS = 125000;
 
 /**
  * Free tier's own, much lower ceiling for `grab-something` — the same
@@ -158,7 +158,30 @@ export const GRAB_SOMETHING_MAX_CAP_CENTS = 100000;
  * is not a separate line here: it is what `grab-something` already is,
  * paid tier or not.
  */
-export const FREE_GRAB_SOMETHING_MAX_CAP_CENTS = 2000;
+export const FREE_GRAB_SOMETHING_MAX_CAP_CENTS = 3500;
+
+/**
+ * Each paid plan's spending ceiling, as [grab-something, every other capped
+ * category]. The plan's base row (Premium) is the two constants above.
+ *
+ * Sized against what people actually spend when someone shops for them:
+ * DoorDash's 2025 marketplace volume works out to about $32 an order and
+ * Instacart's to about $110 a basket; TaskRabbit's 2026 errand invoices run
+ * $76-$103. Free covers a typical delivery order outright ($35). Premium
+ * clears several grocery baskets in one trip; Family is sized for a
+ * household's shop for four to six people; each Elite rung roughly doubles,
+ * since those members' errands are gifts, event supplies and travel extras
+ * rather than groceries. These are ceilings the customer may set the cap up
+ * to, never an amount anyone is charged.
+ */
+export const PLAN_CAP_CEILINGS_CENTS: Record<Exclude<PlanId, "free">, readonly [number, number]> = {
+  "premium-basic": [GRAB_SOMETHING_MAX_CAP_CENTS, CONCIERGE_MAX_CAP_CENTS],
+  "premium-plus": [150000, 100000],
+  family: [200000, 150000],
+  elite: [300000, 250000],
+  "elite-signature": [500000, 500000],
+  "elite-private": [1000000, 1000000],
+};
 
 /**
  * A purchase task has no product ceiling. The balance is whatever the
@@ -197,16 +220,14 @@ export function hasCapCeiling(category: ConciergeCategory): boolean {
  * the real bound sits outside this module either way: the customer funds the
  * card and the funding has to clear.
  *
- * `planId` narrows `grab-something` further on Free — see
- * `FREE_GRAB_SOMETHING_MAX_CAP_CENTS`'s own doc comment — and is ignored
- * everywhere else, including every paid plan.
+ * `planId` picks the ceiling from `PLAN_CAP_CEILINGS_CENTS`, and narrows
+ * `grab-something` further on Free — see `FREE_GRAB_SOMETHING_MAX_CAP_CENTS`.
  */
 export function maxCapFor(category: ConciergeCategory, planId?: PlanId): number | null {
   if (!hasCapCeiling(category)) return null;
-  if (category === "grab-something") {
-    return planId === "free" ? FREE_GRAB_SOMETHING_MAX_CAP_CENTS : GRAB_SOMETHING_MAX_CAP_CENTS;
-  }
-  return CONCIERGE_MAX_CAP_CENTS;
+  const [grab, other] = PLAN_CAP_CEILINGS_CENTS[!planId || planId === "free" ? "premium-basic" : planId];
+  if (category === "grab-something") return planId === "free" ? FREE_GRAB_SOMETHING_MAX_CAP_CENTS : grab;
+  return other;
 }
 
 /** The floor in force — `grab-something` alone has none, per
@@ -269,13 +290,16 @@ export function capPresetsFor(category: ConciergeCategory, planId?: PlanId): num
   // Starts lower than the shared ladder — a $0 floor means $10 is a real
   // one-tap option, not just the minimum — and reaches grab-something's own
   // $1,000 ceiling instead of stopping at the shared $600 top.
-  if (category === "grab-something") return [1000, 2500, 5000, 10000, 25000, 50000, GRAB_SOMETHING_MAX_CAP_CENTS];
+  // The top rung is the plan's own ceiling, so a bigger plan's headroom is
+  // one tap away rather than only reachable by typing.
+  const ceiling = maxCapFor(category, planId) ?? CONCIERGE_MAX_CAP_CENTS;
+  if (category === "grab-something") return [1000, 2500, 5000, 10000, 25000, 50000, ceiling];
   // Reaches past `CONCIERGE_MAX_CAP_CENTS` deliberately. An errand has no
   // ceiling any more, and a ladder that stopped at the old $600 would put
   // it back as far as anyone tapping buttons could tell. Ordinary errands
   // still get the low rungs; anything past the top is typed.
   if (category === "run-errand") return [2500, 5000, 10000, 20000, 60000, 150000, PURCHASE_LADDER_TOP_CENTS];
-  return [2500, 5000, 10000, 20000, 40000, 60000];
+  return [2500, 5000, 10000, 20000, 40000, ceiling];
 }
 
 /**

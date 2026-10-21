@@ -111,8 +111,9 @@ export function PaymentMethodCard() {
 
       {!method && !adding && (
         <div className="stack" style={{ gap: 8 }}>
+          <p className="tiny muted" style={{ margin: 0 }}>Visa, Mastercard, American Express and Discover.</p>
           <button className="btn btn-block btn-primary" disabled={busy} onClick={() => { setError(null); setAdding("card"); }}>
-            Add a card (Visa, Mastercard)
+            Add a credit or debit card
           </button>
           <button className="btn btn-block" disabled={busy} onClick={() => { setError(null); setAdding("paypal"); }}>
             Add your PayPal account

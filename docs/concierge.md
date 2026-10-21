@@ -35,8 +35,9 @@ spend cap is different in kind: it's a ceiling the subscriber chose on
 purpose, for money a stranger is about to spend. Padding it would authorize
 more than what was promised. So concierge tasks use a separate function,
 `authorizeExactHold`, which holds precisely the cap given — no multiplier,
-ever. `CONCIERGE_MIN_CAP_CENTS` ($10) and `CONCIERGE_MAX_CAP_CENTS` ($600)
-bound what a subscriber can set in the first place, and
+ever. `CONCIERGE_MIN_CAP_CENTS` ($10) and the plan's ceiling
+from `PLAN_CAP_CEILINGS_CENTS` bound what a subscriber can set in the first
+place, and
 `DEFAULT_CONCIERGE_CAP_CENTS` ($100) is where the control starts — the
 number most bookings will keep, so it has to cover an ordinary errand
 outright.
@@ -187,7 +188,7 @@ the payout grossed up by the margin:
 involve open-ended real time with a person, and discounting them would mean
 underpaying an assistant for the same time commitment, not rewarding a
 genuinely shorter job. A quick task is also capped at a lower spend —
-`QUICK_TASK_MAX_CAP_CENTS` ($100), well under the standard $600 — so "quick
+`QUICK_TASK_MAX_CAP_CENTS` ($100), well under any plan's ceiling — so "quick
 and simple" stays true rather than becoming a way to book a large purchase at
 a discounted fee. It is a sixfold gap rather than a tight one on purpose: a
 quick job is short, not cheap, and the old $50 ceiling was rationing the
@@ -919,3 +920,23 @@ in these cities.
 against the standard task's duration, which made it read as a worse rate for
 the same work. It pays less because it takes less time, and it is held to the
 same $35/hour floor as everything else.
+
+## Spending ceilings by plan
+
+The most a customer may set an assistant's spend cap to, by plan
+(`PLAN_CAP_CEILINGS_CENTS` in `packages/core/src/concierge.ts`). Errands and
+book-and-buy tasks have no ceiling on any plan.
+
+| Plan | Grab something | Other capped tasks |
+|---|---|---|
+| Free | $35 | — |
+| Premium | $1,250 | $750 |
+| Premium Plus | $1,500 | $1,000 |
+| Family | $2,000 | $1,500 |
+| Elite | $3,000 | $2,500 |
+| Elite Signature | $5,000 | $5,000 |
+| Elite Private | $10,000 | $10,000 |
+
+Sized against what people spend when someone shops for them: about $32 per
+DoorDash order and about $110 per Instacart basket (2025 totals divided by
+orders), and $76–$103 per TaskRabbit errand invoice (2026 cost guide).

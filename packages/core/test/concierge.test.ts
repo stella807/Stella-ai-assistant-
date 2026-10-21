@@ -250,11 +250,13 @@ describe("quick-task discount", () => {
     }
   });
 
-  it("keeps grab-something's own $1,000 ceiling, narrowed only on Free", () => {
+  it("keeps grab-something's own ceiling, raised on bigger plans and narrowed on Free", () => {
     expect(() => validateConciergeRequest(request({ quickTask: true, spendCapCents: GRAB_SOMETHING_MAX_CAP_CENTS })))
       .not.toThrow();
     expect(maxCapFor("grab-something")).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
-    expect(maxCapFor("grab-something", "premium-plus")).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
+    expect(maxCapFor("grab-something", "premium-basic")).toBe(GRAB_SOMETHING_MAX_CAP_CENTS);
+    expect(maxCapFor("grab-something", "premium-plus")).toBeGreaterThan(GRAB_SOMETHING_MAX_CAP_CENTS);
+    expect(maxCapFor("grab-something", "elite-private")).toBeGreaterThan(maxCapFor("grab-something", "family")!);
     expect(maxCapFor("grab-something", "free")).toBeLessThan(GRAB_SOMETHING_MAX_CAP_CENTS);
   });
 });
