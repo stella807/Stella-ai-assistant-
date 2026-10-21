@@ -246,9 +246,6 @@ export interface Db {
   /** Who agreed to be texted, keyed `traveler:<id>` or `assistant:<id>` — see sms.ts. */
   textContacts: Record<string, TextContact>;
   emailContacts?: Record<string, EmailContact>;
-  /** ATH Móvil loads started but not yet confirmed. The nonce is what ties a
-   *  payment to the account that began it. */
-  pendingBalanceLoads: PendingBalanceLoad[];
   /** Balance loads paid in crypto through OpenReceive — see crypto-loads.ts.
    *  Optional so documents saved before it existed still load. */
   cryptoLoads?: CryptoLoad[];
@@ -264,13 +261,6 @@ export interface CryptoLoad {
   paidAt?: string;
 }
 
-export interface PendingBalanceLoad {
-  nonce: string;
-  travelerId: string;
-  amountCents: number;
-  createdAt: string;
-}
-
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
   paymentMethods: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
@@ -278,7 +268,7 @@ const EMPTY: Db = {
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
-  priceOverrides: [], balanceEntries: [], pendingBalanceLoads: [], textContacts: {},
+  priceOverrides: [], balanceEntries: [], textContacts: {},
 };
 
 /** What routes need from a store, so the file and Postgres backings are

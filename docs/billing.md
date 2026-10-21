@@ -258,19 +258,20 @@ How money comes in, and which part of the app each way feeds:
 | Way to pay | Settles through | Used for |
 |---|---|---|
 | A saved **PayPal account** | PayPal (`adapters/paypal.ts`) | Holds for tasks and rides, and plan charges |
-| **ATH Móvil** | Evertec (`adapters/ath-movil.ts`) | Loads the prepaid balance |
 | **Crypto** | OpenReceive (`adapters/openreceive.ts`) | Loads the prepaid balance |
 
 Task cards for assistants come from **Lithic**; PayPal and crypto do not issue
 cards. There is no card form on the payment screen: customers pay with PayPal,
-or load the balance with ATH Móvil or crypto. Taking Visa and Mastercard
+or load the balance with crypto. ATH Móvil was removed for now (its adapter,
+routes and balance button are in git history, before the commit that removed
+it); it can be put back as a processor that loads the balance. Taking Visa and Mastercard
 directly would use PayPal's own card fields on the same PayPal account; that
 is not built yet.
 
 `packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
-`adapters/paypal.ts` and `adapters/ath-movil.ts` implement it — the same
+`adapters/paypal.ts` implements it — the same
 `ProviderStatus` automatic/handoff pattern as every other adapter in this
-app (Lithic cards, manual payouts, Uber, DoorDash). Their job is verification:
+app (Lithic cards, manual payouts, Uber, DoorDash). Its job is verification:
 the browser's own SDK tokenizes a method (PayPal's JS SDK) and hands this
 server a token, and the adapter asks the real processor what that token
 actually is, rather than trusting whatever the client claims. Without
@@ -279,36 +280,29 @@ falls back to the typed stand-in used in development, and
 `GET /api/payment/processors` reports it as `handoff` so the UI never claims a
 PayPal button works when it can't.
 
-`PaymentMethodOnFile.processor` is `paypal` or `ath-movil`, and nothing else:
-that list is what decides what is real, so a way to pay is only added to it
-with an account Safehubby actually holds.
-
-**ATH Móvil is the one that cannot be saved.** Puerto Rico's own network, run
-by Evertec, so it needs its own merchant account and its own adapter. It is an
-account tied to a phone number rather than a card, which is why
+`PaymentMethodOnFile.processor` is `paypal`, and nothing else: that list is
+what decides what is real, so a way to pay is only added to it with an account
+Safehubby actually holds. A PayPal account has no card behind it, which is why
 `PaymentMethodOnFile`'s expiry is optional — there is nothing to expire, and
 treating a missing expiry as expired would lock the method out immediately.
 
-### ATH Móvil loads a prepaid balance
+### Crypto loads a prepaid balance
 
-ATH Móvil debits the customer the moment they confirm in their app (Evertec's
-docs describe no hold, no saved method and no recurring charge, and there is
-no sandbox), so it cannot back a card-style hold. It funds a **Safehubby
+A crypto payment settles the moment it is made — no hold, no saved method, no
+recurring charge — so it cannot back a card-style hold. It funds a **Safehubby
 balance** instead (`balance.ts`, the Payments screen's *Safehubby balance*
-card, `/api/balance/*`):
+card, `/api/balance/*`); see "Crypto loads the prepaid balance (OpenReceive)"
+below for how a load is paid and credited. Limits: $5–$500 per load, $1,000
+total.
 
-- **Load:** `POST /api/balance/ath/start` records the amount and a nonce for
-  this account; Evertec's button carries the nonce in `metadata2`; the browser
-  reports an `ecommerceId`; `POST /api/balance/ath/complete` asks Evertec
-  (`findPayment`) and credits only a `COMPLETED` payment whose amount and nonce
-  match, once. Limits: $5–$500 per load, $1,000 total.
 - **Spend:** an errand or assistant booking reserves from the balance when it
-  covers the whole amount (never split with a card); otherwise it uses the
-  card, or refuses naming the shortfall. The balance is derived from loads and
-  from holds marked `fundedBy: "balance"`, so a capture or release adjusts it
-  with no second write. Rides and plan payments still go on a card.
-- **Refund:** `POST /api/balance/refund` sends unused money back through ATH
-  Móvil's refund endpoint against the original payments, newest first.
+  covers the whole amount (never split with a PayPal account); otherwise it
+  uses the saved PayPal account, or refuses naming the shortfall. The balance
+  is derived from loads and from holds marked `fundedBy: "balance"`, so a
+  capture or release adjusts it with no second write. Rides and plan payments
+  still go on a saved PayPal account.
+- **Refund:** by hand. The wallet connection cannot send money out, so there is
+  no automatic refund of the balance.
 - Not yet covered: plan subscriptions and rides from the balance; recurring
   renewals (each would need the customer to approve again).
 
@@ -380,23 +374,6 @@ at 0.4.31) straight into **your own Bitcoin wallet** over Lightning.
 - **Bitcoin's price** comes from CoinGecko at the moment of payment; you
   receive however much Bitcoin the dollar amount was worth then.
 
-### Configuring ATH Móvil
-
-Needs an ATH Móvil Business account. Both tokens are in the Settings tab of
-the ATH Móvil Business app:
-
-```bash
-railway variables --set "ATH_MOVIL_PUBLIC_TOKEN=..."
-railway variables --set "ATH_MOVIL_PRIVATE_TOKEN=..."
-```
-
-The private token is only strictly needed for refunds, and is required here
-anyway — a processor that can take money but not give it back is not one
-worth turning on. Evertec accepts the literal public token `dummy` for
-simulated payments against production, so there is no separate sandbox host
-to point at the way PayPal needs one. Endpoints are documented at
-[github.com/evertec/ATHM-Payment-Button-API](https://github.com/evertec/ATHM-Payment-Button-API).
-
 ### Configuring PayPal
 
 Create a REST app in PayPal's developer dashboard, turn on *Save payment
@@ -420,13 +397,11 @@ Stated plainly, because the code says the same thing where it matters:
   the moment it is recorded, which is what development and the tests run on.
   Holds, captures and plan charges go through PayPal once its keys are set
   ("PayPal takes the money" above).
-- **PayPal and ATH Móvil have not been exercised against live accounts.**
-  PayPal's button saves an account without charging (setup token, then payment
-  token) and the server reads the account back before storing its masked
-  email; try it in PayPal's sandbox first, with *Save payment methods* enabled.
-  ATH Móvil is wired as a balance load (see above), not as a saved method, and
-  Evertec offers no sandbox: try a small real load first. Both are verified here
-  only against stand-ins for the vendors' servers and scripts.
+- **PayPal has not been exercised against a live account.** PayPal's button
+  saves an account without charging (setup token, then payment token) and the
+  server reads the account back before storing its masked email; try it in
+  PayPal's sandbox first, with *Save payment methods* enabled. It is verified
+  here only against a stand-in for PayPal's servers and script.
 - **No typed-in card form.** Accepting Visa and Mastercard directly needs
   PayPal's own card fields, which are not built yet.
 - **No store receipt verification.** `POST /api/billing/charges/:id/confirm`

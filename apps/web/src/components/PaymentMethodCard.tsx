@@ -3,6 +3,21 @@ import { api, type PaymentMethod, type ProcessorStatus } from "../api.ts";
 import { PayPalButton } from "./PayPalButton.tsx";
 
 /**
+ * PayPal's own logo, the files PayPal itself serves (public/img/paypal-logo.svg
+ * and paypal-mark.svg), never redrawn or recoloured. The full-colour logo has a
+ * dark-blue "Pay" that vanishes on this app's dark background, so it sits on a
+ * white chip, which is how PayPal's brand guidelines have it used.
+ */
+function PayPalLogo({ mark = false }: { mark?: boolean }) {
+  return (
+    <span className="paypal-chip">
+      <img src={mark ? "/img/paypal-mark.svg" : "/img/paypal-logo.svg"} alt="PayPal" height={mark ? 22 : 24}
+        width={mark ? 22 : 85} />
+    </span>
+  );
+}
+
+/**
  * The one payment method on the account: a PayPal account. It backs every
  * charge that is not a store-billed subscription — rides, secure transport,
  * pharmacy runs, and the subscription itself on the web. Adding one does not
@@ -64,7 +79,10 @@ export function PaymentMethodCard() {
 
   return (
     <section className="card">
-      <h3>Payment method</h3>
+      <div className="row-between">
+        <h3 style={{ margin: 0 }}>Payment method</h3>
+        <PayPalLogo />
+      </div>
       <p className="small muted">
         Pay with your PayPal account for everything: rides, secure transport, pharmacy runs, and your plan.
         Nothing is charged when you add it — only when something actually happens, and only up to what that
@@ -74,8 +92,9 @@ export function PaymentMethodCard() {
       {method && !adding && (
         <>
           <div className="row-between">
-            <span className="small">
-              {method.accountLabel ? `${method.brand} — ${method.accountLabel}` : `${method.brand} ···· ${method.last4}`}
+            <span className="small row" style={{ gap: 8, alignItems: "center" }}>
+              {method.processor === "paypal" && <PayPalLogo mark />}
+              {method.accountLabel ?? `${method.brand} ···· ${method.last4}`}
             </span>
             {/* An account-based method has no card behind it and so no
                 expiry — see PaymentMethodOnFile in core's payment.ts. */}

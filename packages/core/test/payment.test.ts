@@ -62,27 +62,26 @@ describe("attaching a payment method", () => {
 });
 
 describe("a method with no card behind it", () => {
-  // ATH Móvil is an account tied to a phone number, not a card. It has
-  // nothing to expire, and treating a missing expiry as expired would lock
-  // the method out the moment it was added.
-  const athMovil = () => attachPaymentMethod({
-    id: "p", processor: "ath-movil", brand: "ATH Móvil", last4: "5309", now: T0,
+  // A PayPal account has nothing to expire, and treating a missing expiry as
+  // expired would lock the method out the moment it was added.
+  const account = () => attachPaymentMethod({
+    id: "p", processor: "paypal", brand: "PayPal", last4: "", accountLabel: "j***@x.co", now: T0,
   });
 
   it("attaches without an expiry", () => {
-    const m = athMovil();
-    expect(m.processor).toBe("ath-movil");
+    const m = account();
+    expect(m.processor).toBe("paypal");
     expect(m.expMonth).toBeUndefined();
     expect(m.expYear).toBeUndefined();
   });
 
   it("never counts as expired, however far out the clock is", () => {
-    expect(isMethodExpired(athMovil(), T0)).toBe(false);
-    expect(isMethodExpired(athMovil(), at(24 * 365 * 20))).toBe(false);
+    expect(isMethodExpired(account(), T0)).toBe(false);
+    expect(isMethodExpired(account(), at(24 * 365 * 20))).toBe(false);
   });
 
   it("can still book automatically", () => {
-    expect(canBookAutomatically(true, athMovil(), at(24 * 365 * 20))).toBe(true);
+    expect(canBookAutomatically(true, account(), at(24 * 365 * 20))).toBe(true);
   });
 
   it("still refuses a half-given expiry rather than silently dropping it", () => {
@@ -208,9 +207,5 @@ describe("a PayPal account has no card digits", () => {
   });
   it("still needs something to recognise it by", () => {
     expect(() => paypal({ accountLabel: undefined })).toThrow(/card number/i);
-  });
-  it("is the only method allowed to have no digits", () => {
-    expect(() => attachPaymentMethod({ id: "c", processor: "ath-movil", brand: "ATH Móvil", last4: "", accountLabel: "x", now: T0 }))
-      .toThrow(/card number/i);
   });
 });

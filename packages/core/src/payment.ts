@@ -23,13 +23,12 @@ import type { Iso8601 } from "./types.ts";
  * its own credentials, its own rails and its own settlement.
  *
  * Deliberately short, and it is the list that decides what is real. PayPal
- * takes saved PayPal accounts for holds and plan charges. ATH Móvil is Puerto
- * Rico's own network, run by Evertec: it debits on the spot and cannot be held
- * or charged later, so it loads a prepaid balance instead. Crypto also loads
- * that balance, but it is not a method on file — see crypto-loads.ts in the API.
- * See `ChargeProcessorPort` in fulfillment.ts and `adapters/ath-movil.ts`.
+ * takes saved PayPal accounts for holds and plan charges. Crypto loads a
+ * prepaid balance instead, but it is not a method on file — see
+ * crypto-loads.ts in the API. See `ChargeProcessorPort` in fulfillment.ts and
+ * `adapters/paypal.ts`.
  */
-export type PaymentProcessor = "paypal" | "ath-movil";
+export type PaymentProcessor = "paypal";
 
 export interface PaymentMethodOnFile {
   id: string;
@@ -38,15 +37,14 @@ export interface PaymentMethodOnFile {
   processor: PaymentProcessor;
   /** Never a full card number. This is the only thing worth storing that way. */
   brand: string;
-  /** Last four of the card, or of the linked phone number for an
-   *  account-based method like ATH Móvil. */
+  /** Last four of the card. Empty for a PayPal account, which has no digits. */
   last4: string;
   /** What a person recognises an account by when there are no card digits —
    *  a masked PayPal email. Display only. */
   accountLabel?: string;
-  /** Absent on a method with no card behind it — an ATH Móvil account, a
-   *  PayPal account. There is nothing to expire, and treating a
-   *  missing expiry as "expired" would lock those methods out permanently.
+  /** Absent on a method with no card behind it — a PayPal account. There is
+   *  nothing to expire, and treating a missing expiry as "expired" would lock
+   *  those methods out permanently.
    *  Validated strictly whenever it is present. */
   expMonth?: number;
   expYear?: number;

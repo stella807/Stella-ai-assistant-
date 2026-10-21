@@ -67,3 +67,7 @@ textarea:focus { outline: none; border-color: #c99a4c; }
 textarea::placeholder { color: var(--faint); }
 /* Room between a fold-out's title and its +. */
 .night-out > summary { gap: 12px; }
+
+/* PayPal's logo on a white chip: its dark-blue "Pay" disappears on the dark theme. */
+.paypal-chip { display: inline-flex; align-items: center; background: #fff; border-radius: 8px; padding: 5px 9px; line-height: 0; flex: none; }
+.paypal-chip img { display: block; }

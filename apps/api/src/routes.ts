@@ -37,7 +37,7 @@ import {
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
   validateBody, validateDrinkLimit,
   canDelegateTo, whoDoesTheWork, validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
-  BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, allocateRefund, athRefundableCents, balanceSummary, validateLoad,
+  BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, balanceSummary, validateLoad,
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   canMarkByHand, launchProgress,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
@@ -98,7 +98,6 @@ import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
-import { athMovilProcessor, athPublicToken, findAthPayment, refundAthPayment } from "./adapters/ath-movil.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -271,7 +270,6 @@ function requirePaymentMethod(ctx: Ctx, userId: string): void {
  */
 const PROCESSOR_PORTS: Record<PaymentProcessor, ChargeProcessorPort> = {
   paypal: paypalProcessor,
-  "ath-movil": athMovilProcessor,
 };
 
 /**
@@ -1685,7 +1683,7 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/account/payment-method": async (ctx, _p, body) => {
     const me = actor(ctx);
-    const processor: PaymentProcessor = body?.processor === "ath-movil" ? "ath-movil" : "paypal";
+    const processor: PaymentProcessor = "paypal";
     const port = PROCESSOR_PORTS[processor];
 
     let brand = String(body?.brand ?? "");
@@ -1731,22 +1729,17 @@ export const routes: Record<string, Handler> = {
   },
 
   /**
-   * The prepaid balance, loaded with ATH Móvil. ATH Móvil debits on the spot
-   * and cannot be held or charged later, so it funds a balance that errands
-   * then reserve from — see balance.ts.
+   * The prepaid balance, loaded with crypto. A crypto payment settles on the
+   * spot and cannot be held or charged later, so it funds a balance that
+   * errands then reserve from — see balance.ts.
    */
   "GET /api/balance": (ctx) => {
     const me = actor(ctx);
     const d = ctx.store.data;
-    const token = athPublicToken();
     return {
       ...balanceSummary(d.balanceEntries, d.holds, me),
-      refundableCents: athRefundableCents(d.balanceEntries, d.holds, me),
       minLoadCents: BALANCE_MIN_LOAD_CENTS,
       maxLoadCents: BALANCE_MAX_LOAD_CENTS,
-      ath: isAutomatic(athMovilProcessor.status)
-        ? { ready: true as const, publicToken: token }
-        : { ready: false as const, note: athMovilProcessor.status.requires },
       crypto: cryptoReady() ? { ready: true as const } : { ready: false as const, note: cryptoRequires },
     };
   },
@@ -1764,109 +1757,6 @@ export const routes: Record<string, Handler> = {
     try { validateLoad(amountCents, current.availableCents + current.heldCents); }
     catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That amount cannot be loaded."); }
     return { reference: startCryptoLoad(ctx.store, me, amountCents, ctx.now()) };
-  },
-
-  /** Records what is about to be paid and who is paying it, before the
-   *  customer ever sees the ATH Móvil button. */
-  "POST /api/balance/ath/start": (ctx, _p, body) => {
-    const me = actor(ctx);
-    if (!isAutomatic(athMovilProcessor.status)) throw new HttpError(503, athMovilProcessor.status.requires);
-    const amountCents = Number(body?.amountCents);
-    const current = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
-    try { validateLoad(amountCents, current.availableCents + current.heldCents); }
-    catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That amount cannot be loaded."); }
-
-    const nonce = newId("bl");
-    const cutoff = ctx.now().getTime() - 3_600_000;
-    ctx.store.update((db) => {
-      db.pendingBalanceLoads = db.pendingBalanceLoads.filter((l) => new Date(l.createdAt).getTime() > cutoff);
-      db.pendingBalanceLoads.push({ nonce, travelerId: me, amountCents, createdAt: ctx.now().toISOString() });
-    });
-    // `metadata2` carries the nonce through Evertec and back, which is what
-    // lets `complete` know this payment was begun by this account for this amount.
-    return { nonce, total: (amountCents / 100).toFixed(2), metadata1: "Safehubby balance", metadata2: nonce };
-  },
-
-  /** The browser says the payment finished; Evertec is asked whether it did. */
-  "POST /api/balance/ath/complete": async (ctx, _p, body) => {
-    const me = actor(ctx);
-    const ecommerceId = String(body?.ecommerceId ?? "");
-    const nonce = String(body?.nonce ?? "");
-    if (!ecommerceId || !nonce) throw new HttpError(400, "Missing payment details.");
-    const pending = ctx.store.data.pendingBalanceLoads.find((l) => l.nonce === nonce && l.travelerId === me);
-    if (!pending) throw new HttpError(404, "That payment was not started from this account, or was already counted.");
-
-    let payment;
-    try { payment = await findAthPayment(ecommerceId); }
-    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "ATH Móvil could not be reached."); }
-    if (payment.ecommerceStatus !== "COMPLETED") {
-      throw new HttpError(402, `ATH Móvil shows that payment as ${payment.ecommerceStatus ?? "unknown"}, not completed.`);
-    }
-    if (payment.metadata2 !== nonce) throw new HttpError(400, "That payment does not match this load.");
-    if (Math.round(Number(payment.total) * 100) !== pending.amountCents) {
-      throw new HttpError(400, "The amount paid does not match what was asked for.");
-    }
-    const reference = String(payment.referenceNumber ?? "");
-    if (!reference) throw new HttpError(502, "ATH Móvil did not return a reference for that payment.");
-
-    // Re-checked after the await: a second tap or a replayed request must not
-    // credit the same payment twice.
-    const db = ctx.store.data;
-    if (db.balanceEntries.some((e) => e.reference === reference) || !db.pendingBalanceLoads.some((l) => l.nonce === nonce)) {
-      return { ...balanceSummary(db.balanceEntries, db.holds, me), alreadyCounted: true };
-    }
-    ctx.store.update((d) => {
-      d.pendingBalanceLoads = d.pendingBalanceLoads.filter((l) => l.nonce !== nonce);
-      d.balanceEntries.push({
-        id: newId("be"), travelerId: me, kind: "load", amountCents: pending.amountCents,
-        reference, createdAt: ctx.now().toISOString(),
-      });
-    });
-    return { ...balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me), alreadyCounted: false };
-  },
-
-  /** Sends unused money back to the customer's own ATH Móvil. */
-  "POST /api/balance/refund": async (ctx, _p, body) => {
-    const me = actor(ctx);
-    if (!isAutomatic(athMovilProcessor.status)) throw new HttpError(503, athMovilProcessor.status.requires);
-    const summary = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
-    // Crypto loads are not sent back automatically, so "all of it" means all
-    // of what ATH Móvil can take back.
-    const refundable = athRefundableCents(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
-    const amountCents = body?.amountCents === undefined ? refundable : Number(body.amountCents);
-    if (!Number.isInteger(amountCents) || amountCents <= 0) throw new HttpError(400, "There is nothing to refund.");
-    if (amountCents > summary.availableCents) {
-      throw new HttpError(400, `Only $${(summary.availableCents / 100).toFixed(2)} is free to refund — the rest is set aside for tasks in progress.`);
-    }
-    if (amountCents > refundable) {
-      throw new HttpError(400, `Only $${(refundable / 100).toFixed(2)} can go back to ATH Móvil. Money added with crypto is refunded by our team — contact us.`);
-    }
-    let slices;
-    try { slices = allocateRefund(ctx.store.data.balanceEntries, me, amountCents); }
-    catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That cannot be refunded."); }
-
-    // Taken out of the balance before the refund is sent, so a task booked
-    // while Evertec is answering cannot spend the same money.
-    const ids = slices.map(() => newId("be"));
-    ctx.store.update((db) => {
-      slices.forEach((sl, i) => db.balanceEntries.push({
-        id: ids[i]!, travelerId: me, kind: "payout", amountCents: sl.amountCents,
-        reference: sl.reference, againstEntryId: sl.entryId, createdAt: ctx.now().toISOString(),
-      }));
-    });
-    const sent: string[] = [];
-    try {
-      for (const [i, sl] of slices.entries()) {
-        await refundAthPayment(sl.reference, sl.amountCents);
-        sent.push(ids[i]!);
-      }
-    } catch (e) {
-      // Whatever Evertec did not refund goes back on the balance.
-      const unsent = new Set(ids.filter((id) => !sent.includes(id)));
-      ctx.store.update((db) => { db.balanceEntries = db.balanceEntries.filter((en) => !unsent.has(en.id)); });
-      throw new HttpError(502, `${e instanceof Error ? e.message : "The refund failed"}${sent.length ? " Part of it was sent; the rest is still on your balance." : ""}`);
-    }
-    return balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
   },
 
   /**

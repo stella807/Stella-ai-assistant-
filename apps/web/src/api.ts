@@ -127,7 +127,7 @@ export interface Account {
   homeLabel: string;
 }
 
-export type PaymentProcessor = "paypal" | "ath-movil";
+export type PaymentProcessor = "paypal";
 
 export interface TextAlertsState { enabled: boolean; phoneLast4?: string; language?: "en" | "es"; providerReady: boolean }
 
@@ -146,9 +146,6 @@ export interface BalanceSummary {
 export type BalanceInfo = BalanceSummary & {
   minLoadCents: number;
   maxLoadCents: number;
-  /** What can go back to ATH Móvil; money added with crypto is refunded by hand. */
-  refundableCents: number;
-  ath: { ready: true; publicToken: string | null } | { ready: false; note: string };
   crypto: { ready: true } | { ready: false; note: string };
 };
 
@@ -346,15 +343,8 @@ export const api = {
   saveEmailAlerts: (scope: "account" | "assistant", input: { email?: string; consent: boolean; language: "en" | "es" }) =>
     request<{ enabled: boolean; emailHint?: string }>("POST", `/api/${scope}/email-alerts`, input),
   balance: () => request<BalanceInfo>("GET", "/api/balance"),
-  startBalanceLoad: (amountCents: number) =>
-    request<{ nonce: string; total: string; metadata1: string; metadata2: string }>(
-      "POST", "/api/balance/ath/start", { amountCents }),
   startCryptoLoad: (amountCents: number) =>
     request<{ reference: string }>("POST", "/api/balance/crypto/start", { amountCents }),
-  completeBalanceLoad: (ecommerceId: string, nonce: string) =>
-    request<BalanceSummary & { alreadyCounted: boolean }>("POST", "/api/balance/ath/complete", { ecommerceId, nonce }),
-  refundBalance: (amountCents?: number) =>
-    request<BalanceSummary>("POST", "/api/balance/refund", amountCents === undefined ? {} : { amountCents }),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),
   paymentProcessors: () => request<{ processors: ProcessorStatus[] }>("GET", "/api/payment/processors"),
   attachPaymentMethod: (input: AttachPaymentMethodInput) =>
