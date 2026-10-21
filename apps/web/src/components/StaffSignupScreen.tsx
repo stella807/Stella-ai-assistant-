@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
-import { MAX_RESUME_BYTES } from "@safehubby/core";
+import { MAX_RESUME_BYTES, payLabelFor, type StaffRole } from "@safehubby/core";
+import { useLanguage } from "../i18n.tsx";
+import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
 
 /**
  * The public application for the roles that do not drive — personal
@@ -13,11 +15,12 @@ import { MAX_RESUME_BYTES } from "@safehubby/core";
  * they are applying for the wrong thing.
  *
  * No account is needed. The id returned is the only way to withdraw later, so
- * it is shown plainly rather than emailed — there is no mail delivery wired
- * up (see adapters/email.ts), and a page that says "check your email" when
- * nothing was sent is worse than one that hands you the reference.
+ * it is always shown here, whether or not email is set up to send a copy.
  */
 export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void; initialRole?: string }) {
+  const { language } = useLanguage();
+  const lang = language === "es" ? "es" : "en";
+  const w = careersWords(lang);
   const [roles, setRoles] = useState<StaffRoleInfo[]>([]);
   const [benefits, setBenefits] = useState<HiringBenefit[]>([]);
   const [role, setRole] = useState("");
@@ -39,21 +42,21 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     setResumeError(null);
     if (!file) { setResume(null); return; }
     if (file.size > MAX_RESUME_BYTES) {
-      setResumeError("That file is too large — try a smaller PDF or a more compressed photo.");
+      setResumeError(w.tooBig);
       return;
     }
     try {
       const { base64, mimeType } = await readFileAsBase64(file);
       setResume({ base64, mimeType, fileName: file.name });
     } catch {
-      setResumeError("Could not read that file — try again.");
+      setResumeError(w.unreadable);
     }
   };
 
   useEffect(() => {
     api.staffRoles()
       .then((r) => { setRoles(r.roles); setBenefits(r.benefits); setRole((cur) => cur || (r.roles.some((x) => x.id === initialRole) ? initialRole! : r.roles[0]?.id) || ""); })
-      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the open roles."));
+      .catch((e) => setError(e instanceof Error ? e.message : w.loadFailed));
   }, []);
 
   const submit = async () => {
@@ -68,7 +71,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
       });
       setSubmitted({ id: res.id });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      setError(e instanceof Error ? e.message : w.failed);
     } finally {
       setBusy(false);
     }
@@ -77,16 +80,13 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   if (submitted) {
     return (
       <section className="card stack">
-        <h2>Application received</h2>
-        <p className="small">
-          Keep this reference — it is how you check on or withdraw your application, and nothing has been
-          emailed to you.
-        </p>
+        <h2>{w.received}</h2>
+        <p className="small">{w.keep}</p>
         <div className="share-code">
-          <span className="tiny muted">Your reference</span>
+          <span className="tiny muted">{w.reference}</span>
           <strong>{submitted.id}</strong>
         </div>
-        <button className="btn btn-block btn-ghost" onClick={onBack}>Back</button>
+        <button className="btn btn-block btn-ghost" onClick={onBack}>{w.done}</button>
       </section>
     );
   }
@@ -100,24 +100,20 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
 
   return (
     <div className="stack">
-      <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>← Back</button>
+      <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>{w.back}</button>
 
       <section className="card stack">
-        <h2>Work with Safehubby</h2>
-        <p className="small muted" style={{ margin: 0 }}>
-          We're hiring ahead of launch. Pick the role that fits and tell us a little about yourself — the
-          rate is published before you apply. A résumé is welcome but optional: the sentence or two about
-          your experience below is what actually gets read either way.
-        </p>
+        <h2>{w.title}</h2>
+        <p className="small muted" style={{ margin: 0 }}>{w.lead}</p>
       </section>
 
       {shown.length > 0 && (
         <section className="card stack">
-          <h3>What you get</h3>
+          <h3>{w.youGet}</h3>
           {shown.map((b) => (
             <div key={b.id} className="stack" style={{ gap: 2 }}>
-              <strong className="small">{b.label}</strong>
-              <p className="tiny muted" style={{ margin: 0 }}>{b.detail}</p>
+              <strong className="small">{lang === "es" ? BENEFIT_ES[b.id]?.label ?? b.label : b.label}</strong>
+              <p className="tiny muted" style={{ margin: 0 }}>{lang === "es" ? BENEFIT_ES[b.id]?.detail ?? b.detail : b.detail}</p>
             </div>
           ))}
         </section>
@@ -128,65 +124,63 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           {roles.map((r) => (
             <button key={r.id} className={`chip${r.id === role ? " chip-on" : ""}`}
               aria-pressed={r.id === role} onClick={() => setRole(r.id)}>
-              <strong>{r.label}</strong>
-              <span className="tiny">{r.description}</span>
+              <strong>{lang === "es" ? ROLE_ES[r.id]?.label ?? r.label : r.label}</strong>
+              <span className="tiny">{lang === "es" ? ROLE_ES[r.id]?.description ?? r.description : r.description}</span>
               {/* What it pays and how many we want, on the card itself: an
                   applicant choosing a role should not have to apply to find
                   out whether the job exists or what it is worth. */}
-              <span className="small"><strong>{r.pay}</strong></span>
+              <span className="small"><strong>{lang === "es" ? payLabelFor(r.id as StaffRole, "es") : r.pay}</strong></span>
               <span className={`tiny ${r.hiring ? "" : "muted"}`}>
-                {r.hiring
-                  ? `Hiring now: ${r.openings} ${r.openings === 1 ? "person" : "people"}`
-                  : "Not hiring right now — you can still apply to be considered later."}
+                {r.hiring ? w.hiring(r.openings) : w.notHiring}
               </span>
             </button>
           ))}
         </div>
 
         <div className="field">
-          <label htmlFor="s-name">Your name</label>
+          <label htmlFor="s-name">{w.name}</label>
           <input id="s-name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </div>
 
         <div className="field">
-          <label htmlFor="s-email">Email</label>
+          <label htmlFor="s-email">{w.email}</label>
           <input id="s-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
 
         <div className="field">
-          <label htmlFor="s-phone">Phone</label>
+          <label htmlFor="s-phone">{w.phone}</label>
           <input id="s-phone" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
 
         <div className="row" style={{ gap: 8 }}>
           <div className="field" style={{ flex: 2 }}>
-            <label htmlFor="s-city">City</label>
+            <label htmlFor="s-city">{w.city}</label>
             <input id="s-city" value={city} onChange={(e) => setCity(e.target.value)} />
           </div>
           <div className="field" style={{ flex: 1 }}>
-            <label htmlFor="s-state">State</label>
+            <label htmlFor="s-state">{w.state}</label>
             <input id="s-state" maxLength={2} autoCapitalize="characters" value={state}
               onChange={(e) => setState(e.target.value)} />
           </div>
         </div>
 
         <div className="field">
-          <label htmlFor="s-exp">Relevant experience</label>
+          <label htmlFor="s-exp">{w.experience}</label>
           <textarea id="s-exp" rows={3} maxLength={600} value={experience}
             onChange={(e) => setExperience(e.target.value)}
-            placeholder="A sentence or two. Looking after people counts, whether or not it was a job." />
+            placeholder={w.experienceHint} />
         </div>
 
         <div className="field">
-          <label htmlFor="s-resume">Résumé (optional)</label>
+          <label htmlFor="s-resume">{w.resume}</label>
           <input id="s-resume" type="file" accept="application/pdf,image/png,image/jpeg"
             onChange={(e) => onResumeChosen(e.target.files?.[0])} />
-          {resume && <p className="tiny muted" style={{ margin: 0 }}>Attached: {resume.fileName}</p>}
+          {resume && <p className="tiny muted" style={{ margin: 0 }}>{w.attached} {resume.fileName}</p>}
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
         <div className="field">
-          <label htmlFor="s-hours">Hours a week you're looking for</label>
+          <label htmlFor="s-hours">{w.hours}</label>
           <input id="s-hours" type="number" min={1} max={80} value={hoursPerWeek}
             onChange={(e) => setHoursPerWeek(e.target.value)} />
         </div>
@@ -194,14 +188,12 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span className="tiny">
-            I consent to a background check. {selected && !selected.drives
-              ? "This is in-person work with people who may be vulnerable, so it is required for every role."
-              : "Required for every role."}
+            {w.consent} {selected && !selected.drives ? w.consentPeople : w.consentAll}
           </span>
         </label>
 
         <button className="btn btn-primary btn-block" disabled={busy || !ready} onClick={submit}>
-          Apply
+          {w.apply}
         </button>
 
         {error && <div className="banner banner-danger">{error}</div>}

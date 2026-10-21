@@ -2,6 +2,8 @@ import { useState } from "react";
 import { DRIVER_RATE_CARD, MAX_RESUME_BYTES, benefitsFor, driverEarningsCents } from "@safehubby/core";
 import { api, type DriverApplicationInput } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
+import { useLanguage } from "../i18n.tsx";
+import { BENEFIT_ES, CAREERS, DRIVE } from "../app/careers-copy.ts";
 
 /**
  * The public application form to drive for Safehubby.
@@ -13,10 +15,13 @@ import { readFileAsBase64 } from "../files.ts";
  * staffed by name and verified licence, never by API key.
  *
  * No account is needed to apply. The id returned after submitting is the only
- * way to check status or withdraw later, so it's shown plainly rather than
- * emailed — there is no email delivery wired up yet either.
+ * way to check status or withdraw later, so it is always shown here.
  */
 export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
+  const { language } = useLanguage();
+  const lang = language === "es" ? "es" : "en";
+  const w = DRIVE[lang];
+  const shared = CAREERS[lang];
   const [tier, setTier] = useState<DriverApplicationInput["tier"]>("standard");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -44,14 +49,14 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
     setResumeError(null);
     if (!file) { setResume(null); return; }
     if (file.size > MAX_RESUME_BYTES) {
-      setResumeError("That file is too large — try a smaller PDF or a more compressed photo.");
+      setResumeError(shared.tooBig);
       return;
     }
     try {
       const { base64, mimeType } = await readFileAsBase64(file);
       setResume({ base64, mimeType, fileName: file.name });
     } catch {
-      setResumeError("Could not read that file — try again.");
+      setResumeError(shared.unreadable);
     }
   };
 
@@ -78,7 +83,7 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
       });
       setSubmitted(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not submit that application");
+      setError(e instanceof Error ? e.message : w.failed);
     } finally {
       setBusy(false);
     }
@@ -88,15 +93,12 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
     return (
       <div className="stack">
         <section className="card">
-          <h2>Application received</h2>
+          <h2>{shared.received}</h2>
           <p className="small">
-            Your application id is <strong style={{ userSelect: "all" }}>{submitted.id}</strong>. Save it — it
-            is the only way to check on your application or withdraw it later.
+            {w.yourId} <strong style={{ userSelect: "all" }}>{submitted.id}</strong>. {w.saveIt}
           </p>
-          <p className="small muted">
-            A background check is required before approval. We&apos;ll follow up at the email you gave.
-          </p>
-          <button className="btn btn-block" onClick={onBack}>Back</button>
+          <p className="small muted">{w.followUp}</p>
+          <button className="btn btn-block" onClick={onBack}>{w.back}</button>
         </section>
       </div>
     );
@@ -110,24 +112,22 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
   return (
     <div className="stack">
       <div className="row-between">
-        <h2>Drive for Safehubby</h2>
-        <button className="btn btn-sm btn-ghost" onClick={onBack}>Back</button>
+        <h2>{w.title}</h2>
+        <button className="btn btn-sm btn-ghost" onClick={onBack}>{w.back}</button>
       </div>
 
       <section className="card">
-        <h3>Which tier</h3>
+        <h3>{w.tier}</h3>
         <div className="row">
           <button className={`btn grow${tier === "standard" ? " btn-primary" : ""}`} onClick={() => setTier("standard")}>
-            Standard
+            {w.standard}
           </button>
           <button className={`btn grow${tier === "secure-transport" ? " btn-primary" : ""}`} onClick={() => setTier("secure-transport")}>
-            Secure transport
+            {w.secure}
           </button>
         </div>
         <p className="tiny muted">
-          {tier === "secure-transport"
-            ? "For licensed protective-services, military, or law-enforcement professionals. Requires a verifiable protective-services licence in addition to everything below."
-            : "A driving licence, a roadworthy vehicle, and a background check."}
+          {tier === "secure-transport" ? w.secureNote : w.standardNote}
         </p>
       </section>
 
@@ -135,96 +135,88 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
           so the gas stipend is visible to the people it is actually for
           rather than only to roles that do not get it. */}
       <section className="card stack">
-        <h3>What you get</h3>
+        <h3>{shared.youGet}</h3>
         {benefitsFor("driver").map((b) => (
           <div key={b.id} className="stack" style={{ gap: 2 }}>
-            <strong className="small">{b.label}</strong>
-            <p className="tiny muted" style={{ margin: 0 }}>{b.detail}</p>
+            <strong className="small">{lang === "es" ? BENEFIT_ES[b.id]?.label ?? b.label : b.label}</strong>
+            <p className="tiny muted" style={{ margin: 0 }}>{lang === "es" ? BENEFIT_ES[b.id]?.detail ?? b.detail : b.detail}</p>
           </div>
         ))}
       </section>
 
       <section className="card">
-        <h3>Pay</h3>
+        <h3>{w.pay}</h3>
         <p className="small">
-          ${(DRIVER_RATE_CARD[tier].baseCents / 100).toFixed(2)} per trip, plus{" "}
-          ${(DRIVER_RATE_CARD[tier].perMileCents / 100).toFixed(2)}/mile and{" "}
-          ${(DRIVER_RATE_CARD[tier].perMinuteCents / 100).toFixed(2)}/minute — a base, plus what the trip
-          actually costs in distance and time, not one flat number for every trip length.
+          {w.payLine(DRIVER_RATE_CARD[tier].baseCents, DRIVER_RATE_CARD[tier].perMileCents, DRIVER_RATE_CARD[tier].perMinuteCents)}
         </p>
         <p className="tiny muted">
-          Example: a 5-mile, 15-minute trip pays about ${(driverEarningsCents(tier, 5, 15) / 100).toFixed(2)}.
-          {tier === "secure-transport"
-            ? " Higher than standard by design — it reflects the real, ongoing cost of a licensed protective-services driver's insurance and training, not a premium for the job sounding riskier."
-            : ""}
+          {w.example(driverEarningsCents(tier, 5, 15))}
+          {tier === "secure-transport" ? w.secureWhy : ""}
         </p>
-        <p className="tiny muted">
-          Nobody is dispatched from this list yet — see the note after you apply. This is the rate that
-          will apply once driving for Safehubby is live, published now rather than decided later.
-        </p>
+        <p className="tiny muted">{w.notLive}</p>
       </section>
 
       <section className="card">
-        <h3>About you</h3>
+        <h3>{w.aboutYou}</h3>
         <div className="field">
-          <label htmlFor="fullName">Full name</label>
+          <label htmlFor="fullName">{w.fullName}</label>
           <input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{shared.email}</label>
           <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="phone">Phone</label>
+          <label htmlFor="phone">{shared.phone}</label>
           <input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="row">
           <div className="field grow">
-            <label htmlFor="city">City</label>
+            <label htmlFor="city">{shared.city}</label>
             <input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
           </div>
           <div className="field grow">
-            <label htmlFor="state">State</label>
+            <label htmlFor="state">{shared.state}</label>
             <input id="state" maxLength={2} value={state} onChange={(e) => setState(e.target.value.toUpperCase())} />
           </div>
         </div>
       </section>
 
       <section className="card">
-        <h3>Driver&apos;s licence</h3>
+        <h3>{w.licence}</h3>
         <div className="field">
-          <label htmlFor="licenseNumber">Licence number</label>
+          <label htmlFor="licenseNumber">{w.licenceNumber}</label>
           <input id="licenseNumber" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="licenseExpiry">Expiry date</label>
+          <label htmlFor="licenseExpiry">{w.expiry}</label>
           <input id="licenseExpiry" type="date" value={licenseExpiry} onChange={(e) => setLicenseExpiry(e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="yearsDriving">Years driving</label>
+          <label htmlFor="yearsDriving">{w.yearsDriving}</label>
           <input id="yearsDriving" inputMode="numeric" value={yearsDriving} onChange={(e) => setYearsDriving(e.target.value.replace(/\D/g, ""))} />
         </div>
       </section>
 
       <section className="card">
-        <h3>Vehicle</h3>
+        <h3>{w.vehicle}</h3>
         <div className="row">
           <div className="field grow">
-            <label htmlFor="make">Make</label>
+            <label htmlFor="make">{w.make}</label>
             <input id="make" value={make} onChange={(e) => setMake(e.target.value)} />
           </div>
           <div className="field grow">
-            <label htmlFor="model">Model</label>
+            <label htmlFor="model">{w.model}</label>
             <input id="model" value={model} onChange={(e) => setModel(e.target.value)} />
           </div>
         </div>
         <div className="row">
           <div className="field grow">
-            <label htmlFor="year">Year</label>
+            <label htmlFor="year">{w.year}</label>
             <input id="year" inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ""))} />
           </div>
           <div className="field grow">
-            <label htmlFor="plate">Licence plate</label>
+            <label htmlFor="plate">{w.plate}</label>
             <input id="plate" value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} />
           </div>
         </div>
@@ -232,35 +224,31 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
 
       {tier === "secure-transport" && (
         <section className="card">
-          <h3>Protective-services licence</h3>
-          <p className="tiny muted">
-            Required for this tier. Safehubby does not itself verify whether a given state&apos;s licence is
-            genuine — a background-check vendor and legal counsel do — but the application cannot omit the
-            field that makes that check possible.
-          </p>
+          <h3>{w.protective}</h3>
+          <p className="tiny muted">{w.protectiveNote}</p>
           <div className="field">
-            <label htmlFor="protLicense">Licence number</label>
+            <label htmlFor="protLicense">{w.licenceNumber}</label>
             <input id="protLicense" value={protectiveLicenseNumber} onChange={(e) => setProtectiveLicenseNumber(e.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="protState">Issuing state</label>
+            <label htmlFor="protState">{w.issuingState}</label>
             <input id="protState" maxLength={2} value={protectiveLicenseState} onChange={(e) => setProtectiveLicenseState(e.target.value.toUpperCase())} />
           </div>
           <div className="field">
-            <label htmlFor="protYears">Years of protective, military, or law-enforcement experience</label>
+            <label htmlFor="protYears">{w.yearsProtective}</label>
             <input id="protYears" inputMode="numeric" value={yearsProtective} onChange={(e) => setYearsProtective(e.target.value.replace(/\D/g, ""))} />
           </div>
         </section>
       )}
 
       <section className="card">
-        <h3>Résumé (optional)</h3>
-        <p className="tiny muted">A valid licence and a roadworthy vehicle are what the job needs — this is optional.</p>
+        <h3>{w.resumeTitle}</h3>
+        <p className="tiny muted">{w.resumeNote}</p>
         <div className="field">
-          <label htmlFor="resume">Attach a file</label>
+          <label htmlFor="resume">{w.attach}</label>
           <input id="resume" type="file" accept="application/pdf,image/png,image/jpeg"
             onChange={(e) => onResumeChosen(e.target.files?.[0])} />
-          {resume && <p className="tiny muted" style={{ margin: 0 }}>Attached: {resume.fileName}</p>}
+          {resume && <p className="tiny muted" style={{ margin: 0 }}>{shared.attached} {resume.fileName}</p>}
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
       </section>
@@ -268,13 +256,10 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
       <section className="card">
         <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          <span className="small">
-            I consent to a background check, including driving record and, for secure transport, licence
-            verification.
-          </span>
+          <span className="small">{w.consent}</span>
         </label>
         <button className="btn btn-primary btn-block" disabled={busy || !ready} onClick={submit}>
-          Submit application
+          {w.submit}
         </button>
         {error && <div className="banner banner-danger">{error}</div>}
       </section>

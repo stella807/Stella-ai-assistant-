@@ -10,6 +10,7 @@ import { useLanguage } from "../i18n.tsx";
 import { PlanComparison } from "./PlanComparison.tsx";
 
 import { money } from "../money.ts";
+import { choiceLabel } from "../app/ask-copy.ts";
 
 /**
  * What everything costs, before anybody signs up.
@@ -60,7 +61,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
                   <td>
                     {p.name}
                     {p.id === "premium-plus" && (
-                      <div className="plan-tag" style={{ marginTop: 2 }}>Most picked</div>
+                      <div className="plan-tag" style={{ marginTop: 2 }}>{t("plans.mostPicked")}</div>
                     )}
                   </td>
                   <td>
@@ -128,7 +129,8 @@ function EliteShowcase({ plans, eliteUnlock }: {
     targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
   } | null;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const e = ELITE_COPY[language === "es" ? "es" : "en"];
   const [open, setOpen] = useState(true);
   if (plans.length === 0) return null;
   const rungs = [...plans].sort((a, b) => a.seats - b.seats);
@@ -139,34 +141,26 @@ function EliteShowcase({ plans, eliteUnlock }: {
       <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
         aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <h3 style={{ margin: 0 }}>
-          Elite: what's included
-          {locked && <span className="plan-tag" style={{ marginLeft: 8 }}>Coming soon</span>}
+          {e.title}
+          {locked && <span className="plan-tag" style={{ marginLeft: 8 }}>{e.soon}</span>}
         </h3>
         <span className="chev">{open ? "︿" : "﹀"}</span>
       </button>
-      <p className="tiny muted" style={{ margin: 0 }}>
-        Every Elite rung gets the same desk, including a concierge physician's own retainer — paid by
-        Safehubby, not billed to you separately. What changes rung to rung is how many people the
-        membership covers and how many hours of a personal assistant's time come with it.
-      </p>
+      <p className="tiny muted" style={{ margin: 0 }}>{e.lead}</p>
 
       {open && (
         <>
           {locked && eliteUnlock && (
             <div className="card card-quiet stack" style={{ gap: 6 }}>
-              <strong className="small">Not open yet — here's why, and what unlocks it</strong>
+              <strong className="small">{e.whyTitle}</strong>
               <p className="tiny muted" style={{ margin: 0 }}>
-                Elite includes a monthly spending allowance Safehubby funds itself (see below), so we're
-                holding the tier until the business has revenue covering {eliteUnlock.safetyMultiple}× what that
-                would cost if our first {eliteUnlock.targetClientsLow}-{eliteUnlock.targetClientsHigh} members per
-                rung all drew their full allowance in the same month. That's the honest order: cover the
-                commitment first, sell the tier second.
+                {e.why(eliteUnlock.safetyMultiple, eliteUnlock.targetClientsLow, eliteUnlock.targetClientsHigh)}
               </p>
               <div className="progress-track" role="progressbar" aria-valuenow={eliteUnlock.percent} aria-valuemin={0} aria-valuemax={100}>
                 <div className="progress-fill" style={{ width: `${eliteUnlock.percent}%` }} />
               </div>
               <p className="tiny muted" style={{ margin: 0 }}>
-                {money(eliteUnlock.trailingRevenueCents)} of {money(eliteUnlock.thresholdCents)} needed ({eliteUnlock.percent}%).
+                {e.progress(money(eliteUnlock.trailingRevenueCents), money(eliteUnlock.thresholdCents), eliteUnlock.percent)}
               </p>
             </div>
           )}
@@ -176,7 +170,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
               {/* Two different things, in two columns on purpose: the desk
                   answers around the clock, and an assistant's time on the
                   ground is an allowance. See DESK_COVERAGE in elite.ts. */}
-              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>Desk</th><th>Assistant hrs/mo</th></tr>
+              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>{e.desk}</th><th>{e.hours}</th></tr>
             </thead>
             <tbody>
               {rungs.map((p) => (
@@ -195,7 +189,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
           </table>
 
           <ul className="tiny" style={{ margin: 0, paddingLeft: 18 }}>
-            {ELITE_ONLY.map((f) => <li key={f}>{featureLabel(f)}</li>)}
+            {ELITE_ONLY.map((f) => <li key={f}>{e.features[f] ?? featureLabel(f)}</li>)}
           </ul>
         </>
       )}
@@ -203,8 +197,61 @@ function EliteShowcase({ plans, eliteUnlock }: {
   );
 }
 
+/** The Elite section's words. Feature names are kept here by id because
+ *  core's `featureLabel` is English only. */
+const ELITE_COPY = {
+  en: {
+    title: "Elite: what's included",
+    soon: "Coming soon",
+    lead: "Every Elite plan gets the same 24/7 desk, including a concierge doctor on retainer, paid for by Safehubby rather than billed to you. The plans differ in how many people they cover and how many hours of a personal assistant's time come with them.",
+    whyTitle: "Not open yet: why, and what opens it",
+    why: (multiple: number, low: number, high: number) =>
+      `Elite includes a monthly spending allowance that Safehubby pays for. We're holding the plan until the business earns ${multiple}× what that allowance would cost if our first ${low}–${high} members on each plan all used it in full in the same month. We cover the commitment first, then sell the plan.`,
+    progress: (have: string, need: string, pct: number) => `${have} of ${need} needed (${pct}%).`,
+    desk: "Desk",
+    hours: "Assistant hrs/month",
+    features: {
+      "private-aviation": "Private jet travel",
+      "yacht-charter": "Yacht charter",
+      "luxury-property": "Villas and property",
+      "event-production": "Event production",
+      "premium-hospitality": "Hotels and hospitality",
+      "lifestyle-manager": "Lifestyle manager",
+      "concierge-doctor": "Concierge doctor",
+    } as Record<string, string>,
+  },
+  es: {
+    title: "Elite: lo que incluye",
+    soon: "Próximamente",
+    lead: "Todos los planes Elite tienen el mismo servicio 24/7, incluido un médico concierge, que paga Safehubby y no se te cobra aparte. Los planes cambian en cuántas personas cubren y cuántas horas de asistente personal incluyen.",
+    whyTitle: "Todavía no está abierto: por qué y qué lo abre",
+    why: (multiple: number, low: number, high: number) =>
+      `Elite incluye un fondo mensual para gastos que paga Safehubby. Esperamos a abrir el plan hasta que el negocio genere ${multiple} veces lo que costaría ese fondo si nuestros primeros ${low} a ${high} miembros de cada plan lo usaran completo en el mismo mes. Primero cubrimos el compromiso, después vendemos el plan.`,
+    progress: (have: string, need: string, pct: number) => `${have} de ${need} necesarios (${pct}%).`,
+    desk: "Servicio",
+    hours: "Horas de asistente/mes",
+    features: {
+      "private-aviation": "Viajes en jet privado",
+      "yacht-charter": "Alquiler de yates",
+      "luxury-property": "Villas y propiedades",
+      "event-production": "Producción de eventos",
+      "premium-hospitality": "Hoteles y hospitalidad",
+      "lifestyle-manager": "Gerente de estilo de vida",
+      "concierge-doctor": "Médico concierge",
+    } as Record<string, string>,
+  },
+} as const;
+
+/** Units and the one phrase the price tables add, in the reader's language. */
+const UNITS = {
+  en: { hours: "hr", perHour: "/hr", forBooking: " for that booking", miles: "mi" },
+  es: { hours: "h", perHour: "/hora", forBooking: " por esa reserva", miles: "millas" },
+} as const;
+
 function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const lang = language === "es" ? "es" : "en";
+  const u = UNITS[lang];
   return (
     <table className="pay-table">
       <thead>
@@ -213,13 +260,13 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
       <tbody>
         {categories.map((c) => (
           <tr key={c.id}>
-            <td>{c.label}</td>
+            <td>{choiceLabel(c.id, c.label, lang)}</td>
             <td className="tiny muted">
-              {isHourlyCategory(c.id) ? `${defaultHoursFor(c.id)} hr` : `${minutesFor(c.id)} min`}
+              {isHourlyCategory(c.id) ? `${defaultHoursFor(c.id)} ${u.hours}` : `${minutesFor(c.id)} min`}
             </td>
             <td>
               {money(serviceFeeFor(c.id))}
-              {isHourlyCategory(c.id) && <span className="tiny muted"> for that booking</span>}
+              {isHourlyCategory(c.id) && <span className="tiny muted">{u.forBooking}</span>}
             </td>
           </tr>
         ))}
@@ -236,7 +283,9 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
  * deciding whether to apply is exactly who the number is for.
  */
 export function PublicWorkerPay() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const lang = language === "es" ? "es" : "en";
+  const u = UNITS[lang];
   const standard = DRIVER_RATE_CARD.standard;
   return (
     <div className="stack" style={{ gap: 6 }}>
@@ -245,16 +294,16 @@ export function PublicWorkerPay() {
         <tbody>
           {CONCIERGE_CATEGORIES.map((c) => (
             <tr key={c.id}>
-              <td>{c.label}</td>
+              <td>{choiceLabel(c.id, c.label, lang)}</td>
               <td className="tiny muted">
-                {isHourlyCategory(c.id) ? `${money(PA_HOURLY_RATE_CENTS)}/hr` : `${minutesFor(c.id)} min`}
+                {isHourlyCategory(c.id) ? `${money(PA_HOURLY_RATE_CENTS)}${u.perHour}` : `${minutesFor(c.id)} min`}
               </td>
               <td>{money(assistantPayoutFor(c.id))}</td>
             </tr>
           ))}
           <tr>
             <td>{t("pay.driverRow")}</td>
-            <td className="tiny muted">5 mi / 15 min</td>
+            <td className="tiny muted">5 {u.miles} / 15 min</td>
             <td>{money(driverEarningsCents("standard", 5, 15))}</td>
           </tr>
         </tbody>
