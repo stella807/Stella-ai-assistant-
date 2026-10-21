@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
 import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
-import { dollars } from "../money.ts";
+import { dollars, money as exact } from "../money.ts";
 
 /**
  * The master (owner/secretary) dashboard — a third area of the app, reached
@@ -703,17 +703,17 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
       <ul className="timeline">
         <li className="row-between">
           <span className="tiny muted">Settled charges</span>
-          <span className="small charge-amount">{dollars(money.settledChargesCents)} ({money.chargeCount})</span>
+          <span className="small charge-amount">{exact(money.settledChargesCents)} ({money.chargeCount})</span>
         </li>
         {money.pendingChargeCount > 0 && (
           <li className="row-between">
             <span className="tiny muted">Pending — awaiting a store receipt</span>
-            <span className="small">{dollars(money.pendingChargesCents)} ({money.pendingChargeCount})</span>
+            <span className="small">{exact(money.pendingChargesCents)} ({money.pendingChargeCount})</span>
           </li>
         )}
         <li className="row-between">
           <span className="tiny muted">Owed to assistants, unpaid</span>
-          <span className="small charge-amount">{dollars(money.unpaidPayoutsCents)}</span>
+          <span className="small charge-amount">{exact(money.unpaidPayoutsCents)}</span>
         </li>
       </ul>
       {Object.keys(money.byKind).length > 0 && (
@@ -722,7 +722,7 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
           {Object.entries(money.byKind).map(([kind, cents]) => (
             <div key={kind} className="row-between">
               <span className="tiny muted">{kind}</span>
-              <span className="tiny">{dollars(cents)}</span>
+              <span className="tiny">{exact(cents)}</span>
             </div>
           ))}
         </div>

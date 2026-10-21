@@ -3,7 +3,7 @@ import {
   CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, ELITE_ONLY, PA_HOURLY_RATE_CENTS,
   QUICK_TASK_CATEGORIES, assistantPayoutFor, defaultHoursFor, driverEarningsCents, featureLabel,
   DESK_COVERAGE, includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
-  type Plan, type PlanId,
+  type LaunchOffer, type Plan, type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -122,7 +122,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
  * membership covers, 1 → 2 → 6, not the everyday ladder's household size.
  */
 function EliteShowcase({ plans, eliteUnlock }: {
-  plans: Plan[];
+  plans: (Plan & { monthlyOffer?: LaunchOffer })[];
   eliteUnlock: {
     thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
     targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
@@ -182,7 +182,10 @@ function EliteShowcase({ plans, eliteUnlock }: {
               {rungs.map((p) => (
                 <tr key={p.id}>
                   <td>{p.name}</td>
-                  <td>{money(p.monthlyCents)}</td>
+                  <td>
+                    {p.monthlyOffer?.discounted && <s className="plan-was">{money(p.monthlyCents)}</s>}{" "}
+                    {money(p.monthlyOffer?.discounted ? p.monthlyOffer.payCents : p.monthlyCents)}
+                  </td>
                   <td>{p.seats}</td>
                   <td>{DESK_COVERAGE}</td>
                   <td>{includedConciergeHours(p.id)}</td>

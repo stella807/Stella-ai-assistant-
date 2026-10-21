@@ -1,5 +1,5 @@
 import {
-  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
+  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
   LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
   OPEN_POSITIONS, isEnabled, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
@@ -147,7 +147,7 @@ export function startingPriceCents(category: ConciergeCategory): number {
 /** The purchase the page quotes errand fees against. The fee rises a little
  *  with a bigger item — the card charges more on it — so the page says what
  *  it assumed rather than implying one number fits every purchase. */
-export const TIER_REFERENCE_CAP_CENTS = 2_000;
+export const TIER_REFERENCE_CAP_CENTS = ERRAND_REFERENCE_CAP_CENTS;
 
 export interface TierRow { id: ErrandTierId; label: string; example: string; minutes: number; feeCents: number }
 
