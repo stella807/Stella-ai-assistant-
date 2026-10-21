@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type PaymentMethod, type ProcessorStatus } from "../api.ts";
 import { PayPalButton } from "./PayPalButton.tsx";
+import { PayPalCardForm } from "./PayPalCardForm.tsx";
 
 /**
  * PayPal's own logo, the files PayPal itself serves (public/img/paypal-logo.svg
@@ -18,7 +19,8 @@ function PayPalLogo({ mark = false }: { mark?: boolean }) {
 }
 
 /**
- * The one payment method on the account: a PayPal account. It backs every
+ * The one payment method on the account: a card (Visa, Mastercard and the
+ * other major cards) or a PayPal account, both saved through PayPal. It backs every
  * charge that is not a store-billed subscription — rides, secure transport,
  * pharmacy runs, and the subscription itself on the web. Adding one does not
  * charge anything by itself — it lets a hold be placed at the moment a trip is
@@ -39,7 +41,8 @@ export function PaymentMethodCard() {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [paypal, setPaypal] = useState<ProcessorStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [adding, setAdding] = useState(false);
+  /** What is being added: a typed card, or a PayPal account. */
+  const [adding, setAdding] = useState<"card" | "paypal" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +59,7 @@ export function PaymentMethodCard() {
   const save = async (token: string) => {
     const res = await api.attachPaymentMethod({ processor: "paypal", token });
     setMethod(res.method);
-    setAdding(false);
+    setAdding(null);
   };
 
   const remove = async () => {
@@ -84,7 +87,7 @@ export function PaymentMethodCard() {
         <PayPalLogo />
       </div>
       <p className="small muted">
-        Pay with your PayPal account for everything: rides, secure transport, pharmacy runs, and your plan.
+        A card or your PayPal account, for everything: rides, secure transport, pharmacy runs, and your plan.
         Nothing is charged when you add it — only when something actually happens, and only up to what that
         thing costs.
       </p>
@@ -93,7 +96,7 @@ export function PaymentMethodCard() {
         <>
           <div className="row-between">
             <span className="small row" style={{ gap: 8, alignItems: "center" }}>
-              {method.processor === "paypal" && <PayPalLogo mark />}
+              {method.accountLabel && <PayPalLogo mark />}
               {method.accountLabel ?? `${method.brand} ···· ${method.last4}`}
             </span>
             {/* An account-based method has no card behind it and so no
@@ -107,12 +110,30 @@ export function PaymentMethodCard() {
       )}
 
       {!method && !adding && (
-        <button className="btn btn-block" disabled={busy} onClick={() => setAdding(true)}>
-          Add your PayPal account
-        </button>
+        <div className="stack" style={{ gap: 8 }}>
+          <button className="btn btn-block btn-primary" disabled={busy} onClick={() => { setError(null); setAdding("card"); }}>
+            Add a card (Visa, Mastercard)
+          </button>
+          <button className="btn btn-block" disabled={busy} onClick={() => { setError(null); setAdding("paypal"); }}>
+            Add your PayPal account
+          </button>
+        </div>
       )}
 
-      {adding && (
+      {adding === "card" && (
+        <PayPalCardForm
+          onToken={(token) => {
+            setBusy(true); setError(null);
+            save(token)
+              .catch((e) => setError(e instanceof Error ? e.message : "Could not save that card"))
+              .finally(() => setBusy(false));
+          }}
+          onError={setError}
+          onCancel={() => setAdding(null)}
+        />
+      )}
+
+      {adding === "paypal" && (
         <>
           <PayPalButton
             onToken={(token) => {
@@ -123,7 +144,7 @@ export function PaymentMethodCard() {
             }}
             onError={setError}
           />
-          <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
+          <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(null)}>Cancel</button>
         </>
       )}
 

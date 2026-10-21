@@ -1662,11 +1662,12 @@ export const routes: Record<string, Handler> = {
 
   /** Step one of saving a PayPal account: a setup token for the button to ask
    *  the customer to approve. Nothing is charged. */
-  "POST /api/payment/paypal/setup-token": async (ctx) => {
+  "POST /api/payment/paypal/setup-token": async (ctx, _p, body) => {
     actor(ctx);
     if (!isAutomatic(paypalProcessor.status)) throw new HttpError(503, paypalProcessor.status.requires);
     const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
-    try { return { id: await createSetupToken(`${base}/#payments`) }; }
+    const kind = body?.kind === "card" ? "card" : "paypal";
+    try { return { id: await createSetupToken(`${base}/#payments`, kind) }; }
     catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "PayPal could not be reached."); }
   },
 

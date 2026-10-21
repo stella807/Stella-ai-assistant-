@@ -6,11 +6,11 @@
  * server asks PayPal what was actually saved before storing anything.
  */
 
-/** Only the buttons component is loaded: nothing else from PayPal is wanted on this screen. */
+/** PayPal's button and its card fields, and nothing else from PayPal. */
 export function paypalSdkUrl(clientId: string): string {
   const url = new URL("https://www.paypal.com/sdk/js");
   url.searchParams.set("client-id", clientId);
-  url.searchParams.set("components", "buttons");
+  url.searchParams.set("components", "buttons,card-fields");
   return url.toString();
 }
 

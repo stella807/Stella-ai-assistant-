@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { paypalSdkUrl, setupTokenFromApproval } from "../src/app/paypal-checkout.ts";
 
 describe("paypalSdkUrl", () => {
-  it("loads only PayPal's button, for the merchant's client id", () => {
+  it("loads only PayPal's button and card fields, for the merchant's client id", () => {
     const url = new URL(paypalSdkUrl("abc123"));
     expect(url.origin + url.pathname).toBe("https://www.paypal.com/sdk/js");
     expect(url.searchParams.get("client-id")).toBe("abc123");
-    expect(url.searchParams.get("components")).toBe("buttons");
+    expect(url.searchParams.get("components")).toBe("buttons,card-fields");
   });
   it("cannot be bent into another address by an odd client id", () => {
     const url = new URL(paypalSdkUrl("a&b=c#d"));

@@ -331,7 +331,9 @@ export const api = {
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
   paypalConfig: () => request<{ ready: true; clientId: string } | { ready: false; note: string }>("GET", "/api/payment/paypal/config"),
-  paypalSetupToken: () => request<{ id: string }>("POST", "/api/payment/paypal/setup-token", {}),
+  /** Step one of saving a PayPal account (`paypal`) or a typed card (`card`). */
+  paypalSetupToken: (kind: "paypal" | "card") =>
+    request<{ id: string }>("POST", "/api/payment/paypal/setup-token", { kind }),
   paypalPaymentToken: (setupToken: string) =>
     request<{ token: string }>("POST", "/api/payment/paypal/payment-token", { setupToken }),
   textAlerts: (scope: "account" | "assistant") =>
