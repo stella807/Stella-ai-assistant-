@@ -74,6 +74,11 @@ describe("allocateRefund", () => {
       { entryId: "a", reference: "ref_a", amountCents: 500 },
     ]);
   });
+  it("never sends a crypto load back through ATH Móvil", () => {
+    const entries = [load("a", 1000), load("c", 5000, { source: "crypto", createdAt: "2026-06-20T00:00:00Z" })];
+    expect(allocateRefund(entries, "t1", 1000)).toEqual([{ entryId: "a", reference: "ref_a", amountCents: 1000 }]);
+    expect(() => allocateRefund(entries, "t1", 1001)).toThrow(/refund/i);
+  });
   it("skips what an earlier refund already took", () => {
     const entries = [load("a", 3000), { ...load("p", 2800), kind: "payout" as const, againstEntryId: "a" }];
     expect(allocateRefund(entries, "t1", 200)).toEqual([{ entryId: "a", reference: "ref_a", amountCents: 200 }]);
