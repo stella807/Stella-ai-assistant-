@@ -59,6 +59,15 @@ describe("charging a saved PayPal account", () => {
     });
   });
 
+  it("charges a saved card under payment_source.card, flagged as a merchant-initiated charge", async () => {
+    withPaypal();
+    stubPaypal(() => ({ body: authorized }));
+    await authorizeWithPaypal({ paymentTokenId: "CARD1", method: { brand: "VISA", last4: "4242" }, amountCents: 500, description: "x", idempotencyKey: "h2" });
+    expect(calls[0]!.body.payment_source).toEqual({
+      card: { vault_id: "CARD1", stored_credential: { payment_initiator: "MERCHANT", usage: "SUBSEQUENT", payment_type: "UNSCHEDULED" } },
+    });
+  });
+
   it("refuses a payment PayPal wants the customer to approve, rather than pretending it went through", async () => {
     withPaypal();
     stubPaypal(() => ({ body: { status: "PAYER_ACTION_REQUIRED" } }));

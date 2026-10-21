@@ -57,27 +57,34 @@ const jsonHeaders = (accessToken: string) => ({
   "paypal-request-id": `sh-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
 });
 
+/** What a setup token is for: a PayPal account (PayPal's button) or a typed
+ *  card (PayPal's card fields). */
+export type SetupKind = "paypal" | "card";
+
+/** The setup token's body. A card is saved empty — PayPal's own fields fill
+ *  in the number, so it never reaches this server — and asks the bank for
+ *  3-D Secure only when the bank wants it. */
+export function setupTokenBody(kind: SetupKind, returnUrl: string) {
+  const experience_context = { return_url: returnUrl, cancel_url: returnUrl };
+  return kind === "card"
+    ? { payment_source: { card: { verification_method: "SCA_WHEN_REQUIRED", experience_context } } }
+    : { payment_source: { paypal: { usage_type: "MERCHANT", experience_context } } };
+}
+
 /**
- * Step one of saving a PayPal account without a purchase: ask PayPal for a
- * setup token, which the browser's PayPal button then asks the customer to
- * approve. Nothing is charged — see developer.paypal.com/sdk/js/v5/save-without-purchase/paypal.
+ * Step one of saving a payment method without a purchase: ask PayPal for a
+ * setup token, which the browser's PayPal button or card fields then complete.
+ * Nothing is charged — see developer.paypal.com/docs/checkout/save-payment-methods/purchase-later.
  */
-export async function createSetupToken(returnUrl: string): Promise<string> {
+export async function createSetupToken(returnUrl: string, kind: SetupKind = "paypal"): Promise<string> {
   if (!clientId() || !clientSecret()) throw new Error("PayPal is not configured.");
   const accessToken = await getAccessToken();
   const res = await fetch(`${apiBase()}/v3/vault/setup-tokens`, {
     method: "POST",
     headers: jsonHeaders(accessToken),
-    body: JSON.stringify({
-      payment_source: {
-        paypal: {
-          usage_type: "MERCHANT",
-          experience_context: { return_url: returnUrl, cancel_url: returnUrl },
-        },
-      },
-    }),
+    body: JSON.stringify(setupTokenBody(kind, returnUrl)),
   });
-  if (!res.ok) throw new Error(`PayPal could not start saving that account: ${res.status}`);
+  if (!res.ok) throw await paypalError(res, kind === "card" ? "PayPal could not start saving that card" : "PayPal could not start saving that account");
   const data = (await res.json()) as { id?: string };
   if (!data.id) throw new Error("PayPal did not return a setup token.");
   return data.id;

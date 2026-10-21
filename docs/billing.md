@@ -257,16 +257,15 @@ How money comes in, and which part of the app each way feeds:
 
 | Way to pay | Settles through | Used for |
 |---|---|---|
-| A saved **PayPal account** | PayPal (`adapters/paypal.ts`) | Holds for tasks and rides, and plan charges |
+| A saved **PayPal account**, or a **card** (Visa, Mastercard…) saved through PayPal | PayPal (`adapters/paypal.ts`) | Holds for tasks and rides, and plan charges |
 | **Crypto** | OpenReceive (`adapters/openreceive.ts`) | Loads the prepaid balance |
 
 Task cards for assistants come from **Lithic**; PayPal and crypto do not issue
-cards. There is no card form on the payment screen: customers pay with PayPal,
-or load the balance with crypto. ATH Móvil was removed for now (its adapter,
+cards. Customers save a card or their PayPal account, or load the balance
+with crypto. ATH Móvil was removed for now (its adapter,
 routes and balance button are in git history, before the commit that removed
-it); it can be put back as a processor that loads the balance. Taking Visa and Mastercard
-directly would use PayPal's own card fields on the same PayPal account; that
-is not built yet.
+it); it can be put back as a processor that loads the balance. Cards go through PayPal's own card fields on the same
+PayPal account (see "PayPal takes the money").
 
 `packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
 `adapters/paypal.ts` implements it — the same
@@ -318,6 +317,16 @@ charges plans.
 - **Saving an account:** PayPal's own button (setup token, then payment token,
   `/api/payment/paypal/*`). The server reads the account back from PayPal's
   Vault before storing its masked email.
+- **Saving a card:** PayPal's card fields (`PayPalCardForm.tsx`, the SDK's
+  `card-fields` component) draw the name, number, expiry and CVV in PayPal's
+  own frames, so the number never reaches Safehubby. The setup token is an
+  empty `card` source with `verification_method: SCA_WHEN_REQUIRED`, so PayPal
+  runs 3-D Secure only when the bank asks. The server reads the card back
+  (brand, last four, expiry) before storing it, and later charges it as
+  `payment_source.card` with a merchant-initiated `stored_credential`. Your
+  PayPal account has to be approved for card processing ("Advanced Credit and
+  Debit Card Payments"); until it is, the fields do not load and the screen
+  says so, offering the PayPal account instead.
 - **Reserving for a task:** an order with `intent: AUTHORIZE` against the
   saved account's vault id, flagged merchant-initiated. The hold records
   `paypal:<authorization id>`. When the task is done, only what was spent is
@@ -402,8 +411,9 @@ Stated plainly, because the code says the same thing where it matters:
   server reads the account back before storing its masked email; try it in
   PayPal's sandbox first, with *Save payment methods* enabled. It is verified
   here only against a stand-in for PayPal's servers and script.
-- **No typed-in card form.** Accepting Visa and Mastercard directly needs
-  PayPal's own card fields, which are not built yet.
+- **The card form has not been run against PayPal.** It follows PayPal's
+  documented card-fields flow and is tested against a stand-in for PayPal's
+  servers; try it in the sandbox (PayPal's test card numbers) before going live.
 - **No store receipt verification.** `POST /api/billing/charges/:id/confirm`
   records the receipt the client hands back and settles the line. A real
   deployment verifies it with Apple or Google first; the response says

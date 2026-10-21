@@ -1,20 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api.ts";
-import { paypalSdkUrl, setupTokenFromApproval } from "../app/paypal-checkout.ts";
-
-interface PayPalButtons {
-  render(target: HTMLElement): Promise<void>;
-  close?(): Promise<void>;
-}
-interface PayPalGlobal {
-  Buttons(options: {
-    createVaultSetupToken: () => Promise<string>;
-    onApprove: (approval: unknown) => Promise<void>;
-    onError: (error: unknown) => void;
-    onCancel?: () => void;
-    style?: Record<string, unknown>;
-  }): PayPalButtons;
-}
+import { setupTokenFromApproval } from "../app/paypal-checkout.ts";
+import { loadPaypal, type PayPalButtons } from "../native/paypal.ts";
 
 /**
  * PayPal's own button, saving the customer's PayPal account for later without
@@ -35,44 +22,31 @@ export function PayPalButton({ onToken, onError }: { onToken: (token: string) =>
 
   useEffect(() => {
     let cancelled = false;
-    let script: HTMLScriptElement | null = null;
     let buttons: PayPalButtons | null = null;
 
-    (async () => {
-      const config = await api.paypalConfig();
+    loadPaypal().then((paypal) => {
       if (cancelled) return;
-      if (!config.ready) return setState("unavailable");
-
-      script = document.createElement("script");
-      script.src = paypalSdkUrl(config.clientId);
-      script.async = true;
-      script.onerror = () => { if (!cancelled) setState("unavailable"); };
-      script.onload = () => {
-        const paypal = (window as unknown as { paypal?: PayPalGlobal }).paypal;
-        if (cancelled || !paypal || !mount.current) return;
-        buttons = paypal.Buttons({
-          style: { layout: "vertical", label: "paypal" },
-          createVaultSetupToken: async () => (await api.paypalSetupToken()).id,
-          onApprove: async (approval) => {
-            const setupToken = setupTokenFromApproval(approval);
-            if (!setupToken) return onErrorRef.current("PayPal did not finish saving that account. Nothing was saved.");
-            try {
-              onTokenRef.current((await api.paypalPaymentToken(setupToken)).token);
-            } catch (e) {
-              onErrorRef.current(e instanceof Error ? e.message : "PayPal could not save that account.");
-            }
-          },
-          onError: () => onErrorRef.current("PayPal could not save that account. Nothing was saved."),
-        });
-        void buttons.render(mount.current).then(() => { if (!cancelled) setState("ready"); })
-          .catch(() => { if (!cancelled) setState("unavailable"); });
-      };
-      document.body.appendChild(script);
-    })().catch(() => { if (!cancelled) setState("unavailable"); });
+      if (!paypal || !mount.current) return setState("unavailable");
+      buttons = paypal.Buttons({
+        style: { layout: "vertical", label: "paypal" },
+        createVaultSetupToken: async () => (await api.paypalSetupToken("paypal")).id,
+        onApprove: async (approval) => {
+          const setupToken = setupTokenFromApproval(approval);
+          if (!setupToken) return onErrorRef.current("PayPal did not finish saving that account. Nothing was saved.");
+          try {
+            onTokenRef.current((await api.paypalPaymentToken(setupToken)).token);
+          } catch (e) {
+            onErrorRef.current(e instanceof Error ? e.message : "PayPal could not save that account.");
+          }
+        },
+        onError: () => onErrorRef.current("PayPal could not save that account. Nothing was saved."),
+      });
+      void buttons.render(mount.current).then(() => { if (!cancelled) setState("ready"); })
+        .catch(() => { if (!cancelled) setState("unavailable"); });
+    }).catch(() => { if (!cancelled) setState("unavailable"); });
 
     return () => {
       cancelled = true;
-      script?.remove();
       void buttons?.close?.();
     };
   }, []);

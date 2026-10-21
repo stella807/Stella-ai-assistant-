@@ -61,7 +61,7 @@ import {
   applyAdjustments, outstandingClawbackCents,
   isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, REFERENCE_MARKET,
   type LaunchMarketId,
-  hireFromApplication, isOnRoster, rosterFor, standDown,
+  hireFromApplication, isOnRoster, rosterFor, standDown, teamActivity,
   canAccess, isActive as isMasterAccountActive, recordAccess, revoke as revokeMasterAccess, scopesFor,
   type MasterAccount, type MasterAuditEntry, type MasterScope,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
@@ -1662,11 +1662,12 @@ export const routes: Record<string, Handler> = {
 
   /** Step one of saving a PayPal account: a setup token for the button to ask
    *  the customer to approve. Nothing is charged. */
-  "POST /api/payment/paypal/setup-token": async (ctx) => {
+  "POST /api/payment/paypal/setup-token": async (ctx, _p, body) => {
     actor(ctx);
     if (!isAutomatic(paypalProcessor.status)) throw new HttpError(503, paypalProcessor.status.requires);
     const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
-    try { return { id: await createSetupToken(`${base}/#payments`) }; }
+    const kind = body?.kind === "card" ? "card" : "paypal";
+    try { return { id: await createSetupToken(`${base}/#payments`, kind) }; }
     catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "PayPal could not be reached."); }
   },
 
@@ -3640,6 +3641,16 @@ export const routes: Record<string, Handler> = {
         approvedDrivers: ctx.store.data.driverApplications
           .filter((a) => a.status === "approved")
           .map((a) => ({ id: a.id, fullName: a.fullName, phone: a.phone, tier: a.tier })),
+        // What each assistant, errand runner and driver is doing, read off
+        // the tasks and pickups themselves — see team-activity.ts.
+        team: teamActivity({
+          assistants: ctx.store.data.assistants,
+          tasks: ctx.store.data.conciergeTasks,
+          drivers: ctx.store.data.driverApplications
+            .filter((a) => a.status === "approved").map((a) => ({ id: a.id, name: a.fullName })),
+          pickups: ctx.store.data.pickupRequests,
+          now,
+        }),
       };
       record("operations", "operations overview");
     }

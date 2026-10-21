@@ -2,7 +2,7 @@ import { apiBase, platform } from "./native/platform.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
-  IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus,
+  IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
   RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
@@ -331,7 +331,9 @@ export const api = {
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
   paypalConfig: () => request<{ ready: true; clientId: string } | { ready: false; note: string }>("GET", "/api/payment/paypal/config"),
-  paypalSetupToken: () => request<{ id: string }>("POST", "/api/payment/paypal/setup-token", {}),
+  /** Step one of saving a PayPal account (`paypal`) or a typed card (`card`). */
+  paypalSetupToken: (kind: "paypal" | "card") =>
+    request<{ id: string }>("POST", "/api/payment/paypal/setup-token", { kind }),
   paypalPaymentToken: (setupToken: string) =>
     request<{ token: string }>("POST", "/api/payment/paypal/payment-token", { setupToken }),
   textAlerts: (scope: "account" | "assistant") =>
@@ -854,6 +856,7 @@ export interface MasterOverview {
     recommendedHeadcount: Record<string, number>;
     hiredByRole: Record<string, number>;
     wingmanClubMembers: number;
+    team: TeamActivity;
   };
   money?: {
     settledChargesCents: number;

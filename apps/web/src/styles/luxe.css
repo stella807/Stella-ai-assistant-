@@ -71,3 +71,7 @@ textarea::placeholder { color: var(--faint); }
 /* PayPal's logo on a white chip: its dark-blue "Pay" disappears on the dark theme. */
 .paypal-chip { display: inline-flex; align-items: center; background: #fff; border-radius: 8px; padding: 5px 9px; line-height: 0; flex: none; }
 .paypal-chip img { display: block; }
+
+/* PayPal's card fields draw their own inputs in frames; a light panel keeps
+   them readable on the dark theme and makes clear they are PayPal's. */
+.paypal-card-fields { background: #fff; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }

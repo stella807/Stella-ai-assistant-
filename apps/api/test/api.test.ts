@@ -3246,6 +3246,28 @@ describe("saving a PayPal account with PayPal's own button", () => {
     expect(calls.some((c) => c.url.includes("/v2/checkout/orders"))).toBe(false);
   });
 
+  it("starts saving a typed card with an empty card source, asking for 3-D Secure only when the bank wants it", async () => {
+    const res = await call("POST", "/api/payment/paypal/setup-token", { kind: "card" }, sam);
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    const setup = calls.filter((c) => c.url.endsWith("/v3/vault/setup-tokens")).at(-1)!;
+    expect(setup.body).toMatchObject({ payment_source: { card: { verification_method: "SCA_WHEN_REQUIRED" } } });
+    expect(JSON.stringify(setup.body)).not.toMatch(/number|security_code/);
+  });
+
+  it("keeps a saved card by its brand, last four and expiry, read back from PayPal", async () => {
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = String(input);
+      if (url.endsWith("/v1/oauth2/token")) return Response.json({ access_token: "at" });
+      if (url.includes("/v3/vault/payment-tokens/CARDTOKEN-1")) {
+        return Response.json({ payment_source: { card: { brand: "MASTERCARD", last_digits: "5100", expiry: "2031-04" } } });
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    const res = await call("POST", "/api/account/payment-method", { processor: "paypal", token: "CARDTOKEN-1" }, sam);
+    expect(res.status, JSON.stringify(res.json)).toBe(200);
+    expect(res.json.method).toMatchObject({ processor: "paypal", brand: "MASTERCARD", last4: "5100", expMonth: 4, expYear: 2031 });
+  });
+
   it("turns the approved setup token into a payment token", async () => {
     const res = await call("POST", "/api/payment/paypal/payment-token", { setupToken: "SETUP-1" }, sam);
     expect(res.json.token).toBe("PAYTOKEN-1");
@@ -4041,6 +4063,21 @@ describe("hiring somebody and actually sending them to a job", () => {
     const after = await call("GET", "/api/master/overview", undefined, null, cookie);
     const idsAfter = after.json.operations.applications.staff.map((a: { id: string }) => a.id);
     expect(idsAfter).not.toContain(json.id);
+  });
+
+  it("lists a newly hired assistant on the team, available until given a job", async () => {
+    const { json } = await apply({ email: "teamtrack@example.com" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
+    await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "approved" });
+    const hired = await callAdmin("POST", `/api/staff/applications/${json.id}/hire`, { market: "texas", maxConcurrentCustomers: 2 });
+    const created = await callAdmin("POST", "/api/admin/master-accounts",
+      { name: "Team Watch", email: "teamwatch@example.com", role: "owner" });
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    const token = /sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? "";
+    const overview = await call("GET", "/api/master/overview", undefined, null, { Cookie: `sh_master_session=${token}` });
+    const member = overview.json.operations.team.members.find((m: { id: string }) => m.id === hired.json.assistant?.id
+      || m.id === hired.json.id);
+    expect(member).toMatchObject({ status: "available", current: [] });
   });
 
   it("lets a secretary see the queue but never act on it", async () => {
