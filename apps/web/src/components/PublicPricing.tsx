@@ -10,6 +10,7 @@ import { useLanguage } from "../i18n.tsx";
 import { PlanComparison } from "./PlanComparison.tsx";
 
 import { money } from "../money.ts";
+import { choiceLabel } from "../app/ask-copy.ts";
 
 /**
  * What everything costs, before anybody signs up.
@@ -203,8 +204,16 @@ function EliteShowcase({ plans, eliteUnlock }: {
   );
 }
 
+/** Units and the one phrase the price tables add, in the reader's language. */
+const UNITS = {
+  en: { hours: "hr", perHour: "/hr", forBooking: " for that booking", miles: "mi" },
+  es: { hours: "h", perHour: "/hora", forBooking: " por esa reserva", miles: "millas" },
+} as const;
+
 function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const lang = language === "es" ? "es" : "en";
+  const u = UNITS[lang];
   return (
     <table className="pay-table">
       <thead>
@@ -213,13 +222,13 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
       <tbody>
         {categories.map((c) => (
           <tr key={c.id}>
-            <td>{c.label}</td>
+            <td>{choiceLabel(c.id, c.label, lang)}</td>
             <td className="tiny muted">
-              {isHourlyCategory(c.id) ? `${defaultHoursFor(c.id)} hr` : `${minutesFor(c.id)} min`}
+              {isHourlyCategory(c.id) ? `${defaultHoursFor(c.id)} ${u.hours}` : `${minutesFor(c.id)} min`}
             </td>
             <td>
               {money(serviceFeeFor(c.id))}
-              {isHourlyCategory(c.id) && <span className="tiny muted"> for that booking</span>}
+              {isHourlyCategory(c.id) && <span className="tiny muted">{u.forBooking}</span>}
             </td>
           </tr>
         ))}
@@ -236,7 +245,9 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
  * deciding whether to apply is exactly who the number is for.
  */
 export function PublicWorkerPay() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const lang = language === "es" ? "es" : "en";
+  const u = UNITS[lang];
   const standard = DRIVER_RATE_CARD.standard;
   return (
     <div className="stack" style={{ gap: 6 }}>
@@ -245,16 +256,16 @@ export function PublicWorkerPay() {
         <tbody>
           {CONCIERGE_CATEGORIES.map((c) => (
             <tr key={c.id}>
-              <td>{c.label}</td>
+              <td>{choiceLabel(c.id, c.label, lang)}</td>
               <td className="tiny muted">
-                {isHourlyCategory(c.id) ? `${money(PA_HOURLY_RATE_CENTS)}/hr` : `${minutesFor(c.id)} min`}
+                {isHourlyCategory(c.id) ? `${money(PA_HOURLY_RATE_CENTS)}${u.perHour}` : `${minutesFor(c.id)} min`}
               </td>
               <td>{money(assistantPayoutFor(c.id))}</td>
             </tr>
           ))}
           <tr>
             <td>{t("pay.driverRow")}</td>
-            <td className="tiny muted">5 mi / 15 min</td>
+            <td className="tiny muted">5 {u.miles} / 15 min</td>
             <td>{money(driverEarningsCents("standard", 5, 15))}</td>
           </tr>
         </tbody>
