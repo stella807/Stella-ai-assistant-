@@ -23,10 +23,10 @@ import type { ProviderStatus } from "@safehubby/core";
 /*
  * Three ways to send, checked in this order:
  *
- *  1. Brevo — `BREVO_API_KEY` and `EMAIL_FROM`. Free for 300 emails a day,
- *     from your own domain once it is authenticated in Brevo (see
- *     docs/deploy.md). `EMAIL_FROM_NAME` is the display name (default
- *     "Safehubby").
+ *  1. Brevo — `BREVO_API_KEY`. Free for 300 emails a day, from your own
+ *     domain once it is authenticated in Brevo (see docs/deploy.md). It sends
+ *     from `contact@safehubby.com` unless `EMAIL_FROM` says otherwise;
+ *     `EMAIL_FROM_NAME` is the display name (default "Safehubby").
  *  2. Cloudflare Email Service — `CLOUDFLARE_ACCOUNT_ID`,
  *     `CLOUDFLARE_EMAIL_TOKEN` and `EMAIL_FROM`. Needs Workers Paid.
  *  3. Any relay that takes `{ from, messages }` as JSON — `EMAIL_API_URL`,
@@ -37,6 +37,8 @@ import type { ProviderStatus } from "@safehubby/core";
 const TIMEOUT_MS = 8000;
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const BREVO_API = "https://api.brevo.com/v3/smtp/email";
+/** The address mail comes from when `EMAIL_FROM` is not set. */
+export const DEFAULT_FROM = "contact@safehubby.com";
 
 export interface OutboundEmail {
   to: string;
@@ -65,7 +67,7 @@ const env = () => ({
 /** Which sender is set up, if any. */
 export function emailMode(): "brevo" | "cloudflare" | "relay" | null {
   const e = env();
-  if (e.brevoKey && e.from) return "brevo";
+  if (e.brevoKey) return "brevo";
   if (e.cfAccount && e.cfToken && e.from) return "cloudflare";
   if (e.url && e.key && e.from) return "relay";
   return null;
@@ -74,7 +76,7 @@ export function emailMode(): "brevo" | "cloudflare" | "relay" | null {
 /** Exported so the request body is testable without a network call. */
 export function emailPayload(messages: OutboundEmail[]) {
   return {
-    from: env().from ?? "contact@safehubby.com",
+    from: env().from ?? DEFAULT_FROM,
     messages: messages.map((m) => ({ to: m.to, subject: m.subject, text: m.body })),
   };
 }
@@ -124,7 +126,7 @@ function sendCloudflare(messages: OutboundEmail[]): Promise<number> {
 function senderParts(): { email: string; name: string } {
   const { from, fromName } = env();
   const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(from ?? "");
-  return { email: (match?.[2] ?? from ?? "").trim(), name: fromName?.trim() || match?.[1]?.trim() || "Safehubby" };
+  return { email: (match?.[2] ?? from ?? DEFAULT_FROM).trim(), name: fromName?.trim() || match?.[1]?.trim() || "Safehubby" };
 }
 
 const escapeHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -166,7 +168,7 @@ export const email: EmailPort = {
       "email",
       "Email delivery",
       emailMode() !== null,
-      "Set BREVO_API_KEY and EMAIL_FROM to send through Brevo (free), or CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_EMAIL_TOKEN and EMAIL_FROM for Cloudflare, or EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for another sender. Until then nothing is emailed.",
+      "Set BREVO_API_KEY to send through Brevo (free, from contact@safehubby.com), or CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_EMAIL_TOKEN and EMAIL_FROM for Cloudflare, or EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM for another sender. Until then nothing is emailed.",
     );
   },
 

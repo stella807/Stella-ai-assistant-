@@ -45,7 +45,7 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `SAFEHUBBY_PUBLIC_URL` | recommended | Your app's address, e.g. `https://app.yourdomain.com`. Used to build invite links; without it they point at a placeholder. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` | for text alerts | See `docs/text-alerts.md`. Without them nothing is texted. |
 | `OWNER_ALERT_PHONE` | optional | Your number, texted when a job application comes in. |
-| `BREVO_API_KEY`, `EMAIL_FROM` | to send email (free) | Sends through Brevo: cost emails, email alerts and applicant updates. Free for 300 emails a day. `EMAIL_FROM` is an address on your authenticated domain, e.g. `hello@safehubby.com`; `EMAIL_FROM_NAME` is the name people see (default "Safehubby"). Used first if set. See "Email through Brevo" below. |
+| `BREVO_API_KEY` | to send email (free) | Sends through Brevo: cost emails, email alerts and applicant updates, from `contact@safehubby.com`. Free for 300 emails a day. Optional: `EMAIL_FROM` to send from another address on your authenticated domain, and `EMAIL_FROM_NAME` for the name people see (default "Safehubby"). Used first if set. See "Email through Brevo" below. |
 | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_TOKEN`, `EMAIL_FROM` | to send email | Sends through Cloudflare Email Service: cost emails, email alerts, and applicant updates (received, reviewed, hired). See "Email through Cloudflare" below. `EMAIL_API_URL` + `EMAIL_API_KEY` is the alternative for any other sender. |
 | `OWNER_ALERT_EMAIL` | optional | Your address, emailed when a job application comes in (needs the email provider settings above). |
 | `STRIPE_ISSUING_CARDHOLDER` | for task cards | The company cardholder id (`ich_…`) from Stripe Issuing; task cards are issued under it. |
@@ -93,8 +93,12 @@ calls its API directly.
    check fails. Verification can take up to 48 hours; the domain shows green
    ticks when it is done.
 4. **Settings → SMTP & API → API Keys → Generate a new API key.**
-5. On Railway set `BREVO_API_KEY` to the key and `EMAIL_FROM` to an address on
-   the domain, e.g. `hello@safehubby.com`, then deploy.
+5. On Railway set `BREVO_API_KEY` to the key and deploy. Mail goes out from
+   `contact@safehubby.com`; set `EMAIL_FROM` only to use a different address.
+6. If Brevo asks you to confirm `contact@safehubby.com` as a sender, it
+   emails a link to that address. Cloudflare's free **Email Routing**
+   (Cloudflare → safehubby.com → Email) can forward `contact@` to your own
+   inbox so you receive it.
 
 If more than 300 go out in a day, Brevo refuses the rest; the reason is
 written to the server log and the rest go the next day.

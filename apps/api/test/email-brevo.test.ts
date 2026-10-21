@@ -11,11 +11,10 @@ describe("sending email through Brevo", () => {
     for (const k of KEYS) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
   });
 
-  it("needs both the key and a from address, and wins over Cloudflare when both are set", () => {
+  it("needs only the key, and wins over Cloudflare when both are set", () => {
     for (const k of KEYS) delete process.env[k];
-    process.env.BREVO_API_KEY = "k";
     expect(emailMode()).toBeNull();
-    process.env.EMAIL_FROM = "hello@safehubby.com";
+    process.env.BREVO_API_KEY = "k";
     expect(emailMode()).toBe("brevo");
     Object.assign(process.env, { CLOUDFLARE_ACCOUNT_ID: "a", CLOUDFLARE_EMAIL_TOKEN: "t" });
     expect(emailMode()).toBe("brevo");
@@ -31,6 +30,13 @@ describe("sending email through Brevo", () => {
       textContent: "Line one\nLine two\n\nSecond <b>paragraph</b>",
       htmlContent: "<p>Line one<br>Line two</p><p>Second &lt;b&gt;paragraph&lt;/b&gt;</p>",
     });
+  });
+
+  it("sends from contact@safehubby.com unless EMAIL_FROM says otherwise", () => {
+    process.env.BREVO_API_KEY = "k"; delete process.env.EMAIL_FROM; delete process.env.EMAIL_FROM_NAME;
+    expect(brevoPayload({ to: "a@b.co", subject: "s", body: "b" }).sender).toEqual({ email: "contact@safehubby.com", name: "Safehubby" });
+    process.env.EMAIL_FROM = "hello@safehubby.com";
+    expect(brevoPayload({ to: "a@b.co", subject: "s", body: "b" }).sender.email).toBe("hello@safehubby.com");
   });
 
   it("reads a display name from EMAIL_FROM_NAME or from a Name <address> setting", () => {
