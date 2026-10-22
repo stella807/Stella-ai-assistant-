@@ -99,13 +99,18 @@ export const CONCIERGE_CATEGORIES: ConciergeCategoryInfo[] = [
     description:
       "Concert tickets, a hotel room, a table somewhere — researched, chosen and paid for on your behalf.",
   },
-  {
-    id: "airport-pickup",
-    label: "Airport pickup",
-    description:
-      "A personal assistant meets someone off a flight and gets them from there — with real flight tracking, so nobody is waiting on a plane that already landed.",
-  },
 ];
+
+/**
+ * Categories no longer offered, kept only so tasks booked under them still
+ * read by name in history and payroll. Airport pickup was withdrawn by
+ * ownership; it stays in the `ConciergeCategory` union for those stored
+ * tasks, but cannot be booked — `validateConciergeRequest` accepts only
+ * `CONCIERGE_CATEGORIES`.
+ */
+const RETIRED_CATEGORY_LABELS: Partial<Record<ConciergeCategory, string>> = {
+  "airport-pickup": "Airport pickup",
+};
 
 /**
  * A hard ceiling chosen by the subscriber, not a provider's estimate.
@@ -742,7 +747,7 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
 }
 
 export function conciergeCategoryLabel(id: ConciergeCategory): string {
-  return CONCIERGE_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+  return CONCIERGE_CATEGORIES.find((c) => c.id === id)?.label ?? RETIRED_CATEGORY_LABELS[id] ?? id;
 }
 
 const MAX_DISPUTE_REASON_LENGTH = 280;

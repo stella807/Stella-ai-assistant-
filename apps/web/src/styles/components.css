@@ -1315,3 +1315,7 @@ label:has(> input[type="checkbox"]) {
   color: var(--text);
   cursor: pointer;
 }
+
+/* The "← Back" link above every screen but home: sits on the left, sized to
+   its words rather than stretched across the column. */
+.back-button { align-self: flex-start; padding-left: 4px; }

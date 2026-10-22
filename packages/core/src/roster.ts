@@ -46,7 +46,7 @@ export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   // judgement work on a funded card — the same reason an errand runner is
   // never sent to sit with someone.
   "personal-assistant": [
-    "grab-something", "run-errand", "check-in-person", "wait-with-someone", "book-and-buy", "airport-pickup",
+    "grab-something", "run-errand", "check-in-person", "wait-with-someone", "book-and-buy",
   ],
   "errand-runner": [...QUICK_TASK_CATEGORIES],
   secretary: [],

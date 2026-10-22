@@ -36,7 +36,7 @@ const COPY = {
       { title: "In person", items: ["Wait with someone who should not be alone — a parent in a hospital", "Check on someone in person and tell you how they are", "Hand-deliver to a room or a door, with a photo when it is done"] },
       { title: "Errands", items: ["Grab a juice, a charger, a blanket — one thing, brought to you", "Run an errand: pharmacy, groceries, a pickup, a return", "Party and event supplies"] },
       { title: "Book and buy", items: ["Flights, hotels, restaurant tables and tickets", "Private boats, jets and villas on Elite", "Paid from a card with a limit you set — never past it"] },
-      { title: "Getting around", items: ["Book a ride and tell you the price first", "Airport pickup, with the flight tracked", "Secure transport home"] },
+      { title: "Getting around", items: ["Book a ride and tell you the price first", "Secure transport home"] },
       { title: "At a desk", items: ["Appointments, reminders, calls and emails"] },
       { title: "Staying in touch", items: ["Chat or voice message with your assistant", "Receipts and updates by text or email"] },
     ],

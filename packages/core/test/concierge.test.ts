@@ -704,17 +704,10 @@ describe("booking a budget of hours", () => {
       .toThrow(/half hours/i);
   });
 
-  it("refuses an airport pickup with no flight named", () => {
-    expect(() => validateConciergeRequest(request({ category: "airport-pickup", flight: undefined })))
-      .toThrow(/which flight/i);
-    expect(() => validateConciergeRequest(request({ category: "airport-pickup", flight: { flightNumber: "", date: "2026-09-17" } })))
-      .toThrow(/which flight/i);
-    expect(() => validateConciergeRequest(request({ category: "airport-pickup", flight: { flightNumber: "DL204", date: "" } })))
-      .toThrow(/which flight/i);
-  });
-
-  it("accepts a well-formed airport pickup", () => {
-    expect(() => validateConciergeRequest(request({ category: "airport-pickup" }))).not.toThrow();
+  it("no longer books an airport pickup, but still names old ones", () => {
+    expect(() => validateConciergeRequest(request({ category: "airport-pickup" }))).toThrow(/unknown task type/i);
+    expect(CONCIERGE_CATEGORIES.some((c) => c.id === "airport-pickup")).toBe(false);
+    expect(conciergeCategoryLabel("airport-pickup")).toBe("Airport pickup");
   });
 
   it("refuses a flight on a category that doesn't track one", () => {

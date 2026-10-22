@@ -18,6 +18,7 @@ import { AboutScreen } from "./components/AboutScreen.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage, type Language } from "./i18n.tsx";
+import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
 type Role =
@@ -29,18 +30,41 @@ export function App() {
   const [role, setRoleState] = useState<Role>(() => entryRouteFromUrl(window.location));
   // Read once, at load: which role an ad asked the form to start on.
   const [initialRole] = useState(() => entryRoleFromUrl(window.location));
-  // Keeps the address in step with the screen, so Back from the form clears it
-  // and a refresh does not reopen a form somebody already left.
-  const setRole = (next: Role) => {
-    setRoleState(next);
+  // Every move between screens is a browser history entry, so the phone's or
+  // browser's own Back button walks back through them instead of leaving the
+  // site. The address keeps the job-application hash in step too, so a
+  // refresh does not reopen a form somebody already left.
+  const urlFor = (next: Role) => {
     const hash = hashForEntryRoute(next);
     const onEntryScreen = next === "work" || next === "drive";
     const path = onEntryScreen ? window.location.pathname : pathAfterLeaving(window.location.pathname);
     const search = path === window.location.pathname ? window.location.search : "";
-    if (hash !== window.location.hash || path !== window.location.pathname) {
-      window.history.replaceState(null, "", `${path}${search}${hash}`);
-    }
+    return `${path}${search}${hash}`;
   };
+  const setRole = (next: Role) => {
+    if (next === role) return;
+    setRoleState(next);
+    const depth = ((window.history.state as { depth?: number } | null)?.depth ?? 0) + 1;
+    window.history.pushState({ role: next, depth }, "", urlFor(next));
+  };
+  /** Back one screen: through history when there is somewhere to go back to
+   *  inside the site, otherwise home — never off the site. */
+  const goBack = () => {
+    if (((window.history.state as { depth?: number } | null)?.depth ?? 0) > 0) window.history.back();
+    else setRole("out");
+  };
+  useEffect(() => {
+    // The screen the page opened on is the bottom of the stack.
+    window.history.replaceState({ role, depth: 0 }, "", window.location.href);
+    const onPop = (e: PopStateEvent) => {
+      const state = e.state as { role?: Role } | null;
+      setRoleState(state?.role ?? entryRouteFromUrl(window.location));
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // Once, at load: the stack's bottom is the screen the page opened on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Which Hiring sub-tab to open on, when something else sent the member
   // there for a specific thing. Cleared by HiringScreen's own tabs from then
   // on; it only decides where that screen starts.
@@ -90,9 +114,9 @@ export function App() {
       )}
 
       {role === "drive" ? (
-        <DriveSignupScreen onBack={() => setRole("out")} />
+        <DriveSignupScreen onBack={goBack} />
       ) : role === "work" ? (
-        <StaffSignupScreen onBack={() => setRole("out")} initialRole={initialRole} />
+        <StaffSignupScreen onBack={goBack} initialRole={initialRole} />
       ) : !ready ? null : !account ? (
         <LandingIntro
           onSignedIn={setAccount}
@@ -122,6 +146,7 @@ export function App() {
               about your money that has been waiting for you to be able to
               answer it. */}
           <PendingOrderPrompt />
+          {role !== "out" && <BackButton onBack={goBack} />}
           {role === "out" && (
             <TravelerScreen drinks={drinks} account={account}
               onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}

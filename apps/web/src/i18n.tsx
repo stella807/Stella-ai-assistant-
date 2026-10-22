@@ -29,6 +29,7 @@ const EN = {
   "nav.payments": "Payments",
   "nav.hiring": "Help",
   "nav.about": "About",
+  "nav.back": "Back",
 
   "lux.eyebrow": "Assistants · Errands · Rides",
   "lux.title1": "Someone you trust,",
@@ -307,6 +308,7 @@ const ES: Record<TranslationKey, string> = {
   "nav.payments": "Pagos",
   "nav.hiring": "Ayuda",
   "nav.about": "Acerca de",
+  "nav.back": "Atrás",
 
   "lux.eyebrow": "Asistentes · Mandados · Viajes",
   "lux.title1": "Alguien de confianza,",

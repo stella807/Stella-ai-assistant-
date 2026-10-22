@@ -1539,18 +1539,13 @@ describe("personal concierge", () => {
     expect(res.json.error).toMatch(/Nearby Aide|partner agreement/i);
   });
 
-  describe("airport pickup — a real flight, tracked through the task", () => {
-    const pickup = (over: Record<string, unknown> = {}) => task({
-      category: "airport-pickup", hours: 2,
-      flight: { flightNumber: "DL204", date: "2026-09-17" },
-      ...over,
-    });
-
-    it("refuses to book without naming a flight", async () => {
-      const noFlight = task({ category: "airport-pickup", hours: 2 });
-      const res = await call("POST", "/api/concierge/tasks", { ...noFlight, acknowledgedDisclosures: true }, sam);
-      expect(res.status).toBe(400);
-      expect(res.json.error).toMatch(/which flight/i);
+  describe("airport pickup — withdrawn", () => {
+    it("can no longer be booked or quoted", async () => {
+      const pickup = task({ category: "airport-pickup", hours: 2, flight: { flightNumber: "DL204", date: "2026-09-17" } });
+      const booked = await call("POST", "/api/concierge/tasks", { ...pickup, acknowledgedDisclosures: true }, sam);
+      expect(booked.status).toBe(400);
+      expect(booked.json.error).toMatch(/unknown task type/i);
+      expect((await call("POST", "/api/concierge/quote", pickup, sam)).status).toBe(400);
     });
 
     it("refuses a flight on a category that isn't airport pickup", async () => {
@@ -1559,24 +1554,6 @@ describe("personal concierge", () => {
       }, sam);
       expect(res.status).toBe(400);
       expect(res.json.error).toMatch(/does not track a flight/i);
-    });
-
-    it("validates the flight before checking the provider, same order as every other field", async () => {
-      // Reaches the same "no partner network configured" 503 the other
-      // categories hit — proving the flight requirement was satisfied and
-      // this got past validation rather than being rejected on it.
-      const res = await call("POST", "/api/concierge/tasks", { ...pickup(), acknowledgedDisclosures: true }, sam);
-      expect(res.status).toBe(503);
-      expect(res.json.error).toMatch(/Nearby Aide|partner agreement/i);
-    });
-
-    it("is priced by the hour, like the rest of the personal assistant's in-person work", async () => {
-      const quote = await call("POST", "/api/concierge/quote", pickup(), sam);
-      // Same 503 as any other category here (no partner network in tests),
-      // but only after accepting the hourly booking as valid — a per-task
-      // category rejects `hours` outright, so reaching the provider check
-      // at all confirms this one is priced by the hour.
-      expect(quote.status).toBe(503);
     });
 
     it("reports flight tracking status and its disclosures alongside the rest of fulfilment", async () => {
