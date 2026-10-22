@@ -26,6 +26,15 @@ describe("Stripe card charging", () => {
     const b = calls[0]!.body;
     expect([b.get("amount"), b.get("capture_method"), b.get("off_session"), b.get("customer")]).toEqual(["9399", "manual", "true", "cus_1"]);
     expect(calls[0]!.headers["idempotency-key"]).toBe("hold:hold_1");
+    expect(b.get("automatic_payment_methods[allow_redirects]")).toBe("never");
+  });
+
+  it("saves a card without naming payment method types, which current API versions refuse", async () => {
+    const { createSetupIntent } = await import("../src/adapters/stripe.ts");
+    stubStripe(() => ({ body: { client_secret: "seti_secret" } }));
+    expect(await createSetupIntent("cus_1")).toEqual({ clientSecret: "seti_secret" });
+    expect([...calls[0]!.body.keys()].some((k) => k.startsWith("payment_method_types"))).toBe(false);
+    expect(calls[0]!.body.get("usage")).toBe("off_session");
   });
 
   it("refuses a hold the bank wants approved, and cancels it", async () => {

@@ -111,11 +111,18 @@ export async function ensureStripeCustomer(input: { existingId?: string; email: 
   return created.id;
 }
 
-/** Collect a card now, charge it later. `usage: off_session` is the honest
- *  declaration: the customer will not be present when it is charged. */
+/**
+ * Collect a payment method now, charge it later. `usage: off_session` is the
+ * honest declaration: the customer will not be present when it is charged.
+ *
+ * No `payment_method_types`: current Stripe API versions refuse it and take
+ * the list from the Dashboard (Settings → Payment methods) instead — which is
+ * also what brings Apple Pay and Google Pay into the form. Methods that can't
+ * be saved for later are filtered out by Stripe because of `usage`.
+ */
 export async function createSetupIntent(customerId: string): Promise<{ clientSecret: string }> {
   const intent = await stripePost<{ client_secret?: string }>("/v1/setup_intents", {
-    customer: customerId, usage: "off_session", "payment_method_types[0]": "card",
+    customer: customerId, usage: "off_session",
   });
   if (!intent.client_secret) throw new Error("Stripe returned a SetupIntent with no client secret.");
   return { clientSecret: intent.client_secret };
@@ -132,6 +139,9 @@ export async function holdOnCard(input: StripeCharge): Promise<{ id: string }> {
   const intent = await stripePost<{ id: string; status: string }>("/v1/payment_intents", {
     amount: input.amountCents, currency: "usd", customer: input.customerId, payment_method: input.paymentMethodId,
     capture_method: "manual", confirm: true, off_session: true, description: input.description.slice(0, 200),
+    // Nobody is at the keyboard to follow a redirect, and with no return_url
+    // Stripe refuses a confirm that might need one.
+    "automatic_payment_methods[enabled]": true, "automatic_payment_methods[allow_redirects]": "never",
   }, `hold:${input.idempotencyKey}`);
   if (intent.status !== "requires_capture" && intent.status !== "succeeded") {
     // Usually 3-D Secure. Nobody is there to approve it, so say so rather than book.
