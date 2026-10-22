@@ -264,8 +264,9 @@ Task cards for assistants come from **Lithic**; PayPal and crypto do not issue
 cards. Customers save a card or their PayPal account, or load the balance
 with crypto. ATH Móvil was removed for now (its adapter,
 routes and balance button are in git history, before the commit that removed
-it); it can be put back as a processor that loads the balance. Cards go through PayPal's own card fields on the same
-PayPal account (see "PayPal takes the money").
+it); it can be put back as a processor that loads the balance. Cards are saved
+and charged through Stripe only (see "Stripe, beside PayPal"); PayPal saves
+PayPal accounts.
 
 `packages/core/src/fulfillment.ts` defines `ChargeProcessorPort`, and
 `adapters/paypal.ts` implements it — the same

@@ -10,7 +10,7 @@
 export function paypalSdkUrl(clientId: string): string {
   const url = new URL("https://www.paypal.com/sdk/js");
   url.searchParams.set("client-id", clientId);
-  url.searchParams.set("components", "buttons,card-fields");
+  url.searchParams.set("components", "buttons");
   return url.toString();
 }
 

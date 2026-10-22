@@ -74,4 +74,3 @@ textarea::placeholder { color: var(--faint); }
 
 /* PayPal's card fields draw their own inputs in frames; a light panel keeps
    them readable on the dark theme and makes clear they are PayPal's. */
-.paypal-card-fields { background: #fff; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }

@@ -3241,12 +3241,11 @@ describe("saving a PayPal account with PayPal's own button", () => {
     expect(calls.some((c) => c.url.includes("/v2/checkout/orders"))).toBe(false);
   });
 
-  it("starts saving a typed card with an empty card source, asking for 3-D Secure only when the bank wants it", async () => {
+  it("no longer starts saving a card through PayPal — cards go through Stripe", async () => {
     const res = await call("POST", "/api/payment/paypal/setup-token", { kind: "card" }, sam);
     expect(res.status, JSON.stringify(res.json)).toBe(200);
     const setup = calls.filter((c) => c.url.endsWith("/v3/vault/setup-tokens")).at(-1)!;
-    expect(setup.body).toMatchObject({ payment_source: { card: { verification_method: "SCA_WHEN_REQUIRED" } } });
-    expect(JSON.stringify(setup.body)).not.toMatch(/number|security_code/);
+    expect(JSON.stringify(setup.body)).not.toMatch(/"card"/);
   });
 
   it("keeps a saved card by its brand, last four and expiry, read back from PayPal", async () => {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type PaymentMethod, type ProcessorStatus } from "../api.ts";
 import { PayPalButton } from "./PayPalButton.tsx";
-import { PayPalCardForm } from "./PayPalCardForm.tsx";
 import { StripeCardForm } from "./StripeCardForm.tsx";
 
 /**
@@ -21,7 +20,7 @@ function PayPalLogo({ mark = false }: { mark?: boolean }) {
 
 /**
  * The one payment method on the account: a card (Visa, Mastercard and the
- * other major cards), saved through Stripe or PayPal, or a PayPal account. It backs every
+ * other major cards), saved through Stripe, or a PayPal account. It backs every
  * charge that is not a store-billed subscription — rides, secure transport,
  * pharmacy runs, and the subscription itself on the web. Adding one does not
  * charge anything by itself — it lets a hold be placed at the moment a trip is
@@ -80,8 +79,7 @@ export function PaymentMethodCard() {
 
   if (!loaded) return null;
   const paypalReady = paypal?.mode === "automatic";
-  // Cards go through Stripe when it is connected (its card fee is lower), and
-  // through PayPal's card form otherwise.
+  // Cards are saved through Stripe only; PayPal saves PayPal accounts.
   const stripeReady = stripe?.mode === "automatic";
   const ready = paypalReady || stripeReady;
   // Nothing on file and nothing that can be added: no card at all.
@@ -118,10 +116,15 @@ export function PaymentMethodCard() {
 
       {!method && !adding && (
         <div className="stack" style={{ gap: 8 }}>
-          <p className="tiny muted" style={{ margin: 0 }}>Visa, Mastercard, American Express and Discover.</p>
-          <button className="btn btn-block btn-primary" disabled={busy} onClick={() => { setError(null); setAdding("card"); }}>
-            Add a credit or debit card
-          </button>
+          {/* Cards go through Stripe only; PayPal is offered for PayPal accounts. */}
+          {stripeReady && (
+            <>
+              <p className="tiny muted" style={{ margin: 0 }}>Visa, Mastercard, American Express and Discover.</p>
+              <button className="btn btn-block btn-primary" disabled={busy} onClick={() => { setError(null); setAdding("card"); }}>
+                Add a credit or debit card
+              </button>
+            </>
+          )}
           {paypalReady && (
             <button className="btn btn-block" disabled={busy} onClick={() => { setError(null); setAdding("paypal"); }}>
               Add your PayPal account
@@ -136,19 +139,6 @@ export function PaymentMethodCard() {
           onToken={(token) => {
             setBusy(true); setError(null);
             save(token, "stripe")
-              .catch((e) => setError(e instanceof Error ? e.message : "Could not save that card"))
-              .finally(() => setBusy(false));
-          }}
-          onError={setError}
-          onCancel={() => setAdding(null)}
-        />
-      )}
-
-      {adding === "card" && !stripeReady && (
-        <PayPalCardForm
-          onToken={(token) => {
-            setBusy(true); setError(null);
-            save(token)
               .catch((e) => setError(e instanceof Error ? e.message : "Could not save that card"))
               .finally(() => setBusy(false));
           }}

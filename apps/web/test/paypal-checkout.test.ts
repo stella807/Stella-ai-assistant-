@@ -6,7 +6,7 @@ describe("paypalSdkUrl", () => {
     const url = new URL(paypalSdkUrl("abc123"));
     expect(url.origin + url.pathname).toBe("https://www.paypal.com/sdk/js");
     expect(url.searchParams.get("client-id")).toBe("abc123");
-    expect(url.searchParams.get("components")).toBe("buttons,card-fields");
+    expect(url.searchParams.get("components")).toBe("buttons");
   });
   it("cannot be bent into another address by an odd client id", () => {
     const url = new URL(paypalSdkUrl("a&b=c#d"));

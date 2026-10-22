@@ -337,7 +337,7 @@ export const api = {
   stripeSetupIntent: () => request<{ clientSecret: string }>("POST", "/api/payment/stripe/setup-intent", {}),
   paypalConfig: () => request<{ ready: true; clientId: string } | { ready: false; note: string }>("GET", "/api/payment/paypal/config"),
   /** Step one of saving a PayPal account (`paypal`) or a typed card (`card`). */
-  paypalSetupToken: (kind: "paypal" | "card") =>
+  paypalSetupToken: (kind: "paypal" = "paypal") =>
     request<{ id: string }>("POST", "/api/payment/paypal/setup-token", { kind }),
   paypalPaymentToken: (setupToken: string) =>
     request<{ token: string }>("POST", "/api/payment/paypal/payment-token", { setupToken }),
