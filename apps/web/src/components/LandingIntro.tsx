@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { serviceIsLive } from "@safehubby/core";
 import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
@@ -144,7 +145,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           {/* Only before go-live. Once the service is running, "tell me when
               it starts" is a worse offer than the signup form above it, and
               a mailing list nobody needs is just another box to ignore. */}
-          {launch && launch.phase !== "closed" && <NewsletterSignup source="landing" />}
+          {!serviceIsLive(new Date()) && <NewsletterSignup source="landing" />}
         </section>
 
         {/* 5 — the other side of the app: the people who work it. */}

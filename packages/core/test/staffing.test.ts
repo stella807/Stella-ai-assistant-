@@ -8,7 +8,7 @@ import {
 } from "../src/staffing.ts";
 import { findPlan, type PlanId } from "../src/billing.ts";
 import { readFileSync } from "node:fs";
-import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "../src/promotions.ts";
+import { LAUNCH_WINDOW_END, LAUNCH_WINDOW_START } from "../src/promotions.ts";
 
 describe("the roles being hired", () => {
   it("covers the ten roles the launch is staffing", () => {
@@ -77,7 +77,7 @@ describe("insurance, which everyone hired gets", () => {
 
 describe("the drivers' gas stipend", () => {
   it("runs for the pre-launch window, derived from the launch dates", () => {
-    const weeks = (Date.parse(SERVICE_LIVE_AT) - Date.parse(LAUNCH_WINDOW_START)) / (7 * 86_400_000);
+    const weeks = (Date.parse(LAUNCH_WINDOW_END) - Date.parse(LAUNCH_WINDOW_START)) / (7 * 86_400_000);
     expect(GAS_STIPEND_WEEKS).toBe(Math.round(weeks));
     // Two months, so roughly eight or nine weeks — not one, and not a year.
     expect(GAS_STIPEND_WEEKS).toBeGreaterThanOrEqual(8);

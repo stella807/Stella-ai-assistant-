@@ -38,9 +38,11 @@ export const LAUNCH_WINDOW_START = "2026-10-01T00:00:00.000Z";
 export const LAUNCH_WINDOW_END = "2026-12-01T00:00:00.000Z";
 
 /**
- * When the service actually starts, which is the same moment the launch
- * window closes — the window *is* the two-month run-up, spent hiring and
- * insuring the people who do the work (see `staffing.ts`).
+ * When the service actually starts. It was planned as the end of the launch
+ * window (the two-month run-up spent hiring and insuring the people who do the
+ * work, see `staffing.ts`); ownership moved it up to go live now, so it no
+ * longer waits for the window to close and the launch discount still runs to
+ * its own end date.
  *
  * Everyone who signs up during it is a customer of a service that is not
  * running yet. That has one hard consequence, enforced in
@@ -50,7 +52,7 @@ export const LAUNCH_WINDOW_END = "2026-12-01T00:00:00.000Z";
  * thing that happens by omission rather than by decision — so the rule lives
  * in the date arithmetic, not in an operator's memory.
  */
-export const SERVICE_LIVE_AT = LAUNCH_WINDOW_END;
+export const SERVICE_LIVE_AT = "2026-10-22T00:00:00.000Z";
 
 /** Whether the service is running yet. */
 export function serviceIsLive(now: Date): boolean {

@@ -162,15 +162,15 @@ describe("the marketing site", () => {
   });
 
   it("states the service-live date from the code, not from memory", () => {
-    // October 1 is when sign-ups open; the service is live on SERVICE_LIVE_AT,
-    // two months later. Conflating them is a promise the business cannot keep.
+    // The go-live date and the end of the launch discount are two different
+    // dates; each is read from the code rather than typed into the copy.
     const live = new Date(SERVICE_LIVE_AT);
-    const open = new Date(LAUNCH_WINDOW_START);
-    expect(live.getTime()).toBeGreaterThan(open.getTime());
-
-    const liveYear = String(live.getUTCFullYear());
-    expect(pages.en).toContain(`December 1, ${liveYear}`);
-    expect(pages.es).toContain(`1 de diciembre de ${liveYear}`);
+    expect(live.getTime()).toBeGreaterThan(new Date(LAUNCH_WINDOW_START).getTime());
+    const year = String(live.getUTCFullYear());
+    expect(pages.en).toContain(`October 22, ${year}`);
+    expect(pages.es).toContain(`22 de octubre de ${year}`);
+    expect(pages.en).toContain(`December 1, ${year}`);
+    expect(pages.es).toContain(`1 de diciembre de ${year}`);
   });
 
   it("carries the two lines that are not optional, on every page", () => {

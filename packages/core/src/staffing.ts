@@ -1,12 +1,12 @@
 import { isEnabled } from "./features.ts";
-import { LAUNCH_WINDOW_START, SERVICE_LIVE_AT } from "./promotions.ts";
+import { LAUNCH_WINDOW_END, LAUNCH_WINDOW_START } from "./promotions.ts";
 import { findPlan, type PlanId } from "./billing.ts";
 
 /**
  * Who Safehubby hires, what it costs to have them on the roster, and what the
  * two-month run-up to go-live adds up to.
  *
- * The pre-launch window (`LAUNCH_WINDOW_START`..`SERVICE_LIVE_AT`) is spent
+ * The pre-launch window (`LAUNCH_WINDOW_START`..`LAUNCH_WINDOW_END`) is spent
  * hiring. Customers can sign up during it and are not charged — see
  * `promotions.ts` — so this is a period with **staffing cost and no
  * subscription revenue**, which makes it the one number in the business most
@@ -314,7 +314,7 @@ export const GAS_STIPEND_CENTS_PER_WEEK = 1000;
 /** The pre-launch window in whole weeks. Derived from the launch dates so it
  *  cannot fall out of step with them. */
 export const PRELAUNCH_WEEKS = Math.round(
-  (Date.parse(SERVICE_LIVE_AT) - Date.parse(LAUNCH_WINDOW_START)) / (7 * 86_400_000),
+  (Date.parse(LAUNCH_WINDOW_END) - Date.parse(LAUNCH_WINDOW_START)) / (7 * 86_400_000),
 );
 
 /** The stipend runs the whole window — same number, named for its own
@@ -380,7 +380,7 @@ export interface PrelaunchBudget {
 
 /** The pre-launch window in whole months. Derived, not typed. */
 export const PRELAUNCH_MONTHS = Math.round(
-  (Date.parse(SERVICE_LIVE_AT) - Date.parse(LAUNCH_WINDOW_START)) / (30 * 86_400_000),
+  (Date.parse(LAUNCH_WINDOW_END) - Date.parse(LAUNCH_WINDOW_START)) / (30 * 86_400_000),
 );
 
 /**

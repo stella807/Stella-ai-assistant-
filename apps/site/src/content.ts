@@ -1,6 +1,6 @@
 import {
   CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
-  LAUNCH_WINDOW_START, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
+  LAUNCH_WINDOW_END, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
   OPEN_POSITIONS, isEnabled, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
@@ -272,7 +272,7 @@ export interface WorkCopy {
 }
 
 const liveDate = (lang: Lang) => formatDate(SERVICE_LIVE_AT, lang);
-const openDate = (lang: Lang) => formatDate(LAUNCH_WINDOW_START, lang);
+const discountUntil = (lang: Lang) => formatDate(LAUNCH_WINDOW_END, lang);
 const discountPercent = Math.round(LAUNCH_DISCOUNT_RATE * 100);
 const paRate = money(PA_HOURLY_RATE_CENTS);
 const tierPays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
@@ -322,7 +322,7 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. From one errand to a full concierge desk.",
     heroCta: "Get started",
-    heroCtaNote: `No contract. Nobody is charged before ${liveDate("en")}.`,
+    heroCtaNote: `No contract. Live since ${liveDate("en")}, with a free trial before your first charge.`,
 
     whatHeading: "What we do",
     tiersHeading: "Errands, by size",
@@ -364,7 +364,7 @@ export const COPY: Record<Lang, Copy> = {
     clubPerk: "A cigar and a drink of your choice at every event, whatever the month lands on. Folded into the group rate, never an extra line.",
     clubRotation: "In the rotation:",
     pricingNote:
-      `Sign-ups open ${openDate("en")}. Service goes live ${liveDate("en")}, and nobody is charged a day before that. Sign up early and keep ${discountPercent}% off your first year.`,
+      `Safehubby is live as of ${liveDate("en")}. Sign up before ${discountUntil("en")} and keep ${discountPercent}% off your first year.`,
 
     contactHeading: "Write to us",
     contactBody: "Questions, press, or a family who needs something sooner rather than later.",
@@ -389,7 +389,7 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Desde una diligencia hasta un servicio de concierge completo.",
     heroCta: "Empezar",
-    heroCtaNote: `Sin contrato. A nadie se le cobra antes del ${liveDate("es")}.`,
+    heroCtaNote: `Sin contrato. En servicio desde el ${liveDate("es")}, con una prueba gratis antes del primer cobro.`,
 
     whatHeading: "Lo que hacemos",
     tiersHeading: "Diligencias, por tamaño",
@@ -431,7 +431,7 @@ export const COPY: Record<Lang, Copy> = {
     clubPerk: "Un cigarro y un trago de tu elección en cada evento, sea cual sea la actividad del mes. Va incluido en la tarifa de grupo, nunca como un cargo aparte.",
     clubRotation: "En la rotación:",
     pricingNote:
-      `Los registros abren el ${openDate("es")}. El servicio arranca el ${liveDate("es")}, y a nadie se le cobra ni un día antes. Regístrate temprano y quédate con ${discountPercent}% de descuento el primer año.`,
+      `Safehubby está en servicio desde el ${liveDate("es")}. Regístrate antes del ${discountUntil("es")} y quédate con ${discountPercent}% de descuento el primer año.`,
 
     contactHeading: "Escríbenos",
     contactBody: "Preguntas, prensa, o una familia que necesita algo pronto.",
