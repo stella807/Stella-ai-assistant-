@@ -1,5 +1,5 @@
 import type { ChargeProcessorPort, VerifiedMethod } from "@safehubby/core";
-import { statusFor } from "@safehubby/core";
+import { PUERTO_RICO_IVU_RATE, statusFor } from "@safehubby/core";
 
 /**
  * Cards through Stripe, beside PayPal. Three Stripe products are used:
@@ -205,6 +205,38 @@ export interface CheckoutPlan {
 }
 
 /**
+ * The IVU tax rates, created in Stripe on first use and found again by their
+ * metadata after that. Two, because a Puerto Rico address can reach Stripe
+ * either as its own country (PR) or as a US state (US-PR); whichever matches
+ * the customer's billing address is applied, and no other address gets one.
+ */
+let ivuRates: Promise<string[]> | null = null;
+
+export function ivuTaxRateIds(): Promise<string[]> {
+  ivuRates ??= (async () => {
+    const res = await fetch(`${api()}/v1/tax_rates?active=true&limit=100`, { headers: { authorization: `Bearer ${key()}` } });
+    const existing = res.ok ? ((await res.json()) as { data?: { id: string; metadata?: Record<string, string> }[] }).data ?? [] : [];
+    const want = [
+      { tag: "ivu-pr", fields: { country: "PR" } },
+      { tag: "ivu-us-pr", fields: { country: "US", state: "PR" } },
+    ];
+    const ids: string[] = [];
+    for (const { tag, fields } of want) {
+      const found = existing.find((r) => r.metadata?.safehubby === tag);
+      if (found) { ids.push(found.id); continue; }
+      const created = await stripePost<{ id: string }>("/v1/tax_rates", {
+        display_name: "IVU", description: "Puerto Rico sales and use tax (10.5% state + 1% municipal)",
+        jurisdiction: "Puerto Rico", percentage: Math.round(PUERTO_RICO_IVU_RATE * 10000) / 100, inclusive: false,
+        tax_type: "sales_tax", ...fields, "metadata[safehubby]": tag,
+      }, `tax-rate:${tag}`);
+      ids.push(created.id);
+    }
+    return ids;
+  })().catch((e) => { ivuRates = null; throw e; });
+  return ivuRates;
+}
+
+/**
  * A coupon for the launch-party discount, created on first use under a fixed
  * id per length so it is shared rather than duplicated; "already exists" is
  * the expected answer every time after the first.
@@ -237,6 +269,7 @@ export async function createCheckoutSession(input: {
   const metadata = { travelerId: plan.travelerId, planId: plan.planId, cadence: plan.cadence };
   const coupon = plan.discount && plan.discount.months > 0
     ? await ensureLaunchCoupon(plan.discount.percentOff, plan.discount.months) : undefined;
+  const taxRates = await ivuTaxRateIds();
   const trialEnd = plan.trialEndsAt ? Math.floor(Date.parse(plan.trialEndsAt) / 1000) : undefined;
   const res = await fetch(`${api()}/v1/checkout/sessions`, {
     method: "POST",
@@ -254,13 +287,18 @@ export async function createCheckoutSession(input: {
       "line_items[0][price_data][product_data][name]": `Safehubby ${plan.name} (${plan.cadence === "annual" ? "yearly" : "monthly"})`,
       "line_items[0][price_data][recurring][interval]": plan.cadence === "annual" ? "year" : "month",
       "line_items[0][quantity]": 1,
-      // Read back by the fulfillment webhook to know whose plan to change.
+      // IVU, added only when the billing address is in Puerto Rico.
+      ...Object.fromEntries(taxRates.map((id, i) => [`line_items[0][dynamic_tax_rates][${i}]`, id])),
       ...(trialEnd ? { "subscription_data[trial_end]": trialEnd } : {}),
       ...(coupon ? { "discounts[0][coupon]": coupon } : {}),
+      // Read back by the fulfillment webhook to know whose plan to change.
       ...Object.fromEntries(Object.entries(metadata).flatMap(([k, v]) => [
         [`metadata[${k}]`, v], [`subscription_data[metadata][${k}]`, v],
       ])),
-      billing_address_collection: "auto",
+      // "required", not Checkout Studio's "auto": IVU is charged by billing
+      // address, and "auto" can stop at a ZIP code with no country or state
+      // to match a Puerto Rico address against.
+      billing_address_collection: "required",
       "phone_number_collection[enabled]": false,
       "automatic_tax[enabled]": false,
       ...(mode === "subscription" ? { payment_method_collection: "always" } : {}),

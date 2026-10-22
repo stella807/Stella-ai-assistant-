@@ -29,7 +29,7 @@ These parameters were configured in Checkout Studio and are already set correctl
 | Parameter | Value |
 |-----------|-------|
 | ui_mode | form |
-| billing_address_collection | auto |
+| billing_address_collection | required (changed from Studio's `auto` so IVU can match a Puerto Rico address — set Addresses to "Billing" in Checkout Studio to match) |
 | phone_number_collection | `{ enabled: false }` |
 | automatic_tax | `{ enabled: false }` |
 | payment_method_collection | always (subscription mode only) |
@@ -93,6 +93,22 @@ Use test-mode keys, then:
 | 4000 0000 0000 9995 | Declined (insufficient funds) |
 
 Any future expiry, any CVC, any ZIP.
+
+## IVU (Puerto Rico sales tax)
+
+Customers with a **Puerto Rico billing address** pay IVU at 11.5% (10.5% state +
+1% municipal), added on top of the plan price as its own "IVU" line. Everyone
+else pays the listed price. The rate is `PUERTO_RICO_IVU_RATE` in
+`packages/core/src/billing.ts`.
+
+The session sends two Stripe tax rates as `dynamic_tax_rates` — country `PR`, and
+country `US` with state `PR` — created in your Stripe account on first use (find
+them under Product catalog → Tax rates, tagged `metadata.safehubby`). Stripe applies
+whichever matches the billing address.
+
+Not covered yet: plan renewals billed as Stripe invoices on a saved card (not
+through Checkout), PayPal, and task charges. Ask your accountant which services
+are subject to IVU, and file IVU returns with Hacienda (SURI).
 
 ## Webhook (fulfillment)
 

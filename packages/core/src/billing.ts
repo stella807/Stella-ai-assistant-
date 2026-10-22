@@ -365,6 +365,14 @@ const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-pro
 export const PROCESSOR_FEE_RATE = 0.0349;
 export const PROCESSOR_FEE_FIXED_CENTS = 49;
 
+/**
+ * Puerto Rico's sales and use tax (IVU): 10.5% state plus 1% municipal.
+ * Charged only to customers whose billing address is in Puerto Rico, added on
+ * top of the listed price at checkout and shown as its own line — prices stay
+ * as listed for everyone else. Confirm the rate and filing with an accountant.
+ */
+export const PUERTO_RICO_IVU_RATE = 0.115;
+
 /** What actually arrives from a payment of this size, after PayPal's fee. */
 export function netAfterProcessorFeeCents(priceCents: number): number {
   if (priceCents <= 0) return 0;

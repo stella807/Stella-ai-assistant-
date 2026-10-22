@@ -49,6 +49,9 @@ export function StripeCheckoutForm({ planId, cadence, onClose }: {
   return (
     <section className="card stack">
       <h3 style={{ margin: 0 }}>Subscribe with a card</h3>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Puerto Rico billing addresses: IVU (11.5%) is added to the price and shown as its own line.
+      </p>
       <div id="checkout-form" ref={node} />
       {state === "loading" && <p className="small muted">Loading the payment form…</p>}
       {error && <div className="banner banner-danger">{error}</div>}

@@ -85,22 +85,33 @@ describe("Stripe card charging", () => {
   });
 });
 
+const checkoutReply = (c: Call) => (
+  c.url.includes("/v1/tax_rates?") ? { body: { data: [{ id: "txr_pr", metadata: { safehubby: "ivu-pr" } }] } }
+    : c.url.endsWith("/v1/tax_rates") ? { body: { id: "txr_uspr" } }
+      : c.url.endsWith("/v1/coupons") ? { ok: false, body: { error: { message: "Coupon already exists." } } }
+        : { body: { client_secret: "cs_secret" } });
+
 describe("Stripe Checkout Session", () => {
   beforeEach(() => { process.env.STRIPE_SECRET_KEY = "sk_test_x"; });
   afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ENV }; });
 
   it("creates the embedded form session with the Checkout Studio settings", async () => {
     const { createCheckoutSession, CHECKOUT_API_VERSION } = await import("../src/adapters/stripe.ts");
-    stubStripe(() => ({ body: { client_secret: "cs_secret" } }));
+    stubStripe(checkoutReply);
     expect(await createCheckoutSession({
       customerId: "cus_1", returnUrl: "https://x/#billing",
       plan: { planId: "premium-basic", name: "Premium", cadence: "annual", amountCents: 93999, travelerId: "usr1" },
     })).toEqual({ clientSecret: "cs_secret" });
-    const b = calls[0]!.body;
-    expect(calls[0]!.url).toMatch(/\/v1\/checkout\/sessions$/);
-    expect(calls[0]!.headers["stripe-version"]).toBe(CHECKOUT_API_VERSION);
+    const session = calls.find((c) => c.url.endsWith("/v1/checkout/sessions"))!;
+    const b = session.body;
+    expect(session.headers["stripe-version"]).toBe(CHECKOUT_API_VERSION);
     expect([b.get("ui_mode"), b.get("mode"), b.get("payment_method_collection"), b.get("billing_address_collection")])
-      .toEqual(["form", "subscription", "always", "auto"]);
+      .toEqual(["form", "subscription", "always", "required"]);
+    // IVU: the existing PR rate is reused and the US-PR one created once.
+    expect([b.get("line_items[0][dynamic_tax_rates][0]"), b.get("line_items[0][dynamic_tax_rates][1]")]).toEqual(["txr_pr", "txr_uspr"]);
+    const created = calls.find((c) => c.url.endsWith("/v1/tax_rates"))!.body;
+    expect([created.get("percentage"), created.get("inclusive"), created.get("country"), created.get("state"), created.get("display_name")])
+      .toEqual(["11.5", "false", "US", "PR", "IVU"]);
     expect(b.get("integration_identifier")).toBe("custom_embedded_web_0001");
     expect(b.get("saved_payment_method_options[payment_method_save]")).toBe("enabled");
     expect(b.get("automatic_tax[enabled]")).toBe("false");
@@ -113,16 +124,14 @@ describe("Stripe Checkout Session", () => {
 
   it("honours the agreed trial and the launch discount", async () => {
     const { createCheckoutSession } = await import("../src/adapters/stripe.ts");
-    stubStripe((c) => (c.url.endsWith("/v1/coupons")
-      ? { ok: false, body: { error: { message: "Coupon already exists." } } }
-      : { body: { client_secret: "cs_secret" } }));
+    stubStripe(checkoutReply);
     await createCheckoutSession({
       customerId: "cus_1", returnUrl: "https://x",
       plan: { planId: "premium-basic", name: "Premium", cadence: "monthly", amountCents: 9399, travelerId: "u",
         trialEndsAt: "2026-12-15T00:00:00.000Z", discount: { percentOff: 3, months: 11 } },
     });
-    expect(calls[0]!.body.get("id")).toBe("launch-3pct-11mo");
-    const b = calls[1]!.body;
+    expect(calls.find((c) => c.url.endsWith("/v1/coupons"))!.body.get("id")).toBe("launch-3pct-11mo");
+    const b = calls.find((c) => c.url.endsWith("/v1/checkout/sessions"))!.body;
     expect(b.get("subscription_data[trial_end]")).toBe(String(Date.parse("2026-12-15T00:00:00.000Z") / 1000));
     expect(b.get("discounts[0][coupon]")).toBe("launch-3pct-11mo");
   });
