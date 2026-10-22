@@ -41,6 +41,15 @@ async function main(): Promise<void> {
   console.log(adminKey
     ? `[safehubby] Admin key: set (${adminKey.length} characters).`
     : "[safehubby] Admin key: NOT SET — add SAFEHUBBY_ADMIN_KEY to this service's variables.");
+  // Which payment keys this service can see — names and modes only, never the
+  // values. Stripe needs both keys; with either missing, cards fall back to
+  // PayPal, which otherwise looks like Stripe silently not working.
+  const mode = (v: string | undefined, live: string, test: string) =>
+    !v?.trim() ? "MISSING" : v.trim().startsWith(live) ? "live" : v.trim().startsWith(test) ? "test" : "set, but not a recognised key";
+  console.log(`[safehubby] Stripe: STRIPE_SECRET_KEY ${mode(process.env.STRIPE_SECRET_KEY, "sk_live_", "sk_test_")}, `
+    + `STRIPE_PUBLISHABLE_KEY ${mode(process.env.STRIPE_PUBLISHABLE_KEY ?? process.env.VITE_STRIPE_PUBLISHABLE_KEY, "pk_live_", "pk_test_")}, `
+    + `STRIPE_WEBHOOK_SECRET ${process.env.STRIPE_WEBHOOK_SECRET?.trim() ? "set" : "MISSING"}.`);
+  console.log(`[safehubby] PayPal: ${process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim() ? "connected" : "not connected"}.`);
 
   let store: StoreLike;
   if (databaseUrl) {

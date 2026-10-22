@@ -21,11 +21,15 @@ import { PUERTO_RICO_IVU_RATE, statusFor } from "@safehubby/core";
  * next request without a restart, and tests can toggle it.
  */
 
-const key = () => process.env.STRIPE_SECRET_KEY ?? "";
+const key = () => (process.env.STRIPE_SECRET_KEY ?? "").trim();
 const api = () => (process.env.STRIPE_API_BASE ?? "https://api.stripe.com").replace(/\/$/, "");
 const taxOn = () => process.env.STRIPE_TAX === "on";
 
-export const stripePublishableKey = () => process.env.STRIPE_PUBLISHABLE_KEY ?? "";
+/** Also read under the `VITE_` name Stripe's own Vite instructions suggest:
+ *  here the key is served by the API rather than built into the page, so
+ *  either name works and neither needs a rebuild. */
+export const stripePublishableKey = () =>
+  (process.env.STRIPE_PUBLISHABLE_KEY ?? process.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
 export const cardChargingReady = () => Boolean(key());
 
 /** Stripe's own ids for what it holds. A hold reference is the PaymentIntent
