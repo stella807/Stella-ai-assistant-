@@ -870,14 +870,14 @@ function stripeTermsFor(planId: PlanId, cadence: Cadence, now: Date): {
 async function stopStripeBilling(stripeSubscriptionId: string): Promise<void> {
   try { await cancelStripeSubscription(stripeSubscriptionId); }
   catch (e) {
-    throw new HttpError(502, `Stripe could not stop billing your plan, so nothing was changed. ${e instanceof Error ? e.message : ""}`.trim());
+    throw new HttpError(424, `Stripe could not stop billing your plan, so nothing was changed. ${e instanceof Error ? e.message : ""}`.trim());
   }
 }
 
 /** The view that shows one card in the browser, with the issuer's refusal said plainly. */
 async function cardViewOrFail(cardId: string) {
   try { return await cardViewFor(cardId); }
-  catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "The card issuer would not open this card."); }
+  catch (e) { throw new HttpError(424, e instanceof Error ? e.message : "The card issuer would not open this card."); }
 }
 
 /** Takes what was spent, or lets the whole hold go. Never fails the request
@@ -1745,8 +1745,10 @@ export const routes: Record<string, Handler> = {
     } catch (e) {
       // Logged so the deploy log names Stripe's own reason (a wrong or
       // restricted key, test vs live mismatch) rather than only a 502.
+      // 424, not 502: Cloudflare and Railway replace a 502 from the app with
+      // their own bodiless error page, which hid Stripe's message entirely.
       console.error("[safehubby] Stripe setup-intent failed:", e instanceof Error ? e.message : e);
-      throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
+      throw new HttpError(424, e instanceof Error ? e.message : "Stripe could not be reached.");
     }
   },
 
@@ -1784,7 +1786,7 @@ export const routes: Record<string, Handler> = {
       return { client_secret: clientSecret };
     } catch (e) {
       console.error("[safehubby] Stripe checkout-session failed:", e instanceof Error ? e.message : e);
-      throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
+      throw new HttpError(424, e instanceof Error ? e.message : "Stripe could not be reached.");
     }
   },
 
@@ -1796,7 +1798,7 @@ export const routes: Record<string, Handler> = {
     const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
     const kind = body?.kind === "card" ? "card" : "paypal";
     try { return { id: await createSetupToken(`${base}/#payments`, kind) }; }
-    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "PayPal could not be reached."); }
+    catch (e) { throw new HttpError(424, e instanceof Error ? e.message : "PayPal could not be reached."); }
   },
 
   /** Step two, once the customer approved: the durable token the normal
@@ -1807,7 +1809,7 @@ export const routes: Record<string, Handler> = {
     const setupToken = String(body?.setupToken ?? "");
     if (!setupToken) throw new HttpError(400, "Missing PayPal approval.");
     try { return { token: await exchangeSetupToken(setupToken) }; }
-    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : "PayPal could not be reached."); }
+    catch (e) { throw new HttpError(424, e instanceof Error ? e.message : "PayPal could not be reached."); }
   },
 
   "POST /api/account/payment-method": async (ctx, _p, body) => {
@@ -4686,7 +4688,7 @@ export const routes: Record<string, Handler> = {
       const dropoff = { lat: body?.dropoff?.lat, lng: body?.dropoff?.lng, label: body?.dropoff?.label };
       const estimates = await uberEstimates({ pickup: body.pickup, dropoff, riderName: nameOf(ctx, travelerId) });
       const estimate = estimates.find((e) => e.productId === body?.providerId) ?? estimates[0];
-      if (!estimate?.fareCents) throw new HttpError(502, "Could not get a fare estimate right now — try again.");
+      if (!estimate?.fareCents) throw new HttpError(424, "Could not get a fare estimate right now — try again.");
 
       const booked = await bookWithHold(ctx, travelerId, estimate.fareCents, () =>
         uberForBusiness.book({
