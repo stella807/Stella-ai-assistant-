@@ -34,6 +34,13 @@ function assertProductionConfig(): void {
 
 async function main(): Promise<void> {
   assertProductionConfig();
+  // Said at boot, so "Admin access is not configured" can be checked in the
+  // deploy log without guessing whether the variable reached this service.
+  // Only whether it is set and how long it is — never the key itself.
+  const adminKey = process.env.SAFEHUBBY_ADMIN_KEY?.trim();
+  console.log(adminKey
+    ? `[safehubby] Admin key: set (${adminKey.length} characters).`
+    : "[safehubby] Admin key: NOT SET — add SAFEHUBBY_ADMIN_KEY to this service's variables.");
 
   let store: StoreLike;
   if (databaseUrl) {

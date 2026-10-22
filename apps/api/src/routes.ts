@@ -1067,8 +1067,11 @@ function adminKeyMatches(typed: string): boolean {
 }
 
 function requireAdmin(ctx: Ctx, scope: MasterScope = "operations"): void {
-  const expected = process.env.SAFEHUBBY_ADMIN_KEY;
-  if (expected && ctx.adminKey === expected) return;
+  // Trimmed on both sides, like adminKeyMatches: a value pasted into a
+  // hosting dashboard often carries a stray space or newline, and an exact
+  // comparison then refuses the right key with no visible difference.
+  const expected = process.env.SAFEHUBBY_ADMIN_KEY?.trim();
+  if (expected && ctx.adminKey && adminKeyMatches(ctx.adminKey)) return;
 
   const account = masterAccountOf(ctx);
   if (account && isMasterAccountActive(account, ctx.now()) && canAccess(account, scope, ctx.now())) return;
