@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
-  PLANS, effectivePlan, findPlan, isElitePlan, periodEnd, recordCharge, settleCharge,
+  PLANS, autoRenewalTermsFor, effectivePlan, findPlan, isElitePlan, periodEnd, recordCharge, settleCharge,
   type Cadence, type PlanId, type Subscription,
 } from "@safehubby/core";
 import type { StoreLike } from "./store.ts";
@@ -98,13 +98,18 @@ export function handleStripeWebhook(
         if (existing?.stripeSubscriptionId === stripeSubscriptionId) return; // already applied
         if (existing?.stripeSubscriptionId) toCancel.push(existing.stripeSubscriptionId);
         const plan = findPlan(planId);
+        // Nothing taken at checkout means the free trial the member agreed to
+        // is running; Stripe charges when it ends (reported as invoice.paid).
+        const trialing = Number(object.amount_total ?? 0) === 0;
+        const trialEndsAt = trialing ? autoRenewalTermsFor(plan.id, cadence, now).trialEndsAt : undefined;
         const next: Subscription = {
-          travelerId, planId: plan.id, cadence, rail: "card", status: "active",
+          travelerId, planId: plan.id, cadence, rail: "card", status: trialing && trialEndsAt ? "trialing" : "active",
+          ...(trialing && trialEndsAt ? { trialEndsAt } : {}),
           // The renewal terms were agreed to in the app before checkout opened.
           renewalTermsAcceptedAt: now.toISOString(),
           startedAt: now.toISOString(),
           joinedAt: existing?.joinedAt ?? existing?.startedAt ?? now.toISOString(),
-          currentPeriodEnd: periodEnd(cadence, now).toISOString(),
+          currentPeriodEnd: trialing && trialEndsAt ? trialEndsAt : periodEnd(cadence, now).toISOString(),
           stripeSubscriptionId,
         };
         db.subscriptions[travelerId] = next;

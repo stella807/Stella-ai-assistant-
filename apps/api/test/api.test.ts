@@ -2770,6 +2770,16 @@ describe("paid plans before payments are live", () => {
   beforeEach(() => setFlag("paid-plans", false));
   afterEach(() => resetFlags());
 
+  it("lifts the hold by itself once a payment processor is connected", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_unlock";
+    try {
+      const plans = (await call("GET", "/api/catalog")).json.plans;
+      for (const p of plans.filter((x: any) => x.monthlyCents > 0 && x.lockedReason)) expect(p.lockedReason, p.id).not.toBe("payments");
+    } finally {
+      delete process.env.STRIPE_SECRET_KEY;
+    }
+  });
+
   it("keeps every price on show but locks every paid plan, saying why", async () => {
     const plans = (await call("GET", "/api/catalog")).json.plans;
     const paid = plans.filter((p: any) => p.monthlyCents > 0);

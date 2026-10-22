@@ -198,6 +198,27 @@ export const CHECKOUT_API_VERSION = "2026-09-30.endive";
  *  product catalog), so the app's own plan table stays the one price list. */
 export interface CheckoutPlan {
   planId: string; name: string; cadence: "monthly" | "annual"; amountCents: number; travelerId: string;
+  /** When the free trial the member agreed to ends — Stripe charges nothing before it. */
+  trialEndsAt?: string;
+  /** The launch-party discount, as a whole percent and the months of charges it covers. */
+  discount?: { percentOff: number; months: number };
+}
+
+/**
+ * A coupon for the launch-party discount, created on first use under a fixed
+ * id per length so it is shared rather than duplicated; "already exists" is
+ * the expected answer every time after the first.
+ */
+async function ensureLaunchCoupon(percentOff: number, months: number): Promise<string> {
+  const id = `launch-${percentOff}pct-${months}mo`;
+  try {
+    await stripePost("/v1/coupons", {
+      id, percent_off: percentOff, duration: "repeating", duration_in_months: months, name: `Launch party ${percentOff}% off`,
+    });
+  } catch (e) {
+    if (!/already exists/i.test(e instanceof Error ? e.message : "")) throw e;
+  }
+  return id;
 }
 
 /**
@@ -214,6 +235,9 @@ export async function createCheckoutSession(input: {
   const mode: "payment" | "subscription" = "subscription";
   const { plan } = input;
   const metadata = { travelerId: plan.travelerId, planId: plan.planId, cadence: plan.cadence };
+  const coupon = plan.discount && plan.discount.months > 0
+    ? await ensureLaunchCoupon(plan.discount.percentOff, plan.discount.months) : undefined;
+  const trialEnd = plan.trialEndsAt ? Math.floor(Date.parse(plan.trialEndsAt) / 1000) : undefined;
   const res = await fetch(`${api()}/v1/checkout/sessions`, {
     method: "POST",
     headers: {
@@ -231,6 +255,8 @@ export async function createCheckoutSession(input: {
       "line_items[0][price_data][recurring][interval]": plan.cadence === "annual" ? "year" : "month",
       "line_items[0][quantity]": 1,
       // Read back by the fulfillment webhook to know whose plan to change.
+      ...(trialEnd ? { "subscription_data[trial_end]": trialEnd } : {}),
+      ...(coupon ? { "discounts[0][coupon]": coupon } : {}),
       ...Object.fromEntries(Object.entries(metadata).flatMap(([k, v]) => [
         [`metadata[${k}]`, v], [`subscription_data[metadata][${k}]`, v],
       ])),

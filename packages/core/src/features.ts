@@ -47,7 +47,8 @@ export const FLAGS: FlagDefinition[] = [
     // No processor collects a web subscription yet: POST /api/subscription
     // settles the card rail inline, so a paid plan chosen on the web would be
     // granted without anyone paying for it. Plans stay visible with their
-    // prices; only joining one waits. Turn on once payments are live.
+    // prices; only joining one waits. The API also lifts this by itself once a
+    // processor (Stripe or PayPal) is connected — see `paidPlansOpen`.
     id: "paid-plans",
     enabled: false,
     note: "Paid plans open as soon as payments are live. Check-ins, location sharing and SOS work in the meantime.",

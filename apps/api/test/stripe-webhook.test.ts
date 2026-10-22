@@ -52,6 +52,14 @@ describe("Stripe webhook", () => {
     expect(db.charges.find((c) => c.id === "stripe_cs_1")).toMatchObject({ status: "settled", amountCents: 9399 });
   });
 
+  it("starts the agreed free trial when checkout took nothing", () => {
+    const { db, store } = storeWithMember();
+    deliver(store, event("checkout.session.completed", { ...completed, amount_total: 0, payment_status: "no_payment_required" }));
+    expect(db.subscriptions.t1).toMatchObject({ status: "trialing", planId: "premium-basic" });
+    expect(db.subscriptions.t1!.currentPeriodEnd).toBe(db.subscriptions.t1!.trialEndsAt);
+    expect(db.charges.some((c) => c.id === "stripe_cs_1")).toBe(false);
+  });
+
   it("asks Stripe to cancel a plan a newer checkout replaced", () => {
     const { store } = storeWithMember();
     deliver(store, event("checkout.session.completed", completed));

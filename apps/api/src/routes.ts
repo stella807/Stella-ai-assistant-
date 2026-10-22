@@ -7,7 +7,7 @@ import {
   isPlanReleased, releasedPlans,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
-  SERVICE_LIVE_AT, serviceIsLive,
+  SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
   publicBenefits, PRELAUNCH_HEADCOUNT, SOLO_HEADCOUNT, STAFF_ROLES, monthlyRosterCents, prelaunchBudget,
   subscribersToCarryRoster,
   reviewStaffApplication, submitStaffApplication, withdrawStaffApplication,
@@ -827,6 +827,37 @@ async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: stri
   } catch (err) {
     throw new HttpError(402, err instanceof Error ? err.message : "Your payment could not be taken.");
   }
+}
+
+/**
+ * Whether paid plans can be joined on the web. The `paid-plans` hold exists
+ * so nobody is granted a plan nobody paid for, which only happens when no
+ * processor can take the money — so it lifts on its own the moment Stripe or
+ * PayPal is connected, and the flag can still force it open.
+ */
+const paidPlansOpen = (): boolean => isEnabled("paid-plans") || chargingReady();
+
+/**
+ * What Stripe must honour from the renewal terms the member just agreed to:
+ * the free trial (no charge before it ends) and the launch-party discount for
+ * the charges that fall inside its window. Read from the same functions that
+ * wrote the terms, so the two cannot disagree.
+ */
+function stripeTermsFor(planId: PlanId, cadence: Cadence, now: Date): {
+  trialEndsAt?: string; discount?: { percentOff: number; months: number };
+} {
+  const terms = autoRenewalTermsFor(planId, cadence, now);
+  const firstCharge = new Date(terms.firstChargeAt);
+  const joined = { startedAt: now.toISOString(), joinedAt: now.toISOString() };
+  const discountEnds = launchDiscountEndsAt(now.toISOString()).getTime();
+  const months = launchDiscountApplies(joined, firstCharge) && firstCharge.getTime() < discountEnds
+    ? Math.max(1, Math.ceil((discountEnds - firstCharge.getTime()) / (30.44 * 86_400_000))) : 0;
+  return {
+    // Stripe refuses a trial ending within 48 hours; a trial that short is
+    // simply skipped rather than failing the checkout.
+    ...(terms.trialEndsAt && Date.parse(terms.trialEndsAt) - now.getTime() > 48 * 3_600_000 ? { trialEndsAt: terms.trialEndsAt } : {}),
+    ...(months > 0 ? { discount: { percentOff: Math.round(LAUNCH_DISCOUNT_RATE * 100), months } } : {}),
+  };
 }
 
 /** Tells Stripe to stop billing a plan, refusing the change if it cannot —
@@ -1728,6 +1759,7 @@ export const routes: Record<string, Handler> = {
         plan: {
           planId: plan.id, name: plan.name, cadence, travelerId: me,
           amountCents: cadence === "annual" ? plan.annualCents : plan.monthlyCents,
+          ...stripeTermsFor(plan.id, cadence, ctx.now()),
         },
       });
       return { client_secret: clientSecret };
@@ -1968,7 +2000,7 @@ export const routes: Record<string, Handler> = {
       // Paid plans are also `locked`, with the reason, until `paid-plans` is
       // on: their prices stay on show, but joining waits for live payments.
       plans: releasedPlans().map((plan) => {
-        const awaitingPayments = plan.monthlyCents > 0 && !isEnabled("paid-plans");
+        const awaitingPayments = plan.monthlyCents > 0 && !paidPlansOpen();
         const eliteLocked = isElitePlan(plan.id) && !eliteUnlock.unlocked;
         return {
           ...plan,
@@ -2430,7 +2462,7 @@ export const routes: Record<string, Handler> = {
     // processor collects it yet, so a paid plan joined here would be granted
     // without being paid for. Held until payments are live — see `paid-plans`.
     // Store purchases are untouched: they wait for the store's own receipt.
-    if (plan.monthlyCents > 0 && platform === "web" && !isEnabled("paid-plans")) {
+    if (plan.monthlyCents > 0 && platform === "web" && !paidPlansOpen()) {
       throw new HttpError(409, flagNote("paid-plans"));
     }
     catchUpBilling(ctx);

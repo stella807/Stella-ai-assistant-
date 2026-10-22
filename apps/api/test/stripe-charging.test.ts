@@ -108,5 +108,22 @@ describe("Stripe Checkout Session", () => {
     expect(b.get("line_items[0][price_data][recurring][interval]")).toBe("year");
     expect(b.get("subscription_data[metadata][planId]")).toBe("premium-basic");
     expect(b.get("line_items[0][price]")).toBeNull();
+    expect(b.get("subscription_data[trial_end]")).toBeNull();
+  });
+
+  it("honours the agreed trial and the launch discount", async () => {
+    const { createCheckoutSession } = await import("../src/adapters/stripe.ts");
+    stubStripe((c) => (c.url.endsWith("/v1/coupons")
+      ? { ok: false, body: { error: { message: "Coupon already exists." } } }
+      : { body: { client_secret: "cs_secret" } }));
+    await createCheckoutSession({
+      customerId: "cus_1", returnUrl: "https://x",
+      plan: { planId: "premium-basic", name: "Premium", cadence: "monthly", amountCents: 9399, travelerId: "u",
+        trialEndsAt: "2026-12-15T00:00:00.000Z", discount: { percentOff: 3, months: 11 } },
+    });
+    expect(calls[0]!.body.get("id")).toBe("launch-3pct-11mo");
+    const b = calls[1]!.body;
+    expect(b.get("subscription_data[trial_end]")).toBe(String(Date.parse("2026-12-15T00:00:00.000Z") / 1000));
+    expect(b.get("discounts[0][coupon]")).toBe("launch-3pct-11mo");
   });
 });
