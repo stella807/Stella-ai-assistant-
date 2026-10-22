@@ -28,6 +28,7 @@ export type FeatureFlag =
   | "paid-plans"
   | "elite-tier"
   | "elite-revenue-gate"
+  | "paypal-payments"
   | "insurance-in-place"
   | "free-tier"
   | "free-errands"
@@ -67,6 +68,14 @@ export const FLAGS: FlagDefinition[] = [
     id: "elite-revenue-gate",
     enabled: false,
     note: "Elite opens once revenue covers its spending allowance for our first members.",
+  },
+  {
+    // PayPal is paused until the business has its EIN; Stripe takes cards
+    // meanwhile. Off, PayPal reports itself not connected even with its keys
+    // set, so no PayPal option is shown and nothing is charged through it.
+    id: "paypal-payments",
+    enabled: false,
+    note: "PayPal is coming back soon. Pay with a credit or debit card in the meantime.",
   },
   {
     id: "insurance-in-place",

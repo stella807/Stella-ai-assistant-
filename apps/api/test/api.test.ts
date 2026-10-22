@@ -128,6 +128,9 @@ beforeEach(async () => {
   // These tests describe billing once payments are live; the `paid-plans`
   // gate that holds paid plans back before then has its own tests below.
   setFlag("paid-plans", true);
+  // PayPal is paused in production until the EIN (`paypal-payments`); these
+  // tests describe it switched on, and the pause has its own test below.
+  setFlag("paypal-payments", true);
   dir = mkdtempSync(join(tmpdir(), "safehubby-"));
   // After go-live (SERVICE_LIVE_AT), because these tests are about a running
   // service: before it, billing defers and nothing is charged, which is the
@@ -3239,6 +3242,14 @@ describe("saving a PayPal account with PayPal's own button", () => {
     const setup = calls.find((c) => c.url.endsWith("/v3/vault/setup-tokens"))!;
     expect(setup.body).toMatchObject({ payment_source: { paypal: { usage_type: "MERCHANT" } } });
     expect(calls.some((c) => c.url.includes("/v2/checkout/orders"))).toBe(false);
+  });
+
+  it("hides PayPal entirely while it is paused, even with its keys set", async () => {
+    setFlag("paypal-payments", false);
+    const processors = (await call("GET", "/api/payment/processors", undefined, sam)).json.processors;
+    expect(processors.find((p: { id: string }) => p.id === "paypal").mode).toBe("handoff");
+    expect((await call("GET", "/api/payment/paypal/config", undefined, sam)).json.ready).toBe(false);
+    expect((await call("POST", "/api/payment/paypal/setup-token", {}, sam)).status).toBe(503);
   });
 
   it("no longer starts saving a card through PayPal — cards go through Stripe", async () => {

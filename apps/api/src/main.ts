@@ -1,4 +1,4 @@
-import { LOCATION_RETENTION_DAYS, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
+import { LOCATION_RETENTION_DAYS, isEnabled, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
 import {
   SUBSCRIPTION_CHARGE_ATTEMPTS, collectSubscriptionCharges, renewDueSubscriptions, retryPastDueSubscriptions,
 } from "./billing.ts";
@@ -49,7 +49,8 @@ async function main(): Promise<void> {
   console.log(`[safehubby] Stripe: STRIPE_SECRET_KEY ${mode(process.env.STRIPE_SECRET_KEY, "sk_live_", "sk_test_")}, `
     + `STRIPE_PUBLISHABLE_KEY ${mode(process.env.STRIPE_PUBLISHABLE_KEY ?? process.env.VITE_STRIPE_PUBLISHABLE_KEY, "pk_live_", "pk_test_")}, `
     + `STRIPE_WEBHOOK_SECRET ${process.env.STRIPE_WEBHOOK_SECRET?.trim() ? "set" : "MISSING"}.`);
-  console.log(`[safehubby] PayPal: ${process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim() ? "connected" : "not connected"}.`);
+  console.log(`[safehubby] PayPal: ${!isEnabled("paypal-payments") ? "paused (paypal-payments is off)"
+    : process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim() ? "connected" : "not connected"}.`);
 
   let store: StoreLike;
   if (databaseUrl) {

@@ -1,12 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authorizeWithPaypal, capturePaypalHold, chargeWithPaypal, sourceKeyFor, voidPaypalHold } from "../src/adapters/paypal.ts";
 import { captureHeld, chargeSaved, chargingReady, holdSaved, releaseHeld } from "../src/adapters/charging.ts";
 import { collectSubscriptionCharges, renewDueSubscriptions } from "../src/billing.ts";
-import { autoRenewalTermsFor, startSubscription } from "@safehubby/core";
+import { autoRenewalTermsFor, resetFlags, setFlag, startSubscription } from "@safehubby/core";
 import { SEED } from "../src/seed.ts";
 import type { Db, StoreLike } from "../src/store.ts";
 
 const ENV = { ...process.env };
+// PayPal is paused by default (`paypal-payments`); these describe it switched on.
+beforeEach(() => setFlag("paypal-payments", true));
+afterEach(() => resetFlags());
 type Call = { url: string; method: string; headers: Record<string, string>; body: any };
 const calls: Call[] = [];
 function stubPaypal(reply: (call: Call) => { ok?: boolean; status?: number; body: unknown }) {

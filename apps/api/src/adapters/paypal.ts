@@ -1,5 +1,5 @@
 import type { ChargeProcessorPort, VerifiedMethod } from "@safehubby/core";
-import { statusFor } from "@safehubby/core";
+import { isEnabled, statusFor } from "@safehubby/core";
 
 /**
  * PayPal, Safehubby's processor for saved payment methods: its own account,
@@ -109,7 +109,7 @@ export async function exchangeSetupToken(setupTokenId: string): Promise<string> 
 export const paypalProcessor: ChargeProcessorPort = {
   get status() {
     return statusFor(
-      "paypal", "PayPal", Boolean(clientId() && clientSecret()),
+      "paypal", "PayPal", paypalChargingReady(),
       "A PayPal REST app's client id and secret, then PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.",
     );
   },
@@ -155,7 +155,9 @@ export const paypalProcessor: ChargeProcessorPort = {
    Taking money from a saved PayPal account: reserve, take, release, charge
    ------------------------------------------------------------------------ */
 
-export const paypalChargingReady = () => Boolean(clientId() && clientSecret());
+/** Connected only with its keys set and the `paypal-payments` switch on —
+ *  PayPal is paused until the business has its EIN. */
+export const paypalChargingReady = () => isEnabled("paypal-payments") && Boolean(clientId() && clientSecret());
 
 /** A hold's `processorRef` for PayPal, so a later capture or void knows whose it is. */
 export const PAYPAL_REF_PREFIX = "paypal:";
