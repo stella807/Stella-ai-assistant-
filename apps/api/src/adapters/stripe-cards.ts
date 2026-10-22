@@ -7,9 +7,9 @@ import { statusFor } from "@safehubby/core";
  *
  * Each task gets its own virtual card, limited to exactly the task's spend
  * limit and cancelled the moment the task ends. Cards hang off one company
- * cardholder created once in the Stripe Dashboard (Issuing → Cardholders →
- * Company), named by STRIPE_ISSUING_CARDHOLDER; Issuing has to be approved on
- * the account first.
+ * cardholder, which the server finds or creates itself (`ensureStripeCardholder`)
+ * from the business details already on the Stripe account — or the one named
+ * by STRIPE_ISSUING_CARDHOLDER, if set. Issuing has to be approved first.
  *
  * The full number is never fetched here: Stripe shows it to the assistant
  * through its own Issuing Elements (see `cardViewKey`), which keeps Safehubby
@@ -17,7 +17,9 @@ import { statusFor } from "@safehubby/core";
  */
 const api = () => (process.env.STRIPE_API_BASE ?? "https://api.stripe.com").replace(/\/$/, "");
 const secret = () => (process.env.STRIPE_SECRET_KEY ?? "").trim();
-const cardholder = () => (process.env.STRIPE_ISSUING_CARDHOLDER ?? "").trim();
+/** Found or created at boot by `ensureStripeCardholder`, when not set by hand. */
+let autoCardholder: string | null = null;
+const cardholder = () => (process.env.STRIPE_ISSUING_CARDHOLDER ?? "").trim() || autoCardholder || "";
 export const stripeIssuingReady = () => Boolean(secret() && cardholder());
 
 /** Stripe's own card ids, so a cancel always goes to the issuer that made the card. */
@@ -107,4 +109,51 @@ export async function cardViewKey(cardId: string, nonce: string): Promise<string
   const key = (await res.json()) as { secret?: string };
   if (!key.secret) throw new Error("Stripe returned no key for this card.");
   return key.secret;
+}
+
+/**
+ * Finds the Safehubby company cardholder, or creates it from the account's own
+ * business name and address, so nobody has to make one in the Dashboard and
+ * copy its id into Railway. Tagged `metadata.safehubby = company`, so it is
+ * found again on every restart rather than duplicated. Returns why it could
+ * not, for the boot log; a missing Issuing approval is the usual reason.
+ */
+export async function ensureStripeCardholder(): Promise<{ id: string; created: boolean } | { error: string }> {
+  if ((process.env.STRIPE_ISSUING_CARDHOLDER ?? "").trim()) return { id: cardholder(), created: false };
+  if (!secret()) return { error: "STRIPE_SECRET_KEY is not set" };
+  const get = async (path: string) => {
+    const res = await fetch(`${api()}${path}`, { headers: { authorization: `Bearer ${secret()}` } });
+    const data = (await res.json().catch(() => null)) as any;
+    if (!res.ok) throw new Error(data?.error?.message ?? `Stripe refused ${path}: ${res.status}`);
+    return data;
+  };
+  try {
+    const list = await get("/v1/issuing/cardholders?limit=100&type=company&status=active");
+    const found = (list.data ?? []).find((c: any) => c.metadata?.safehubby === "company");
+    if (found) { autoCardholder = found.id; return { id: found.id, created: false }; }
+
+    const account = await get("/v1/account");
+    const address = account.company?.address ?? account.business_profile?.support_address ?? account.individual?.address;
+    if (!address?.line1 || !address?.city || !address?.postal_code) {
+      return { error: "the Stripe account has no business address to put on the cardholder — add one under Settings → Business" };
+    }
+    const fields: Record<string, string> = {
+      type: "company",
+      name: String(account.business_profile?.name || account.settings?.dashboard?.display_name || "Safehubby").slice(0, 24),
+      "billing[address][line1]": address.line1,
+      "billing[address][city]": address.city,
+      "billing[address][postal_code]": address.postal_code,
+      "billing[address][country]": address.country || "US",
+      "metadata[safehubby]": "company",
+    };
+    if (address.line2) fields["billing[address][line2]"] = address.line2;
+    if (address.state) fields["billing[address][state]"] = address.state;
+    const email = account.business_profile?.support_email || account.email;
+    if (email) fields.email = email;
+    const created = await stripeForm("/v1/issuing/cardholders", fields);
+    autoCardholder = String(created.id);
+    return { id: autoCardholder, created: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }

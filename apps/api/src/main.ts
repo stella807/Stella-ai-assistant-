@@ -5,6 +5,7 @@ import {
 import { chargeSaved, chargingReady } from "./adapters/charging.ts";
 import { createApp, makeCtx } from "./server.ts";
 import { createCryptoRoutes } from "./adapters/openreceive.ts";
+import { ensureStripeCardholder } from "./adapters/stripe-cards.ts";
 import { runFlightSweep, runPayroll } from "./routes.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
@@ -49,6 +50,24 @@ async function main(): Promise<void> {
   console.log(`[safehubby] Stripe: STRIPE_SECRET_KEY ${mode(process.env.STRIPE_SECRET_KEY, "sk_live_", "sk_test_")}, `
     + `STRIPE_PUBLISHABLE_KEY ${mode(process.env.STRIPE_PUBLISHABLE_KEY ?? process.env.VITE_STRIPE_PUBLISHABLE_KEY, "pk_live_", "pk_test_")}, `
     + `STRIPE_WEBHOOK_SECRET ${process.env.STRIPE_WEBHOOK_SECRET?.trim() ? "set" : "MISSING"}.`);
+  // Task cards through Stripe: find or create the company cardholder, so it
+  // needs no setup by hand. Retried hourly until Issuing is approved.
+  const setUpCards = async () => {
+    const result = await ensureStripeCardholder();
+    if ("id" in result) {
+      console.log(`[safehubby] Stripe Issuing: ready, cardholder ${result.id}${result.created ? " (just created)" : ""}.`);
+      return true;
+    }
+    console.log(`[safehubby] Stripe Issuing: not ready (${result.error}). Task cards use Lithic until then.`);
+    return false;
+  };
+  if (process.env.STRIPE_SECRET_KEY?.trim()) {
+    void setUpCards().then((ok) => {
+      if (ok) return;
+      const timer = setInterval(() => { void setUpCards().then((done) => { if (done) clearInterval(timer); }); }, 60 * 60_000);
+      timer.unref();
+    });
+  }
   console.log(`[safehubby] PayPal: ${!isEnabled("paypal-payments") ? "paused (paypal-payments is off)"
     : process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim() ? "connected" : "not connected"}.`);
 
