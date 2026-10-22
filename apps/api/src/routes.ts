@@ -875,8 +875,8 @@ async function stopStripeBilling(stripeSubscriptionId: string): Promise<void> {
 }
 
 /** The view that shows one card in the browser, with the issuer's refusal said plainly. */
-async function cardViewOrFail(cardId: string) {
-  try { return await cardViewFor(cardId); }
+async function cardViewOrFail(cardId: string, nonce?: string) {
+  try { return await cardViewFor(cardId, nonce); }
   catch (e) { throw new HttpError(424, e instanceof Error ? e.message : "The card issuer would not open this card."); }
 }
 
@@ -4330,7 +4330,7 @@ export const routes: Record<string, Handler> = {
    * window in which a stranger holds spending power stays exactly as long as
    * the job does.
    */
-  "POST /api/assistant/tasks/:taskId/card": async (ctx, p) => {
+  "POST /api/assistant/tasks/:taskId/card": async (ctx, p, body) => {
     const assistantId = assistantActor(ctx);
     const task = assistantTaskOf(ctx, assistantId, req(p, "taskId"));
     if (task.status !== "in-progress") {
@@ -4351,8 +4351,10 @@ export const routes: Record<string, Handler> = {
 
     // The number goes from the issuer to the assistant's browser, never
     // through here: this only hands over a short-lived session to open it.
-    const view = await cardViewOrFail(task.card.id);
-    return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents, view };
+    // Stripe takes two calls: the card's id first, so Stripe.js can make a
+    // nonce for it, then a short-lived key for that nonce. Lithic needs one.
+    const view = await cardViewOrFail(task.card.id, typeof body?.nonce === "string" ? body.nonce : undefined);
+    return { cardId: task.card.id, card: task.card, spendCapCents: task.spendCapCents, ...(view ? { view } : {}) };
   },
 
   /**
@@ -5293,14 +5295,15 @@ export const routes: Record<string, Handler> = {
 
   /** The one-time reveal link, fetched fresh each time — never stored. Same
    *  discipline as the assistant task card's own reveal route. */
-  "POST /api/elite/spending-card/reveal": async (ctx) => {
+  "POST /api/elite/spending-card/reveal": async (ctx, _p, body) => {
     const me = actor(ctx);
     requireElite(ctx);
     const monthKey = clubMonthKey(ctx.now());
     const card = ctx.store.data.eliteSpendingCards.find((c) => c.travelerId === me && c.monthKey === monthKey);
     if (!card) throw notFound("Spending card");
     if (!isAutomatic(taskCards.status)) throw new HttpError(503, taskCards.status.requires);
-    return { cardId: card.cardId, card, view: await cardViewOrFail(card.cardId) };
+    const view = await cardViewOrFail(card.cardId, typeof body?.nonce === "string" ? body.nonce : undefined);
+    return { cardId: card.cardId, card, ...(view ? { view } : {}) };
   },
 
   /**

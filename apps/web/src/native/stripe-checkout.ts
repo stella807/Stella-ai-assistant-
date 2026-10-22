@@ -25,9 +25,9 @@ export interface CheckoutFormSdk {
 interface StripeDahlia {
   initCheckoutFormSdk: (options: { clientSecret: Promise<string> | string; appearance?: unknown }) => CheckoutFormSdk;
 }
-declare global {
-  interface Window { Stripe?: (publishableKey: string) => StripeDahlia }
-}
+/** The Dahlia script's global, read through this shape rather than a global
+ *  declaration, which would clash with @stripe/stripe-js's own typing of it. */
+const stripeGlobal = () => (window as unknown as { Stripe?: (publishableKey: string) => StripeDahlia }).Stripe;
 
 let loading: Promise<StripeDahlia | null> | null = null;
 
@@ -35,8 +35,11 @@ export function loadStripeDahlia(): Promise<StripeDahlia | null> {
   loading ??= api.stripeConfig().then((config) => {
     if (!config.ready) return null;
     return new Promise<StripeDahlia>((resolve, reject) => {
-      const ready = () => (window.Stripe ? resolve(window.Stripe(config.publishableKey)) : reject(new Error("Stripe.js did not load.")));
-      if (window.Stripe) return ready();
+      const ready = () => {
+        const make = stripeGlobal();
+        return make ? resolve(make(config.publishableKey)) : reject(new Error("Stripe.js did not load."));
+      };
+      if (stripeGlobal()) return ready();
       const script = document.createElement("script");
       script.src = STRIPE_JS;
       script.onload = ready;

@@ -27,7 +27,7 @@ export function EliteDeskPanel() {
   const [spendingCard, setSpendingCard] = useState<Awaited<ReturnType<typeof api.eliteSpendingCard>> | null>(null);
   const [spendingBusy, setSpendingBusy] = useState(false);
   const [showCard, setShowCard] = useState(false);
-  const getKey = useCallback(() => api.eliteSpendingCardKey(), []);
+  const getKey = useCallback((nonce?: string) => api.eliteSpendingCardKey(nonce), []);
   const [selected, setSelected] = useState<EliteServiceId | null>(null);
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);

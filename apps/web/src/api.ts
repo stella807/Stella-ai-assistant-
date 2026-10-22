@@ -134,11 +134,10 @@ export interface TextAlertsState { enabled: boolean; phoneLast4?: string; langua
 export interface EmailAlertsState { enabled: boolean; emailHint?: string; language?: "en" | "es"; providerReady: boolean }
 
 /** What the server sends to show one task card — see adapters/cards.ts. */
-export interface CardView {
-  provider: "lithic";
-  embedSession: string;
-  environment: "sandbox" | "production";
-}
+/** What the browser needs to show one task card, from whichever issuer made it. */
+export type CardView =
+  | { provider: "stripe"; ephemeralKeySecret: string }
+  | { provider: "lithic"; embedSession: string; environment: "sandbox" | "production" };
 
 export interface BalanceSummary {
   loadedCents: number; refundedCents: number; heldCents: number; spentCents: number; availableCents: number;
@@ -512,8 +511,8 @@ export const api = {
   issueEliteSpendingCard: () => request<{
     card: { id: string; monthKey: string; capCents: number; last4: string; network: string; expMonth: number; expYear: number };
   }>("POST", "/api/elite/spending-card", {}),
-  eliteSpendingCardKey: () =>
-    request<{ cardId: string; view: CardView }>("POST", "/api/elite/spending-card/reveal", {}),
+  eliteSpendingCardKey: (nonce?: string) =>
+    request<{ cardId: string; view?: CardView }>("POST", "/api/elite/spending-card/reveal", nonce ? { nonce } : {}),
   eliteEvents: () => request<{
     events: {
       id: string; label: string; emoji: string; description: string; city: string; date: string;
@@ -648,8 +647,8 @@ export const api = {
       "POST", `/api/concierge/tasks/${taskId}/spend-requests/${requestId}/decision`, { approve }),
   /** A one-time link to the task card's full number, for paying with it. The
    *  number itself never comes through this API — see revealCard in core. */
-  assistantCardKey: (taskId: string) =>
-    request<{ cardId: string; view: CardView }>("POST", `/api/assistant/tasks/${taskId}/card`, {}),
+  assistantCardKey: (taskId: string, nonce?: string) =>
+    request<{ cardId: string; view?: CardView }>("POST", `/api/assistant/tasks/${taskId}/card`, nonce ? { nonce } : {}),
   assistantComplete: (taskId: string, billedCents?: number) =>
     request<{ task: ConciergeTask }>("POST", `/api/assistant/tasks/${taskId}/complete`, { billedCents }),
   assistantRunners: () =>
