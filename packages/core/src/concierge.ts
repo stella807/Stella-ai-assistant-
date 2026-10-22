@@ -824,6 +824,9 @@ export interface ConciergeTask {
    *  counts against a month is what was decided at the time, not what the
    *  allowance table says today. */
   feeIncluded?: boolean;
+  /** Hours of this task the member's plan paid for (its monthly included
+   *  assistant hours); the service fee covered only the rest. */
+  includedHoursUsed?: number;
   /** Who this was sent to, when it was for somebody other than the customer —
    *  stamped, so the assistant and the customer both see the same words. The
    *  task's coordinates are only the middle of the market; see on-behalf.ts. */

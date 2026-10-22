@@ -11,8 +11,10 @@ import { STRIPE_APPEARANCE } from "../app/stripe-appearance.ts";
  * PaymentMethod id the server reads back from Stripe before keeping anything.
  * If the bank asks for 3-D Secure, Stripe shows that step itself.
  */
-export function StripeCardForm({ onToken, onError, onCancel }: {
+export function StripeCardForm({ onToken, onError, onCancel, paypalOffered = false }: {
   onToken: (token: string) => void; onError: (message: string) => void; onCancel: () => void;
+  /** Whether PayPal is there to fall back on, so the failure message only offers what exists. */
+  paypalOffered?: boolean;
 }) {
   const node = useRef<HTMLDivElement>(null);
   const stripe = useRef<Stripe | null>(null);
@@ -66,7 +68,11 @@ export function StripeCardForm({ onToken, onError, onCancel }: {
     <div className="stack" style={{ gap: 8 }}>
       <div ref={node} style={state === "unavailable" ? { display: "none" } : undefined} />
       {state === "loading" && <p className="small muted">Loading the card form…</p>}
-      {state === "unavailable" && <p className="small muted">The card form couldn't be loaded right now. You can save your PayPal account instead.</p>}
+      {state === "unavailable" && (
+        <p className="small muted">
+          The card form couldn't be loaded right now. Try again in a moment{paypalOffered ? ", or save your PayPal account instead" : ""}.
+        </p>
+      )}
       <div className="row">
         <button className="btn grow" disabled={busy} onClick={onCancel}>Cancel</button>
         <button className="btn btn-primary grow" disabled={busy || state !== "ready"} onClick={save}>

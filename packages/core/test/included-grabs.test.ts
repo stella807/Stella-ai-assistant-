@@ -8,7 +8,7 @@ afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
   customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
-  monthBoundsFor, releasedPlans, remainingIncludedGrabs, serviceFeeFor,
+  monthBoundsFor, releasedPlans, remainingIncludedGrabs, serviceFeeFor, hourlyServiceFee, includedHoursUsedIn,
   type ConciergeCategory, type ConciergeTask, type PlanId,
 } from "../src/index.ts";
 
@@ -139,5 +139,36 @@ describe("while Free's errands are paused", () => {
     expect(INCLUDED_GRABS_PER_MONTH.free).toBe(2);
     setFlag("free-errands", true);
     expect(includedGrabAllowanceFor("free")).toBe(2);
+  });
+});
+
+describe("included assistant hours", () => {
+  const base = { category: "wait-with-someone" as const, includedHoursUsedThisMonth: 0 };
+
+  it("covers hours up to the plan's monthly allowance, and bills only the rest", () => {
+    const full = serviceFeeFor("wait-with-someone", false, 1, 3);
+    const premium = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 3 });
+    expect(premium.includedHoursUsed).toBe(1);
+    expect(premium.serviceFeeCents).toBe(Math.round(full * 2 / 3));
+    const elite = hourlyServiceFee({ ...base, planId: "elite", hours: 3 });
+    expect(elite).toEqual({ serviceFeeCents: 0, includedHoursUsed: 3 });
+  });
+
+  it("stops covering once the month's hours are used", () => {
+    const r = hourlyServiceFee({ ...base, planId: "premium-plus", hours: 2, includedHoursUsedThisMonth: 2 });
+    expect(r).toEqual({ serviceFeeCents: serviceFeeFor("wait-with-someone", false, 1, 2), includedHoursUsed: 0 });
+  });
+
+  it("includes nothing on Free and leaves per-task categories alone", () => {
+    expect(hourlyServiceFee({ ...base, planId: "free", hours: 2 }).includedHoursUsed).toBe(0);
+    const grab = hourlyServiceFee({ ...base, planId: "elite", category: "grab-something" });
+    expect(grab.includedHoursUsed).toBe(0);
+  });
+
+  it("counts only this month's, non-canceled hours", () => {
+    const at = (iso: string, used: number, status: "completed" | "canceled" = "completed") =>
+      ({ createdAt: iso, includedHoursUsed: used, status }) as never;
+    const start = new Date("2026-10-01T00:00:00Z"); const end = new Date("2026-11-01T00:00:00Z");
+    expect(includedHoursUsedIn([at("2026-10-03T00:00:00Z", 2), at("2026-10-05T00:00:00Z", 1, "canceled"), at("2026-09-30T00:00:00Z", 4)], start, end)).toBe(2);
   });
 });

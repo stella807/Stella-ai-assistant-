@@ -41,16 +41,16 @@ import {
   attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
   canMarkByHand, launchProgress,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
-  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, serviceFeeFor, assistantPayoutFor,
+  isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, assistantPayoutFor,
   clampHours, defaultHoursFor, isHourlyCategory,
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
-  includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs,
+  includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
   errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
-  eliteSpendingAllowanceCents, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
+  eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
   validatePickupRequest, ARRANGE_RIDE_FEE_CENTS, recordRideCost,
   validateAiDraftInstruction,
@@ -1256,6 +1256,14 @@ function holdIncludedGrab(travelerId: string): () => void {
 }
 
 /** This month's included grabs: saved ones plus any still being booked. */
+/** Included assistant hours this member has used in the current month. */
+function includedHoursUsed(ctx: Ctx, travelerId: string): number {
+  const now = ctx.now();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return includedHoursUsedIn(ctx.store.data.conciergeTasks.filter((t) => t.travelerId === travelerId), start, end);
+}
+
 function includedGrabsUsed(ctx: Ctx, travelerId: string): number {
   const { start, end } = monthBoundsFor(ctx.now());
   const mine = ctx.store.data.conciergeTasks.filter((t) => t.travelerId === travelerId);
@@ -1735,6 +1743,9 @@ export const routes: Record<string, Handler> = {
       ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
       return await createSetupIntent(customerId);
     } catch (e) {
+      // Logged so the deploy log names Stripe's own reason (a wrong or
+      // restricted key, test vs live mismatch) rather than only a 502.
+      console.error("[safehubby] Stripe setup-intent failed:", e instanceof Error ? e.message : e);
       throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
     }
   },
@@ -1772,6 +1783,7 @@ export const routes: Record<string, Handler> = {
       });
       return { client_secret: clientSecret };
     } catch (e) {
+      console.error("[safehubby] Stripe checkout-session failed:", e instanceof Error ? e.message : e);
       throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
     }
   },
@@ -2961,11 +2973,17 @@ export const routes: Record<string, Handler> = {
     });
     // A tier prices the errand by its work, sized to the cap chosen; without
     // one the older flat quick-task rate still applies.
+    const hourly = hourlyServiceFee({
+      planId, category: input.category, quickTask: input.quickTask, peopleCount: people, hours,
+      includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
+    });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
         ? errandFeeCents(input.errandTier, input.spendCapCents)
-        : serviceFeeFor(input.category, input.quickTask, people, hours);
+        : hourly.serviceFeeCents;
     return {
+      includedHoursUsed: hourly.includedHoursUsed,
+      includedHoursRemaining: Math.max(0, includedConciergeHours(planId) - includedHoursUsed(ctx, me)),
       quote, disclosures: CONCIERGE_DISCLOSURES,
       serviceFeeCents,
       totalCents: input.spendCapCents + serviceFeeCents,
@@ -3062,10 +3080,14 @@ export const routes: Record<string, Handler> = {
       planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask,
       errandTier: input.errandTier, usedThisMonth: includedGrabsUsed(ctx, me),
     });
+    const hourly = hourlyServiceFee({
+      planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask, peopleCount,
+      hours: hoursBooked, includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
+    });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
         ? errandFeeCents(input.errandTier, input.spendCapCents)
-        : serviceFeeFor(input.category, input.quickTask, peopleCount, hoursBooked);
+        : hourly.serviceFeeCents;
     const totalCents = input.spendCapCents + serviceFeeCents;
     const releaseIncludedGrab = feeIncluded ? holdIncludedGrab(me) : () => {};
 
@@ -3093,7 +3115,10 @@ export const routes: Record<string, Handler> = {
         travelerId: me,
         kind: "concierge",
         description: `${conciergeCategoryLabel(input.category)} — ${input.note} (${
-          feeIncluded ? "no service fee — included in your plan" : `$${(serviceFeeCents / 100).toFixed(2)} service fee included`
+          feeIncluded ? "no service fee — included in your plan"
+            : hourly.includedHoursUsed > 0
+              ? `${hourly.includedHoursUsed} hr included in your plan, $${(serviceFeeCents / 100).toFixed(2)} service fee`
+              : `$${(serviceFeeCents / 100).toFixed(2)} service fee included`
         }${fromBalance ? ", paid from your balance" : ""})`.slice(0, 160),
         amountCents: totalCents,
         holdId: hold.id,
@@ -3150,6 +3175,7 @@ export const routes: Record<string, Handler> = {
           assistantPayoutCents, peopleCount,
           ...(hoursBooked === undefined ? {} : { hoursBooked }),
           quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
+          ...(!feeIncluded && hourly.includedHoursUsed > 0 ? { includedHoursUsed: hourly.includedHoursUsed } : {}),
           ...(input.errandTier ? { errandTier: input.errandTier } : {}),
           ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}), status: "in-progress",
           ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),

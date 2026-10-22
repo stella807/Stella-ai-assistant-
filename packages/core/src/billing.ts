@@ -404,6 +404,7 @@ export const PLANS: Plan[] = [
     // Premium is one seat, so "multiple people, one account" is not a
     // real feature of it. See PREMIUM_FEATURES's own doc comment above.
     features: PREMIUM_FEATURES,
+    includedConciergeHours: 1,
     blurb: "For one person. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
@@ -416,6 +417,7 @@ export const PLANS: Plan[] = [
     // doesn't get — multi-profile — is exactly the one that makes sense
     // once a plan actually covers more than one person.
     features: PLUS_FEATURES,
+    includedConciergeHours: 2,
     blurb: "The same everything as Premium, for two people instead of one, plus multiple people on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
   },
   {
@@ -429,6 +431,7 @@ export const PLANS: Plan[] = [
     // Premium only in multi-profile, the same way Premium Plus does — see
     // PREMIUM_FEATURES's own doc comment above.
     features: PLUS_FEATURES,
+    includedConciergeHours: 4,
     blurb: "The same everything as Premium Plus, for up to six people instead of two — one household on one bill, at ownership's set price.",
   },
   {
@@ -536,7 +539,7 @@ export function deskTaskAllowanceFor(id: PlanId): number {
   return hasFeature(id, "desk-tasks") ? DESK_TASK_ALLOWANCE[id] : 0;
 }
 
-/** The hours a plan's price already covers. Zero on everything below Elite. */
+/** The hours a plan's price already covers each month. Zero on Free. */
 export function includedConciergeHours(id: PlanId): number {
   return findPlan(id).includedConciergeHours ?? 0;
 }

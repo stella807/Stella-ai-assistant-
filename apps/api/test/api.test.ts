@@ -5035,8 +5035,9 @@ describe("hiring somebody and actually sending them to a job", () => {
     }, sam);
 
     expect(res.status, JSON.stringify(res.json)).toBe(200);
-    expect(res.json.serviceFeeCents).toBeGreaterThan(0);
-    expect(res.json.totalCents).toBeGreaterThan(res.json.serviceFeeCents);
+    // Priced: either a fee, or hours the plan already includes.
+    expect(res.json.serviceFeeCents > 0 || res.json.includedHoursUsed > 0).toBe(true);
+    expect(res.json.totalCents).toBeGreaterThanOrEqual(10_000 + res.json.serviceFeeCents);
     // Our own roster is not a supplier we ask for a price, so there is no
     // partner quote to return — the rate card already decided it.
     expect(res.json.quote).toBeNull();

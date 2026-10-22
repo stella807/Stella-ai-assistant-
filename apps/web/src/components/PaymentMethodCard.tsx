@@ -94,7 +94,7 @@ export function PaymentMethodCard() {
         {paypalReady && <PayPalLogo />}
       </div>
       <p className="small muted">
-        A card or your PayPal account, for everything: rides, secure transport, pharmacy runs, and your plan.
+        {paypalReady ? "A card or your PayPal account" : "A credit or debit card"}, for everything: rides, secure transport, pharmacy runs, and your plan.
         Nothing is charged when you add it — only when something actually happens, and only up to what that
         thing costs.
       </p>
@@ -132,6 +132,7 @@ export function PaymentMethodCard() {
 
       {adding === "card" && stripeReady && (
         <StripeCardForm
+          paypalOffered={paypalReady}
           onToken={(token) => {
             setBusy(true); setError(null);
             save(token, "stripe")

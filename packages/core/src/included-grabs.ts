@@ -1,7 +1,7 @@
-import type { PlanId } from "./billing.ts";
+import { includedConciergeHours, type PlanId } from "./billing.ts";
 import { isEnabled } from "./features.ts";
 import {
-  isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
+  isHourlyCategory, isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
 } from "./concierge.ts";
 import { errandFeeCents, type ErrandTierId } from "./errand-tiers.ts";
 
@@ -112,4 +112,35 @@ export function customerTotalCents(
   input: GrabInput & { spendCapCents: number; peopleCount?: number; hours?: number },
 ): number {
   return input.spendCapCents + customerServiceFeeFor(input);
+}
+
+/* ---------------------------------------------------------------------------
+   Included assistant hours
+   ------------------------------------------------------------------------ */
+
+/** Included hours already used in a month, by tasks that were not canceled. */
+export function includedHoursUsedIn(tasks: ConciergeTask[], monthStart: Date, monthEnd: Date): number {
+  return tasks.reduce((sum, t) => {
+    if (!t.includedHoursUsed || t.status === "canceled") return sum;
+    const at = new Date(t.createdAt).getTime();
+    return at >= monthStart.getTime() && at < monthEnd.getTime() ? sum + t.includedHoursUsed : sum;
+  }, 0);
+}
+
+/**
+ * How an hourly booking is paid: the hours the plan still covers this month
+ * come first and cost the member nothing, and only the rest is billed — at
+ * the same hourly rate, so included hours are a prepayment, never a discount.
+ * The assistant is paid for every hour either way; Safehubby pays the covered
+ * ones out of the subscription.
+ */
+export function hourlyServiceFee(input: {
+  planId: PlanId; category: ConciergeCategory; quickTask?: boolean; peopleCount?: number;
+  hours?: number; includedHoursUsedThisMonth: number;
+}): { serviceFeeCents: number; includedHoursUsed: number } {
+  const full = serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours);
+  if (!input.hours || !isHourlyCategory(input.category)) return { serviceFeeCents: full, includedHoursUsed: 0 };
+  const left = Math.max(0, includedConciergeHours(input.planId) - input.includedHoursUsedThisMonth);
+  const covered = Math.min(input.hours, left);
+  return { serviceFeeCents: Math.round(full * (input.hours - covered) / input.hours), includedHoursUsed: covered };
 }
