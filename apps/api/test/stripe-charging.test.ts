@@ -84,3 +84,22 @@ describe("Stripe card charging", () => {
     await expect(captureHeld("ch_unknown", 1)).rejects.toThrow(/no longer connected/);
   });
 });
+
+describe("Stripe Checkout Session", () => {
+  beforeEach(() => { process.env.STRIPE_SECRET_KEY = "sk_test_x"; });
+  afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ENV }; });
+
+  it("creates the embedded form session with the Checkout Studio settings", async () => {
+    const { createCheckoutSession, CHECKOUT_API_VERSION } = await import("../src/adapters/stripe.ts");
+    stubStripe(() => ({ body: { client_secret: "cs_secret" } }));
+    expect(await createCheckoutSession({ customerId: "cus_1", returnUrl: "https://x/#billing" })).toEqual({ clientSecret: "cs_secret" });
+    const b = calls[0]!.body;
+    expect(calls[0]!.url).toMatch(/\/v1\/checkout\/sessions$/);
+    expect(calls[0]!.headers["stripe-version"]).toBe(CHECKOUT_API_VERSION);
+    expect([b.get("ui_mode"), b.get("mode"), b.get("payment_method_collection"), b.get("billing_address_collection")])
+      .toEqual(["form", "subscription", "always", "auto"]);
+    expect(b.get("integration_identifier")).toBe("custom_embedded_web_0001");
+    expect(b.get("saved_payment_method_options[payment_method_save]")).toBe("enabled");
+    expect(b.get("automatic_tax[enabled]")).toBe("false");
+  });
+});

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Stripe, StripeElements } from "@stripe/stripe-js";
 import { api } from "../api.ts";
 import { loadStripeJs } from "../native/stripe.ts";
+import { STRIPE_APPEARANCE } from "../app/stripe-appearance.ts";
 
 /**
  * A credit or debit card, saved through Stripe for later without charging it.
@@ -28,7 +29,7 @@ export function StripeCardForm({ onToken, onError, onCancel }: {
       if (!s) return setState("unavailable");
       const { clientSecret } = await api.stripeSetupIntent();
       if (cancelled) return;
-      const els = s.elements({ clientSecret, appearance: { theme: "night" } });
+      const els = s.elements({ clientSecret, appearance: STRIPE_APPEARANCE });
       els.create("payment").mount(node.current!);
       stripe.current = s;
       elements.current = els;

@@ -332,6 +332,7 @@ export const api = {
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
   stripeConfig: () => request<{ ready: true; publishableKey: string } | { ready: false; note: string }>("GET", "/api/payment/stripe/config"),
+  stripeCheckoutSession: () => request<{ client_secret: string }>("POST", "/api/payment/stripe/checkout-session", {}),
   stripeSetupIntent: () => request<{ clientSecret: string }>("POST", "/api/payment/stripe/setup-intent", {}),
   paypalConfig: () => request<{ ready: true; clientId: string } | { ready: false; note: string }>("GET", "/api/payment/paypal/config"),
   /** Step one of saving a PayPal account (`paypal`) or a typed card (`card`). */

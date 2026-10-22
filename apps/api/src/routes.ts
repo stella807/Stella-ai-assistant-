@@ -98,7 +98,7 @@ import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
-import { createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
+import { createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -1686,6 +1686,29 @@ export const routes: Record<string, Handler> = {
       });
       ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
       return await createSetupIntent(customerId);
+    } catch (e) {
+      throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
+    }
+  },
+
+  /** A Stripe Checkout Session for the embedded payment form, on this
+   *  member's own Stripe Customer. Returns JSON with the client secret, never
+   *  a redirect — the form renders inside the app. */
+  "POST /api/payment/stripe/checkout-session": async (ctx) => {
+    const me = actor(ctx);
+    if (!isAutomatic(stripeProcessor.status)) throw new HttpError(503, stripeProcessor.status.requires);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
+    try {
+      const customerId = await ensureStripeCustomer({
+        existingId: ctx.store.data.stripeCustomers[me], email: traveler.email, name: traveler.displayName, travelerId: me,
+      });
+      ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
+      const { clientSecret } = await createCheckoutSession({
+        customerId, returnUrl: `${base}/#billing?session_id={CHECKOUT_SESSION_ID}`,
+      });
+      return { client_secret: clientSecret };
     } catch (e) {
       throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
     }

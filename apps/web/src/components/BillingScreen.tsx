@@ -5,6 +5,7 @@ import { useLanguage } from "../i18n.tsx";
 import { BalanceCard } from "./BalanceCard.tsx";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { PlanPicker } from "./PlanPicker.tsx";
+import { StripeCheckoutForm } from "./StripeCheckoutForm.tsx";
 import { RenewalTermsGate } from "./RenewalTermsGate.tsx";
 
 import { money } from "../money.ts";
@@ -34,6 +35,12 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   const [showPlans, setShowPlans] = useState(false);
   /** The offer waiting on its renewal-terms agreement, if any. */
   const [pending, setPending] = useState<{ planId: string; cadence: "monthly" | "annual" } | null>(null);
+  const [stripeCheckout, setStripeCheckout] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+
+  useEffect(() => {
+    api.stripeConfig().then((c) => setStripeCheckout(c.ready)).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     const state = await api.billing();
@@ -192,6 +199,12 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
 
       {note && <div className="banner">{note}</div>}
       {error && <div className="banner banner-danger">{error}</div>}
+
+      {/* Stripe's embedded Checkout, offered only once Stripe is connected. */}
+      {stripeCheckout && !checkingOut && (
+        <button className="btn btn-block" onClick={() => setCheckingOut(true)}>Subscribe with a card through Stripe</button>
+      )}
+      {checkingOut && <StripeCheckoutForm onClose={() => setCheckingOut(false)} />}
     </div>
   );
 }

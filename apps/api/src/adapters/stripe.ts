@@ -185,3 +185,52 @@ export async function chargeOnCard(input: StripeCharge): Promise<{ id: string }>
   if (paid.status !== "paid") throw new Error("Stripe could not take that payment.");
   return { id: invoice.id };
 }
+
+/* ---------------------------------------------------------------------------
+   Checkout Sessions: Stripe's embedded payment form for subscribing to a plan
+   ------------------------------------------------------------------------ */
+
+/** The embedded form (`ui_mode: "form"`) needs this API version or later. */
+export const CHECKOUT_API_VERSION = "2026-03-25.dahlia";
+
+/**
+ * A Checkout Session for the embedded form. Everything except `line_items`
+ * was set in Stripe's Checkout Studio and is used exactly as configured.
+ * Returns the client secret the browser's Checkout Form SDK mounts against.
+ */
+export async function createCheckoutSession(input: { customerId: string; returnUrl: string }): Promise<{ clientSecret: string }> {
+  // A plan is a recurring charge, so the session subscribes; and
+  // `payment_method_collection` only applies in subscription mode.
+  const mode: "payment" | "subscription" = "subscription";
+  const res = await fetch(`${api()}/v1/checkout/sessions`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${key()}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "stripe-version": CHECKOUT_API_VERSION,
+    },
+    body: form({
+      ui_mode: "form",
+      mode,
+      customer: input.customerId,
+      // TODO: replace with the Stripe Price ID of the plan — see STRIPE_INTEGRATION_TODO.md.
+      "line_items[0][price]": "price_...",
+      "line_items[0][quantity]": 1,
+      billing_address_collection: "auto",
+      "phone_number_collection[enabled]": false,
+      "automatic_tax[enabled]": false,
+      ...(mode === "subscription" ? { payment_method_collection: "always" } : {}),
+      submit_type: "auto",
+      "name_collection[individual][enabled]": true,
+      "name_collection[individual][optional]": true,
+      "name_collection[business][enabled]": true,
+      "name_collection[business][optional]": true,
+      "saved_payment_method_options[payment_method_save]": "enabled",
+      integration_identifier: "custom_embedded_web_0001",
+      return_url: input.returnUrl,
+    }),
+  });
+  const data = (await res.json().catch(() => null)) as { client_secret?: string; error?: { message?: string } } | null;
+  if (!res.ok || !data?.client_secret) throw new Error(data?.error?.message ?? `Stripe rejected the checkout session: ${res.status}`);
+  return { clientSecret: data.client_secret };
+}
