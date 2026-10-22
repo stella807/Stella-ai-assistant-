@@ -1694,11 +1694,20 @@ export const routes: Record<string, Handler> = {
   /** A Stripe Checkout Session for the embedded payment form, on this
    *  member's own Stripe Customer. Returns JSON with the client secret, never
    *  a redirect — the form renders inside the app. */
-  "POST /api/payment/stripe/checkout-session": async (ctx) => {
+  "POST /api/payment/stripe/checkout-session": async (ctx, _p, body) => {
     const me = actor(ctx);
     if (!isAutomatic(stripeProcessor.status)) throw new HttpError(503, stripeProcessor.status.requires);
     const traveler = ctx.store.data.travelers.find((t) => t.id === me);
     if (!traveler) throw notFound("Traveler");
+    // The price is read from the app's own plan table, never from the
+    // browser, and the same release gates as POST /api/subscription apply.
+    const cadence: Cadence = body?.cadence === "annual" ? "annual" : "monthly";
+    const plan = PLANS.find((p) => p.id === body?.planId);
+    if (!plan || plan.monthlyCents === 0) throw new HttpError(400, "Choose a paid plan.");
+    if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
+    if (isElitePlan(plan.id) && !eliteUnlockedByRevenue(trailingRevenueCents(ctx))) {
+      throw new HttpError(404, "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members.");
+    }
     const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
     try {
       const customerId = await ensureStripeCustomer({
@@ -1707,6 +1716,10 @@ export const routes: Record<string, Handler> = {
       ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
       const { clientSecret } = await createCheckoutSession({
         customerId, returnUrl: `${base}/#billing?session_id={CHECKOUT_SESSION_ID}`,
+        plan: {
+          planId: plan.id, name: plan.name, cadence, travelerId: me,
+          amountCents: cadence === "annual" ? plan.annualCents : plan.monthlyCents,
+        },
       });
       return { client_secret: clientSecret };
     } catch (e) {

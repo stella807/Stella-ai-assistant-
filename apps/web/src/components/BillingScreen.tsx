@@ -36,7 +36,8 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   /** The offer waiting on its renewal-terms agreement, if any. */
   const [pending, setPending] = useState<{ planId: string; cadence: "monthly" | "annual" } | null>(null);
   const [stripeCheckout, setStripeCheckout] = useState(false);
-  const [checkingOut, setCheckingOut] = useState(false);
+  /** A paid plan being paid for through Stripe Checkout. */
+  const [checkingOut, setCheckingOut] = useState<{ planId: string; cadence: "monthly" | "annual" } | null>(null);
 
   useEffect(() => {
     api.stripeConfig().then((c) => setStripeCheckout(c.ready)).catch(() => {});
@@ -148,8 +149,16 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
             onCancel={() => setPending(null)}
             onAgree={(consent) => {
               setPending(null);
+              // With Stripe connected, a paid plan is paid for in Stripe's
+              // own form; otherwise it goes through the existing flow.
+              if (stripeCheckout && pending.planId !== "free") return setCheckingOut(pending);
               void run(() => api.subscribe(pending.planId, pending.cadence, consent));
             }} />
+        )}
+
+        {checkingOut && (
+          <StripeCheckoutForm planId={checkingOut.planId} cadence={checkingOut.cadence}
+            onClose={() => setCheckingOut(null)} />
         )}
       </section>
 
@@ -200,11 +209,6 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
       {note && <div className="banner">{note}</div>}
       {error && <div className="banner banner-danger">{error}</div>}
 
-      {/* Stripe's embedded Checkout, offered only once Stripe is connected. */}
-      {stripeCheckout && !checkingOut && (
-        <button className="btn btn-block" onClick={() => setCheckingOut(true)}>Subscribe with a card through Stripe</button>
-      )}
-      {checkingOut && <StripeCheckoutForm onClose={() => setCheckingOut(false)} />}
     </div>
   );
 }

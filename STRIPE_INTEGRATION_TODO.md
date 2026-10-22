@@ -6,15 +6,17 @@ for what is left to do.
 
 ## Values to Replace
 
-The following values are placeholders and must be updated before going live.
+None. `mode` is `subscription` (plans renew monthly or yearly), and `line_items`
+uses an **external product catalog**: each session sends the chosen plan's name,
+price and interval as `price_data`, read from the app's own plan table
+(`PLANS` in `packages/core/src/billing.ts`). There are no Stripe Price IDs to
+create, and a price change in the app reaches Stripe automatically.
 
-**Files containing placeholders:**
-- [apps/api/src/adapters/stripe.ts](apps/api/src/adapters/stripe.ts)
-
-| Field | Current Value | What to Set |
-|-------|--------------|-------------|
-| mode | subscription | Plans are recurring, so this is `"subscription"`. Use `"payment"` only for one-time charges (and then `payment_method_collection` is dropped automatically). |
-| line_items[].price | price_... | Your actual Stripe Price ID from the Dashboard (https://dashboard.stripe.com/prices) or API. Create one recurring Price per plan and cadence (e.g. Premium monthly $93.99). |
+| Field | Value |
+|-------|-------|
+| mode | subscription |
+| line_items[0].price_data | Plan name, `unit_amount` from `PLANS`, `recurring.interval` month or year |
+| metadata / subscription_data.metadata | `travelerId`, `planId`, `cadence` (for the fulfillment webhook) |
 
 ## Configured Parameters
 
@@ -35,7 +37,7 @@ These parameters were configured in Checkout Studio and are already set correctl
 | name_collection | individual and business both `{ enabled: true, optional: true }` |
 | saved_payment_method_options | `{ payment_method_save: "enabled" }` |
 | integration_identifier | custom_embedded_web_0001 |
-| API version | 2026-03-25.dahlia (sent as the `Stripe-Version` header) |
+| API version | 2026-09-30.endive (sent as the `Stripe-Version` header) |
 
 The appearance was changed from Checkout Studio's default white theme to match
 Safehubby: `night` theme, navy background `#121a2c`, gold primary `#c99a4c`, white
@@ -64,15 +66,17 @@ as PCI requires).
 
 Changed: `createCheckoutSession` in `apps/api/src/adapters/stripe.ts`, the
 `POST /api/payment/stripe/checkout-session` route in `apps/api/src/routes.ts`, and
-the "Subscribe with a card through Stripe" button on the Billing screen.
+the plan picker on the Billing screen, which opens the form for a paid plan.
 
 ## How it works
 
-1. The member taps **Subscribe with a card through Stripe** on the Billing screen
-   (shown only once both Stripe keys are set).
-2. The browser calls `POST /api/payment/stripe/checkout-session`. The server finds
-   or creates the member's Stripe Customer and creates a Checkout Session, returning
-   `{ client_secret }` as JSON.
+1. On the Billing screen the member picks a plan and cadence and agrees to the
+   renewal terms. With both Stripe keys set, a paid plan then opens Stripe's form
+   (without them, the existing PayPal flow runs).
+2. The browser calls `POST /api/payment/stripe/checkout-session` with
+   `{ planId, cadence }`. The server checks the plan is released, takes its price
+   from `PLANS` (never from the browser), finds or creates the member's Stripe
+   Customer and creates the Checkout Session, returning `{ client_secret }`.
 3. Stripe.js (Dahlia) mounts the form with `initCheckoutFormSdk`, in Safehubby's
    colours. On confirm, Stripe takes the payment and starts the subscription.
 4. Stripe returns the member to `/#billing?session_id=…`.
@@ -91,17 +95,15 @@ Any future expiry, any CVC, any ZIP.
 
 ## Next steps
 
-1. **Create the Prices** in Stripe and replace `price_...` — ideally pass the chosen
-   plan to the route and map plan + cadence to its Price ID.
-2. **Fulfillment webhook (not built yet).** Safehubby's plan only changes inside the
+1. **Fulfillment webhook (not built yet).** Safehubby's plan only changes inside the
    app when its own subscribe flow runs. Add a webhook endpoint for
    `checkout.session.completed` and `invoice.paid` / `customer.subscription.deleted`,
    verified with `STRIPE_WEBHOOK_SECRET`, that sets the member's plan. Until then,
    check new subscriptions in the Stripe Dashboard.
-3. **Avoid double billing.** The app's existing renewal sweep also bills plans
+2. **Avoid double billing.** The app's existing renewal sweep also bills plans
    (as Stripe invoices on a saved card). Once Checkout subscriptions are live, skip
    members who have an active Stripe subscription in that sweep.
-4. **Tax:** `automatic_tax` is off here as configured. Turn it on in Checkout Studio
+3. **Tax:** `automatic_tax` is off here as configured. Turn it on in Checkout Studio
    after registering in Stripe Tax.
 
 ## Resources

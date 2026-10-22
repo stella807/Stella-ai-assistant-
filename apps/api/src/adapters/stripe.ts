@@ -190,18 +190,30 @@ export async function chargeOnCard(input: StripeCharge): Promise<{ id: string }>
    Checkout Sessions: Stripe's embedded payment form for subscribing to a plan
    ------------------------------------------------------------------------ */
 
-/** The embedded form (`ui_mode: "form"`) needs this API version or later. */
-export const CHECKOUT_API_VERSION = "2026-03-25.dahlia";
+/** The version Checkout Studio set; the embedded form (`ui_mode: "form"`)
+ *  needs 2026-03-25.dahlia or later. */
+export const CHECKOUT_API_VERSION = "2026-09-30.endive";
+
+/** One plan, priced by Safehubby rather than a Stripe Price (an external
+ *  product catalog), so the app's own plan table stays the one price list. */
+export interface CheckoutPlan {
+  planId: string; name: string; cadence: "monthly" | "annual"; amountCents: number; travelerId: string;
+}
 
 /**
- * A Checkout Session for the embedded form. Everything except `line_items`
- * was set in Stripe's Checkout Studio and is used exactly as configured.
- * Returns the client secret the browser's Checkout Form SDK mounts against.
+ * A Checkout Session for the embedded form, subscribing the member to one
+ * plan. Everything except the line item was set in Stripe's Checkout Studio
+ * and is used exactly as configured. Returns the client secret the browser's
+ * Checkout Form SDK mounts against.
  */
-export async function createCheckoutSession(input: { customerId: string; returnUrl: string }): Promise<{ clientSecret: string }> {
+export async function createCheckoutSession(input: {
+  customerId: string; returnUrl: string; plan: CheckoutPlan;
+}): Promise<{ clientSecret: string }> {
   // A plan is a recurring charge, so the session subscribes; and
   // `payment_method_collection` only applies in subscription mode.
   const mode: "payment" | "subscription" = "subscription";
+  const { plan } = input;
+  const metadata = { travelerId: plan.travelerId, planId: plan.planId, cadence: plan.cadence };
   const res = await fetch(`${api()}/v1/checkout/sessions`, {
     method: "POST",
     headers: {
@@ -213,9 +225,15 @@ export async function createCheckoutSession(input: { customerId: string; returnU
       ui_mode: "form",
       mode,
       customer: input.customerId,
-      // TODO: replace with the Stripe Price ID of the plan — see STRIPE_INTEGRATION_TODO.md.
-      "line_items[0][price]": "price_...",
+      "line_items[0][price_data][currency]": "usd",
+      "line_items[0][price_data][unit_amount]": plan.amountCents,
+      "line_items[0][price_data][product_data][name]": `Safehubby ${plan.name} (${plan.cadence === "annual" ? "yearly" : "monthly"})`,
+      "line_items[0][price_data][recurring][interval]": plan.cadence === "annual" ? "year" : "month",
       "line_items[0][quantity]": 1,
+      // Read back by the fulfillment webhook to know whose plan to change.
+      ...Object.fromEntries(Object.entries(metadata).flatMap(([k, v]) => [
+        [`metadata[${k}]`, v], [`subscription_data[metadata][${k}]`, v],
+      ])),
       billing_address_collection: "auto",
       "phone_number_collection[enabled]": false,
       "automatic_tax[enabled]": false,

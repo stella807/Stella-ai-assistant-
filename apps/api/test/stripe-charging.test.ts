@@ -92,7 +92,10 @@ describe("Stripe Checkout Session", () => {
   it("creates the embedded form session with the Checkout Studio settings", async () => {
     const { createCheckoutSession, CHECKOUT_API_VERSION } = await import("../src/adapters/stripe.ts");
     stubStripe(() => ({ body: { client_secret: "cs_secret" } }));
-    expect(await createCheckoutSession({ customerId: "cus_1", returnUrl: "https://x/#billing" })).toEqual({ clientSecret: "cs_secret" });
+    expect(await createCheckoutSession({
+      customerId: "cus_1", returnUrl: "https://x/#billing",
+      plan: { planId: "premium-basic", name: "Premium", cadence: "annual", amountCents: 93999, travelerId: "usr1" },
+    })).toEqual({ clientSecret: "cs_secret" });
     const b = calls[0]!.body;
     expect(calls[0]!.url).toMatch(/\/v1\/checkout\/sessions$/);
     expect(calls[0]!.headers["stripe-version"]).toBe(CHECKOUT_API_VERSION);
@@ -101,5 +104,9 @@ describe("Stripe Checkout Session", () => {
     expect(b.get("integration_identifier")).toBe("custom_embedded_web_0001");
     expect(b.get("saved_payment_method_options[payment_method_save]")).toBe("enabled");
     expect(b.get("automatic_tax[enabled]")).toBe("false");
+    expect(b.get("line_items[0][price_data][unit_amount]")).toBe("93999");
+    expect(b.get("line_items[0][price_data][recurring][interval]")).toBe("year");
+    expect(b.get("subscription_data[metadata][planId]")).toBe("premium-basic");
+    expect(b.get("line_items[0][price]")).toBeNull();
   });
 });
