@@ -210,12 +210,17 @@ function trailingRevenueCents(ctx: Ctx): number {
     .reduce((sum, c) => sum + c.amountCents, 0);
 }
 
+/** Whether Elite can be joined: always, unless the `elite-revenue-gate`
+ *  hold is switched on, in which case trailing revenue has to cover it. */
+const eliteOpen = (ctx: Ctx): boolean =>
+  !isEnabled("elite-revenue-gate") || eliteUnlockedByRevenue(trailingRevenueCents(ctx));
+
 function eliteUnlockStatus(ctx: Ctx) {
   const trailing = trailingRevenueCents(ctx);
   return {
     thresholdCents: eliteUnlockThresholdCents(),
     trailingRevenueCents: trailing,
-    unlocked: eliteUnlockedByRevenue(trailing),
+    unlocked: eliteOpen(ctx),
     percent: eliteUnlockProgressPercent(trailing),
     targetClientsLow: ELITE_UNLOCK_TARGET_CLIENTS_LOW,
     targetClientsHigh: ELITE_UNLOCK_TARGET_CLIENTS_HIGH,
@@ -1745,7 +1750,7 @@ export const routes: Record<string, Handler> = {
     const plan = PLANS.find((p) => p.id === body?.planId);
     if (!plan || plan.monthlyCents === 0) throw new HttpError(400, "Choose a paid plan.");
     if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
-    if (isElitePlan(plan.id) && !eliteUnlockedByRevenue(trailingRevenueCents(ctx))) {
+    if (isElitePlan(plan.id) && !eliteOpen(ctx)) {
       throw new HttpError(404, "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members.");
     }
     const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
@@ -2452,7 +2457,7 @@ export const routes: Record<string, Handler> = {
     // Free is the one plan whose release is decided below, because choosing it
     // is sometimes a cancellation rather than a sign-up.
     if (plan.id !== "free" && !isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
-    if (isElitePlan(plan.id) && !eliteUnlockedByRevenue(trailingRevenueCents(ctx))) {
+    if (isElitePlan(plan.id) && !eliteOpen(ctx)) {
       throw new HttpError(
         404,
         "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members. See progress on the pricing page.",

@@ -2799,13 +2799,22 @@ describe("paid plans before payments are live", () => {
 });
 
 describe("the Elite ladder", () => {
+  afterEach(() => setFlag("elite-revenue-gate", false));
+
   it("serves every rung in the catalogue", async () => {
     const ids = (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
     for (const id of ELITE_LADDER) expect(ids).toContain(id);
     expect(ids).toContain("family");
   });
 
+  it("opens with no revenue at all while the revenue hold is off", async () => {
+    const res = await call("GET", "/api/catalog");
+    for (const p of res.json.plans.filter((x: any) => ELITE_LADDER.includes(x.id))) expect(p.locked, p.id).toBe(false);
+    expect(res.json.eliteUnlock.unlocked).toBe(true);
+  });
+
   it("stays visible but locked — coming soon — before there is revenue to cover the allowance", async () => {
+    setFlag("elite-revenue-gate", true);
     const res = await call("GET", "/api/catalog");
     const elitePlans = res.json.plans.filter((p: any) => ELITE_LADDER.includes(p.id));
     expect(elitePlans.length).toBe(ELITE_LADDER.length);

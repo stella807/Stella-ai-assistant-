@@ -27,6 +27,7 @@
 export type FeatureFlag =
   | "paid-plans"
   | "elite-tier"
+  | "elite-revenue-gate"
   | "insurance-in-place"
   | "free-tier"
   | "free-errands"
@@ -57,6 +58,15 @@ export const FLAGS: FlagDefinition[] = [
     id: "elite-tier",
     enabled: true,
     note: "The Elite ladder is live. The desk reports per service rather than per plan: with no charter operator or physician practice configured, a request is taken and answered by a person instead of quoted automatically — the same honesty rule every other adapter here follows. The legal duties do not ride on this flag: Part 295 disclosures are attached to every jet quote, medical commission is zero and cannot be set otherwise, and the doctor disappears entirely when the assessment says call emergency services.",
+  },
+  {
+    // Held Elite closed until trailing revenue covered 3× the spending
+    // allowance for the first members. Off: Elite opens as soon as payments
+    // are live, since each member's own dues fund their allowance. Turn back
+    // on to hold the ladder again.
+    id: "elite-revenue-gate",
+    enabled: false,
+    note: "Elite opens once revenue covers its spending allowance for our first members.",
   },
   {
     id: "insurance-in-place",
