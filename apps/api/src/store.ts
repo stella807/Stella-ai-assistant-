@@ -176,6 +176,10 @@ export interface Db {
   pendingOrders: Record<string, PendingOrder[]>;
   partyCarts: Record<string, { sku: string; qty: number }[]>;
   paymentMethods: Record<string, PaymentMethodOnFile>;
+  /** Each traveler's Stripe Customer id, so a member has one Customer rather
+   *  than one per visit — Stripe only charges a card off-session when it is
+   *  attached to one. See `ensureStripeCustomer` in adapters/stripe.ts. */
+  stripeCustomers: Record<string, string>;
   /** When each hand-ticked launch step was marked done. Only the steps the
    *  app cannot observe for itself live here — see launch-plan.ts. */
   launchStepsMarkedAt: Record<string, string>;
@@ -263,7 +267,7 @@ export interface CryptoLoad {
 
 const EMPTY: Db = {
   travelers: [], sessions: [], crews: [], carePackages: {}, nights: [], grants: [], alerts: [], points: {}, redemptions: {}, rounds: [], pendingOrders: {}, partyCarts: {},
-  paymentMethods: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
+  paymentMethods: {}, stripeCustomers: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
   driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],

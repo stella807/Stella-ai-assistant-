@@ -21,7 +21,7 @@ export const SEED: Db = {
   rounds: [],
   pendingOrders: {},
   partyCarts: {},
-  paymentMethods: {},
+  paymentMethods: {}, stripeCustomers: {},
   launchStepsMarkedAt: {},
   charges: [],
   subscriptions: {},

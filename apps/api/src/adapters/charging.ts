@@ -1,29 +1,35 @@
 import {
   PAYPAL_REF_PREFIX, authorizeWithPaypal, capturePaypalHold, chargeWithPaypal, paypalChargingReady, voidPaypalHold,
 } from "./paypal.ts";
+import {
+  captureOnCard, cardChargingReady as stripeReady, chargeOnCard, holdOnCard, isStripeRef, releaseOnCard,
+} from "./stripe.ts";
 
 /**
  * One front door for taking money from a customer's saved payment method.
  *
- * PayPal is the only processor that can reserve and charge a saved method, so
- * everything here goes to it; the names stay generic so the routes and the
- * billing sweep do not care. A hold remembers its processor in its reference
- * (`paypal:…`), so a later capture or release goes back to the same place —
- * and a reference without it (a hold from a processor since removed) fails
- * loudly onto the charge rather than being sent somewhere it does not belong.
+ * Which processor does the work is decided by how the customer saved it, not
+ * by a global setting: a Stripe card is charged through Stripe and a PayPal
+ * account or card through PayPal, so customers on either coexist. A hold
+ * remembers its processor in its reference (`paypal:…` for PayPal, Stripe's
+ * own `pi_…`), so a later capture or release goes back to the same place, and
+ * a reference from neither fails loudly rather than being sent somewhere it
+ * does not belong.
  */
-export type Processor = "paypal";
+export type Processor = "paypal" | "stripe";
 
-export const processorReady = (processor: string): boolean => processor === "paypal" && paypalChargingReady();
+export const processorReady = (processor: string): boolean =>
+  processor === "paypal" ? paypalChargingReady() : processor === "stripe" ? stripeReady() : false;
 
-/** Whether a processor can take money right now. */
-export const chargingReady = (): boolean => paypalChargingReady();
+/** Whether at least one processor can take money right now. */
+export const chargingReady = (): boolean => paypalChargingReady() || stripeReady();
 
 export interface SavedCharge {
   processor: Processor;
-  /** PayPal's vaulted payment token. */
+  /** Stripe only: the Customer the saved card hangs off. */
+  customerId?: string;
+  /** PayPal's vaulted payment token, or Stripe's PaymentMethod id. */
   paymentMethodId: string;
-  /** What kind of PayPal source it is (account or card). */
   method?: { brand: string; last4: string };
   amountCents: number;
   description: string;
@@ -35,17 +41,25 @@ const forPaypal = (input: SavedCharge) => ({
   amountCents: input.amountCents, description: input.description, idempotencyKey: input.idempotencyKey,
 });
 
-/** A plan's charge, taken in one step. */
-export const chargeSaved = (input: SavedCharge): Promise<{ id: string }> => chargeWithPaypal(forPaypal(input));
+const forStripe = (input: SavedCharge) => {
+  if (!input.customerId) throw new Error("This card was saved without a Stripe customer. Add it again under Payments.");
+  return { ...input, customerId: input.customerId };
+};
+
+/** A plan's charge, taken in one step (a Stripe invoice, or a PayPal capture). */
+export const chargeSaved = async (input: SavedCharge): Promise<{ id: string }> =>
+  input.processor === "stripe" ? chargeOnCard(forStripe(input)) : chargeWithPaypal(forPaypal(input));
 
 /** A reservation for a task: the exact amount held, taken later. */
-export const holdSaved = (input: SavedCharge): Promise<{ id: string }> => authorizeWithPaypal(forPaypal(input));
+export const holdSaved = async (input: SavedCharge): Promise<{ id: string }> =>
+  input.processor === "stripe" ? holdOnCard(forStripe(input)) : authorizeWithPaypal(forPaypal(input));
 
 const orphan = () => new Error("That hold was placed with a payment processor that is no longer connected.");
 const isPaypalRef = (ref: string) => ref.startsWith(PAYPAL_REF_PREFIX);
 
 export const captureHeld = (ref: string, amountCents: number): Promise<void> =>
-  isPaypalRef(ref) ? capturePaypalHold(ref, amountCents) : Promise.reject(orphan());
+  isPaypalRef(ref) ? capturePaypalHold(ref, amountCents)
+    : isStripeRef(ref) ? captureOnCard(ref, amountCents) : Promise.reject(orphan());
 
 export const releaseHeld = (ref: string): Promise<void> =>
-  isPaypalRef(ref) ? voidPaypalHold(ref) : Promise.reject(orphan());
+  isPaypalRef(ref) ? voidPaypalHold(ref) : isStripeRef(ref) ? releaseOnCard(ref) : Promise.reject(orphan());

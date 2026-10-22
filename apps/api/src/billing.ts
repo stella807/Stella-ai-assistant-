@@ -102,8 +102,8 @@ export function renewDueSubscriptions(db: Db, now: Date, opts: { collect?: boole
 /** Takes a payment from a saved payment method. The PayPal charge in
  *  production; a stub in tests. */
 export type CardCharger = (input: {
-  processor: "paypal";
-  paymentMethodId: string; method?: { brand: string; last4: string };
+  processor: "paypal" | "stripe";
+  customerId?: string; paymentMethodId: string; method?: { brand: string; last4: string };
   amountCents: number; description: string; idempotencyKey: string;
 }) => Promise<{ id: string }>;
 
@@ -129,12 +129,14 @@ export async function collectSubscriptionCharges(
     if (!line || line.status !== "pending") continue;
     const method = store.data.paymentMethods[line.travelerId];
     let outcome: { ref: string } | { reason: string };
-    if (method?.processor !== "paypal" || !method.processorToken) {
+    const customerId = store.data.stripeCustomers?.[line.travelerId];
+    // A Stripe card needs its Customer; a PayPal method needs only its token.
+    if (!method?.processorToken || (method.processor === "stripe" && !customerId)) {
       outcome = { reason: "There is no PayPal account on file to charge. Add one under Payments." };
     } else {
       try {
         const intent = await charge({
-          processor: "paypal", paymentMethodId: method.processorToken,
+          processor: method.processor, ...(customerId ? { customerId } : {}), paymentMethodId: method.processorToken,
           method: { brand: method.brand, last4: method.last4 }, amountCents: line.amountCents,
           description: `Safehubby — ${line.description}`, idempotencyKey: line.id,
         });

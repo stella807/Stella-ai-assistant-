@@ -3169,16 +3169,15 @@ describe("payment method on file", () => {
     expect(res.json.method.processor).toBe("paypal");
   });
 
-  it("no longer knows Stripe or the wallets that rode on it", async () => {
-    // A client still asking for them gets PayPal's stand-in, not a made-up processor.
+  it("saves a Stripe card as Stripe, and drops the old wallet brands", async () => {
     const res = await call("POST", "/api/account/payment-method", {
       processor: "stripe", payWith: "apple-pay", brand: "Visa", last4: "4242", expMonth: 12, expYear: 2030,
     }, sam);
-    expect(res.json.method.processor).toBe("paypal");
+    expect(res.json.method.processor).toBe("stripe");
     expect(res.json.method.payWith).toBeUndefined();
   });
 
-  it("treats a request for ATH Móvil as PayPal, since it is the only processor", async () => {
+  it("treats a request for ATH Móvil as PayPal", async () => {
     const res = await call("POST", "/api/account/payment-method", {
       processor: "ath-movil", brand: "ATH Móvil", last4: "5309", expMonth: 12, expYear: 2030,
     }, sam);
@@ -3297,11 +3296,11 @@ describe("saving a PayPal account with PayPal's own button", () => {
 });
 
 describe("payment processor status", () => {
-  it("reports PayPal as handoff without real credentials configured", async () => {
+  it("reports PayPal and Stripe as handoff without real credentials configured", async () => {
     const res = await call("GET", "/api/payment/processors", undefined, sam);
     expect(res.status).toBe(200);
     const ids = res.json.processors.map((p: { id: string }) => p.id);
-    expect(ids).toEqual(["paypal"]);
+    expect(ids).toEqual(["paypal", "stripe"]);
     for (const p of res.json.processors) expect(p.mode).toBe("handoff");
   });
 

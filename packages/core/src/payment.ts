@@ -23,12 +23,13 @@ import type { Iso8601 } from "./types.ts";
  * its own credentials, its own rails and its own settlement.
  *
  * Deliberately short, and it is the list that decides what is real. PayPal
- * takes saved PayPal accounts for holds and plan charges. Crypto loads a
+ * takes saved PayPal accounts and cards, and Stripe saved cards, for holds and
+ * plan charges. Crypto loads a
  * prepaid balance instead, but it is not a method on file — see
  * crypto-loads.ts in the API. See `ChargeProcessorPort` in fulfillment.ts and
  * `adapters/paypal.ts`.
  */
-export type PaymentProcessor = "paypal";
+export type PaymentProcessor = "paypal" | "stripe";
 
 export interface PaymentMethodOnFile {
   id: string;

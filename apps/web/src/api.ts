@@ -127,7 +127,7 @@ export interface Account {
   homeLabel: string;
 }
 
-export type PaymentProcessor = "paypal";
+export type PaymentProcessor = "paypal" | "stripe";
 
 export interface TextAlertsState { enabled: boolean; phoneLast4?: string; language?: "en" | "es"; providerReady: boolean }
 
@@ -170,7 +170,8 @@ export interface ProcessorStatus {
 
 export interface AttachPaymentMethodInput {
   processor: PaymentProcessor;
-  /** The processor's own client-tokenized id — a PayPal payment-token id.
+  /** The processor's own client-tokenized id — a PayPal payment-token id or
+   *  a Stripe PaymentMethod id.
    *  Required only once the processor is
    *  `automatic`; the manual fields below are the handoff-mode fallback. */
   token?: string;
@@ -330,6 +331,8 @@ export const api = {
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
+  stripeConfig: () => request<{ ready: true; publishableKey: string } | { ready: false; note: string }>("GET", "/api/payment/stripe/config"),
+  stripeSetupIntent: () => request<{ clientSecret: string }>("POST", "/api/payment/stripe/setup-intent", {}),
   paypalConfig: () => request<{ ready: true; clientId: string } | { ready: false; note: string }>("GET", "/api/payment/paypal/config"),
   /** Step one of saving a PayPal account (`paypal`) or a typed card (`card`). */
   paypalSetupToken: (kind: "paypal" | "card") =>

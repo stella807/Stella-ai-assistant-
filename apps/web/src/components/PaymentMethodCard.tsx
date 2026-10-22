@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type PaymentMethod, type ProcessorStatus } from "../api.ts";
 import { PayPalButton } from "./PayPalButton.tsx";
 import { PayPalCardForm } from "./PayPalCardForm.tsx";
+import { StripeCardForm } from "./StripeCardForm.tsx";
 
 /**
  * PayPal's own logo, the files PayPal itself serves (public/img/paypal-logo.svg
@@ -20,7 +21,7 @@ function PayPalLogo({ mark = false }: { mark?: boolean }) {
 
 /**
  * The one payment method on the account: a card (Visa, Mastercard and the
- * other major cards) or a PayPal account, both saved through PayPal. It backs every
+ * other major cards), saved through Stripe or PayPal, or a PayPal account. It backs every
  * charge that is not a store-billed subscription — rides, secure transport,
  * pharmacy runs, and the subscription itself on the web. Adding one does not
  * charge anything by itself — it lets a hold be placed at the moment a trip is
@@ -40,6 +41,7 @@ function PayPalLogo({ mark = false }: { mark?: boolean }) {
 export function PaymentMethodCard() {
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [paypal, setPaypal] = useState<ProcessorStatus | null>(null);
+  const [stripe, setStripe] = useState<ProcessorStatus | null>(null);
   const [loaded, setLoaded] = useState(false);
   /** What is being added: a typed card, or a PayPal account. */
   const [adding, setAdding] = useState<"card" | "paypal" | null>(null);
@@ -51,13 +53,14 @@ export function PaymentMethodCard() {
       .then(([m, p]) => {
         setMethod(m.method);
         setPaypal(p.processors.find((x) => x.id === "paypal") ?? null);
+        setStripe(p.processors.find((x) => x.id === "stripe") ?? null);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 
-  const save = async (token: string) => {
-    const res = await api.attachPaymentMethod({ processor: "paypal", token });
+  const save = async (token: string, processor: "paypal" | "stripe" = "paypal") => {
+    const res = await api.attachPaymentMethod({ processor, token });
     setMethod(res.method);
     setAdding(null);
   };
@@ -76,7 +79,11 @@ export function PaymentMethodCard() {
   };
 
   if (!loaded) return null;
-  const ready = paypal?.mode === "automatic";
+  const paypalReady = paypal?.mode === "automatic";
+  // Cards go through Stripe when it is connected (its card fee is lower), and
+  // through PayPal's card form otherwise.
+  const stripeReady = stripe?.mode === "automatic";
+  const ready = paypalReady || stripeReady;
   // Nothing on file and nothing that can be added: no card at all.
   if (!method && !ready) return null;
 
@@ -84,7 +91,7 @@ export function PaymentMethodCard() {
     <section className="card">
       <div className="row-between">
         <h3 style={{ margin: 0 }}>Payment method</h3>
-        <PayPalLogo />
+        {paypalReady && <PayPalLogo />}
       </div>
       <p className="small muted">
         A card or your PayPal account, for everything: rides, secure transport, pharmacy runs, and your plan.
@@ -115,13 +122,28 @@ export function PaymentMethodCard() {
           <button className="btn btn-block btn-primary" disabled={busy} onClick={() => { setError(null); setAdding("card"); }}>
             Add a credit or debit card
           </button>
-          <button className="btn btn-block" disabled={busy} onClick={() => { setError(null); setAdding("paypal"); }}>
-            Add your PayPal account
-          </button>
+          {paypalReady && (
+            <button className="btn btn-block" disabled={busy} onClick={() => { setError(null); setAdding("paypal"); }}>
+              Add your PayPal account
+            </button>
+          )}
         </div>
       )}
 
-      {adding === "card" && (
+      {adding === "card" && stripeReady && (
+        <StripeCardForm
+          onToken={(token) => {
+            setBusy(true); setError(null);
+            save(token, "stripe")
+              .catch((e) => setError(e instanceof Error ? e.message : "Could not save that card"))
+              .finally(() => setBusy(false));
+          }}
+          onError={setError}
+          onCancel={() => setAdding(null)}
+        />
+      )}
+
+      {adding === "card" && !stripeReady && (
         <PayPalCardForm
           onToken={(token) => {
             setBusy(true); setError(null);

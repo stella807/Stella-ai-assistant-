@@ -98,6 +98,7 @@ import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
+import { createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -270,6 +271,7 @@ function requirePaymentMethod(ctx: Ctx, userId: string): void {
  */
 const PROCESSOR_PORTS: Record<PaymentProcessor, ChargeProcessorPort> = {
   paypal: paypalProcessor,
+  stripe: stripeProcessor,
 };
 
 /**
@@ -810,10 +812,12 @@ function chargeForSupplies(ctx: Ctx, travelerId: string, basket: Basket, deliver
 async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: string): Promise<void> {
   if (hold.fundedBy === "balance") return;
   const method = ctx.store.data.paymentMethods[hold.travelerId];
-  if (method?.processor !== "paypal" || !method.processorToken || !processorReady("paypal")) return;
+  if (!method?.processorToken || !processorReady(method.processor)) return;
+  const customerId = ctx.store.data.stripeCustomers[hold.travelerId];
+  if (method.processor === "stripe" && !customerId) return;
   try {
     const intent = await holdSaved({
-      processor: "paypal", paymentMethodId: method.processorToken,
+      processor: method.processor, ...(customerId ? { customerId } : {}), paymentMethodId: method.processorToken,
       method: { brand: method.brand, last4: method.last4 }, amountCents: hold.amountCents, description, idempotencyKey: hold.id,
     });
     ctx.store.update((db) => {
@@ -1660,6 +1664,33 @@ export const routes: Record<string, Handler> = {
       : { ready: false as const, note: paypalProcessor.status.requires };
   },
 
+  /** What the browser needs to draw Stripe's card form. */
+  "GET /api/payment/stripe/config": (ctx) => {
+    actor(ctx);
+    return isAutomatic(stripeProcessor.status)
+      ? { ready: true as const, publishableKey: stripePublishableKey() }
+      : { ready: false as const, note: stripeProcessor.status.requires };
+  },
+
+  /** Saving a card through Stripe without charging it: a SetupIntent the
+   *  Payment Element confirms in the browser, against this member's own
+   *  Stripe Customer. */
+  "POST /api/payment/stripe/setup-intent": async (ctx) => {
+    const me = actor(ctx);
+    if (!isAutomatic(stripeProcessor.status)) throw new HttpError(503, stripeProcessor.status.requires);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    try {
+      const customerId = await ensureStripeCustomer({
+        existingId: ctx.store.data.stripeCustomers[me], email: traveler.email, name: traveler.displayName, travelerId: me,
+      });
+      ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
+      return await createSetupIntent(customerId);
+    } catch (e) {
+      throw new HttpError(502, e instanceof Error ? e.message : "Stripe could not be reached.");
+    }
+  },
+
   /** Step one of saving a PayPal account: a setup token for the button to ask
    *  the customer to approve. Nothing is charged. */
   "POST /api/payment/paypal/setup-token": async (ctx, _p, body) => {
@@ -1684,7 +1715,7 @@ export const routes: Record<string, Handler> = {
 
   "POST /api/account/payment-method": async (ctx, _p, body) => {
     const me = actor(ctx);
-    const processor: PaymentProcessor = "paypal";
+    const processor: PaymentProcessor = body?.processor === "stripe" ? "stripe" : "paypal";
     const port = PROCESSOR_PORTS[processor];
 
     let brand = String(body?.brand ?? "");
@@ -1702,6 +1733,15 @@ export const routes: Record<string, Handler> = {
       const token = String(body?.token ?? "");
       if (!token) throw new HttpError(400, `Missing ${port.status.name} payment token.`);
       const verified = await port.verifyMethod(token);
+      // A Stripe card has to be one this member saved against their own
+      // Customer — a card id lifted from someone else's session must not
+      // become chargeable here.
+      if (processor === "stripe") {
+        const owner = await stripeMethodCustomer(token);
+        if (!owner || owner !== ctx.store.data.stripeCustomers[me]) {
+          throw new HttpError(400, "That card was not saved to this account.");
+        }
+      }
       brand = verified.brand;
       last4 = verified.last4;
       expMonth = verified.expMonth;
@@ -3682,7 +3722,7 @@ export const routes: Record<string, Handler> = {
         // Where the business is, read off real state rather than ticked —
         // see launch-plan.ts for which steps are observed and which are not.
         launch: launchProgress({
-          paymentsConfigured: isAutomatic(paypalProcessor.status),
+          paymentsConfigured: isAutomatic(paypalProcessor.status) || isAutomatic(stripeProcessor.status),
           serviceLive: serviceIsLive(now),
           rosterActive: ctx.store.data.assistants.filter((a) => isOnRoster(a, now)).length,
           payingClients: Object.values(ctx.store.data.subscriptions)

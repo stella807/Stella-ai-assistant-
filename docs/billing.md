@@ -670,3 +670,22 @@ When PayPal's keys are set and a customer saved a PayPal account, every hold in 
 - **Cancelled or declined by the assistant:** the authorization is voided, releasing the whole hold.
 
 A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid balance, loaded with ATH Móvil or crypto, is unchanged. Plan subscriptions are charged to the saved PayPal account too — see "When the period turns over".
+
+## Stripe, beside PayPal
+
+Cards can be saved through Stripe (`apps/api/src/adapters/stripe.ts`) as well as
+through PayPal. When `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` are set,
+"Add a credit or debit card" uses Stripe's Payment Element; PayPal accounts stay
+on PayPal. Each method is charged by the processor it was saved with.
+
+- **Payments:** the card is saved with a SetupIntent on the member's own Stripe
+  Customer (`stripeCustomers` in the store). A task hold is a manual-capture
+  PaymentIntent (`pi_…`), captured for what was spent or cancelled. A card id
+  that is not attached to the member's own Customer is refused.
+- **Invoicing:** a plan's monthly or yearly charge is a Stripe invoice paid off
+  the saved card, so members get Stripe's invoice and receipt. Turn on
+  customer emails for invoices and receipts in the Stripe Dashboard.
+- **Tax:** `STRIPE_TAX=on` enables Stripe Tax on those invoices. The line is
+  `tax_behavior: inclusive`, so the tax is carved out of the listed price and
+  the member is charged exactly what the app shows. Stripe only collects where
+  the account has a tax registration.
