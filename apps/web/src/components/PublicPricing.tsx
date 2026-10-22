@@ -183,7 +183,9 @@ function EliteShowcase({ plans, eliteUnlock }: {
                   </td>
                   <td>{p.seats}</td>
                   <td>{DESK_COVERAGE}</td>
-                  <td>{includedConciergeHours(p.id)}</td>
+                  {/* On call at any hour; the number is the hours already
+                      paid for, with more billed at the hourly rate. */}
+                  <td>{DESK_COVERAGE} · {includedConciergeHours(p.id)} {e.hrs}</td>
                 </tr>
               ))}
             </tbody>
@@ -204,13 +206,14 @@ const ELITE_COPY = {
   en: {
     title: "Elite: what's included",
     soon: "Coming soon",
-    lead: "Every Elite plan gets the same 24/7 desk, including a concierge doctor on retainer, paid for by Safehubby rather than billed to you. The plans differ in how many people they cover and how many hours of a personal assistant's time come with them.",
+    lead: "Every Elite plan gets the same 24/7 desk, including a concierge doctor on retainer, paid for by Safehubby rather than billed to you. A personal assistant is on call 24/7 on every Elite plan. The plans differ in how many people they cover and how many assistant hours a month are already paid for; time beyond that is billed by the hour.",
     whyTitle: "Not open yet: why, and what opens it",
     why: (multiple: number, low: number, high: number) =>
       `Elite includes a monthly spending allowance that Safehubby pays for. We're holding the plan until the business earns ${multiple}× what that allowance would cost if our first ${low}–${high} members on each plan all used it in full in the same month. We cover the commitment first, then sell the plan.`,
     progress: (have: string, need: string, pct: number) => `${have} of ${need} needed (${pct}%).`,
     desk: "Desk",
-    hours: "Assistant hrs/month",
+    hours: "Assistant",
+    hrs: "hrs/mo included",
     features: {
       "private-aviation": "Private jet travel",
       "yacht-charter": "Yacht charter",
@@ -224,13 +227,14 @@ const ELITE_COPY = {
   es: {
     title: "Elite: lo que incluye",
     soon: "Próximamente",
-    lead: "Todos los planes Elite tienen el mismo servicio 24/7, incluido un médico concierge, que paga Safehubby y no se te cobra aparte. Los planes cambian en cuántas personas cubren y cuántas horas de asistente personal incluyen.",
+    lead: "Todos los planes Elite tienen el mismo servicio 24/7, incluido un médico concierge, que paga Safehubby y no se te cobra aparte. En todos los planes Elite tienes un asistente personal disponible 24/7. Los planes cambian en cuántas personas cubren y cuántas horas de asistente al mes ya están pagadas; el tiempo adicional se cobra por hora.",
     whyTitle: "Todavía no está abierto: por qué y qué lo abre",
     why: (multiple: number, low: number, high: number) =>
       `Elite incluye un fondo mensual para gastos que paga Safehubby. Esperamos a abrir el plan hasta que el negocio genere ${multiple} veces lo que costaría ese fondo si nuestros primeros ${low} a ${high} miembros de cada plan lo usaran completo en el mismo mes. Primero cubrimos el compromiso, después vendemos el plan.`,
     progress: (have: string, need: string, pct: number) => `${have} de ${need} necesarios (${pct}%).`,
     desk: "Servicio",
-    hours: "Horas de asistente/mes",
+    hours: "Asistente",
+    hrs: "h/mes incluidas",
     features: {
       "private-aviation": "Viajes en jet privado",
       "yacht-charter": "Alquiler de yates",
