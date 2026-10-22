@@ -252,3 +252,17 @@ export async function createCheckoutSession(input: {
   if (!res.ok || !data?.client_secret) throw new Error(data?.error?.message ?? `Stripe rejected the checkout session: ${res.status}`);
   return { clientSecret: data.client_secret };
 }
+
+/** Ends a Stripe subscription now — used when a member leaves or replaces a
+ *  plan Stripe was billing, so it never renews behind the app's back. */
+export async function cancelStripeSubscription(subscriptionId: string): Promise<void> {
+  if (!key()) throw new Error("Stripe is not configured.");
+  const res = await fetch(`${api()}/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: "DELETE", headers: { authorization: `Bearer ${key()}` },
+  });
+  // Already gone is the outcome we wanted.
+  if (!res.ok && res.status !== 404) {
+    const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+    throw new Error(data?.error?.message ?? `Stripe could not cancel that subscription: ${res.status}`);
+  }
+}

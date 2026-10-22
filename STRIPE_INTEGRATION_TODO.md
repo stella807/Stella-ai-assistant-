@@ -53,6 +53,7 @@ in the Raw Editor:
 | `STRIPE_SECRET_KEY` | `sk_test_…` then `sk_live_…` | Server only. Never in the browser. |
 | `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` then `pk_live_…` | Served to the browser by `GET /api/payment/stripe/config`, so no `VITE_` variable or rebuild is needed. |
 | `SAFEHUBBY_PUBLIC_URL` | `https://safehubby.com` | The `return_url` Stripe sends members back to. |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Server only. From the webhook destination in the Stripe Dashboard. Without it, every webhook is refused. |
 
 No new dependencies: the server talks to Stripe's REST API with `fetch`, and
 Stripe.js is loaded from `https://js.stripe.com/dahlia/stripe.js` (never bundled,
@@ -93,18 +94,41 @@ Use test-mode keys, then:
 
 Any future expiry, any CVC, any ZIP.
 
+## Webhook (fulfillment)
+
+Built: `POST /api/payment/stripe/webhook` ([apps/api/src/stripe-webhook.ts](apps/api/src/stripe-webhook.ts)).
+Every request must carry a valid `Stripe-Signature` made with `STRIPE_WEBHOOK_SECRET`
+over the raw body, at most five minutes old; anything else is refused.
+
+In the Stripe Dashboard → Workbench → Webhooks, add a destination:
+
+- **URL:** `https://safehubby.com/api/payment/stripe/webhook`
+- **Events:**
+
+| Event | What Safehubby does |
+|-------|---------------------|
+| `checkout.session.completed` | Puts the member on the plan they paid for and records the payment. If they already had a Stripe plan, that one is cancelled at Stripe. |
+| `invoice.paid` | Renewal paid: keeps the plan active for another month or year and records the payment. |
+| `invoice.payment_failed` | Marks the plan past-due. Features stay on; Stripe retries the card. |
+| `customer.subscription.deleted` | Plan ended. Cancelled by the member: kept until the paid period ends. Ended because the card kept failing: back to Free now. |
+
+Then copy the destination's signing secret (`whsec_…`) into Railway as
+`STRIPE_WEBHOOK_SECRET`.
+
+**No double billing:** a plan bought through Stripe Checkout is marked with its
+Stripe subscription id, and the app's own renewal sweep skips it. When the member
+cancels or switches plans in the app, Safehubby tells Stripe to stop billing first,
+and refuses the change if Stripe cannot be reached.
+
+Test locally with the Stripe CLI: `stripe listen --forward-to localhost:8787/api/payment/stripe/webhook`
+then `stripe trigger checkout.session.completed`.
+
 ## Next steps
 
-1. **Fulfillment webhook (not built yet).** Safehubby's plan only changes inside the
-   app when its own subscribe flow runs. Add a webhook endpoint for
-   `checkout.session.completed` and `invoice.paid` / `customer.subscription.deleted`,
-   verified with `STRIPE_WEBHOOK_SECRET`, that sets the member's plan. Until then,
-   check new subscriptions in the Stripe Dashboard.
-2. **Avoid double billing.** The app's existing renewal sweep also bills plans
-   (as Stripe invoices on a saved card). Once Checkout subscriptions are live, skip
-   members who have an active Stripe subscription in that sweep.
-3. **Tax:** `automatic_tax` is off here as configured. Turn it on in Checkout Studio
+1. **Tax:** `automatic_tax` is off here as configured. Turn it on in Checkout Studio
    after registering in Stripe Tax.
+2. **Customer emails:** turn on receipts and invoice emails in the Stripe Dashboard
+   (Settings → Customer emails).
 
 ## Resources
 

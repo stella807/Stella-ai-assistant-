@@ -98,7 +98,7 @@ import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
-import { createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
+import { cancelStripeSubscription, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -826,6 +826,15 @@ async function reserveOnCard(ctx: Ctx, hold: PreAuthorization, description: stri
     });
   } catch (err) {
     throw new HttpError(402, err instanceof Error ? err.message : "Your payment could not be taken.");
+  }
+}
+
+/** Tells Stripe to stop billing a plan, refusing the change if it cannot —
+ *  a member must never be told they cancelled while Stripe keeps charging. */
+async function stopStripeBilling(stripeSubscriptionId: string): Promise<void> {
+  try { await cancelStripeSubscription(stripeSubscriptionId); }
+  catch (e) {
+    throw new HttpError(502, `Stripe could not stop billing your plan, so nothing was changed. ${e instanceof Error ? e.message : ""}`.trim());
   }
 }
 
@@ -2471,6 +2480,13 @@ export const routes: Record<string, Handler> = {
       })
       : null;
 
+    // A plan Stripe was billing is replaced here, so Stripe must stop billing
+    // it — otherwise it renews on its own beside the new one.
+    if (existing?.stripeSubscriptionId) {
+      await stopStripeBilling(existing.stripeSubscriptionId);
+      delete change.subscription.stripeSubscriptionId;
+    }
+
     ctx.store.update((db) => {
       db.subscriptions[me] = change.subscription;
       const traveler = db.travelers.find((t) => t.id === me)!;
@@ -2506,10 +2522,13 @@ export const routes: Record<string, Handler> = {
   },
 
   /** Cancels without cutting anyone off mid-period — see subscription.ts. */
-  "POST /api/subscription/cancel": (ctx) => {
+  "POST /api/subscription/cancel": async (ctx) => {
     const me = actor(ctx);
     const existing = subscriptionOf(ctx, me);
     if (!existing) throw new HttpError(404, "There is no subscription to cancel.");
+    // Stripe stops renewing now; the member keeps what they paid for until
+    // the period ends, the same as any other cancellation.
+    if (existing.stripeSubscriptionId) await stopStripeBilling(existing.stripeSubscriptionId);
     const canceled = cancelSubscription(existing, ctx.now());
     ctx.store.update((db) => {
       db.subscriptions[me] = canceled;

@@ -3,6 +3,8 @@ import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { HttpError, makeLimiters, routes, type Ctx } from "./routes.ts";
 import { Store, type StoreLike } from "./store.ts";
+import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
+import { cancelStripeSubscription } from "./adapters/stripe.ts";
 import {
   ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_COOKIE, MASTER_SESSION_TTL_MS, SESSION_COOKIE,
   clearedCookie, parseCookies, sessionCookie,
@@ -148,6 +150,23 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
         if (!res.headersSent) send(res, 500, { error: "Something went wrong on our end." });
       }
       return;
+    }
+    // Stripe signs the exact bytes it sends, so this route reads the raw body
+    // itself rather than going through the JSON router.
+    if (url.pathname === "/api/payment/stripe/webhook" && method === "POST") {
+      try {
+        const raw = await readRawBody(req);
+        const signature = req.headers["stripe-signature"];
+        const result = handleStripeWebhook(base.store, raw, Array.isArray(signature) ? signature[0] : signature, base.now());
+        for (const id of result.cancelStripeSubscriptions) {
+          cancelStripeSubscription(id).catch((e) => console.error("[safehubby] could not cancel replaced Stripe subscription", id, e));
+        }
+        return send(res, 200, { received: true });
+      } catch (err) {
+        if (err instanceof WebhookRejected || err instanceof HttpError) return send(res, err.status, { error: err.message });
+        console.error("[safehubby] Stripe webhook failed", err);
+        return send(res, 500, { error: "Something went wrong on our end." });
+      }
     }
     const found = match(method === "HEAD" ? "GET" : method, url.pathname);
     if (!found) {

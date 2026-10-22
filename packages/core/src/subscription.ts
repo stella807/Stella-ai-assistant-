@@ -60,6 +60,10 @@ export interface Subscription {
   currentPeriodEnd: Iso8601;
   trialEndsAt?: Iso8601;
   canceledAt?: Iso8601;
+  /** Set when Stripe Checkout started this plan: Stripe then bills each
+   *  renewal itself and reports back by webhook, so the app's own renewal
+   *  sweep must leave it alone or the member would be charged twice. */
+  stripeSubscriptionId?: string;
 }
 
 /** What a plan change or renewal wants charged, and what to call the line. */

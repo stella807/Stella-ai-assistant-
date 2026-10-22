@@ -44,6 +44,10 @@ export function renewDueSubscriptions(db: Db, now: Date, opts: { collect?: boole
 
   for (const [travelerId, sub] of Object.entries(db.subscriptions)) {
     if (!isRenewalDue(sub, now)) continue;
+    // Stripe bills a plan bought through Stripe Checkout itself and reports
+    // back by webhook (stripe-webhook.ts); billing it here too would charge
+    // the member twice.
+    if (sub.stripeSubscriptionId) continue;
 
     if (sub.rail !== "card") {
       result.storeRailPending += 1;
