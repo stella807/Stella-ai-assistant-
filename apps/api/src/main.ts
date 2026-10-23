@@ -39,6 +39,9 @@ async function main(): Promise<void> {
   // Said at boot, so "Admin access is not configured" can be checked in the
   // deploy log without guessing whether the variable reached this service.
   // Only whether it is set and how long it is — never the key itself.
+  // Which commit is running, so "is the fix deployed?" is answered by the log.
+  const commit = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7);
+  console.log(`[safehubby] Version: ${commit ?? "unknown"}${process.env.RAILWAY_GIT_COMMIT_MESSAGE ? ` — ${process.env.RAILWAY_GIT_COMMIT_MESSAGE.split("\n")[0]}` : ""}.`);
   const adminKey = process.env.SAFEHUBBY_ADMIN_KEY?.trim();
   console.log(adminKey
     ? `[safehubby] Admin key: set (${adminKey.length} characters).`
