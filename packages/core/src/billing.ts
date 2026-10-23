@@ -410,8 +410,10 @@ export const PLANS: Plan[] = [
   {
     id: "premium-plus",
     name: "Premium Plus",
-    monthlyCents: 10499,
-    annualCents: 104999,
+    // Two seats at Premium's per-person price, the same rule Family follows
+    // (6 x $93.99): raised from $104.99, which charged $11 for a second person.
+    monthlyCents: 18798,
+    annualCents: 187998,
     seats: 2,
     // Identical features to Family, by design. The one feature Premium
     // doesn't get — multi-profile — is exactly the one that makes sense

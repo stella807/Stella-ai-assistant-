@@ -36,7 +36,7 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   // errand minimum (see errand-tiers.ts); they were 2/10/12/30 at $4.
   free: 1,
   "premium-basic": 4,
-  "premium-plus": 5,
+  "premium-plus": 8,
   family: 25,
   elite: null,
   "elite-signature": null,

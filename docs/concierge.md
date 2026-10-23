@@ -253,13 +253,13 @@ what was bought, and Safehubby pays the runner.
 
 | Plan | No-fee grabs a month | Most it can cost us in runner pay |
 |---|---|---|
-| Free | 2 | $8 |
-| Premium | 10 | $40 of $93.99 |
-| Premium Plus | 12 | $48 of $104.99 |
-| Family | 30 | $120 of $563.94 |
+| Free | 1 | $10 |
+| Premium | 4 | $40 of $93.99 |
+| Premium Plus | 8 | $80 of $187.98 |
+| Family | 25 | $250 of $563.94 |
 | Elite, Signature, Private | No limit | — |
 
-- **The runner is paid the same $4.00 either way.** Only who pays changes.
+- **The runner is paid the same $10.00 either way.** Only who pays changes.
   A test fails if a waived fee ever reduces `assistantPayoutFor`.
 - **Only the quick grab.** An errand is a list and a longer trip and keeps its
   $5.00 fee; a paid subscriber's standard-rate grab is a choice and keeps its.

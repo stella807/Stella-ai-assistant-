@@ -456,22 +456,22 @@ id, so a sweep that runs twice never bills twice.
 
 ## What the plans cost, and why
 
-Premium ($93.99), Premium Plus ($104.99), and Family ($563.94) are all
+Premium ($93.99), Premium Plus ($187.98), and Family ($563.94) are all
 priced at ownership's explicit direction, a deliberate move away from
 anchoring against personal-safety apps (Life360, Noonlight) or the
 mid-market concierge-app band this ladder used before. The one rule every
 round of this ladder has still held: seats and price climb together, never
 seats-up-price-down (see the seat-ordering test in `billing.test.ts`,
-scoped to exclude only Elite) — but Family's own per-seat number is no
-longer a discount against Premium Plus's ($93.99/seat against Premium
-Plus's $52.495/seat). See the full rationale in
+scoped to exclude only Elite). Every non-Elite plan is now the same $93.99
+per person: Premium for one, Premium Plus for two ($187.98), Family for six
+($563.94). See the full rationale in
 `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
 | Premium | $93.99 | $939.99 | 1 |
-| Premium Plus | $104.99 | $1,049.99 | 2 |
+| Premium Plus | $187.98 | $1,879.98 | 2 |
 | Family | $563.94 | $5,639.99 | 6 |
 | Elite (entry rung, live) | $1,555.00 | $15,549.99 | 1 |
 
