@@ -374,5 +374,5 @@ export async function describeStripeAccount(): Promise<string> {
     { id?: string; settings?: { dashboard?: { display_name?: string } }; business_profile?: { name?: string }; error?: { message?: string } } | null;
   if (!res.ok || !a?.id) return `could not be read (${a?.error?.message ?? res.status})`;
   const name = a.settings?.dashboard?.display_name ?? a.business_profile?.name ?? "unnamed";
-  return `${a.id} "${name}", ${key()!.startsWith("sk_live_") ? "live" : "test"} mode`;
+  return `${a.id} "${name}", ${/^(sk|rk)_live_/.test(key()) ? "live" : "test"} mode`;
 }

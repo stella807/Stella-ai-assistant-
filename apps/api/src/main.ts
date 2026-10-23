@@ -46,8 +46,12 @@ async function main(): Promise<void> {
   // Which payment keys this service can see — names and modes only, never the
   // values. Stripe needs both keys; with either missing, cards fall back to
   // PayPal, which otherwise looks like Stripe silently not working.
+  // A restricted secret key (rk_) works the same as a full one (sk_).
   const mode = (v: string | undefined, live: string, test: string) =>
-    !v?.trim() ? "MISSING" : v.trim().startsWith(live) ? "live" : v.trim().startsWith(test) ? "test" : "set, but not a recognised key";
+    !v?.trim() ? "MISSING"
+      : [live, live.replace("sk_", "rk_")].some((p) => v.trim().startsWith(p)) ? "live"
+      : [test, test.replace("sk_", "rk_")].some((p) => v.trim().startsWith(p)) ? "test"
+      : "set, but not a recognised key";
   console.log(`[safehubby] Stripe: STRIPE_SECRET_KEY ${mode(process.env.STRIPE_SECRET_KEY, "sk_live_", "sk_test_")}, `
     + `STRIPE_PUBLISHABLE_KEY ${mode(process.env.STRIPE_PUBLISHABLE_KEY ?? process.env.VITE_STRIPE_PUBLISHABLE_KEY, "pk_live_", "pk_test_")}, `
     + `STRIPE_WEBHOOK_SECRET ${process.env.STRIPE_WEBHOOK_SECRET?.trim() ? "set" : "MISSING"}.`);
