@@ -470,9 +470,22 @@ Included assistant hours each month: Premium 2, Premium Plus 4, Family 8,
 Elite 20, Elite Signature 50, Elite Private 200. Hours beyond that bill at
 $45. Each cap keeps the hours a plan gives away (paid to the assistant at
 $35) well under what the plan brings in. Basic, at $39, is the everyday way in: the safety basics,
-a $35 monthly errand credit that pays the runner's fee on any errand — a
-grocery run, a restaurant order, a snack to a hospital bed — and an assistant
-by the hour. The food itself is always the customer's. Free is offered
+free food pickups — a $35 monthly credit that pays the runner's fee on a
+snack, a restaurant or takeout order, or a grocery run — and an assistant by
+the hour. The food itself is always the customer's.
+
+**Basic is for members 65 and over.** Joining it takes a date of birth and a
+photo of a government ID (`POST /api/account/senior-id`). Membership opens on
+submission; staff review the ID (`GET /api/admin/senior-ids`, then
+`POST /api/admin/senior-ids/:travelerId/review`), and a rejected ID ends the
+food credit at once. See `packages/core/src/senior.ts`.
+
+**Pharmacy pickups are billed** at a flat $29.99, not by the hour or mile,
+plus the medication. The credit never pays for them. On a very expensive
+prescription the fee rises just enough to cover the card's cut of the hold.
+
+**Every other plan's free errands are built but switched off**
+(`plan-free-errands`), so only Basic shows free errands for now. Free is offered
 again for the safety basics alone. See the full rationale in
 `packages/core/src/billing.ts`.
 

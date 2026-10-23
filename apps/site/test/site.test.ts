@@ -75,27 +75,25 @@ describe("the marketing site", () => {
     }
   });
 
-  it("prices a grab from $0, because the entry plan includes it", () => {
-    // Said only because it is true: the app charges no fee on the first grabs
-    // of the month on Premium, the cheapest plan that can order an errand
-    // while Free's are paused. If the allowance ever goes, this fails rather
-    // than leaving the page promising a price nobody can get.
-    expect(startingPriceCents("grab-something")).toBe(0);
-    expect(INCLUDED_GRABS_ENTRY).toBeGreaterThan(0);
+  it("never promises a $0 grab while plans' free errands are paused", () => {
+    // Every plan's free grabs are switched off (`plan-free-errands`); only
+    // Basic's food credit, for members 65 and over, pays for errands. The
+    // page must not offer a price nobody can get.
+    expect(INCLUDED_GRABS_ENTRY).toBe(0);
+    expect(startingPriceCents("grab-something")).toBeGreaterThan(0);
     for (const lang of LANGS) {
       const fromWord = lang === "en" ? "from" : "desde";
-      expect(pages[lang], `grab from $0 in ${lang}`).toContain(`${fromWord} $0`);
-      expect(pages[lang], `allowance in ${lang}`).toContain(String(INCLUDED_GRABS_ENTRY));
+      expect(pages[lang], `no grab from $0 in ${lang}`).not.toContain(`${fromWord} $0`);
     }
   });
 
-  it("lists the four errand sizes with the fee the app charges for each", () => {
+  it("lists the five errand sizes with the fee the app charges for each", () => {
     for (const lang of LANGS) {
       for (const row of errandTierRows(lang)) {
         expect(pages[lang], `${row.id} in ${lang}`).toContain(money(row.feeCents));
         expect(pages[lang], `${row.label} in ${lang}`).toContain(row.label);
       }
-      expect(errandTierRows(lang)).toHaveLength(4);
+      expect(errandTierRows(lang)).toHaveLength(5);
     }
     // Dearer work costs more, in the order the list reads.
     const fees = errandTierRows("en").map((r) => r.feeCents);

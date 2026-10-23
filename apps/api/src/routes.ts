@@ -72,6 +72,7 @@ import {
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
   withholdingFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
+  SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
 import type {
   PreAuthorization,
@@ -262,6 +263,17 @@ function credentialsFrom(body: any, now: Date): Credential[] | undefined {
 /** Plan and display name for the signed-in actor, used by the fulfilment paths. */
 function planOf(ctx: Ctx, userId: string): PlanId {
   return (ctx.store.data.travelers.find((t) => t.id === userId)?.planId ?? "free") as PlanId;
+}
+function seniorEligible(ctx: Ctx, userId: string): boolean {
+  return isSeniorEligible(ctx.store.data.travelers.find((t) => t.id === userId)?.seniorId);
+}
+/** The member's own view of their senior ID: never the document itself. */
+function seniorIdView(check: SeniorIdCheck | undefined) {
+  if (!check) return { status: "none" as const, minAge: SENIOR_MIN_AGE };
+  return {
+    status: check.status, birthDate: check.birthDate, submittedAt: check.submittedAt, minAge: SENIOR_MIN_AGE,
+    ...(check.note ? { note: check.note } : {}),
+  };
 }
 function nameOf(ctx: Ctx, userId: string): string {
   return ctx.store.data.travelers.find((t) => t.id === userId)?.displayName ?? "Safehubby rider";
@@ -1807,6 +1819,9 @@ export const routes: Record<string, Handler> = {
     if (isElitePlan(plan.id) && !eliteOpen(ctx)) {
       throw new HttpError(404, "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members.");
     }
+    if (plan.id === "basic" && !seniorEligible(ctx, me)) {
+      throw new HttpError(409, `Basic is for members ${SENIOR_MIN_AGE} and over. Add your ID to join it.`);
+    }
     const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
     try {
       const customerId = await ensureStripeCustomer({
@@ -1982,6 +1997,31 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     const traveler = ctx.store.data.travelers.find((t) => t.id === me);
     return { address: traveler?.homeAddress ?? null };
+  },
+
+  /** Basic is for members 65 and over: a date of birth and a photo of an ID. */
+  "GET /api/account/senior-id": (ctx) => {
+    const me = actor(ctx);
+    return seniorIdView(ctx.store.data.travelers.find((t) => t.id === me)?.seniorId);
+  },
+
+  "POST /api/account/senior-id": (ctx, _p, body) => {
+    const me = actor(ctx);
+    const now = ctx.now();
+    const input = {
+      birthDate: String(body?.birthDate ?? "").trim(),
+      document: {
+        base64: String(body?.document?.base64 ?? ""), mimeType: String(body?.document?.mimeType ?? ""),
+        fileName: String(body?.document?.fileName ?? ""), uploadedAt: now.toISOString(),
+      },
+    };
+    try { validateSeniorId(input, now); } catch (e) { throw new HttpError(400, (e as Error).message); }
+    const check: SeniorIdCheck = { ...input, status: "submitted", submittedAt: now.toISOString() };
+    ctx.store.update((db) => {
+      const t = db.travelers.find((x) => x.id === me);
+      if (t) t.seniorId = check;
+    });
+    return seniorIdView(check);
   },
 
   "POST /api/account/address": (ctx, _p, body) => {
@@ -2526,6 +2566,9 @@ export const routes: Record<string, Handler> = {
     if (plan.monthlyCents > 0 && platform === "web" && !paidPlansOpen()) {
       throw new HttpError(409, flagNote("paid-plans"));
     }
+    if (plan.id === "basic" && !seniorEligible(ctx, me)) {
+      throw new HttpError(409, `Basic is for members ${SENIOR_MIN_AGE} and over. Add your ID to join it.`);
+    }
     catchUpBilling(ctx);
     const existing = subscriptionOf(ctx, me);
 
@@ -3028,7 +3071,7 @@ export const routes: Record<string, Handler> = {
     const errandFee = input.errandTier ? errandFeeCents(input.errandTier, input.spendCapCents) : 0;
     const creditCents = feeIncluded ? 0 : errandCreditCover({
       planId, category: input.category, errandTier: input.errandTier, feeCents: errandFee,
-      creditUsedThisMonth: errandCreditUsed(ctx, me),
+      creditUsedThisMonth: errandCreditUsed(ctx, me), seniorEligible: seniorEligible(ctx, me),
     });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
@@ -3145,7 +3188,7 @@ export const routes: Record<string, Handler> = {
     const errandFee = input.errandTier ? errandFeeCents(input.errandTier, input.spendCapCents) : 0;
     const creditCents = feeIncluded ? 0 : errandCreditCover({
       planId: planOf(ctx, me), category: input.category, errandTier: input.errandTier, feeCents: errandFee,
-      creditUsedThisMonth: errandCreditUsed(ctx, me),
+      creditUsedThisMonth: errandCreditUsed(ctx, me), seniorEligible: seniorEligible(ctx, me),
     });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
@@ -3677,6 +3720,32 @@ export const routes: Record<string, Handler> = {
    * first account, since none exists yet to hold `write`) or by an existing
    * owner — see `requireAdmin`.
    */
+  /** Senior IDs waiting on a look, with the document, for staff only. */
+  "GET /api/admin/senior-ids": (ctx) => {
+    requireAdmin(ctx, "operations");
+    return ctx.store.data.travelers.filter((t) => t.seniorId).map((t) => ({
+      travelerId: t.id, name: t.displayName, email: t.email, planId: t.planId, ...t.seniorId!,
+    }));
+  },
+
+  /** Approve or reject a senior ID. A rejection ends Basic's errand credit at once. */
+  "POST /api/admin/senior-ids/:travelerId/review": (ctx, p, body) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "travelerId");
+    const traveler = ctx.store.data.travelers.find((t) => t.id === id);
+    if (!traveler?.seniorId) throw notFound("Senior ID");
+    const approve = body?.approve === true;
+    const note = String(body?.note ?? "").trim().slice(0, 300);
+    if (!approve && !note) throw new HttpError(400, "Say why the ID was rejected, so the member can fix it.");
+    ctx.store.update((db) => {
+      const t = db.travelers.find((x) => x.id === id)!;
+      t.seniorId = { ...t.seniorId!, status: approve ? "approved" : "rejected", reviewedAt: ctx.now().toISOString(),
+        ...(approve ? {} : { note }) };
+      if (approve) delete t.seniorId.note;
+    });
+    return seniorIdView(ctx.store.data.travelers.find((x) => x.id === id)!.seniorId);
+  },
+
   "POST /api/admin/master-accounts": async (ctx, _p, body) => {
     requireAdmin(ctx, "write");
     const name = String(body?.name ?? "").trim();

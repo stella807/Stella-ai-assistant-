@@ -1,12 +1,13 @@
 import { ScreenCover } from "./ScreenCover.tsx";
 import { useCallback, useEffect, useState } from "react";
-import { api, type Billing } from "../api.ts";
+import { api, type Billing, type SeniorIdView } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { BalanceCard } from "./BalanceCard.tsx";
 import { PaymentMethodCard } from "./PaymentMethodCard.tsx";
 import { PlanPicker } from "./PlanPicker.tsx";
 import { StripeCheckoutForm } from "./StripeCheckoutForm.tsx";
 import { RenewalTermsGate } from "./RenewalTermsGate.tsx";
+import { SeniorIdForm } from "./SeniorIdForm.tsx";
 
 import { money } from "../money.ts";
 import { PlanName } from "../app/plan-name.tsx";
@@ -38,6 +39,8 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   const [stripeCheckout, setStripeCheckout] = useState(false);
   /** A paid plan being paid for through Stripe Checkout. */
   const [checkingOut, setCheckingOut] = useState<{ planId: string; cadence: "monthly" | "annual" } | null>(null);
+  /** Basic chosen without an ID on file: the ID form comes first. */
+  const [needsId, setNeedsId] = useState<{ choice: { planId: string; cadence: "monthly" | "annual" }; id: SeniorIdView } | null>(null);
 
   useEffect(() => {
     api.stripeConfig().then((c) => setStripeCheckout(c.ready)).catch(() => {});
@@ -136,12 +139,25 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
           )}
         </div>
 
-        {showPlans && !pending && (
+        {showPlans && needsId && (
+          <SeniorIdForm minAge={needsId.id.minAge} rejectedNote={needsId.id.status === "rejected" ? needsId.id.note : undefined}
+            onCancel={() => setNeedsId(null)}
+            onDone={() => { setPending(needsId.choice); setNeedsId(null); }} />
+        )}
+
+        {showPlans && !pending && !needsId && (
           <PlanPicker currentPlanId={currentPlanId} busy={busy}
             // Every choice goes through the gate, which asks the server
             // whether this offer needs a disclosure and waves through the
             // ones that do not.
-            onChoose={(planId, cadence) => setPending({ planId, cadence })} />
+            onChoose={(planId, cadence) => {
+              if (planId !== "basic") return setPending({ planId, cadence });
+              // Basic is for elderly members: an ID on file first.
+              api.seniorId().then((id) => {
+                if (id.status === "submitted" || id.status === "approved") setPending({ planId, cadence });
+                else setNeedsId({ choice: { planId, cadence }, id });
+              }).catch((e) => setError(e instanceof Error ? e.message : t("billing.somethingWrong")));
+            }} />
         )}
 
         {showPlans && pending && (

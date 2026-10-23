@@ -3,12 +3,12 @@ import { resetFlags, setFlag } from "../src/features.ts";
 
 // These exercise the Free plan's errands, which are paused by default — see
 // `free-errands`. The capability is kept and tested; it is switched on here.
-beforeEach(() => setFlag("free-errands", true));
+beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
 afterEach(() => resetFlags());
 import {
   CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_PROFIT_FLOOR_CENTS, ERRAND_RATE_PER_HOUR_CENTS,
   ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandPayoutCents, errandProfitCents,
-  findErrandTier, validateErrandTier,
+  FOOD_ERRAND_TIERS, PHARMACY_RUN_FEE_CENTS, findErrandTier, validateErrandTier,
 } from "../src/index.ts";
 
 const CAPS = [500, 1_000, 2_000, 4_000, 8_000, 10_000, 25_000, 100_000];
@@ -53,7 +53,8 @@ describe("errand tiers", () => {
   });
 
   it("is not wildly over the floor either — the fee is the smallest that works", () => {
-    for (const t of ERRAND_TIERS) {
+    // Pharmacy is a flat fee by design; see its own test.
+    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
       for (const cap of CAPS) {
         expect(errandProfitCents(t.id, cap), `${t.id} at ${cap}`)
           .toBeLessThan(ERRAND_PROFIT_FLOOR_CENTS + 3);
@@ -62,7 +63,7 @@ describe("errand tiers", () => {
   });
 
   it("charges more fee for a bigger item, because the card charges more", () => {
-    for (const t of ERRAND_TIERS) {
+    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
       expect(errandFeeCents(t.id, 10_000)).toBeGreaterThan(errandFeeCents(t.id, 1_000));
     }
   });
@@ -91,6 +92,19 @@ describe("errand tiers", () => {
     // An hourly booking is priced on hours; a tier there would be a second,
     // disagreeing price.
     expect(() => validateErrandTier("in-building", "wait-with-someone")).toThrow(/errand/i);
+  });
+});
+
+describe("pharmacy pickup", () => {
+  it("is one flat fee, whatever the prescription costs, until the card's cut outgrows it", () => {
+    expect(errandFeeCents("pharmacy", 500)).toBe(PHARMACY_RUN_FEE_CENTS);
+    expect(errandFeeCents("pharmacy", 15_000)).toBe(PHARMACY_RUN_FEE_CENTS);
+    expect(errandFeeCents("pharmacy", 100_000)).toBeGreaterThan(PHARMACY_RUN_FEE_CENTS);
+  });
+
+  it("is not food, so Basic's credit never pays it", () => {
+    expect(FOOD_ERRAND_TIERS).not.toContain("pharmacy");
+    expect(FOOD_ERRAND_TIERS).not.toContain("nearby-store");
   });
 });
 

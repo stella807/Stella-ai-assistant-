@@ -303,6 +303,14 @@ export interface ShareInvite {
   launch: LaunchStatus;
 }
 
+export interface SeniorIdView {
+  status: "none" | "submitted" | "approved" | "rejected";
+  minAge: number;
+  birthDate?: string;
+  submittedAt?: string;
+  note?: string;
+}
+
 export const api = {
   catalog: () => request<{
     drinks: any[]; plans: any[]; rewards: any[]; launch: LaunchStatus;
@@ -336,6 +344,10 @@ export const api = {
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
+  /** Basic is for members 65 and over; the ID that opens it. Never returns the document. */
+  seniorId: () => request<SeniorIdView>("GET", "/api/account/senior-id"),
+  submitSeniorId: (birthDate: string, document: { base64: string; mimeType: string; fileName: string }) =>
+    request<SeniorIdView>("POST", "/api/account/senior-id", { birthDate, document }),
   stripeConfig: () => request<{ ready: true; publishableKey: string } | { ready: false; note: string }>("GET", "/api/payment/stripe/config"),
   stripeCheckoutSession: (planId: string, cadence: "monthly" | "annual") =>
     request<{ client_secret: string }>("POST", "/api/payment/stripe/checkout-session", { planId, cadence }),

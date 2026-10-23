@@ -879,7 +879,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         </div>
         {creditApplied > 0 && (
           <p className="tiny muted" style={{ margin: 0 }}>
-            Your plan's errand credit pays {money(creditApplied)} of it; {money(Math.max(0, creditLeft - creditApplied))} left this month, back on {resetsOn}. Use it for food or anything else brought to you.
+            Your plan's errand credit pays {money(creditApplied)} of it; {money(Math.max(0, creditLeft - creditApplied))} left this month, back on {resetsOn}. It covers food: a snack, a restaurant order or groceries.
           </p>
         )}
         <p className="tiny muted" style={{ margin: 0 }}>

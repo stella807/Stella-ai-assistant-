@@ -100,8 +100,9 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
     note: hours > 0 ? `${hours} hours a month are already paid for by your plan.` : "Plus the spending limit you load for what they buy.",
   });
   const credit = errandCreditFor(id);
-  if (credit > 0) rows.push({ label: "Errand credit", value: `${money(credit)} a month`, note: "Pays the runner's fee on any errand — groceries, a restaurant order, a snack to a hospital bed. You pay only for the food." });
-  if (hasErrands && credit === 0) {
+  if (credit > 0) rows.push({ label: "Free food pickups", value: `${money(credit)} of errands a month`, note: "A snack, a restaurant or takeout order, or a grocery pickup — the runner's fee is paid; you pay only for the food. A pharmacy pickup is a flat fee plus the medication." });
+  // Free errands are paused on every plan but Basic's credit; nothing is shown for a 0.
+  if (hasErrands && credit === 0 && grabs !== 0) {
     rows.push({
       label: "A free errand every month",
       value: grabs === null ? "No limit" : grabs === 0 ? "Not on this plan" : `${grabs} a month`,

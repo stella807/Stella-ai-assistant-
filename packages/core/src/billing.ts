@@ -412,7 +412,7 @@ export const PLANS: Plan[] = [
     annualCents: 39000,
     seats: 1,
     features: BASIC_FEATURES,
-    blurb: "For one person. The safety basics, $35 a month of errands paid for — whatever food you want brought to you at home or in a hospital bed, a grocery run or a restaurant order — and a personal assistant by the hour when you need one.",
+    blurb: "For members 65 and over, with an ID. One person. The safety basics, $35 a month of errands paid for — free food pickups — a snack, a restaurant order or groceries, brought to you at home or in a hospital bed — and a personal assistant by the hour when you need one.",
   },
   {
     id: "premium-basic",

@@ -3,7 +3,7 @@ import { isEnabled } from "./features.ts";
 import {
   isHourlyCategory, isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
 } from "./concierge.ts";
-import { errandFeeCents, type ErrandTierId } from "./errand-tiers.ts";
+import { FOOD_ERRAND_TIERS, errandFeeCents, type ErrandTierId } from "./errand-tiers.ts";
 
 /**
  * Grabs a plan includes every month, with no service fee.
@@ -56,6 +56,8 @@ export function includedGrabAllowanceFor(planId: PlanId): number | null {
   // grab nobody on Free can book has nothing to include. The table keeps the
   // number so turning the flag back on restores it.
   if (planId === "free" && !isEnabled("free-errands")) return 0;
+  // Every plan's free errands are paused for now — see `plan-free-errands`.
+  if (!isEnabled("plan-free-errands")) return 0;
   return INCLUDED_GRABS_PER_MONTH[planId];
 }
 
@@ -132,7 +134,7 @@ export function customerTotalCents(
    ------------------------------------------------------------------------ */
 
 /**
- * A monthly amount of errand fees the plan pays, on any errand tier.
+ * A monthly amount of food-errand fees the plan pays.
  *
  * Basic is how somebody elderly, alone at home or in a hospital bed, gets
  * food brought: a restaurant order, a grocery run, a cafeteria snack. A count
@@ -161,8 +163,13 @@ export function errandCreditUsedIn(tasks: ConciergeTask[], monthStart: Date, mon
 /** How much of this errand's fee the credit pays: up to what is left of the month's. */
 export function errandCreditCover(input: {
   planId: PlanId; category: ConciergeCategory; errandTier?: ErrandTierId; feeCents: number; creditUsedThisMonth: number;
+  /** False once a reviewer rejects the member's senior ID — see senior.ts. */
+  seniorEligible?: boolean;
 }): number {
-  if (input.errandTier === undefined) return 0;
+  if (input.errandTier === undefined || input.seniorEligible === false) return 0;
+  // Food only: a snack, a restaurant order, a grocery run. A pharmacy pickup
+  // is billed at its own flat fee.
+  if (!FOOD_ERRAND_TIERS.includes(input.errandTier)) return 0;
   if (input.category !== INCLUDED_GRAB_CATEGORY && input.category !== "run-errand") return 0;
   const left = Math.max(0, errandCreditFor(input.planId) - input.creditUsedThisMonth);
   return Math.min(input.feeCents, left);

@@ -40,7 +40,24 @@ export const ERRAND_PROFIT_FLOOR_CENTS = 5;
  *  website and the app quote the same floor. */
 export const ERRAND_REFERENCE_CAP_CENTS = 2_000;
 
-export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "wait-in-line";
+export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "wait-in-line" | "pharmacy";
+
+/**
+ * A pharmacy pickup is one flat fee, not priced on the minutes and miles —
+ * at ownership's direction, so somebody collecting a prescription knows the
+ * cost before they ask. The customer pays for the medication as well. The
+ * runner is still paid for the trip as the tier assumes it.
+ *
+ * The flat fee clears the runner's pay and the card cost with room to spare
+ * on any ordinary prescription; on a very expensive one the card's cut of the
+ * hold would outgrow it, so the fee rises to the usual formula there rather
+ * than losing money.
+ */
+export const PHARMACY_RUN_FEE_CENTS = 2_999;
+
+/** The tiers that are food: a snack in the building, a restaurant or takeout
+ *  order, a grocery run. Basic's errand credit covers only these. */
+export const FOOD_ERRAND_TIERS: ErrandTierId[] = ["in-building", "wait-in-line", "shopping-trip"];
 
 export interface ErrandTier {
   id: ErrandTierId;
@@ -59,7 +76,8 @@ export const ERRAND_TIERS: ErrandTier[] = [
   { id: "in-building", label: "In the building", example: "A soda or a snack from the cafeteria or gift shop", minutes: 15, miles: 0, suggestedCapCents: 1000 },
   { id: "nearby-store", label: "Nearby store", example: "A phone charger, snacks, toiletries", minutes: 35, miles: 4, suggestedCapCents: 2500 },
   { id: "shopping-trip", label: "Shopping trip", example: "A blanket, clothes, a few stops", minutes: 60, miles: 10, suggestedCapCents: 7500 },
-  { id: "wait-in-line", label: "Wait in line", example: "A restaurant order or a pharmacy line", minutes: 50, miles: 6, suggestedCapCents: 4000 },
+  { id: "wait-in-line", label: "Wait in line", example: "A restaurant or takeout order", minutes: 50, miles: 6, suggestedCapCents: 4000 },
+  { id: "pharmacy", label: "Pharmacy pickup", example: "A prescription or medicine from the pharmacy", minutes: 50, miles: 6, suggestedCapCents: 4000 },
 ];
 
 export function findErrandTier(id: string): ErrandTier {
@@ -101,6 +119,7 @@ export function errandFeeCents(id: ErrandTierId, spendCapCents: number): number 
   const payout = errandPayoutCents(id);
   const need = payout + CARD_FEE_FIXED_CENTS + ERRAND_PROFIT_FLOOR_CENTS + CARD_FEE_RATE * spendCapCents;
   let fee = Math.ceil(need / (1 - CARD_FEE_RATE));
+  if (id === "pharmacy") fee = Math.max(fee, PHARMACY_RUN_FEE_CENTS);
   while (fee - payout - errandCardCostCents(spendCapCents + fee) < ERRAND_PROFIT_FLOOR_CENTS) fee += 1;
   return fee;
 }

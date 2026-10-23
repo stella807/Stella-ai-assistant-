@@ -10,7 +10,7 @@ import { hashPassword } from "../src/auth.ts";
 import { runFlightSweep, runPayroll, type Ctx } from "../src/routes.ts";
 import { taskCards } from "../src/adapters/cards.ts";
 import {
-  ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
+  ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PHARMACY_RUN_FEE_CENTS, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
   eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
   OPEN_POSITIONS, errandFeeCents, errandPayoutCents, settleCharge, setFlag, type CardIssuingPort,
 } from "@safehubby/core";
@@ -1417,7 +1417,7 @@ describe("secure transport", () => {
 describe("personal concierge", () => {
   // These exercise the Free plan's errands, which are paused by default (the
   // `free-errands` flag). The capability is kept and tested; it is switched on.
-  beforeEach(() => setFlag("free-errands", true));
+  beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
   afterEach(() => resetFlags());
 
   // Austin, TX — inside a launch market (see service-area.ts), so these
@@ -3527,7 +3527,7 @@ describe("push to the guardian", () => {
 describe("push to the assistant", () => {
   // These exercise the Free plan's errands, which are paused by default (the
   // `free-errands` flag). The capability is kept and tested; it is switched on.
-  beforeEach(() => setFlag("free-errands", true));
+  beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
   afterEach(() => resetFlags());
 
   useAdminKey();
@@ -4030,7 +4030,7 @@ describe("nothing is dispatched before the service is live", () => {
 describe("hiring somebody and actually sending them to a job", () => {
   // These exercise the Free plan's errands, which are paused by default (the
   // `free-errands` flag). The capability is kept and tested; it is switched on.
-  beforeEach(() => setFlag("free-errands", true));
+  beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
   afterEach(() => resetFlags());
 
   useAdminKey();
@@ -4889,6 +4889,8 @@ describe("hiring somebody and actually sending them to a job", () => {
   });
 
   describe("grabs included in the plan", () => {
+    /** The smallest real JPEG header — enough for the ID check's file sniffing. */
+    const ID_PHOTO = { base64: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]).toString("base64"), mimeType: "image/jpeg", fileName: "id.jpg" };
     /** A juice to room 412: the smallest thing we do, booked the way the free
      *  plan books it. */
     const bookGrab = (token: string, assistantId: string, over: Record<string, unknown> = {}) =>
@@ -4946,11 +4948,24 @@ describe("hiring somebody and actually sending them to a job", () => {
       expect(Date.parse(status.json.resetsAt)).toBeGreaterThan(clock.getTime());
     });
 
-    it("pays Basic's errands from its $35 credit, on any tier, then bills the rest", async () => {
+    it("opens Basic to seniors with an ID, and pays their food errands from its $35 credit", async () => {
       const kit = await runner();
       await withCard(jordan);
+      const noId = await call("POST", "/api/subscription", { planId: "basic" }, jordan);
+      expect(noId.status).toBe(409);
+      expect(noId.json.error).toMatch(/65 and over/);
+      const young = await call("POST", "/api/account/senior-id", { birthDate: "1990-01-01", document: ID_PHOTO }, jordan);
+      expect(young.status).toBe(400);
+      const id = await call("POST", "/api/account/senior-id", { birthDate: "1950-03-14", document: ID_PHOTO }, jordan);
+      expect(id.status, JSON.stringify(id.json)).toBe(200);
+      expect(id.json).toMatchObject({ status: "submitted" });
+      expect(JSON.stringify(id.json)).not.toContain(ID_PHOTO.base64);
       const sub = await call("POST", "/api/subscription", { planId: "basic" }, jordan);
       expect(sub.status, JSON.stringify(sub.json)).toBe(200);
+      // A pharmacy pickup is not food: billed at its flat fee, never from the credit.
+      const meds = await call("POST", "/api/concierge/quote", { category: "run-errand", errandTier: "pharmacy",
+        note: "My prescription.", location: IN_TEXAS, spendCapCents: 2_000 }, jordan);
+      expect(meds.json).toMatchObject({ serviceFeeCents: PHARMACY_RUN_FEE_CENTS, errandCreditCents: 0 });
       const groceries = { category: "run-errand", errandTier: "shopping-trip", note: "Groceries for the week.",
         location: IN_TEXAS, spendCapCents: 6_000, acknowledgedDisclosures: true, assistantId: kit };
       const fee = errandFeeCents("shopping-trip", 6_000);
@@ -4971,6 +4986,12 @@ describe("hiring somebody and actually sending them to a job", () => {
       expect(second.json.task.serviceFeeCents).toBe(fee - Math.min(fee, left));
       const status = await call("GET", "/api/concierge/included-grabs", undefined, jordan);
       expect(status.json).toMatchObject({ creditCents: 3_500, creditUsedCents: Math.min(3_500, fee * 2) });
+
+      // A reviewer who finds the ID does not match ends the credit at once.
+      const member = store.data.travelers.find((t) => t.email === "jordan@example.com") ?? store.data.travelers.find((t) => t.seniorId);
+      store.update((db) => { db.travelers.find((t) => t.id === member!.id)!.seniorId!.status = "rejected"; });
+      const after = await call("POST", "/api/concierge/quote", { ...groceries, spendCapCents: 1_000, errandTier: "in-building" }, jordan);
+      expect(after.json.errandCreditCents).toBe(0);
     });
 
     it("gives a cancelled grab back to the month", async () => {

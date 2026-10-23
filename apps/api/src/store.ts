@@ -7,6 +7,7 @@ import type {
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage, PriceOverride,
 } from "@safehubby/core";
+import type { SeniorIdCheck } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
@@ -76,6 +77,8 @@ export interface Traveler {
   clubMember?: boolean;
   /** The club is by invitation: nobody can join without one (Elite carries it). */
   clubInvited?: boolean;
+  /** The ID that opens Basic, the plan for elderly members — see senior.ts. */
+  seniorId?: SeniorIdCheck;
 }
 
 export interface ClubRequest {

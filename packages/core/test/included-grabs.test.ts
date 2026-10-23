@@ -3,7 +3,7 @@ import { resetFlags, setFlag } from "../src/features.ts";
 
 // These exercise the Free plan's errands, which are paused by default — see
 // `free-errands`. The capability is kept and tested; it is switched on here.
-beforeEach(() => setFlag("free-errands", true));
+beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
 afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
@@ -181,7 +181,13 @@ describe("included assistant hours", () => {
 describe("errand credit", () => {
   const base = { planId: "basic" as const, category: "grab-something" as const, creditUsedThisMonth: 0 };
 
-  it("covers any errand tier up to $35 a month, then bills the rest", () => {
+  it("covers food only, and stops when the senior ID is rejected", () => {
+    expect(errandCreditCover({ ...base, errandTier: "pharmacy", feeCents: 2_999 })).toBe(0);
+    expect(errandCreditCover({ ...base, errandTier: "nearby-store", feeCents: 1_800 })).toBe(0);
+    expect(errandCreditCover({ ...base, errandTier: "in-building", feeCents: 1_100, seniorEligible: false })).toBe(0);
+  });
+
+  it("covers any food errand up to $35 a month, then bills the rest", () => {
     const grocery = errandFeeCents("shopping-trip", 5_000);
     expect(errandCreditCover({ ...base, errandTier: "shopping-trip", feeCents: grocery })).toBe(Math.min(grocery, 3_500));
     expect(errandCreditCover({ ...base, errandTier: "wait-in-line", feeCents: 2_600, creditUsedThisMonth: 3_000 })).toBe(500);

@@ -32,6 +32,7 @@ export type FeatureFlag =
   | "insurance-in-place"
   | "free-tier"
   | "free-errands"
+  | "plan-free-errands"
   | "party-supply"
   | "ride-booking-api"
   | "food-ordering-api"
@@ -92,6 +93,14 @@ export const FLAGS: FlagDefinition[] = [
     id: "free-errands",
     enabled: false,
     note: "Errands on the Free plan are paused for now. Free still has check-ins, location sharing and SOS; errands start with Premium.",
+  },
+  {
+    // Every plan's monthly free errands are built and kept, and switched off
+    // at ownership's direction: for now only Basic, the plan for elderly
+    // members, gets errands paid for — through its food-errand credit.
+    id: "plan-free-errands",
+    enabled: false,
+    note: "Free errands on this plan are paused for now.",
   },
   {
     id: "party-supply",
