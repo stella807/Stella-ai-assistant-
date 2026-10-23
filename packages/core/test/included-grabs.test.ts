@@ -146,17 +146,18 @@ describe("while Free's errands are paused", () => {
 describe("included assistant hours", () => {
   const base = { category: "wait-with-someone" as const, includedHoursUsedThisMonth: 0 };
 
-  it("covers every hour from Premium up, however many were used", () => {
-    for (const planId of ["premium-basic", "premium-plus", "family", "elite"] as const) {
-      const r = hourlyServiceFee({ ...base, planId, hours: 8, includedHoursUsedThisMonth: 500 });
-      expect(r, planId).toEqual({ serviceFeeCents: 0, includedHoursUsed: 8 });
-    }
+  it("covers hours up to the plan's monthly allowance, and bills only the rest", () => {
+    const full = serviceFeeFor("wait-with-someone", false, 1, 3);
+    const premium = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 3 });
+    expect(premium.includedHoursUsed).toBe(2);
+    expect(premium.serviceFeeCents).toBe(Math.round(full / 3));
+    const elite = hourlyServiceFee({ ...base, planId: "elite", hours: 3 });
+    expect(elite).toEqual({ serviceFeeCents: 0, includedHoursUsed: 3 });
   });
 
-  it("bills Basic for every hour, and never covers armed work", () => {
-    const full = serviceFeeFor("wait-with-someone", false, 1, 3);
-    expect(hourlyServiceFee({ ...base, planId: "basic", hours: 3 })).toEqual({ serviceFeeCents: full, includedHoursUsed: 0 });
-    expect(hourlyServiceFee({ ...base, planId: "elite", hours: 3, armed: true }).includedHoursUsed).toBe(0);
+  it("stops covering once the month's hours are used", () => {
+    const r = hourlyServiceFee({ ...base, planId: "premium-plus", hours: 2, includedHoursUsedThisMonth: 4 });
+    expect(r).toEqual({ serviceFeeCents: serviceFeeFor("wait-with-someone", false, 1, 2), includedHoursUsed: 0 });
   });
 
   it("includes nothing on Free and leaves per-task categories alone", () => {

@@ -50,7 +50,7 @@ import {
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
-  eliteSpendingAllowanceCents, includedConciergeHours, hasUnlimitedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
+  eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
   validatePickupRequest, ARRANGE_RIDE_FEE_CENTS, recordRideCost,
   validateAiDraftInstruction,
@@ -3013,8 +3013,7 @@ export const routes: Record<string, Handler> = {
         : hourly.serviceFeeCents;
     return {
       includedHoursUsed: hourly.includedHoursUsed,
-      // null is no limit: Infinity would not survive JSON.
-      includedHoursRemaining: hasUnlimitedConciergeHours(planId) ? null : Math.max(0, includedConciergeHours(planId) - includedHoursUsed(ctx, me)),
+      includedHoursRemaining: Math.max(0, includedConciergeHours(planId) - includedHoursUsed(ctx, me)),
       quote, disclosures: CONCIERGE_DISCLOSURES,
       serviceFeeCents,
       totalCents: input.spendCapCents + serviceFeeCents,

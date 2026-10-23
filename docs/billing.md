@@ -463,13 +463,13 @@ mid-market concierge-app band this ladder used before. The one rule every
 round of this ladder has still held: seats and price climb together, never
 seats-up-price-down (see the seat-ordering test in `billing.test.ts`,
 scoped to exclude only Elite). Premium is $93.99 for one and Premium Plus
-$187.98 for two; Family is $563.94 for up to six (six times Premium).
+$187.98 for two; Family is $449 for up to six (about $75 a person, a real
+household discount).
 
-**Assistant hours are unlimited from Premium up**, at ownership's direction:
-every hourly booking on Premium, Premium Plus, Family and every Elite rung is
-covered by the plan, and Safehubby pays the assistant $35 for each of those
-hours out of the dues. Armed jobs and hospital days are not covered; they bill
-at their own rates. Basic and Free pay by the hour. Basic, at $29, is the everyday way in: the safety basics,
+Included assistant hours each month: Premium 2, Premium Plus 4, Family 8,
+Elite 20, Elite Signature 50, Elite Private 200. Hours beyond that bill at
+$45. Each cap keeps the hours a plan gives away (paid to the assistant at
+$35) well under what the plan brings in. Basic, at $29, is the everyday way in: the safety basics,
 an assistant by the hour, and one errand a month with no fee. Free is offered
 again for the safety basics alone. See the full rationale in
 `packages/core/src/billing.ts`.
@@ -480,7 +480,7 @@ again for the safety basics alone. See the full rationale in
 | Basic | $29.00 | $290.00 | 1 |
 | Premium | $93.99 | $939.99 | 1 |
 | Premium Plus | $187.98 | $1,879.98 | 2 |
-| Family | $563.94 | $5,639.40 | 6 |
+| Family | $449.00 | $4,490.00 | 6 |
 | Elite (entry rung, live) | $1,555.00 | $15,549.99 | 1 |
 
 **Every paid price includes PayPal's fee.** PayPal keeps 3.49% + $0.49 of

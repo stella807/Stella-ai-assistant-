@@ -185,7 +185,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
                   <td>{DESK_COVERAGE}</td>
                   {/* On call at any hour; the number is the hours already
                       paid for, with more billed at the hourly rate. */}
-                  <td>{DESK_COVERAGE} · {Number.isFinite(includedConciergeHours(p.id)) ? `${includedConciergeHours(p.id)} ${e.hrs}` : e.unlimitedHrs}</td>
+                  <td>{DESK_COVERAGE} · {includedConciergeHours(p.id)} {e.hrs}</td>
                 </tr>
               ))}
             </tbody>
@@ -214,7 +214,6 @@ const ELITE_COPY = {
     desk: "Desk",
     hours: "Assistant",
     hrs: "hrs/mo included",
-    unlimitedHrs: "unlimited hours included",
     features: {
       "private-aviation": "Private jet travel",
       "yacht-charter": "Yacht charter",
@@ -236,7 +235,6 @@ const ELITE_COPY = {
     desk: "Servicio",
     hours: "Asistente",
     hrs: "h/mes incluidas",
-    unlimitedHrs: "horas ilimitadas incluidas",
     features: {
       "private-aviation": "Viajes en jet privado",
       "yacht-charter": "Alquiler de yates",

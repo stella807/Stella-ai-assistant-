@@ -11,7 +11,7 @@ import { resetFlags, setFlag } from "../src/features.ts";
 import { buildRecoveryPlan } from "../src/recovery.ts";
 import { estimateBac } from "../src/bac.ts";
 import { logDrink } from "../src/drinks.ts";
-import { CONCIERGE_CATEGORIES } from "../src/concierge.ts";
+import { CONCIERGE_CATEGORIES, serviceFeeFor } from "../src/concierge.ts";
 
 describe("plans", () => {
   it("never paywalls SOS or location sharing", () => {
@@ -178,9 +178,11 @@ describe("plans", () => {
     // they are priced on somebody's time. So the invariant that matters is
     // the one that keeps a rung solvent: the hours it gives away cost less
     // than the rung charges, with room left for the desk behind them.
+    const hourFee = serviceFeeFor("book-and-buy", false, 1, 1);
     for (const id of ELITE_LADDER) {
       const plan = findPlan(id);
-      expect(includedConciergeHours(id), id).toBe(Number.POSITIVE_INFINITY);
+      expect(includedConciergeHours(id), id).toBeGreaterThan(0);
+      expect(includedConciergeHours(id) * hourFee, id).toBeLessThan(plan.monthlyCents);
       // Still a step up from the household tier, or the ladder makes no sense.
       expect(plan.monthlyCents, id).toBeGreaterThan(findPlan("family").monthlyCents);
     }
@@ -381,6 +383,7 @@ describe("prices cover PayPal's fee", () => {
   // What each plan brought in before the fee was built in. After PayPal's cut,
   // every price must still bring in at least this much.
   const before: Record<string, [number, number]> = {
+    // Family is left out on purpose: it was lowered to $449 for a real family discount.
     "premium-basic": [8999, 89999], "premium-plus": [9999, 99999],
     elite: [150000, 1499999], "elite-signature": [750000, 7499999], "elite-private": [6000000, 59999999],
   };
@@ -393,8 +396,8 @@ describe("prices cover PayPal's fee", () => {
     }
   });
 
-  it("prices Family at six Premiums, and prices every year at ten months", () => {
-    expect(findPlan("family").monthlyCents).toBe(findPlan("premium-basic").monthlyCents * 6);
+  it("gives Family a real discount per person, and prices every year at ten months", () => {
+    expect(findPlan("family").monthlyCents / 6).toBeLessThan(findPlan("premium-basic").monthlyCents * 0.8);
     for (const id of [...Object.keys(before), "basic", "family"]) {
       const plan = findPlan(id as Parameters<typeof findPlan>[0]);
       expect(Math.abs(plan.annualCents - plan.monthlyCents * 10), id).toBeLessThan(100);
