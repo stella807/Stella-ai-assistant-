@@ -36,7 +36,6 @@ const COMPARE_ROWS: { id: string; feature: Feature; labelKey: TranslationKey; ca
   { id: "grab-something", feature: "quick-tasks", labelKey: "compare.grabSomething", capCategory: "grab-something" },
   { id: "run-errand", feature: "quick-tasks", labelKey: "compare.runErrand", capCategory: "run-errand" },
   { id: "personal-concierge", feature: "personal-concierge", labelKey: "compare.concierge" },
-  { id: "desk-tasks", feature: "desk-tasks", labelKey: "compare.deskTasks" },
   { id: "venue-menus", feature: "venue-menus", labelKey: "compare.venueMenus" },
   { id: "bac-estimate", feature: "bac-estimate", labelKey: "compare.bacEstimate" },
   { id: "recovery-plan", feature: "recovery-plan", labelKey: "compare.recoveryPlan" },

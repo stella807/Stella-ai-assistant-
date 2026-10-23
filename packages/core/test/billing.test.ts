@@ -57,7 +57,9 @@ describe("plans", () => {
 
   it("holds Free's errands back while `free-errands` is off, and only those", () => {
     // Paused, not removed: the rest of Free is the safety basics, which are
-    // never behind a paywall, so only the errands move.
+    // never behind a paywall, so only the errands move. (On by default now.)
+    expect(hasFeature("free", "quick-tasks")).toBe(true);
+    setFlag("free-errands", false);
     expect(hasFeature("free", "quick-tasks")).toBe(false);
     for (const f of ["location-sharing", "check-ins", "sos", "ride-booking", "secure-transport"] as const) {
       expect(hasFeature("free", f), f).toBe(true);

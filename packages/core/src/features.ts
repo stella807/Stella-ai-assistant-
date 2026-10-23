@@ -91,7 +91,9 @@ export const FLAGS: FlagDefinition[] = [
   },
   {
     id: "free-errands",
-    enabled: false,
+    // Back on at ownership's direction: Free can have a quick grab or an
+    // errand run, paying the errand fee (one grab a month is free).
+    enabled: true,
     note: "Errands on the Free plan are paused for now. Free still has check-ins, location sharing and SOS; errands start with Premium.",
   },
   {
