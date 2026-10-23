@@ -27,7 +27,7 @@ export const OPEN_POSITIONS: Record<StaffRole, number> = {
   "errand-runner": 0,
   secretary: 0,
   "social-media-manager": 0,
-  lawyer: 1,
+  lawyer: 0,
   "web-developer": 0,
   physician: 0,
   nurse: 0,

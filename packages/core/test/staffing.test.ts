@@ -119,7 +119,8 @@ describe("the pre-launch budget", () => {
       "physician", "nurse", "wingman-club-coordinator",
     ];
     for (const line of budget.lines) {
-      if (DESK.includes(line.role)) expect(line.wagesCents, line.role).toBeGreaterThan(0);
+      // A desk role taken off the plan (headcount 0) costs nothing.
+      if (DESK.includes(line.role) && line.headcount > 0) expect(line.wagesCents, line.role).toBeGreaterThan(0);
       else expect(line.wagesCents, line.role).toBe(0);
     }
     const expected = STAFF_ROLES

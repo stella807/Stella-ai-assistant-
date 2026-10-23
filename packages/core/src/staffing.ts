@@ -344,10 +344,14 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   driver: 8,
   "personal-assistant": 5,
   "errand-runner": 4,
-  secretary: 1,
+  // Lawyer, secretary and web developer were taken off the plan by ownership
+  // to cut fixed costs before revenue: legal work is bought per document, the
+  // app is maintained without a hire, and admin is covered for now. Set back
+  // to 1 to reopen any of them.
+  secretary: 0,
   "social-media-manager": 1,
-  lawyer: 1,
-  "web-developer": 1,
+  lawyer: 0,
+  "web-developer": 0,
   physician: 1,
   nurse: 1,
   "wingman-club-coordinator": 1,

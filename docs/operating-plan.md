@@ -44,9 +44,10 @@ desk work. Pilot numbers are my recommendation, not code.
 
 ## 3. What that costs
 
-**The code's full pre-launch plan: $70,940 for the 9 weeks to 1 December.**
-Insurance $5,600, driver gas stipend $720, and $64,620 of wages. Almost all of
-it is the seven hourly roles, which is why most of them are zero in the pilot.
+**The code's full pre-launch plan: $33,905 for the 9 weeks to 1 December.**
+Insurance $5,150, driver gas stipend $720, and $28,035 of wages. The lawyer,
+secretary and web developer are off the plan; what remains is mostly the social
+media manager and the Elite and club roles, which is why most are zero in the pilot.
 
 **The pilot:**
 
