@@ -6,6 +6,7 @@ import { MasterScreen } from "./components/MasterScreen.tsx";
 import { LanguageProvider } from "./i18n.tsx";
 import "./styles/base.css";
 import "./styles/components.css";
+import "./styles/map.css";
 import "./styles/carousel.css";
 import "./styles/popup-cards.css";
 import "./styles/home.css";

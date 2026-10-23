@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -38,7 +38,7 @@ L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, 
 /** Default export so this module can be `React.lazy`-loaded from LiveMap.tsx
  *  — Leaflet is ~50KB gzipped, not worth paying on every app launch for a
  *  map that most screens never show. */
-export default function LiveMapImpl({ points, height = 200, onPick }: {
+export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: {
   points: { lat: number; lng: number; label?: string }[];
   height?: number;
   /**
@@ -52,64 +52,127 @@ export default function LiveMapImpl({ points, height = 200, onPick }: {
    * live-updating driver location this app does not actually have.
    */
   onPick?: (point: { lat: number; lng: number }) => void;
+  /** Asks the device where it is; shown as a "my location" button when given. */
+  onLocate?: () => Promise<{ lat: number; lng: number } | null>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.Marker[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const [locating, setLocating] = useState(false);
   // Read inside the effect via a ref rather than retriggering the whole map
   // setup on every render — the callback identity is not what should decide
   // whether Leaflet gets torn down and rebuilt.
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
+  const pickable = Boolean(onPick);
+  const hasPoints = points.length > 0;
 
+  // Built once. Moving the pin used to rebuild the whole map, which threw away
+  // the rider's zoom and pan on every tap — the opposite of what placing a pin
+  // precisely needs.
   useEffect(() => {
-    if (!containerRef.current || points.length === 0) return;
-
+    if (!containerRef.current || !hasPoints) return;
     const map = L.map(containerRef.current, {
-      zoomControl: false,
+      zoomControl: pickable,
       attributionControl: true,
-      scrollWheelZoom: false,
+      scrollWheelZoom: pickable,
     });
     mapRef.current = map;
-
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(map);
-
-    const pickable = Boolean(onPickRef.current);
-    const markers = points.map((p, i) =>
-      L.marker([p.lat, p.lng], { draggable: pickable && i === 0 }).addTo(map).bindPopup(p.label ?? ""));
-
-    const pin = markers[0];
-    if (pickable && pin) {
-      pin.on("dragend", () => {
-        const { lat, lng } = pin.getLatLng();
-        onPickRef.current?.({ lat, lng });
-      });
-      map.on("click", (e: L.LeafletMouseEvent) => {
-        pin.setLatLng(e.latlng);
-        onPickRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng });
-      });
-    }
-
-    if (points.length === 1) {
-      map.setView([points[0]!.lat, points[0]!.lng], 15);
-    } else {
-      map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), { padding: [24, 24] });
-    }
-
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      const pin = markersRef.current[0];
+      if (!onPickRef.current || !pin) return;
+      pin.setLatLng(e.latlng);
+      onPickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng });
+    });
+    // Picking a spot means seeing the spot: close in on the pickup rather
+    // than zooming out far enough to fit home in too.
+    if (points.length === 1 || pickable) map.setView([points[0]!.lat, points[0]!.lng], pickable ? 17 : 15);
+    else map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), { padding: [24, 24] });
     return () => {
-      markers.forEach((m) => m.remove());
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
       map.remove();
       mapRef.current = null;
     };
-    // Keyed on the coordinates themselves, not on every render — a fresh
-    // Leaflet map instance per keystroke would leak listeners.
-  }, [JSON.stringify(points)]);
+  }, [hasPoints, pickable]);
 
-  if (points.length === 0) return null;
+  // Markers follow the points without touching the view.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    points.forEach((p, i) => {
+      const existing = markersRef.current[i];
+      if (existing) {
+        existing.setLatLng([p.lat, p.lng]);
+        existing.setPopupContent(p.label ?? "");
+        return;
+      }
+      const m = L.marker([p.lat, p.lng], { draggable: pickable && i === 0 }).addTo(map).bindPopup(p.label ?? "");
+      if (pickable && i === 0) {
+        m.on("dragend", () => {
+          const { lat, lng } = m.getLatLng();
+          onPickRef.current?.({ lat, lng });
+        });
+      }
+      markersRef.current[i] = m;
+    });
+    markersRef.current.splice(points.length).forEach((m) => m.remove());
+    // A pickup that jumps somewhere new — a GPS fix arriving after the map
+    // opened on a fallback — brings the view with it. Small moves the rider
+    // makes by hand leave the view where they put it.
+    const first = points[0]!;
+    const c = map.getCenter();
+    if (pickable && (Math.abs(c.lat - first.lat) > 0.01 || Math.abs(c.lng - first.lng) > 0.01)) {
+      map.setView([first.lat, first.lng], Math.max(map.getZoom(), 16));
+    }
+  }, [JSON.stringify(points), pickable]);
+
+  // Leaflet measures its box once; tell it when the box changes size.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      mapRef.current?.invalidateSize();
+      // Keep the pickup in the middle when the box grows or shrinks.
+      const pin = markersRef.current[0];
+      if (pickable && pin) mapRef.current?.panTo(pin.getLatLng(), { animate: false });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [expanded, height]);
+
+  const locate = async () => {
+    if (!onLocate) return;
+    setLocating(true);
+    try {
+      const fix = await onLocate();
+      if (!fix) return;
+      mapRef.current?.setView([fix.lat, fix.lng], 17);
+      markersRef.current[0]?.setLatLng([fix.lat, fix.lng]);
+      onPickRef.current?.(fix);
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  if (!hasPoints) return null;
 
   return (
-    <div ref={containerRef} style={{ height, borderRadius: "var(--r-btn)", overflow: "hidden" }} aria-label="Map" />
+    <div className={`live-map${expanded ? " live-map-expanded" : ""}`} style={expanded ? undefined : { height }}>
+      <div ref={containerRef} className="live-map-canvas" aria-label="Map" />
+      <div className="live-map-tools">
+        {onLocate && (
+          <button type="button" className="btn live-map-btn" onClick={locate} disabled={locating} aria-label="Go to my location">
+            {locating ? "Finding you…" : "◎ My location"}
+          </button>
+        )}
+        <button type="button" className="btn live-map-btn" onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? "Close full-screen map" : "Open full-screen map"}>
+          {expanded ? "✕ Done" : "⤢ Expand"}
+        </button>
+      </div>
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { defaultCapFor } from "@safehubby/core";
 import type { PickupRequest, PlanId } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 import { LiveMap } from "./LiveMap.tsx";
+import { currentFix } from "../native/location.ts";
 import { TripMapPopup } from "./TripMapPopup.tsx";
 import { money } from "../money.ts";
 
@@ -57,6 +58,12 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   // below. Starts at the GPS fix and only moves when the rider says so.
   const [pin, setPin] = useState(gpsFix);
   useEffect(() => { setPin(gpsFix); }, [gpsFix.lat, gpsFix.lng]);
+  // No fix passed in means the pin starts on a placeholder city; ask the
+  // device once so the map opens where the rider actually is.
+  useEffect(() => {
+    if (pickup) return;
+    currentFix().then((f) => { if (f) setPin({ lat: f.lat, lng: f.lng }); }).catch(() => {});
+  }, [Boolean(pickup)]);
   const at = pin;
 
   const dropoff = homeAddress ?? { lat: 40.7488, lng: -73.9857, label: homeLabel };
@@ -128,11 +135,13 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
           { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel },
         ]}
         onPick={!request ? setPin : undefined}
+        onLocate={!request ? currentFix : undefined}
+        height={!request ? 340 : 200}
       />
       {!request && (
         <p className="tiny muted" style={{ margin: 0 }}>
-          Drag the pin, or tap anywhere on the map, to set exactly where the driver should pick you up — your
-          device's location is only a starting guess.
+          Drag the pin, or tap the map, to set exactly where the driver should pick you up. Tap My location to jump to
+          where you are, and Expand for a full-screen map.
         </p>
       )}
 

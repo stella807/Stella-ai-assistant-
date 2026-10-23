@@ -1,0 +1,30 @@
+/* The pickup map: room to place a pin, a "my location" button, and a
+   full-screen mode for when the inline box is too small to find a door. */
+.live-map {
+  position: relative;
+  border-radius: var(--r-btn);
+  overflow: hidden;
+}
+.live-map-canvas { position: absolute; inset: 0; }
+.live-map-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border-radius: 0;
+  background: var(--ground);
+}
+.live-map-tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500; /* above Leaflet's panes (400), below its popups (700) */
+  display: flex;
+  gap: 8px;
+}
+.live-map-expanded .live-map-tools { top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.live-map-btn {
+  padding: 8px 12px;
+  font-size: 14px;
+  min-height: 40px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
