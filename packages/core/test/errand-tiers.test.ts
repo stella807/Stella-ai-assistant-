@@ -6,8 +6,8 @@ import { resetFlags, setFlag } from "../src/features.ts";
 beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
 afterEach(() => resetFlags());
 import {
-  CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_PROFIT_FLOOR_CENTS, ERRAND_RATE_PER_HOUR_CENTS,
-  ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandPayoutCents, errandProfitCents,
+  CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_RATE_PER_HOUR_CENTS,
+  ERRAND_TIERS, errandCardCostCents, errandMarginCents, errandFeeCents, errandPayoutCents, errandProfitCents,
   FOOD_ERRAND_TIERS, PHARMACY_RUN_FEE_CENTS, findErrandTier, validateErrandTier,
 } from "../src/index.ts";
 
@@ -47,7 +47,7 @@ describe("errand tiers", () => {
     for (const t of ERRAND_TIERS) {
       for (const cap of CAPS) {
         expect(errandProfitCents(t.id, cap), `${t.id} at ${cap}`)
-          .toBeGreaterThanOrEqual(ERRAND_PROFIT_FLOOR_CENTS);
+          .toBeGreaterThanOrEqual(errandMarginCents(t.id));
       }
     }
   });
@@ -57,7 +57,7 @@ describe("errand tiers", () => {
     for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
       for (const cap of CAPS) {
         expect(errandProfitCents(t.id, cap), `${t.id} at ${cap}`)
-          .toBeLessThan(ERRAND_PROFIT_FLOOR_CENTS + 3);
+          .toBeLessThan(errandMarginCents(t.id) + 3);
       }
     }
   });
@@ -76,8 +76,8 @@ describe("errand tiers", () => {
   it("prices the soda: a $2 item in the building costs $2 plus the fee", () => {
     const fee = errandFeeCents("in-building", 2_000);
     expect(fee).toBeGreaterThan(errandPayoutCents("in-building"));
-    // The runner's $10 minimum, plus card costs and five cents.
-    expect(fee).toBeLessThan(1_300);
+    // The runner's $10 minimum, plus card costs and Safehubby's $2.
+    expect(fee).toBeLessThan(1_400);
   });
 
   it("knows each tier by id and refuses a made-up one", () => {

@@ -2,7 +2,7 @@ import type { ConciergeCategory } from "./concierge.ts";
 
 /**
  * Errands priced by how much work they are, with a fee sized so Safehubby
- * keeps five cents on every one.
+ * keeps a real margin on every one: 20% of the runner's pay, at least $2.
  *
  * **The runner.** Paid $24 an hour for the minutes the tier assumes, plus
  * $0.70 a mile because they drive their own car, and never less than $10 for
@@ -13,7 +13,7 @@ import type { ConciergeCategory } from "./concierge.ts";
  * fifteen-minute grab still costs the runner the trip there and back.
  *
  * **The fee.** The customer pays the runner's pay, the card processor's cut,
- * and five cents. The card cut is a percentage of the *whole* hold — item and
+ * and Safehubby's margin (`ERRAND_MARGIN_RATE`). The card cut is a percentage of the *whole* hold — item and
  * fee together — so a flat fee sized for a $2 soda loses money on a $100
  * shop. The fee is worked out from the spend cap actually chosen, which also
  * means somebody buying a larger item pays for the processing of a larger
@@ -36,6 +36,16 @@ export const ERRAND_MILEAGE_CENTS = 70;
 export const CARD_FEE_RATE = 0.029;
 export const CARD_FEE_FIXED_CENTS = 30;
 export const ERRAND_PROFIT_FLOOR_CENTS = 5;
+/**
+ * What Safehubby keeps on an errand, on top of the runner's pay and the card
+ * fee: 20% of the runner's pay, never under $2. At ownership's direction —
+ * five cents left nothing to run the service on, and even with this the fee
+ * stays under what DoorDash, Uber Eats and TaskRabbit charge for the same trip.
+ */
+export const ERRAND_MARGIN_RATE = 0.2;
+export const ERRAND_MARGIN_MIN_CENTS = 200;
+export const errandMarginCents = (id: ErrandTierId): number =>
+  Math.max(ERRAND_MARGIN_MIN_CENTS, Math.round(errandPayoutCents(id) * ERRAND_MARGIN_RATE));
 /** The purchase every "from $X" errand price is quoted against, so the
  *  website and the app quote the same floor. */
 export const ERRAND_REFERENCE_CAP_CENTS = 2_000;
@@ -53,7 +63,7 @@ export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "w
  * hold would outgrow it, so the fee rises to the usual formula there rather
  * than losing money.
  */
-export const PHARMACY_RUN_FEE_CENTS = 2_999;
+export const PHARMACY_RUN_FEE_CENTS = 3_499;
 
 /** The tiers that are food: a snack in the building, a restaurant or takeout
  *  order, a grocery run. Basic's errand credit covers only these. */
@@ -117,10 +127,11 @@ export function errandCardCostCents(holdCents: number): number {
  */
 export function errandFeeCents(id: ErrandTierId, spendCapCents: number): number {
   const payout = errandPayoutCents(id);
-  const need = payout + CARD_FEE_FIXED_CENTS + ERRAND_PROFIT_FLOOR_CENTS + CARD_FEE_RATE * spendCapCents;
+  const margin = errandMarginCents(id);
+  const need = payout + CARD_FEE_FIXED_CENTS + margin + CARD_FEE_RATE * spendCapCents;
   let fee = Math.ceil(need / (1 - CARD_FEE_RATE));
   if (id === "pharmacy") fee = Math.max(fee, PHARMACY_RUN_FEE_CENTS);
-  while (fee - payout - errandCardCostCents(spendCapCents + fee) < ERRAND_PROFIT_FLOOR_CENTS) fee += 1;
+  while (fee - payout - errandCardCostCents(spendCapCents + fee) < margin) fee += 1;
   return fee;
 }
 
