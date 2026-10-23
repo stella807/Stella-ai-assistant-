@@ -1320,3 +1320,6 @@ label:has(> input[type="checkbox"]) {
 /* The "← Back" link above every screen but home: sits on the left, sized to
    its words rather than stretched across the column. */
 .back-button { align-self: flex-start; padding-left: 4px; }
+
+/* File pickers size to their filename; keep them inside narrow forms. */
+input[type="file"] { max-width: 100%; min-width: 0; box-sizing: border-box; }

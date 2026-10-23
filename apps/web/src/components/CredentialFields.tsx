@@ -55,8 +55,10 @@ export function CredentialFields({ value, onChange, lang }: {
     const { base64, mimeType } = await readFileAsBase64(file);
     onChange({ ...value, document: { base64, mimeType, fileName: file.name } });
   };
+  // min-width 0: a fieldset otherwise grows to its widest input (the file
+  // picker) and spills past the form on a phone.
   return (
-    <fieldset className="card card-quiet stack" style={{ gap: 8 }}>
+    <fieldset className="card card-quiet stack" style={{ gap: 8, minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
       <legend className="small"><strong>{k.title}</strong></legend>
       <div className="field">
         <label htmlFor={`${id}-number`}>{k.number}</label>
