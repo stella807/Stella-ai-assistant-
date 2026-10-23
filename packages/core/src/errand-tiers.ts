@@ -4,7 +4,7 @@ import type { ConciergeCategory } from "./concierge.ts";
  * Errands priced by how much work they are, with a fee sized so Safehubby
  * keeps a real margin on every one: 20% of the runner's pay, at least $2.
  *
- * **The runner.** Paid $24 an hour for the minutes the tier assumes, plus
+ * **The runner.** Paid $10.50 an hour (Puerto Rico minimum wage) for the minutes the tier assumes, plus
  * $0.70 a mile because they drive their own car, and never less than $10 for
  * an errand. Raised from $16 at ownership's direction to sit near what
  * TaskRabbit errand Taskers earn (about $28 an hour in its 2026 cost guide,
@@ -27,7 +27,10 @@ import type { ConciergeCategory } from "./concierge.ts";
  * one place to change.
  */
 
-export const ERRAND_RATE_PER_HOUR_CENTS = 2_400;
+/** Puerto Rico's minimum wage ($10.50 since July 2024), at ownership's
+ *  direction — was $24. The mileage and the $10 floor per errand stay, so a
+ *  short trip still pays enough to be worth making. */
+export const ERRAND_RATE_PER_HOUR_CENTS = 1_050;
 /** The least any errand pays the runner, however short. */
 export const ERRAND_MIN_PAYOUT_CENTS = 1_000;
 /** IRS standard mileage rate. They drive their own car and are not reimbursed
@@ -63,7 +66,7 @@ export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "g
  * hold would outgrow it, so the fee rises to the usual formula there rather
  * than losing money.
  */
-export const PHARMACY_RUN_FEE_CENTS = 3_499;
+export const PHARMACY_RUN_FEE_CENTS = 1_999;
 
 /** The tiers that are food: a snack in the building, a restaurant or takeout
  *  order, a grocery run. Basic's errand credit covers only these. */
