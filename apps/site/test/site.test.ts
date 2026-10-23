@@ -88,13 +88,13 @@ describe("the marketing site", () => {
     }
   });
 
-  it("lists the five errand sizes with the fee the app charges for each", () => {
+  it("lists the six errand sizes with the fee the app charges for each", () => {
     for (const lang of LANGS) {
       for (const row of errandTierRows(lang)) {
         expect(pages[lang], `${row.id} in ${lang}`).toContain(money(row.feeCents));
         expect(pages[lang], `${row.label} in ${lang}`).toContain(row.label);
       }
-      expect(errandTierRows(lang)).toHaveLength(5);
+      expect(errandTierRows(lang)).toHaveLength(6);
     }
     // Dearer work costs more, in the order the list reads.
     const fees = errandTierRows("en").map((r) => r.feeCents);

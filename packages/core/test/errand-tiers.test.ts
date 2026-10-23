@@ -128,3 +128,13 @@ describe("suggested caps", () => {
     expect(ERRAND_TIERS[0]!.suggestedCapCents).toBeLessThan(ERRAND_TIERS[2]!.suggestedCapCents);
   });
 });
+
+describe("grocery drop-off", () => {
+  it("costs a fraction of a shopping trip, still keeps a margin, and counts as food", async () => {
+    const { errandFeeCents: fee, errandProfitCents: profit, FOOD_ERRAND_TIERS: food } = await import("../src/index.ts");
+    expect(fee("grocery-pickup", 1_000)).toBeLessThan(fee("shopping-trip", 7_500) / 1.5);
+    expect(fee("grocery-pickup", 1_000)).toBeLessThan(2_200);
+    expect(profit("grocery-pickup", 1_000)).toBeGreaterThanOrEqual(200);
+    expect(food).toContain("grocery-pickup");
+  });
+});

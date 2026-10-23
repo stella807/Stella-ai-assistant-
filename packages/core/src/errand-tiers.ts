@@ -50,7 +50,7 @@ export const errandMarginCents = (id: ErrandTierId): number =>
  *  website and the app quote the same floor. */
 export const ERRAND_REFERENCE_CAP_CENTS = 2_000;
 
-export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "wait-in-line" | "pharmacy";
+export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "grocery-pickup" | "wait-in-line" | "pharmacy";
 
 /**
  * A pharmacy pickup is one flat fee, not priced on the minutes and miles —
@@ -67,7 +67,7 @@ export const PHARMACY_RUN_FEE_CENTS = 3_499;
 
 /** The tiers that are food: a snack in the building, a restaurant or takeout
  *  order, a grocery run. Basic's errand credit covers only these. */
-export const FOOD_ERRAND_TIERS: ErrandTierId[] = ["in-building", "wait-in-line", "shopping-trip"];
+export const FOOD_ERRAND_TIERS: ErrandTierId[] = ["in-building", "wait-in-line", "shopping-trip", "grocery-pickup"];
 
 export interface ErrandTier {
   id: ErrandTierId;
@@ -86,6 +86,11 @@ export const ERRAND_TIERS: ErrandTier[] = [
   { id: "in-building", label: "In the building", example: "A soda or a snack from the cafeteria or gift shop", minutes: 15, miles: 0, suggestedCapCents: 1000 },
   { id: "nearby-store", label: "Nearby store", example: "A phone charger, snacks, toiletries", minutes: 35, miles: 4, suggestedCapCents: 2500 },
   { id: "shopping-trip", label: "Shopping trip", example: "A blanket, clothes, a few stops", minutes: 60, miles: 10, suggestedCapCents: 7500 },
+  // The cheap way to get groceries: the customer orders and pays in the
+  // store's own pickup service, and the runner only collects and delivers —
+  // no shopping, so half the time of a shopping trip. The limit is for
+  // anything extra at the counter (a bag fee, a forgotten item).
+  { id: "grocery-pickup", label: "Grocery drop-off", example: "Groceries you ordered for store pickup, collected and brought to you", minutes: 30, miles: 6, suggestedCapCents: 1000 },
   { id: "wait-in-line", label: "Wait in line", example: "A restaurant or takeout order", minutes: 50, miles: 6, suggestedCapCents: 4000 },
   { id: "pharmacy", label: "Pharmacy pickup", example: "A prescription or medicine from the pharmacy", minutes: 50, miles: 6, suggestedCapCents: 4000 },
 ];
