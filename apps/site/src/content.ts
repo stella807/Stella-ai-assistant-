@@ -1,8 +1,8 @@
 import {
   CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, INCLUDED_GRABS_PER_MONTH, LAUNCH_DISCOUNT_RATE,
-  LAUNCH_WINDOW_END, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
+  LAUNCH_WINDOW_END, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
-  OPEN_POSITIONS, isEnabled, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
+  OPEN_POSITIONS, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
 
 /**
@@ -275,6 +275,8 @@ const liveDate = (lang: Lang) => formatDate(SERVICE_LIVE_AT, lang);
 const discountUntil = (lang: Lang) => formatDate(LAUNCH_WINDOW_END, lang);
 const discountPercent = Math.round(LAUNCH_DISCOUNT_RATE * 100);
 const paRate = money(PA_HOURLY_RATE_CENTS);
+const hospitalDay = money(HOSPITAL_DAY_PAYOUT_CENTS);
+const armedRate = money(ARMED_HOURLY_PAYOUT_CENTS);
 const tierPays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
 /** What an errand runner is paid per task, as the span the four sizes cover. */
 const errandPayRange = `${money(Math.min(...tierPays))} to ${money(Math.max(...tierPays))}`;
@@ -286,15 +288,6 @@ const errandMileage = money(ERRAND_MILEAGE_CENTS);
  *  errands too, are the role to point people at. */
 export const ERRAND_RUNNERS_HIRING = OPEN_POSITIONS["errand-runner"] > 0;
 
-/**
- * The insurance promise, said only when it is true. Liability cover for the
- * people we hire is a promise to somebody deciding whether to take a job, and
- * until a policy is bound (`insurance-in-place`) there is nothing behind it.
- * These return their text when cover is in place and nothing when it is not,
- * so the sentence around them reads correctly either way.
- */
-const insuredEn = (text: string): string => (isEnabled("insurance-in-place") ? text : "");
-const insuredEs = (text: string): string => (isEnabled("insurance-in-place") ? text : "");
 
 const DISCLAIMER = {
   en: "Safehubby LLC is in formation. Safehubby is not an emergency service and never tells anyone they are safe to drive. In an emergency, call your local emergency number first.",
@@ -449,13 +442,13 @@ export const WORK_COPY: Record<Lang, WorkCopy> = {
     htmlLang: "en",
     title: "Work with Safehubby — one flat rate, every market",
     description:
-      `${paRate} an hour for personal assistants in Puerto Rico, Texas and Los Angeles.${insuredEn(" Liability insurance from day one.")}`,
+      `${paRate} an hour for personal assistants in Puerto Rico, Texas and Los Angeles.`,
     otherLang: { href: "/es/trabajo/", label: "Español" },
     heading: "Work with us",
     lede:
       "One flat rate in every market we operate in. We do not pay somebody less for the same job because of where they live.",
-    rate: `${paRate} an hour for a personal assistant`,
-    errand: `${errandPayRange} per errand for errand runners, by size, plus ${errandMileage} a mile${insuredEn(", and liability insurance for everyone on the roster from day one")}.`,
+    rate: `${paRate} an hour for a personal assistant, ${hospitalDay} for a hospital day, and ${armedRate} an hour on armed jobs for licensed assistants`,
+    errand: `${errandPayRange} per errand for errand runners, by size, plus ${errandMileage} a mile. Assistants and errand runners bring their own liability insurance; 10% of pay in Puerto Rico is withheld for Hacienda unless you have an exemption certificate.`,
     cta: "See open roles",
     back: "Safehubby",
   },
@@ -463,13 +456,13 @@ export const WORK_COPY: Record<Lang, WorkCopy> = {
     htmlLang: "es",
     title: "Trabaja con Safehubby — la misma tarifa en todos los mercados",
     description:
-      `${paRate} por hora para asistentes personales en Puerto Rico, Texas y Los Ángeles.${insuredEs(" Seguro de responsabilidad civil desde el primer día.")}`,
+      `${paRate} por hora para asistentes personales en Puerto Rico, Texas y Los Ángeles.`,
     otherLang: { href: "/work/", label: "English" },
     heading: "Trabaja con nosotros",
     lede:
       "La misma tarifa en todos los mercados donde operamos. No le pagamos menos a nadie por el mismo trabajo según dónde viva.",
-    rate: `${paRate} por hora para asistente personal`,
-    errand: `${errandPayRange} por diligencia para quienes las hacen, según el tamaño, más ${errandMileage} por milla${insuredEs(", y seguro de responsabilidad civil para todo el equipo desde el primer día")}.`,
+    rate: `${paRate} por hora para asistente personal, ${hospitalDay} por un día de hospital, y ${armedRate} por hora en trabajos armados para asistentes con licencia`,
+    errand: `${errandPayRange} por diligencia para quienes las hacen, según el tamaño, más ${errandMileage} por milla. Asistentes y mensajeros traen su propio seguro de responsabilidad civil; en Puerto Rico se retiene el 10% del pago para Hacienda, salvo que tengas un certificado de relevo.`,
     cta: "Ver puestos disponibles",
     back: "Safehubby",
   },
