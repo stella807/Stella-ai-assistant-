@@ -76,8 +76,8 @@ describe("errand tiers", () => {
   it("prices the soda: a $2 item in the building costs $2 plus the fee", () => {
     const fee = errandFeeCents("in-building", 2_000);
     expect(fee).toBeGreaterThan(errandPayoutCents("in-building"));
-    // The runner's $10 minimum, plus card costs and Safehubby's $2.
-    expect(fee).toBeLessThan(1_400);
+    // The runner's $10 minimum, plus card costs and Safehubby's $3.50.
+    expect(fee).toBeLessThan(1_500);
   });
 
   it("knows each tier by id and refuses a made-up one", () => {
@@ -98,7 +98,7 @@ describe("errand tiers", () => {
 describe("pharmacy pickup", () => {
   it("is one flat fee, whatever the prescription costs, until the card's cut outgrows it", () => {
     expect(errandFeeCents("pharmacy", 500)).toBe(PHARMACY_RUN_FEE_CENTS);
-    expect(errandFeeCents("pharmacy", 15_000)).toBe(PHARMACY_RUN_FEE_CENTS);
+    expect(errandFeeCents("pharmacy", 4_000)).toBe(PHARMACY_RUN_FEE_CENTS);
     expect(errandFeeCents("pharmacy", 100_000)).toBeGreaterThan(PHARMACY_RUN_FEE_CENTS);
   });
 
