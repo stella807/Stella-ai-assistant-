@@ -341,7 +341,10 @@ export function gasStipendCentsPerDriver(): number {
  * an org chart.
  */
 export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
-  driver: 8,
+  // Rides go through Uber and Lyft for now (see docs/driving.md), so no
+  // drivers are carried on the plan — no insurance, no gas stipend — until
+  // Safehubby dispatches its own. Was 8.
+  driver: 0,
   "personal-assistant": 5,
   "errand-runner": 4,
   // Lawyer, secretary and web developer were taken off the plan by ownership
