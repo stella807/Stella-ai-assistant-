@@ -37,11 +37,13 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   free: 1,
   // Basic carries an errand credit instead — see ERRAND_CREDIT_CENTS.
   basic: 0,
-  "premium-basic": 4,
-  "premium-plus": 8,
-  // Family's price came down to $449, so its allowance follows to stay
-  // under half its dues at the $10 errand minimum.
-  family: 18,
+  // Sized with each plan's included hours so the two together stay under
+  // what the plan brings in after the card fee: Premium 2 x $10 + 2 h x $35
+  // = $90 against $90.96; Premium Plus $40 + $140 against $182.53; Family
+  // $150 + $280 against $435.68.
+  "premium-basic": 2,
+  "premium-plus": 4,
+  family: 15,
   elite: null,
   "elite-signature": null,
   "elite-private": null,

@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { maxCapFor } from "@safehubby/core";
+import {
+  PHARMACY_RUN_FEE_CENTS, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, maxCapFor,
+} from "@safehubby/core";
 import type { ConciergeCategory, Feature, Plan, PlanId } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
-import { dollars } from "../money.ts";
+import { dollars, money } from "../money.ts";
 import { PlanName } from "../app/plan-name.tsx";
 
 /**
@@ -77,6 +79,45 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
               <tr>
                 <td>{t("compare.seats")}</td>
                 {plans.map((p) => <td key={p.id} className="compare-cell">{p.seats}</td>)}
+              </tr>
+              {/* What each plan pays for outright, read off the same core
+                  functions the server charges with. */}
+              <tr>
+                <td>{t("compare.freeErrands")}</td>
+                {plans.map((p) => {
+                  const credit = errandCreditFor(p.id);
+                  const grabs = includedGrabAllowanceFor(p.id);
+                  return (
+                    <td key={p.id} className="compare-cell">
+                      {credit > 0 ? <span className="tiny">{t("compare.freeFood").replace("{amount}", money(credit))}</span>
+                        : grabs === null ? <span className="tiny">{t("compare.noCap")}</span>
+                        : grabs > 0 ? <span className="tiny">{t("compare.perMonth").replace("{n}", String(grabs))}</span>
+                        : <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td>{t("compare.hoursIncluded")}</td>
+                {plans.map((p) => {
+                  const hours = includedConciergeHours(p.id);
+                  return (
+                    <td key={p.id} className="compare-cell">
+                      {hours > 0 ? <span className="tiny">{t("compare.hours").replace("{n}", String(hours))}</span>
+                        : <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>}
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <td>{t("compare.pharmacy")}</td>
+                {plans.map((p) => (
+                  <td key={p.id} className="compare-cell">
+                    {p.features.includes("quick-tasks")
+                      ? <span className="tiny">{t("compare.pharmacyFee").replace("{amount}", money(PHARMACY_RUN_FEE_CENTS))}</span>
+                      : <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>}
+                  </td>
+                ))}
               </tr>
               {COMPARE_ROWS.map((row) => (
                 <tr key={row.id}>

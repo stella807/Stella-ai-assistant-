@@ -326,7 +326,7 @@ export const COPY: Record<Lang, Copy> = {
     whatLede:
       "The person we built this for is in a hospital bed at nine at night, thirsty, with nobody to ask. Everything here starts from that.",
     services: [
-      { title: "Grab something", category: "grab-something", body: `A juice, a charger, a blanket — bought and brought to your room or your door. You pay for the item and a small fee; on Basic, for members 65 and over, food pickups come free each month.` },
+      { title: "Grab something", category: "grab-something", body: `A juice, a charger, a blanket — bought and brought to your room or your door. You pay for the item; ${INCLUDED_GRABS_ENTRY} a month come with no service fee on Premium, more on every plan above it. On Basic, for members 65 and over, food pickups are paid for each month.` },
       { title: "Run an errand", category: "run-errand", body: "Groceries, the bank, the pharmacy — one trip, at a spending cap you set." },
       { title: "Wait with someone", category: "wait-with-someone", body: "A vetted assistant who comes and stays. A hospital wait, a bad night." },
       { title: "Check on someone", category: "check-in-person", body: "Someone goes and looks, then tells you." },
@@ -343,7 +343,7 @@ export const COPY: Record<Lang, Copy> = {
     planBlurbs: {
       free: "Check-ins, location sharing, SOS and ride booking. The safety basics are never behind a paywall.",
       basic: "For members 65 and over. The safety basics, free food pickups each month — a snack, a restaurant order or groceries, at home or in a hospital bed — and a personal assistant by the hour when you need one.",
-      "premium-basic": "Errands from a juice to a shopping trip, and an assistant who waits with someone or checks on them.",
+      "premium-basic": `Errands from a juice to a shopping trip — ${INCLUDED_GRABS_ENTRY} one-item grabs a month with no service fee — and an assistant who waits with someone or checks on them.`,
       "premium-plus": "Everything Premium does, for two people, with no ceiling on what goes on the card.",
       family: "The same service for a whole household, on one account.",
       elite: "A desk that answers 24/7, a concierge physician's retainer included, and jet, villa and yacht booking.",
@@ -394,7 +394,7 @@ export const COPY: Record<Lang, Copy> = {
     whatLede:
       "La persona para quien hicimos esto está en una cama de hospital a las nueve de la noche, con sed, y no tiene a quién pedirle. Todo aquí sale de ahí.",
     services: [
-      { title: "Traer algo", category: "grab-something", body: `Un jugo, un cargador, una frisa — comprado y llevado a tu cuarto o a tu puerta. Pagas el artículo y un cargo pequeño; en Básico, para personas de 65 años o más, los recogidos de comida son gratis cada mes.` },
+      { title: "Traer algo", category: "grab-something", body: `Un jugo, un cargador, una frisa — comprado y llevado a tu cuarto o a tu puerta. Pagas el artículo; ${INCLUDED_GRABS_ENTRY} al mes van sin cargo por servicio en Premium, y más en cada plan superior. En Básico, para personas de 65 años o más, los recogidos de comida se pagan cada mes.` },
       { title: "Hacer una diligencia", category: "run-errand", body: "La compra, el banco, la farmacia — un viaje, con el tope de gasto que pongas." },
       { title: "Acompañar a alguien", category: "wait-with-someone", body: "Un asistente verificado que llega y se queda. Una espera en el hospital, una mala noche." },
       { title: "Pasar a ver a alguien", category: "check-in-person", body: "Alguien va, mira, y te dice." },
@@ -411,7 +411,7 @@ export const COPY: Record<Lang, Copy> = {
     planBlurbs: {
       free: "Registros, ubicación compartida, SOS y viajes. Lo básico de seguridad nunca se cobra.",
       basic: "Para personas de 65 años o más. Lo básico de seguridad, recogidos de comida gratis cada mes — una merienda, un pedido de restaurante o la compra, en casa o en el hospital — y un asistente personal por hora cuando lo necesites.",
-      "premium-basic": "Diligencias desde un jugo hasta un viaje de compras, y un asistente que acompaña a alguien o pasa a verlo.",
+      "premium-basic": `Diligencias desde un jugo hasta un viaje de compras — ${INCLUDED_GRABS_ENTRY} compras de un artículo al mes sin cargo por servicio — y un asistente que acompaña a alguien o pasa a verlo.`,
       "premium-plus": "Todo lo de Premium, para dos personas, sin tope en lo que va en la tarjeta.",
       family: "El mismo servicio para todo un hogar, en una sola cuenta.",
       elite: "Un servicio que contesta 24/7, el retainer de un médico concierge incluido, y reservas de jet, villa y yate.",

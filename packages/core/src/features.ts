@@ -95,11 +95,11 @@ export const FLAGS: FlagDefinition[] = [
     note: "Errands on the Free plan are paused for now. Free still has check-ins, location sharing and SOS; errands start with Premium.",
   },
   {
-    // Every plan's monthly free errands are built and kept, and switched off
-    // at ownership's direction: for now only Basic, the plan for elderly
-    // members, gets errands paid for — through its food-errand credit.
+    // Every plan's monthly free errands. On at ownership's direction: Premium
+    // and up cover everything. Basic's come through its food-errand credit
+    // instead. Kept as a flag so they can be paused in one place.
     id: "plan-free-errands",
-    enabled: false,
+    enabled: true,
     note: "Free errands on this plan are paused for now.",
   },
   {
