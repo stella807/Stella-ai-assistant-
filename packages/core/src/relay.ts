@@ -130,12 +130,14 @@ export interface RelayPrice {
  * work and somebody else for hours they did.
  */
 export function relayPricing(
-  category: ConciergeCategory, relay: Relay, peopleCount = 1,
+  category: ConciergeCategory, relay: Relay, peopleCount = 1, hospitalStay = false,
 ): RelayPrice {
+  // A hospital stay prices each shift at most a hospital day; any other cover
+  // (somebody alone somewhere unsafe overnight) stays hourly.
   const legs = relay.legs.map((leg): RelayLegPrice => ({
     ...leg,
-    serviceFeeCents: serviceFeeFor(category, false, peopleCount, leg.hours),
-    assistantPayoutCents: assistantPayoutFor(category, false, peopleCount, leg.hours),
+    serviceFeeCents: serviceFeeFor(category, false, peopleCount, leg.hours, hospitalStay),
+    assistantPayoutCents: assistantPayoutFor(category, false, peopleCount, leg.hours, hospitalStay),
   }));
   return {
     serviceFeeCents: legs.reduce((sum, l) => sum + l.serviceFeeCents, 0),

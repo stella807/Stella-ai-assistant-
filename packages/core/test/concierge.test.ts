@@ -169,14 +169,23 @@ describe("the service fee — the customer's price, with the margin on top of th
     }
   });
 
-  it("stops a long wait at the hospital-day rate, for pay and price alike", () => {
+  it("stops a hospital stay at the hospital-day rate, for pay and price alike", () => {
     // Past the day rate the hours stop adding: $150 to the caretaker, $195 to the customer.
-    expect(assistantPayoutFor("wait-with-someone", false, 1, 12)).toBe(HOSPITAL_DAY_PAYOUT_CENTS);
-    expect(serviceFeeFor("wait-with-someone", false, 1, 12)).toBe(HOSPITAL_DAY_PRICE_CENTS);
-    expect(serviceFeeFor("wait-with-someone", false, 1, 8)).toBe(HOSPITAL_DAY_PRICE_CENTS);
-    // Short waits are still hourly, and other hourly work has no day cap.
-    expect(serviceFeeFor("wait-with-someone", false, 1, 2)).toBe(2 * PA_CUSTOMER_HOURLY_CENTS);
-    expect(serviceFeeFor("check-in-person", false, 1, 12)).toBe(12 * PA_CUSTOMER_HOURLY_CENTS);
+    expect(assistantPayoutFor("wait-with-someone", false, 1, 12, true)).toBe(HOSPITAL_DAY_PAYOUT_CENTS);
+    expect(serviceFeeFor("wait-with-someone", false, 1, 12, true)).toBe(HOSPITAL_DAY_PRICE_CENTS);
+    expect(serviceFeeFor("wait-with-someone", false, 1, 8, true)).toBe(HOSPITAL_DAY_PRICE_CENTS);
+    expect(serviceFeeFor("wait-with-someone", false, 1, 2, true)).toBe(2 * PA_CUSTOMER_HOURLY_CENTS);
+  });
+
+  it("keeps a wait that is not a hospital stay hourly — somewhere with no security is safety work", () => {
+    expect(serviceFeeFor("wait-with-someone", false, 1, 8)).toBe(8 * PA_CUSTOMER_HOURLY_CENTS);
+    expect(assistantPayoutFor("wait-with-someone", false, 1, 8)).toBe(8 * PA_HOURLY_RATE_CENTS);
+    // The flag means nothing on other work.
+    expect(serviceFeeFor("check-in-person", false, 1, 12, true)).toBe(12 * PA_CUSTOMER_HOURLY_CENTS);
+  });
+
+  it("refuses a hospital stay on anything but waiting with someone", () => {
+    expect(() => validateConciergeRequest(request({ category: "run-errand", hospitalStay: true }))).toThrow(/hospital stay/i);
   });
 
   it("charges the customer the payout grossed up by the margin, never a cut of it", () => {

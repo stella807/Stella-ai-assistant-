@@ -466,6 +466,8 @@ export const api = {
      *  the market named here, and refuses the booking without the agreement. */
     onBehalfOf?: OnBehalfOf; acknowledgedOnBehalf?: boolean;
     hours?: number;
+    /** A wait with someone in hospital, at the hospital-day rate. */
+    hospitalStay?: boolean;
     /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
     flight?: { flightNumber: string; date: string };
   }) =>

@@ -406,6 +406,7 @@ function conciergeInputFrom(body: any): ConciergeTaskInput {
     ...(body?.errandTier === undefined ? {} : { errandTier: String(body.errandTier) as ErrandTierId }),
     ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
     ...(body?.hours === undefined ? {} : { hours: Number(body.hours) }),
+    ...(body?.hospitalStay === true ? { hospitalStay: true } : {}),
     ...(body?.flight === undefined
       ? {}
       : { flight: { flightNumber: String(body.flight?.flightNumber ?? ""), date: String(body.flight?.date ?? "") } }),
@@ -2978,6 +2979,7 @@ export const routes: Record<string, Handler> = {
     // one the older flat quick-task rate still applies.
     const hourly = hourlyServiceFee({
       planId, category: input.category, quickTask: input.quickTask, peopleCount: people, hours,
+      hospitalStay: input.hospitalStay === true,
       includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
     });
     const serviceFeeCents = feeIncluded ? 0
@@ -3061,7 +3063,7 @@ export const routes: Record<string, Handler> = {
     // included-grabs.ts. The fee itself is decided below, after the awaits.
     const assistantPayoutCents = input.errandTier
       ? errandPayoutCents(input.errandTier)
-      : assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked);
+      : assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked, input.hospitalStay === true);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     // Only the partner network gets quoted. Our own roster is not a supplier
@@ -3086,6 +3088,7 @@ export const routes: Record<string, Handler> = {
     const hourly = hourlyServiceFee({
       planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask, peopleCount,
       hours: hoursBooked, includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
+      hospitalStay: input.hospitalStay === true,
     });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
@@ -3177,6 +3180,7 @@ export const routes: Record<string, Handler> = {
           location: input.location, spendCapCents: input.spendCapCents, serviceFeeCents,
           assistantPayoutCents, peopleCount,
           ...(hoursBooked === undefined ? {} : { hoursBooked }),
+          ...(input.hospitalStay === true ? { hospitalStay: true } : {}),
           quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
           ...(!feeIncluded && hourly.includedHoursUsed > 0 ? { includedHoursUsed: hourly.includedHoursUsed } : {}),
           ...(input.errandTier ? { errandTier: input.errandTier } : {}),

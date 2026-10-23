@@ -3,9 +3,10 @@ import { askWords, choiceLabel, type Lang } from "../app/ask-copy.ts";
 import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
-  BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS,
+  BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS,
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, conciergeCategoryLabel,
   defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
+  HOSPITAL_DAY_PRICE_CENTS, HOSPITAL_STAY_CATEGORY, PA_CUSTOMER_HOURLY_CENTS,
   isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
   launchMarketNames, minutesFor, serviceFeeFor, customerServiceFeeFor, isGrabIncluded,
   ERRAND_MILEAGE_CENTS, ERRAND_RATE_PER_HOUR_CENTS, ERRAND_TIERS, LAUNCH_MARKETS, ON_BEHALF_DISCLOSURES,
@@ -140,6 +141,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const [note, setNote] = useState("");
   const [capCents, setCapCents] = useState(() => kind === "errand" ? ERRAND_TIERS[0]!.suggestedCapCents : defaultCapFor(allowed[0] ?? "grab-something", planId));
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
+  /** "Wait with someone" for a patient in hospital: the day rate, not hourly. */
+  const [hospitalStay, setHospitalStay] = useState(false);
   /** The typed cap, kept as text so a half-entered "40" is not parsed as $40
    *  and snapped away while somebody is still typing "40000". */
   const [capEntry, setCapEntry] = useState("");
@@ -304,13 +307,14 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   // priced on hours at all, and passing them would be rejected by the server.
   const hourly = isHourlyCategory(category);
   const bookedHours = hourly ? clampHours(hours) : undefined;
+  const isHospitalStay = hospitalStay && category === HOSPITAL_STAY_CATEGORY;
   const usedThisMonth = includedGrabs?.used ?? Number.POSITIVE_INFINITY;
   const feeIncluded = isGrabIncluded({ planId, category, quickTask: effectiveQuickTask, errandTier: tier, usedThisMonth });
   const serviceFee = customerServiceFeeFor({
     planId, category, quickTask: effectiveQuickTask, errandTier: tier, spendCapCents,
-    hours: bookedHours, usedThisMonth,
+    hours: bookedHours, usedThisMonth, hospitalStay: isHospitalStay,
   });
-  const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours);
+  const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours, isHospitalStay);
   const totalHeld = spendCapCents + serviceFee;
   const resetsOn = includedGrabs
     ? new Date(includedGrabs.resetsAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })
@@ -370,6 +374,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         category, note, location: taskLocation, spendCapCents, quickTask: effectiveQuickTask, errandTier: tier,
         assistantId: assistant.id,
         ...(hourly ? { hours: bookedHours } : {}),
+        ...(isHospitalStay ? { hospitalStay: true } : {}),
         ...(isAirportPickup ? { flight: { flightNumber: flightNumber.trim(), date: flightDate } } : {}),
         ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf: obAgreed } : {}),
       });
@@ -770,12 +775,23 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {/* Hours first, then the card. They are the two halves of an hourly
           booking and they are not the same kind of money — what you are
           paying the person, and what you are handing them to spend. */}
+      {category === HOSPITAL_STAY_CATEGORY && !simple && (
+        <label className="row small" style={{ gap: 8, alignItems: "center" }}>
+          <input type="checkbox" checked={hospitalStay} onChange={(e) => { setHospitalStay(e.target.checked); setRoster(null); }} />
+          <span>
+            This is a hospital stay — sitting with a patient. Day rate: never more than {money(HOSPITAL_DAY_PRICE_CENTS)} for up to {MAX_BOOKED_HOURS} hours.
+          </span>
+        </label>
+      )}
+
       {hourly && !simple && (
         <AmountStepper
           id="concierge-hours"
           label="How long do you need them?"
           unit="hours"
-          hint={`Billed at ${money(PA_HOURLY_RATE_CENTS)}/hr. Book more or less any time before they start.`}
+          hint={isHospitalStay
+            ? `${money(PA_CUSTOMER_HOURLY_CENTS)}/hr, and never more than ${money(HOSPITAL_DAY_PRICE_CENTS)} for the day.`
+            : `Billed at ${money(PA_CUSTOMER_HOURLY_CENTS)}/hr. Book more or less any time before they start.`}
           valueCents={Math.round(clampHours(hours) * 100)}
           scale={{
             minCents: MIN_BOOKED_HOURS * 100,
@@ -846,7 +862,9 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           {hourly
-            ? `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(PA_HOURLY_RATE_CENTS)}/hr.`
+            ? isHospitalStay && serviceFee >= HOSPITAL_DAY_PRICE_CENTS
+              ? `A hospital day: ${clampHours(hours)} hours at the day rate.`
+              : `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(PA_CUSTOMER_HOURLY_CENTS)}/hr.`
             : `Pays your assistant for about ${tier ? findErrandTier(tier).minutes : minutesFor(category, effectiveQuickTask)} minutes of their time.`}
         </p>
         {/* What the person doing the work actually takes home, said plainly to

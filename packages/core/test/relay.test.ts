@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  BOOKED_HOUR_STEP, HOSPITAL_DAY_PAYOUT_CENTS, MAX_BOOKED_HOURS, MAX_RELAY_HOURS,
+  BOOKED_HOUR_STEP, HOSPITAL_DAY_PAYOUT_CENTS, MAX_BOOKED_HOURS, MAX_RELAY_HOURS, PA_HOURLY_RATE_CENTS,
   assistantPayoutFor, planRelay, relayPricing, serviceFeeFor,
 } from "../src/index.ts";
 
@@ -93,9 +93,11 @@ describe("what a relay costs", () => {
     // Sitting with someone in hospital is paid by the day, as caretakers on
     // the island are; a 24-hour stay is shifts, each at most a hospital day.
     const relay = planRelay({ startAt: START, hours: 24 });
-    const price = relayPricing("wait-with-someone", relay, 1);
+    const price = relayPricing("wait-with-someone", relay, 1, true);
     for (const leg of price.legs) expect(leg.assistantPayoutCents).toBeLessThanOrEqual(HOSPITAL_DAY_PAYOUT_CENTS);
-    expect(price.assistantPayoutCents).toBeGreaterThan(0);
+    // Not a hospital stay: safety cover is paid every hour worked.
+    const safety = relayPricing("wait-with-someone", relay, 1);
+    expect(safety.assistantPayoutCents).toBe(24 * PA_HOURLY_RATE_CENTS);
   });
 
   it("costs the same whether a day is covered as one relay or two halves", () => {

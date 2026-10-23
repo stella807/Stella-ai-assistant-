@@ -492,14 +492,18 @@ export const PA_CUSTOMER_HOURLY_CENTS = 4500;
 /**
  * The hospital day: sitting with someone who is in hospital is paid and
  * priced by the day, the way caretakers on the island are (about $125 a day).
- * A "wait with someone" booking never costs more than this, however many
- * hours it runs to the 12-hour maximum — the hourly price stops at the day
- * rate. The caretaker gets $150, above the going rate, and the customer pays
- * $195. Scaled for a bigger household like every other rate.
+ * Only for a "wait with someone" booked as a hospital stay (`hospitalStay`):
+ * the hourly price stops at the day rate, however many hours it runs to the
+ * 12-hour maximum. Any other wait — somebody alone somewhere with no security
+ * — is safety work and stays hourly. The caretaker gets $150, above the going
+ * rate, and the customer pays $195. Scaled for a bigger household like every
+ * other rate.
  */
 export const HOSPITAL_DAY_PAYOUT_CENTS = 15_000;
 export const HOSPITAL_DAY_PRICE_CENTS = 19_500;
-const DAY_RATE_CATEGORY: ConciergeCategory = "wait-with-someone";
+export const HOSPITAL_STAY_CATEGORY: ConciergeCategory = "wait-with-someone";
+const dayRated = (category: ConciergeCategory, hospitalStay?: boolean) =>
+  hospitalStay === true && category === HOSPITAL_STAY_CATEGORY;
 
 /** Bookable in half hours, between one and a full working day. The floor is
  *  an hour because nobody travels to somebody's door for fifteen minutes;
@@ -571,7 +575,7 @@ export function householdMultiplier(peopleCount = 1): number {
  * every market rather than scaling it down to each.
  */
 export function assistantPayoutFor(
-  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number, hospitalStay?: boolean,
 ): number {
   // Hourly work ignores the per-task table entirely: the booked hours are the
   // price. `hours` is optional so the published rate cards can ask what a
@@ -579,7 +583,7 @@ export function assistantPayoutFor(
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
     const hourly = PA_HOURLY_RATE_CENTS * booked;
-    const capped = category === DAY_RATE_CATEGORY ? Math.min(hourly, HOSPITAL_DAY_PAYOUT_CENTS) : hourly;
+    const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PAYOUT_CENTS) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
   }
   const quick = quickTask === true && isQuickTaskEligible(category);
@@ -593,26 +597,26 @@ export function assistantPayoutFor(
  *  so `CONCIERGE_FEE_MARGIN` is a share of this fee rather than a cut taken
  *  out of their pay. */
 export function serviceFeeFor(
-  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number, hospitalStay?: boolean,
 ): number {
   // Hourly work is priced at the set customer rate (and the hospital-day cap);
   // everything else is the pay grossed up by the margin.
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
     const hourly = PA_CUSTOMER_HOURLY_CENTS * booked;
-    const capped = category === DAY_RATE_CATEGORY ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS) : hourly;
+    const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
   }
-  return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours) / (1 - CONCIERGE_FEE_MARGIN));
+  return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay) / (1 - CONCIERGE_FEE_MARGIN));
 }
 
 /** Safehubby's cut of one task — the gap between what the customer pays for
  *  the assistant's time and what the assistant receives. */
 export function conciergeMarginCents(
-  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
+  category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number, hospitalStay?: boolean,
 ): number {
-  return serviceFeeFor(category, quickTask, peopleCount, hours)
-    - assistantPayoutFor(category, quickTask, peopleCount, hours);
+  return serviceFeeFor(category, quickTask, peopleCount, hours, hospitalStay)
+    - assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay);
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
@@ -620,9 +624,9 @@ export function conciergeMarginCents(
  *  so this is a sum, never a padded estimate. */
 export function totalChargeCents(
   category: ConciergeCategory, spendCapCents: number, quickTask?: boolean, peopleCount = 1,
-  hours?: number,
+  hours?: number, hospitalStay?: boolean,
 ): number {
-  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount, hours);
+  return spendCapCents + serviceFeeFor(category, quickTask, peopleCount, hours, hospitalStay);
 }
 
 /**
@@ -705,6 +709,10 @@ export interface ConciergeTaskInput {
    *  priced per task; `validateConciergeRequest` rejects the combination
    *  rather than silently dropping it. */
   hours?: number;
+  /** A "wait with someone" that is a stay with a hospitalized patient: priced
+   *  at the hospital-day rate (`HOSPITAL_DAY_PRICE_CENTS`) instead of hourly.
+   *  Refused on any other category. */
+  hospitalStay?: boolean;
   /** How many people this task is actually for — one person, or a whole
    *  household. Scales what the assistant is paid (`householdMultiplier`),
    *  since looking after six is more work than looking after one. Defaults
@@ -748,6 +756,9 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
     if (!Number.isInteger(input.peopleCount) || input.peopleCount < 1 || input.peopleCount > MAX_PEOPLE_PER_TASK) {
       throw new Error(`A task can cover between 1 and ${MAX_PEOPLE_PER_TASK} people.`);
     }
+  }
+  if (input.hospitalStay && input.category !== HOSPITAL_STAY_CATEGORY) {
+    throw new Error("Only \"Wait with someone\" can be booked as a hospital stay.");
   }
   if (input.category === "airport-pickup") {
     if (!input.flight?.flightNumber?.trim() || !input.flight?.date?.trim()) {
@@ -838,6 +849,8 @@ export interface ConciergeTask {
    *  amounts above, so a past payout stays explainable after the rate
    *  changes. Absent on an errand, which is priced per task. */
   hoursBooked?: number;
+  /** Booked as a hospital stay, at the hospital-day rate. */
+  hospitalStay?: boolean;
   /** Purchases the assistant has documented, each with a photo — see
    *  `SpendRequest`. Absent means none yet, which is why the card cannot be
    *  revealed on a task nobody has documented a purchase for. */
