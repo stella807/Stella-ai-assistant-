@@ -219,18 +219,18 @@ market and types who it is for, the hospital or address, and the room.
 ### Errand tiers
 
 Errands are priced by how much work they are (`errand-tiers.ts`), not by a flat
-label. The runner is paid **$16 an hour for the minutes the tier assumes, plus
-$0.70 a mile** (their own car). $16 is about 50% over what Puerto Rico pays
-personal-care aides (median about $10.50 an hour, O*NET/BLS) and inside what
-island families will pay. The fee is the runner's pay, the card processor's cut
+label. The runner is paid **$24 an hour for the minutes the tier assumes, plus
+$0.70 a mile** (their own car), and **never less than $10 an errand**. That is
+close to what TaskRabbit errand Taskers earn (about $28 an hour, usually with a
+one-hour minimum), raised from $16 so a short errand is worth the trip. The fee is the runner's pay, the card processor's cut
 and **5 cents**, worked out from the spend cap chosen:
 
 | Tier | Example | Minutes / miles | Runner | Fee at a $20 purchase |
 |---|---|---|---|---|
-| In the building | Soda or snack from the cafeteria | 15 / 0 | $4.00 | $5.08 |
-| Nearby store | Charger, snacks, toiletries | 35 / 4 | $12.13 | $13.46 |
-| Shopping trip | Blanket, clothes, a few stops | 60 / 10 | $23.00 | $24.65 |
-| Wait in line | Restaurant order, pharmacy line | 50 / 6 | $17.53 | $19.02 |
+| In the building | Soda or snack from the cafeteria | 15 / 0 | $10.00 | $11.26 |
+| Nearby store | Charger, snacks, toiletries | 35 / 4 | $16.80 | $18.26 |
+| Shopping trip | Blanket, clothes, a few stops | 60 / 10 | $31.00 | $32.89 |
+| Wait in line | Restaurant order, pharmacy line | 50 / 6 | $24.20 | $25.89 |
 
 - **The fee grows with the item.** The card charges 2.9% + 30¢ on the whole hold,
   so a fee sized for a $2 soda loses money on a $100 shop. At the full cap

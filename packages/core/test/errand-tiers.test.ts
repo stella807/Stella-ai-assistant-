@@ -14,26 +14,25 @@ import {
 const CAPS = [500, 1_000, 2_000, 4_000, 8_000, 10_000, 25_000, 100_000];
 
 describe("errand tiers", () => {
-  it("pays $16 an hour for the minutes, plus the mileage", () => {
-    expect(ERRAND_RATE_PER_HOUR_CENTS).toBe(1_600);
-    // 15 minutes at $16/hr is exactly $4.00, which is what the old flat quick
-    // task paid — the cheapest tier is the same job at the same money.
-    expect(errandPayoutCents("in-building")).toBe(400);
-    // 35 min = $9.33 + 4 mi x $0.70 = $2.80
-    expect(errandPayoutCents("nearby-store")).toBe(1_213);
-    // 60 min = $16.00 + 10 mi = $7.00
-    expect(errandPayoutCents("shopping-trip")).toBe(2_300);
-    // 50 min = $13.33 + 6 mi = $4.20
-    expect(errandPayoutCents("wait-in-line")).toBe(1_753);
+  it("pays $24 an hour for the minutes, plus the mileage, and never under $10", () => {
+    expect(ERRAND_RATE_PER_HOUR_CENTS).toBe(2_400);
+    // 15 minutes at $24/hr is $6.00 — under the minimum, so $10.00.
+    expect(errandPayoutCents("in-building")).toBe(1_000);
+    // 35 min = $14.00 + 4 mi x $0.70 = $2.80
+    expect(errandPayoutCents("nearby-store")).toBe(1_680);
+    // 60 min = $24.00 + 10 mi = $7.00
+    expect(errandPayoutCents("shopping-trip")).toBe(3_100);
+    // 50 min = $20.00 + 6 mi = $4.20
+    expect(errandPayoutCents("wait-in-line")).toBe(2_420);
   });
 
   it("climbs with the work: more time and miles never pays less", () => {
     const pay = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
     expect(Math.min(...pay)).toBe(pay[0]);
-    for (const t of ERRAND_TIERS) expect(errandPayoutCents(t.id), t.id).toBeGreaterThanOrEqual(400);
+    for (const t of ERRAND_TIERS) expect(errandPayoutCents(t.id), t.id).toBeGreaterThanOrEqual(1_000);
   });
 
-  it("never pays the runner less than $16 an hour for the time the tier assumes", () => {
+  it("never pays the runner less than $24 an hour for the time the tier assumes", () => {
     for (const t of ERRAND_TIERS) {
       const hourly = (errandPayoutCents(t.id) / t.minutes) * 60;
       // Mileage is on top, so the floor is the wage alone — rounding may cost a cent.
@@ -76,7 +75,8 @@ describe("errand tiers", () => {
   it("prices the soda: a $2 item in the building costs $2 plus the fee", () => {
     const fee = errandFeeCents("in-building", 2_000);
     expect(fee).toBeGreaterThan(errandPayoutCents("in-building"));
-    expect(fee).toBeLessThan(600);
+    // The runner's $10 minimum, plus card costs and five cents.
+    expect(fee).toBeLessThan(1_300);
   });
 
   it("knows each tier by id and refuses a made-up one", () => {

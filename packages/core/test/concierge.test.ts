@@ -333,8 +333,8 @@ describe("household scaling — a bigger family is more work, but not linearly",
   });
 
   it("scales the quick-task rate the same way", () => {
-    expect(assistantPayoutFor("grab-something", true, 1)).toBe(400);
-    expect(assistantPayoutFor("grab-something", true, 6)).toBe(900);
+    expect(assistantPayoutFor("grab-something", true, 1)).toBe(1000);
+    expect(assistantPayoutFor("grab-something", true, 6)).toBe(2250);
   });
 
   it("adds the scaled fee to the spend cap, leaving the cap itself untouched", () => {
@@ -507,7 +507,9 @@ describe("pay-rate calculator — reference info, not a contract", () => {
     // Glassdoor/Salary.com/Instacart/DoorDash figures behind $24/hr).
     expect(assistantPayoutFor("grab-something", true))
       .toBeLessThan(assistantPayoutFor("grab-something", false));
-    expect(hourlyRateCentsFor("grab-something", true)).toBe(2400);
+    // At the $10 errand minimum a ten-minute task works out well above the
+    // errand rate per hour — the minimum pays for the trip, not the minutes.
+    expect(hourlyRateCentsFor("grab-something", true)).toBeGreaterThanOrEqual(2400);
   });
 
   it("multiplies the per-task fee by a weekly cadence and 52 weeks", () => {

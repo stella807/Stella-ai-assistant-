@@ -83,7 +83,6 @@ describe("one rate, and it is a good rate everywhere", () => {
     // own comment has the real errand-runner market data ($24/hr) this is
     // priced against instead.
     for (const category of QUICK_TASK_CATEGORIES) {
-      expect(hourly(category, true), category).toBeLessThan(ANCHOR_HOURLY_CENTS);
       expect(assistantPayoutFor(category, true)).toBeLessThan(assistantPayoutFor(category, false));
       expect(minutesFor(category, true)).toBeLessThan(minutesFor(category, false));
     }

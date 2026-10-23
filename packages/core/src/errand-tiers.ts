@@ -4,13 +4,13 @@ import type { ConciergeCategory } from "./concierge.ts";
  * Errands priced by how much work they are, with a fee sized so Safehubby
  * keeps five cents on every one.
  *
- * **The runner.** Paid $16 an hour for the minutes the tier assumes, plus
- * $0.70 a mile because they drive their own car. $16 is deliberately well
- * above what Puerto Rico pays home-care and personal-care aides — a median of
- * about $10.50 an hour (BLS/O*NET) — while staying inside the price band the
- * island's families will actually pay. The old flat quick task paid $4.00 for
- * ten minutes, which is $24 an hour on paper and under $7 for a real
- * thirty-five minute charger run; pay by the work, not by the label.
+ * **The runner.** Paid $24 an hour for the minutes the tier assumes, plus
+ * $0.70 a mile because they drive their own car, and never less than $10 for
+ * an errand. Raised from $16 at ownership's direction to sit near what
+ * TaskRabbit errand Taskers earn (about $28 an hour in its 2026 cost guide,
+ * usually with a one-hour minimum): at $16 a short errand paid $4, which
+ * nobody makes a trip for. The minimum is the short-errand fix — a
+ * fifteen-minute grab still costs the runner the trip there and back.
  *
  * **The fee.** The customer pays the runner's pay, the card processor's cut,
  * and five cents. The card cut is a percentage of the *whole* hold — item and
@@ -27,7 +27,9 @@ import type { ConciergeCategory } from "./concierge.ts";
  * one place to change.
  */
 
-export const ERRAND_RATE_PER_HOUR_CENTS = 1_600;
+export const ERRAND_RATE_PER_HOUR_CENTS = 2_400;
+/** The least any errand pays the runner, however short. */
+export const ERRAND_MIN_PAYOUT_CENTS = 1_000;
 /** IRS standard mileage rate. They drive their own car and are not reimbursed
  *  for it any other way. */
 export const ERRAND_MILEAGE_CENTS = 70;
@@ -78,7 +80,7 @@ export function validateErrandTier(id: string, category: ConciergeCategory): voi
 /** What the runner is paid. The same whatever the customer is charged. */
 export function errandPayoutCents(id: ErrandTierId): number {
   const t = findErrandTier(id);
-  return Math.round((ERRAND_RATE_PER_HOUR_CENTS * t.minutes) / 60 + ERRAND_MILEAGE_CENTS * t.miles);
+  return Math.max(ERRAND_MIN_PAYOUT_CENTS, Math.round((ERRAND_RATE_PER_HOUR_CENTS * t.minutes) / 60 + ERRAND_MILEAGE_CENTS * t.miles));
 }
 
 /** What the card processor takes on a hold of this size, rounded up — against

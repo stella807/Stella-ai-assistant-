@@ -136,9 +136,9 @@ describe("while Free's errands are paused", () => {
     expect(isGrabIncluded(grab("free", 0))).toBe(false);
     expect(isGrabIncluded(grab("premium-basic", 0))).toBe(true);
     // The table keeps the number, so switching the flag back on restores it.
-    expect(INCLUDED_GRABS_PER_MONTH.free).toBe(2);
+    expect(INCLUDED_GRABS_PER_MONTH.free).toBe(1);
     setFlag("free-errands", true);
-    expect(includedGrabAllowanceFor("free")).toBe(2);
+    expect(includedGrabAllowanceFor("free")).toBe(1);
   });
 });
 

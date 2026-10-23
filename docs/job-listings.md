@@ -6,7 +6,7 @@ code that pays it, not written fresh for a job post:
 | What the post says | Where it comes from |
 |---|---|
 | $35.00/hr, personal assistant | `PA_HOURLY_RATE_CENTS`, `concierge.ts` |
-| $4.00 per quick task ($24/hr) | `QUICK_TASK_ASSISTANT_PAYOUT_CENTS`, `concierge.ts` |
+| $10.00 per quick task (the errand minimum) | `QUICK_TASK_ASSISTANT_PAYOUT_CENTS`, `concierge.ts` |
 | Driver per-trip rates | `DRIVER_RATE_CARD`, `driver-pay.ts` |
 | $22.00/hr desk roles, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $125.00/hr lawyer, 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
@@ -123,7 +123,7 @@ to call 911, and you will never be second-guessed for doing it.
 # 2. Errand runner
 
 **Location:** Puerto Rico · Texas · Los Angeles
-**Pay:** $4.00 to $23.00 per task by size, plus $0.70 a mile — see below
+**Pay:** $10.00 to $31.00 per task by size, plus $0.70 a mile — see below
 **Type:** Per-job, flexible hours · [TO CONFIRM: classification]
 **Starts:** 1 December 2026
 
@@ -139,18 +139,18 @@ offer — you take what you want, when you are around.
 ## What you get paid
 
 A fixed amount per task, set by how much work it is and shown before you
-accept. It is **$16.00 an hour for the minutes the task assumes, plus $0.70 a
-mile** for your own car (`errand-tiers.ts` is the source of truth):
+accept. It is **$24.00 an hour for the minutes the task assumes, plus $0.70 a
+mile** for your own car, and **never less than $10.00 a task** (`errand-tiers.ts` is the source of truth):
 
 | Size | Example | Minutes / miles | You are paid |
 |---|---|---|---|
-| In the building | Cafeteria soda or snack | 15 / 0 | $4.00 |
-| Nearby store | Charger, toiletries | 35 / 4 | $12.13 |
-| Shopping trip | Blanket, clothes, a few stops | 60 / 10 | $23.00 |
-| Wait in line | Restaurant order, pharmacy line | 50 / 6 | $17.53 |
+| In the building | Cafeteria soda or snack | 15 / 0 | $10.00 |
+| Nearby store | Charger, toiletries | 35 / 4 | $16.80 |
+| Shopping trip | Blanket, clothes, a few stops | 60 / 10 | $31.00 |
+| Wait in line | Restaurant order, pharmacy line | 50 / 6 | $24.20 |
 
-$16 is about 50% above what Puerto Rico pays personal-care aides (median about
-$10.50 an hour). The customer's purchase goes on a card we fund, capped at
+That is close to what TaskRabbit errand Taskers earn, and well above what Puerto
+Rico pays personal-care aides (median about $10.50 an hour). The customer's purchase goes on a card we fund, capped at
 what they set. Your own money is never involved.
 
 Pay runs every two weeks.

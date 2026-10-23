@@ -365,7 +365,7 @@ export const DEFAULT_CONCIERGE_CAP_CENTS = 10000;
 export type PerTaskCategory = Exclude<ConciergeCategory, HourlyCategory>;
 
 export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<PerTaskCategory, number> = {
-  "grab-something": 1050, // ~18 min round trip, at the anchor rate
+  "grab-something": 1050, // ~18 min round trip; at least the $10 errand minimum
   // A dollar above grabbing one named thing, on purpose: an errand is
   // open-scoped within the trip — a grocery run means a list, aisles, and
   // choices to make, not one counter to collect from.
@@ -415,8 +415,10 @@ export const QUICK_TASK_CATEGORIES: ConciergeCategory[] = ["grab-something", "ru
  * errand at the bottom of a fair range instead of the top of it.
  */
 export const QUICK_TASK_ASSISTANT_PAYOUT_CENTS: Partial<Record<ConciergeCategory, number>> = {
-  "grab-something": 400,
-  "run-errand": 400,
+  // Raised from $4.00 to the errand minimum (`ERRAND_MIN_PAYOUT_CENTS`) at
+  // ownership's direction: a quick task still means a trip there and back.
+  "grab-something": 1000,
+  "run-errand": 1000,
 };
 
 /**

@@ -32,10 +32,12 @@ import { errandFeeCents, type ErrandTierId } from "./errand-tiers.ts";
  * both.
  */
 export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
-  free: 2,
-  "premium-basic": 10,
-  "premium-plus": 12,
-  family: 30,
+  // Sized so a plan's included grabs cost under half its dues at the $10
+  // errand minimum (see errand-tiers.ts); they were 2/10/12/30 at $4.
+  free: 1,
+  "premium-basic": 4,
+  "premium-plus": 5,
+  family: 25,
   elite: null,
   "elite-signature": null,
   "elite-private": null,
