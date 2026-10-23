@@ -485,6 +485,22 @@ export function isHourlyCategory(category: ConciergeCategory): category is Hourl
  */
 export const PA_HOURLY_RATE_CENTS = 3500;
 
+/** What a customer pays per hour of assistant time, set by ownership rather
+ *  than grossed up from the pay: $45 against the $35 paid. */
+export const PA_CUSTOMER_HOURLY_CENTS = 4500;
+
+/**
+ * The hospital day: sitting with someone who is in hospital is paid and
+ * priced by the day, the way caretakers on the island are (about $125 a day).
+ * A "wait with someone" booking never costs more than this, however many
+ * hours it runs to the 12-hour maximum — the hourly price stops at the day
+ * rate. The caretaker gets $150, above the going rate, and the customer pays
+ * $195. Scaled for a bigger household like every other rate.
+ */
+export const HOSPITAL_DAY_PAYOUT_CENTS = 15_000;
+export const HOSPITAL_DAY_PRICE_CENTS = 19_500;
+const DAY_RATE_CATEGORY: ConciergeCategory = "wait-with-someone";
+
 /** Bookable in half hours, between one and a full working day. The floor is
  *  an hour because nobody travels to somebody's door for fifteen minutes;
  *  the ceiling is where a booking stops being a booking and starts being
@@ -562,7 +578,9 @@ export function assistantPayoutFor(
   // standard booking costs without inventing a number.
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
-    return Math.round(PA_HOURLY_RATE_CENTS * booked * householdMultiplier(peopleCount));
+    const hourly = PA_HOURLY_RATE_CENTS * booked;
+    const capped = category === DAY_RATE_CATEGORY ? Math.min(hourly, HOSPITAL_DAY_PAYOUT_CENTS) : hourly;
+    return Math.round(capped * householdMultiplier(peopleCount));
   }
   const quick = quickTask === true && isQuickTaskEligible(category);
   const base = quick
@@ -577,6 +595,14 @@ export function assistantPayoutFor(
 export function serviceFeeFor(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number,
 ): number {
+  // Hourly work is priced at the set customer rate (and the hospital-day cap);
+  // everything else is the pay grossed up by the margin.
+  if (isHourlyCategory(category)) {
+    const booked = clampHours(hours ?? defaultHoursFor(category));
+    const hourly = PA_CUSTOMER_HOURLY_CENTS * booked;
+    const capped = category === DAY_RATE_CATEGORY ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS) : hourly;
+    return Math.round(capped * householdMultiplier(peopleCount));
+  }
   return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours) / (1 - CONCIERGE_FEE_MARGIN));
 }
 

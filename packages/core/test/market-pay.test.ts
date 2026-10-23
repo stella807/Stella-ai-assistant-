@@ -4,7 +4,7 @@ import {
   impliedHourlyCents, marketPayFor, reachesHighBand,
 } from "../src/market-pay.ts";
 import {
-  CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES, assistantPayoutFor, minutesFor, serviceFeeFor,
+  CONCIERGE_CATEGORIES, QUICK_TASK_CATEGORIES, assistantPayoutFor, isHourlyCategory, minutesFor, serviceFeeFor,
 } from "../src/concierge.ts";
 import { LAUNCH_MARKETS, type LaunchMarketId } from "../src/service-area.ts";
 
@@ -102,7 +102,8 @@ describe("what the customer pays for it", () => {
       const pay = assistantPayoutFor(id);
       const fee = serviceFeeFor(id);
       expect(fee).toBeGreaterThan(pay);
-      expect((fee - pay) / fee).toBeCloseTo(0.2, 2);
+      // Per-task work keeps 20%; hourly work is at the set $45 against $35 paid.
+      if (!isHourlyCategory(id)) expect((fee - pay) / fee).toBeCloseTo(0.2, 2);
     }
   });
 

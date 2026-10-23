@@ -19,6 +19,7 @@ import {
   PURCHASE_LADDER_TOP_CENTS, capPresetsFor, capScaleFor, defaultCapFor, maxCapFor, minutesFor,
   HOURLY_CATEGORIES, PA_HOURLY_RATE_CENTS, defaultHoursFor, hasCapCeiling, isHourlyCategory,
   MAX_BOOKED_HOURS, MIN_BOOKED_HOURS, clampHours,
+  HOSPITAL_DAY_PAYOUT_CENTS, HOSPITAL_DAY_PRICE_CENTS, PA_CUSTOMER_HOURLY_CENTS,
 } from "../src/concierge.ts";
 import { presetAmounts } from "../src/amount-steps.ts";
 import type { AssistantProfile, ConciergeCategory, ConciergeTaskInput } from "../src/concierge.ts";
@@ -163,13 +164,23 @@ describe("the service fee — the customer's price, with the margin on top of th
     for (const c of HOURLY_CATEGORIES) {
       expect(assistantPayoutFor(c, false, 1, 1)).toBe(PA_HOURLY_RATE_CENTS);
       expect(assistantPayoutFor(c, false, 1, 4)).toBe(PA_HOURLY_RATE_CENTS * 4);
-      // Twice the hours is twice the pay — there is no block to round into.
-      expect(assistantPayoutFor(c, false, 1, 5)).toBe(2 * assistantPayoutFor(c, false, 1, 2.5));
+      expect(serviceFeeFor(c, false, 1, 1)).toBe(PA_CUSTOMER_HOURLY_CENTS);
+      expect(serviceFeeFor(c, false, 1, 4)).toBe(PA_CUSTOMER_HOURLY_CENTS * 4);
     }
   });
 
+  it("stops a long wait at the hospital-day rate, for pay and price alike", () => {
+    // Past the day rate the hours stop adding: $150 to the caretaker, $195 to the customer.
+    expect(assistantPayoutFor("wait-with-someone", false, 1, 12)).toBe(HOSPITAL_DAY_PAYOUT_CENTS);
+    expect(serviceFeeFor("wait-with-someone", false, 1, 12)).toBe(HOSPITAL_DAY_PRICE_CENTS);
+    expect(serviceFeeFor("wait-with-someone", false, 1, 8)).toBe(HOSPITAL_DAY_PRICE_CENTS);
+    // Short waits are still hourly, and other hourly work has no day cap.
+    expect(serviceFeeFor("wait-with-someone", false, 1, 2)).toBe(2 * PA_CUSTOMER_HOURLY_CENTS);
+    expect(serviceFeeFor("check-in-person", false, 1, 12)).toBe(12 * PA_CUSTOMER_HOURLY_CENTS);
+  });
+
   it("charges the customer the payout grossed up by the margin, never a cut of it", () => {
-    for (const c of CONCIERGE_CATEGORIES) {
+    for (const c of CONCIERGE_CATEGORIES.filter((x) => !isHourlyCategory(x.id))) {
       const payout = assistantPayoutFor(c.id);
       expect(serviceFeeFor(c.id)).toBe(Math.round(payout / (1 - CONCIERGE_FEE_MARGIN)));
       // The assistant is never the one funding the margin.
@@ -179,7 +190,8 @@ describe("the service fee — the customer's price, with the margin on top of th
   });
 
   it("keeps the margin at the stated share of what the customer pays", () => {
-    for (const c of CONCIERGE_CATEGORIES) {
+    // Per-task work only: hourly work is at a set customer rate (see above).
+    for (const c of CONCIERGE_CATEGORIES.filter((x) => !isHourlyCategory(x.id))) {
       const share = conciergeMarginCents(c.id) / serviceFeeFor(c.id);
       // Three decimals, not four: both sides are whole cents, so the ratio
       // lands near 0.2003 rather than exactly on 0.2.
@@ -326,9 +338,8 @@ describe("household scaling — a bigger family is more work, but not linearly",
       expect(conciergeMarginCents("wait-with-someone", false, people)).toBe(fee - payout);
       // Within a rounding cent of the stated share: both amounts are whole
       // cents, so a multiplier like 1.75 can't land the ratio exactly on 0.2.
-      expect(conciergeMarginCents("wait-with-someone", false, people) / fee)
-        .toBeCloseTo(CONCIERGE_FEE_MARGIN, 3);
-      expect(Math.abs(fee - Math.round(payout / (1 - CONCIERGE_FEE_MARGIN)))).toBeLessThanOrEqual(1);
+      // Scaled by the same household multiplier as the pay.
+      expect(fee).toBe(Math.round(serviceFeeFor("wait-with-someone", false, 1) * householdMultiplier(people)));
     }
   });
 
@@ -728,9 +739,8 @@ describe("booking a budget of hours", () => {
     const payout = assistantPayoutFor("book-and-buy", false, 1, hours);
     expect(payout).toBe(PA_HOURLY_RATE_CENTS * hours);
     const fee = serviceFeeFor("book-and-buy", false, 1, hours);
+    expect(fee).toBe(PA_CUSTOMER_HOURLY_CENTS * hours);
     expect(fee).toBeGreaterThan(payout);
-    // The margin still sits on top of the hours rather than inside them.
-    expect(Math.round(fee * (1 - CONCIERGE_FEE_MARGIN))).toBe(payout);
   });
 
   it("keeps the card balance independent of the hours booked", () => {
