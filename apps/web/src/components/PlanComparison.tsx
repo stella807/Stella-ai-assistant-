@@ -1,61 +1,59 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
-  PHARMACY_RUN_FEE_CENTS, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, maxCapFor,
+  PHARMACY_RUN_FEE_CENTS, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor,
 } from "@safehubby/core";
-import type { ConciergeCategory, Feature, Plan, PlanId } from "@safehubby/core";
+import type { Feature, Plan } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
-import { dollars, money } from "../money.ts";
+import { money } from "../money.ts";
 import { PlanName } from "../app/plan-name.tsx";
 
 /**
- * The actual answer to "what's different between the tiers" — a real
- * checklist, not the price ladder (which only answers "what does it cost")
- * or the carousel's own blurb (which only ever shows the one plan you're
- * looking at). Every row reads a real `Feature` off the plan's own
- * `features` array — nothing here is marketing copy invented for the table.
- *
- * A curated subset of `Feature`, not all of it: `ALL_FEATURES` runs to
- * safety basics that never differ (SOS, check-ins) and Elite-only entries
- * that belong on the Elite ladder's own card, not a table about the four
- * everyday tiers. Kept short enough to read at phone width without the
- * label column eating the plans it's supposed to compare.
- *
- * The two `quick-tasks` rows lead, and share one flag on purpose: grabbing
- * something and running an errand are one capability in `billing.ts` but two
- * different asks to the person reading this, and both are on Free. A single
- * "quick tasks" row would have left someone comparing tiers unable to see
- * that the free plan can have a coffee brought to them — which is the whole
- * reason that flag is on Free in the first place.
+ * The answer to "what's different between the tiers", kept short: one row per
+ * thing a member would choose a plan for, with related features folded into
+ * one row and what every plan has said once underneath instead of as a column
+ * of identical ticks. Every cell is read off the plan's own `features` and the
+ * same allowance functions the server charges with — nothing typed in.
  */
-const COMPARE_ROWS: { id: string; feature: Feature; labelKey: TranslationKey; capCategory?: ConciergeCategory }[] = [
-  // Free's ceiling here is far lower than a paid plan's, so a bare ✓ in both
-  // columns would read as parity that doesn't exist — hence `capCategory`,
-  // which prints each plan's real `maxCapFor` — or "no limit" where there
-  // isn't one — rather than a number retyped into the table and left to
-  // drift.
-  { id: "grab-something", feature: "quick-tasks", labelKey: "compare.grabSomething", capCategory: "grab-something" },
-  { id: "run-errand", feature: "quick-tasks", labelKey: "compare.runErrand", capCategory: "run-errand" },
-  { id: "personal-concierge", feature: "personal-concierge", labelKey: "compare.concierge" },
-  { id: "venue-menus", feature: "venue-menus", labelKey: "compare.venueMenus" },
-  { id: "bac-estimate", feature: "bac-estimate", labelKey: "compare.bacEstimate" },
-  { id: "recovery-plan", feature: "recovery-plan", labelKey: "compare.recoveryPlan" },
-  { id: "automatic-rides", feature: "automatic-rides", labelKey: "compare.automaticRides" },
-  { id: "automatic-delivery", feature: "automatic-delivery", labelKey: "compare.automaticDelivery" },
-  { id: "secure-transport", feature: "secure-transport", labelKey: "compare.secureTransport" },
-  { id: "extended-sos-contacts", feature: "extended-sos-contacts", labelKey: "compare.extendedSos" },
-  { id: "multi-profile", feature: "multi-profile", labelKey: "compare.multiProfile" },
-];
+type Cell = { kind: "yes" } | { kind: "no" } | { kind: "text"; text: string };
+
+const has = (p: Plan, ...fs: Feature[]) => fs.every((f) => p.features.includes(f));
+const yesNo = (ok: boolean): Cell => (ok ? { kind: "yes" } : { kind: "no" });
 
 export function PlanComparison({ plans }: { plans: Plan[] }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(true);
-
-  const capNote = (category: ConciergeCategory, planId: PlanId) => {
-    const cap = maxCapFor(category, planId);
-    return cap === null ? t("compare.noCap") : t("compare.upToCap").replace("{amount}", dollars(cap));
-  };
-
   if (plans.length === 0) return null;
+
+  const rows: { label: TranslationKey; cell: (p: Plan) => Cell }[] = [
+    { label: "compare.seats", cell: (p) => ({ kind: "text", text: String(p.seats) }) },
+    { label: "compare.errands", cell: (p) => yesNo(has(p, "quick-tasks")) },
+    {
+      label: "compare.freeErrands",
+      cell: (p) => {
+        const credit = errandCreditFor(p.id);
+        if (credit > 0) return { kind: "text", text: t("compare.foodCredit").replace("{amount}", `$${Math.round(credit / 100)}`) };
+        const grabs = includedGrabAllowanceFor(p.id);
+        if (grabs === null) return { kind: "text", text: t("compare.noCap") };
+        return grabs > 0 ? { kind: "text", text: String(grabs) } : { kind: "no" };
+      },
+    },
+    { label: "compare.concierge", cell: (p) => yesNo(has(p, "personal-concierge")) },
+    {
+      label: "compare.hoursIncluded",
+      cell: (p) => {
+        const h = includedConciergeHours(p.id);
+        return h > 0 ? { kind: "text", text: t("compare.hours").replace("{n}", String(h)) } : { kind: "no" };
+      },
+    },
+    { label: "compare.bookAndPay", cell: (p) => yesNo(has(p, "automatic-rides", "automatic-delivery")) },
+    { label: "compare.nightOut", cell: (p) => yesNo(has(p, "venue-menus", "bac-estimate", "recovery-plan")) },
+    { label: "compare.extendedSos", cell: (p) => yesNo(has(p, "extended-sos-contacts")) },
+  ];
+
+  const render = (c: Cell): ReactNode =>
+    c.kind === "yes" ? <span className="compare-yes" aria-label={t("compare.included")}>✓</span>
+      : c.kind === "no" ? <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>
+      : <span className="compare-text">{c.text}</span>;
 
   return (
     <section className="card stack">
@@ -66,80 +64,29 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
       </button>
 
       {open && (
-        <div style={{ overflowX: "auto" }}>
-          <table className="pay-table compare-table">
-            <thead>
-              <tr>
-                <th></th>
-                {plans.map((p) => <th key={p.id}><PlanName id={p.id} name={p.name} /></th>)}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>{t("compare.seats")}</td>
-                {plans.map((p) => <td key={p.id} className="compare-cell">{p.seats}</td>)}
-              </tr>
-              {/* What each plan pays for outright, read off the same core
-                  functions the server charges with. */}
-              <tr>
-                <td>{t("compare.freeErrands")}</td>
-                {plans.map((p) => {
-                  const credit = errandCreditFor(p.id);
-                  const grabs = includedGrabAllowanceFor(p.id);
-                  return (
-                    <td key={p.id} className="compare-cell">
-                      {credit > 0 ? <span className="tiny">{t("compare.freeFood").replace("{amount}", money(credit))}</span>
-                        : grabs === null ? <span className="tiny">{t("compare.noCap")}</span>
-                        : grabs > 0 ? <span className="tiny">{t("compare.perMonth").replace("{n}", String(grabs))}</span>
-                        : <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>}
-                    </td>
-                  );
-                })}
-              </tr>
-              <tr>
-                <td>{t("compare.hoursIncluded")}</td>
-                {plans.map((p) => {
-                  const hours = includedConciergeHours(p.id);
-                  return (
-                    <td key={p.id} className="compare-cell">
-                      {hours > 0 ? <span className="tiny">{t("compare.hours").replace("{n}", String(hours))}</span>
-                        : <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>}
-                    </td>
-                  );
-                })}
-              </tr>
-              <tr>
-                <td>{t("compare.pharmacy")}</td>
-                {plans.map((p) => (
-                  <td key={p.id} className="compare-cell">
-                    {p.features.includes("quick-tasks")
-                      ? <span className="tiny">{t("compare.pharmacyFee").replace("{amount}", money(PHARMACY_RUN_FEE_CENTS))}</span>
-                      : <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>}
-                  </td>
-                ))}
-              </tr>
-              {COMPARE_ROWS.map((row) => (
-                <tr key={row.id}>
-                  <td>{t(row.labelKey)}</td>
-                  {plans.map((p) => (
-                    <td key={p.id} className="compare-cell">
-                      {p.features.includes(row.feature) ? (
-                        <>
-                          <span className="compare-yes" aria-label={t("compare.included")}>✓</span>
-                          {row.capCategory && (
-                            <div className="tiny muted">{capNote(row.capCategory, p.id)}</div>
-                          )}
-                        </>
-                      ) : (
-                        <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>
-                      )}
-                    </td>
-                  ))}
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table className="pay-table compare-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  {plans.map((p) => <th key={p.id}><PlanName id={p.id} name={p.name} /></th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.label}>
+                    <td>{t(row.label)}</td>
+                    {plans.map((p) => <td key={p.id} className="compare-cell">{render(row.cell(p))}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="tiny muted" style={{ margin: 0 }}>
+            {t("compare.everyPlan").replace("{amount}", money(PHARMACY_RUN_FEE_CENTS))}
+          </p>
+        </>
       )}
     </section>
   );

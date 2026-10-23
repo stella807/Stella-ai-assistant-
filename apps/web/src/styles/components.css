@@ -535,10 +535,11 @@
 /* ---------- Plan comparison table ---------- */
 .compare-table { font-size: 12.5px; }
 .compare-table th, .compare-table td { padding: 7px 8px; white-space: nowrap; }
-.compare-table th:first-child, .compare-table td:first-child { white-space: normal; padding-left: 0; }
+.compare-table th:first-child, .compare-table td:first-child { white-space: normal; padding-left: 0; min-width: 150px; }
 .compare-cell { text-align: center; font-size: 15px; }
 .compare-yes { color: var(--ok); }
 .compare-no { color: var(--faint); }
+.compare-text { font-size: 13px; color: var(--accent); white-space: nowrap; }
 
 .plan { gap: 10px; }
 .plan-on {
