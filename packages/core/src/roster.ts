@@ -49,6 +49,9 @@ export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   "personal-assistant": [
     "grab-something", "run-errand", "check-in-person", "wait-with-someone", "book-and-buy",
   ],
+  // Sitting with a patient: a hospital day is `wait-with-someone` booked as a
+  // hospital stay. Never sent to buy on someone's card.
+  caretaker: ["wait-with-someone", "check-in-person"],
   "errand-runner": [...QUICK_TASK_CATEGORIES],
   secretary: [],
   driver: [],

@@ -24,6 +24,8 @@ export const OPEN_POSITIONS: Record<StaffRole, number> = {
   // Errand runners are on hold until there is volume that a dedicated runner
   // would be busy for.
   "personal-assistant": 5,
+  // Hospital days, at ownership's direction.
+  caretaker: 3,
   "errand-runner": 0,
   secretary: 0,
   "social-media-manager": 0,
@@ -54,6 +56,12 @@ export function payLabelFor(role: StaffRole, language: "en" | "es" = "en"): stri
     return es
       ? `De ${lo} a ${hi} por encargo, según el tamaño, más ${mile} por milla. Necesitas tu propio seguro de responsabilidad civil`
       : `${lo} to ${hi} per errand, by size, plus ${mile} a mile. Bring your own liability insurance`;
+  }
+  if (role === "caretaker") {
+    const [day, hour] = [usd(HOSPITAL_DAY_PAYOUT_CENTS), usd(PA_HOURLY_RATE_CENTS)];
+    return es
+      ? `${day} por un día de hospital (hasta 12 horas); ${hour} la hora en visitas más cortas. Necesitas tu propio seguro de responsabilidad civil`
+      : `${day} per hospital day (up to 12 hours); ${hour} an hour for shorter visits. Bring your own liability insurance`;
   }
   if (role === "personal-assistant") {
     const [hour, day, armed] = [usd(PA_HOURLY_RATE_CENTS), usd(HOSPITAL_DAY_PAYOUT_CENTS), usd(ARMED_HOURLY_PAYOUT_CENTS)];

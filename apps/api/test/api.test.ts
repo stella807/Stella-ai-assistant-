@@ -3760,7 +3760,7 @@ describe("hiring for the roles that do not drive", () => {
     expect(res.status).toBe(200);
     expect(res.json.roles.map((r: { id: string }) => r.id).sort())
       .toEqual([
-        "errand-runner", "lawyer", "nurse", "personal-assistant", "physician",
+        "caretaker", "errand-runner", "lawyer", "nurse", "personal-assistant", "physician",
         "secretary", "social-media-manager", "web-developer", "wingman-club-coordinator",
       ]);
     // Drivers apply through their own form, which asks about a vehicle.

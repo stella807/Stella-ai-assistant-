@@ -32,6 +32,7 @@ At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 |---|---:|---:|---:|---:|---:|
 | Driver | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
 | Personal assistant | 5 | $0.00 | $0.00 | $0.00 | $0.00 |
+| Hospital caretaker | 3 | $0.00 | $0.00 | $0.00 | $0.00 |
 | Errand runner | 4 | $0.00 | $0.00 | $0.00 | $0.00 |
 | Social media manager | 1 | $150.00 | $0.00 | $3,960.00 | $4,110.00 |
 | Secretary | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
@@ -40,7 +41,7 @@ At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 | Physician (Elite medical advisor) | 1 | $150.00 | $0.00 | $10,800.00 | $10,950.00 |
 | Nurse (Elite tier coordination) | 1 | $150.00 | $0.00 | $2,970.00 | $3,120.00 |
 | Wingman Club coordinator | 1 | $150.00 | $0.00 | $7,200.00 | $7,350.00 |
-| **Total** | **13** | **$600.00** | **$0.00** | **$24,930.00** | **$25,530.00** |
+| **Total** | **16** | **$600.00** | **$0.00** | **$24,930.00** | **$25,530.00** |
 
 Recurring after launch: **$12,303.33/month** — $300.00 insurance plus
 $12,003.33 payroll. Drivers are off the plan too: rides go through Uber and
@@ -188,6 +189,7 @@ relay it to them; the portal forces a change on first sign-in.
 | Role | Grab something | Run an errand | Check on someone | Wait with someone |
 |---|:--:|:--:|:--:|:--:|
 | Personal assistant | ✓ | ✓ | ✓ | ✓ |
+| Hospital caretaker | — | — | ✓ | ✓ |
 | Errand runner | ✓ | ✓ | — | — |
 | Secretary | — | — | — | — |
 | Driver | — | — | — | — |

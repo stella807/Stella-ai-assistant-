@@ -14,6 +14,10 @@ export const ROLE_ES: Record<string, { label: string; description: string }> = {
     label: "Asistente personal",
     description: "Ve a donde está la gente: acompaña a alguien, visita a un amigo, encárgate de una tarea de principio a fin.",
   },
+  caretaker: {
+    label: "Cuidador/a en el hospital",
+    description: "Acompaña a un paciente durante un día de hospital: compañía, comida y cosas llevadas a la cama, y ayuda para llamar a la enfermera. Hasta 12 horas al día.",
+  },
   "errand-runner": {
     label: "Mensajero de encargos",
     description: "Recogidos y encargos cortos. La forma más rápida de entrar al equipo, con horario flexible.",

@@ -6,7 +6,7 @@ import type { Iso8601 } from "./types.ts";
  * What a field worker has to hold before they are sent to anybody.
  *
  * **Insurance, their own.** Everyone who goes out to customers — personal
- * assistants and errand runners — carries their own liability insurance, at
+ * assistants, caretakers and errand runners — carries their own liability insurance, at
  * ownership's direction, and proves it on the application: provider, policy
  * number, expiry and a copy of the certificate. A policy that has run out
  * takes them off the roster until a new one is on file.
@@ -45,7 +45,7 @@ export const CREDENTIAL_LABEL: Record<CredentialKind, string> = {
 };
 
 /** Roles that go out to customers, and so must carry their own insurance. */
-export const INSURED_ROLES: StaffRole[] = ["personal-assistant", "errand-runner"];
+export const INSURED_ROLES: StaffRole[] = ["personal-assistant", "caretaker", "errand-runner"];
 export const requiresInsurance = (role: StaffRole) => INSURED_ROLES.includes(role);
 
 export function validateCredential(c: Credential, now: Date): void {

@@ -36,6 +36,7 @@ import { findPlan, type PlanId } from "./billing.ts";
 export type StaffRole =
   | "driver"
   | "personal-assistant"
+  | "caretaker"
   | "errand-runner"
   | "secretary"
   | "social-media-manager"
@@ -82,6 +83,14 @@ export const STAFF_ROLES: RoleInfo[] = [
     id: "personal-assistant",
     label: "Personal assistant",
     description: "Go to people in person — wait with someone, check on a friend, handle a task end to end.",
+    drives: false,
+    prelaunchHoursPerWeek: 0,
+    hourlyCents: 0,
+  },
+  {
+    id: "caretaker",
+    label: "Hospital caretaker",
+    description: "Stay with a patient through a hospital day — company, food and things brought to the bed, help getting the nurse's attention. Up to 12 hours a day.",
     drives: false,
     prelaunchHoursPerWeek: 0,
     hourlyCents: 0,
@@ -353,6 +362,9 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   // Safehubby dispatches its own. Was 8.
   driver: 0,
   "personal-assistant": 5,
+  // Paid per hospital day and bringing their own insurance, so three on the
+  // plan cost nothing before there are bookings.
+  caretaker: 3,
   "errand-runner": 4,
   // Lawyer, secretary and web developer were taken off the plan by ownership
   // to cut fixed costs before revenue: legal work is bought per document, the
