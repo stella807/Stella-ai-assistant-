@@ -179,9 +179,9 @@ export const STAFF_ROLES: RoleInfo[] = [
     label: "Nurse (Elite tier coordination)",
     description: "Reviews Elite member requests before they reach the concierge desk, coordinates with the referral network, and helps judge when something belongs with a doctor or 911 instead — coordination, not bedside care.",
     drives: false,
-    // Reference: BLS puts the 2026 median RN hourly wage at $48.76;
-    // Salary.com and ZipRecruiter report $42-48/hr. $45/hr sits in the
-    // middle of that band for coordination and triage-adjacent work.
+    // $22/hr at ownership's direction (was $45, the U.S. RN median band of
+    // $42-48). Puerto Rico nurses earn well below mainland pay, and this is
+    // part-time coordination, not bedside care.
     //
     // Same boundary as the physician role above, for the same reason: this
     // is coordination and escalation judgment, not direct nursing care —
@@ -190,7 +190,7 @@ export const STAFF_ROLES: RoleInfo[] = [
     // override. [TO CONFIRM: scope and licensure requirements per launch
     // state before hiring.]
     prelaunchHoursPerWeek: 15,
-    hourlyCents: 4500,
+    hourlyCents: 2200,
   },
   {
     id: "wingman-club-coordinator",
