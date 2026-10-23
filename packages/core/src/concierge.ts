@@ -897,6 +897,8 @@ export interface ConciergeTask {
   /** Hours of this task the member's plan paid for (its monthly included
    *  assistant hours); the service fee covered only the rest. */
   includedHoursUsed?: number;
+  /** Fee cents the plan's monthly errand credit paid — see included-grabs.ts. */
+  errandCreditCents?: number;
   /** Who this was sent to, when it was for somebody other than the customer —
    *  stamped, so the assistant and the customer both see the same words. The
    *  task's coordinates are only the middle of the market; see on-behalf.ts. */

@@ -2,7 +2,7 @@ import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
 import {
   ARRANGE_RIDE_FEE_CENTS, ERRAND_TIERS, deskTaskAllowanceFor, errandFeeCents, hasFeature,
-  includedConciergeHours, includedGrabAllowanceFor, serviceFeeFor, type PlanId,
+  errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, serviceFeeFor, type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { money } from "../money.ts";
@@ -99,7 +99,9 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
     value: `${money(hourlyFee)} an hour`,
     note: hours > 0 ? `${hours} hours a month are already paid for by your plan.` : "Plus the spending limit you load for what they buy.",
   });
-  if (hasErrands) {
+  const credit = errandCreditFor(id);
+  if (credit > 0) rows.push({ label: "Errand credit", value: `${money(credit)} a month`, note: "Pays the runner's fee on any errand — groceries, a restaurant order, a snack to a hospital bed. You pay only for the food." });
+  if (hasErrands && credit === 0) {
     rows.push({
       label: "A free errand every month",
       value: grabs === null ? "No limit" : grabs === 0 ? "Not on this plan" : `${grabs} a month`,

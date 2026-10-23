@@ -10,7 +10,7 @@ import {
   isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
   launchMarketNames, minutesFor, serviceFeeFor, customerServiceFeeFor, isGrabIncluded,
   ERRAND_MILEAGE_CENTS, ERRAND_RATE_PER_HOUR_CENTS, ERRAND_TIERS, LAUNCH_MARKETS, ON_BEHALF_DISCLOSURES,
-  errandPayoutCents, findErrandTier, locationForOnBehalf, validateOnBehalfOf,
+  errandFeeCents, errandPayoutCents, findErrandTier, locationForOnBehalf, validateOnBehalfOf,
 } from "@safehubby/core";
 import type {
   AssistantProfile, ConciergeCategory, ConciergeTask, ErrandTierId, FlightInfo, NearbyStore, OnBehalfOf, ProviderStatus, PlanId,
@@ -167,7 +167,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   // left" until then: showing a fee and charging none is a pleasant surprise,
   // the other way round is a broken promise.
   const [includedGrabs, setIncludedGrabs] = useState<
-    { allowance: number | null; used: number; remaining: number | null; resetsAt: string } | null
+    { allowance: number | null; used: number; remaining: number | null; resetsAt: string; creditCents: number; creditUsedCents: number } | null
   >(null);
   const [roster, setRoster] = useState<AssistantProfile[] | null>(null);
   const [fix, setFix] = useState<Fix | null>(null);
@@ -316,7 +316,11 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const serviceFee = customerServiceFeeFor({
     planId, category, quickTask: effectiveQuickTask, errandTier: tier, spendCapCents,
     hours: bookedHours, usedThisMonth, hospitalStay: isHospitalStay, armed: isArmed,
+    // Treated as spent until it loads, for the same reason as the grabs above.
+    creditUsedThisMonth: includedGrabs?.creditUsedCents ?? Number.POSITIVE_INFINITY,
   });
+  const creditLeft = includedGrabs ? includedGrabs.creditCents - includedGrabs.creditUsedCents : 0;
+  const creditApplied = tier && !feeIncluded ? errandFeeCents(tier, spendCapCents) - serviceFee : 0;
   const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours, isHospitalStay, isArmed);
   const totalHeld = spendCapCents + serviceFee;
   const resetsOn = includedGrabs
@@ -873,6 +877,11 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           <span className="small">Service fee</span>
           <span className="small charge-amount">{feeIncluded ? "Included" : money(serviceFee)}</span>
         </div>
+        {creditApplied > 0 && (
+          <p className="tiny muted" style={{ margin: 0 }}>
+            Your plan's errand credit pays {money(creditApplied)} of it; {money(Math.max(0, creditLeft - creditApplied))} left this month, back on {resetsOn}. Use it for food or anything else brought to you.
+          </p>
+        )}
         <p className="tiny muted" style={{ margin: 0 }}>
           {hourly
             ? isHospitalStay && serviceFee >= HOSPITAL_DAY_PRICE_CENTS

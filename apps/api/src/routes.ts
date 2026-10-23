@@ -45,7 +45,7 @@ import {
   clampHours, defaultHoursFor, isHourlyCategory,
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
-  includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
+  errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
   errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
@@ -1275,7 +1275,25 @@ function holdIncludedGrab(travelerId: string): () => void {
   };
 }
 
-/** This month's included grabs: saved ones plus any still being booked. */
+/** Errand credit reserved by bookings still in flight, like `includedGrabsInFlight`. */
+const errandCreditInFlight = new Map<string, number>();
+
+function holdErrandCredit(travelerId: string, cents: number): () => void {
+  if (cents <= 0) return () => {};
+  errandCreditInFlight.set(travelerId, (errandCreditInFlight.get(travelerId) ?? 0) + cents);
+  return () => {
+    const left = (errandCreditInFlight.get(travelerId) ?? cents) - cents;
+    if (left > 0) errandCreditInFlight.set(travelerId, left);
+    else errandCreditInFlight.delete(travelerId);
+  };
+}
+
+function errandCreditUsed(ctx: Ctx, travelerId: string): number {
+  const { start, end } = monthBoundsFor(ctx.now());
+  const mine = ctx.store.data.conciergeTasks.filter((t) => t.travelerId === travelerId);
+  return errandCreditUsedIn(mine, start, end) + (errandCreditInFlight.get(travelerId) ?? 0);
+}
+
 /** Included assistant hours this member has used in the current month. */
 function includedHoursUsed(ctx: Ctx, travelerId: string): number {
   const now = ctx.now();
@@ -3007,11 +3025,17 @@ export const routes: Record<string, Handler> = {
       hospitalStay: input.hospitalStay === true, armed: input.armed === true,
       includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
     });
+    const errandFee = input.errandTier ? errandFeeCents(input.errandTier, input.spendCapCents) : 0;
+    const creditCents = feeIncluded ? 0 : errandCreditCover({
+      planId, category: input.category, errandTier: input.errandTier, feeCents: errandFee,
+      creditUsedThisMonth: errandCreditUsed(ctx, me),
+    });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
-        ? errandFeeCents(input.errandTier, input.spendCapCents)
+        ? errandFee - creditCents
         : hourly.serviceFeeCents;
     return {
+      errandCreditCents: creditCents,
       includedHoursUsed: hourly.includedHoursUsed,
       includedHoursRemaining: Math.max(0, includedConciergeHours(planId) - includedHoursUsed(ctx, me)),
       quote, disclosures: CONCIERGE_DISCLOSURES,
@@ -3118,12 +3142,19 @@ export const routes: Record<string, Handler> = {
       hours: hoursBooked, includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
       hospitalStay: input.hospitalStay === true, armed: input.armed === true,
     });
+    const errandFee = input.errandTier ? errandFeeCents(input.errandTier, input.spendCapCents) : 0;
+    const creditCents = feeIncluded ? 0 : errandCreditCover({
+      planId: planOf(ctx, me), category: input.category, errandTier: input.errandTier, feeCents: errandFee,
+      creditUsedThisMonth: errandCreditUsed(ctx, me),
+    });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
-        ? errandFeeCents(input.errandTier, input.spendCapCents)
+        ? errandFee - creditCents
         : hourly.serviceFeeCents;
     const totalCents = input.spendCapCents + serviceFeeCents;
-    const releaseIncludedGrab = feeIncluded ? holdIncludedGrab(me) : () => {};
+    const releaseGrab = feeIncluded ? holdIncludedGrab(me) : () => {};
+    const releaseCredit = holdErrandCredit(me, creditCents);
+    const releaseIncludedGrab = () => { releaseGrab(); releaseCredit(); };
 
     try {
       // The hold covers both the reimbursable purchase and the service fee
@@ -3150,6 +3181,8 @@ export const routes: Record<string, Handler> = {
         kind: "concierge",
         description: `${conciergeCategoryLabel(input.category)} — ${input.note} (${
           feeIncluded ? "no service fee — included in your plan"
+            : creditCents > 0
+              ? `$${(creditCents / 100).toFixed(2)} paid by your plan's errand credit, $${(serviceFeeCents / 100).toFixed(2)} service fee`
             : hourly.includedHoursUsed > 0
               ? `${hourly.includedHoursUsed} hr included in your plan, $${(serviceFeeCents / 100).toFixed(2)} service fee`
               : `$${(serviceFeeCents / 100).toFixed(2)} service fee included`
@@ -3212,6 +3245,7 @@ export const routes: Record<string, Handler> = {
           ...(input.armed === true ? { armed: true } : {}),
           quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
           ...(!feeIncluded && hourly.includedHoursUsed > 0 ? { includedHoursUsed: hourly.includedHoursUsed } : {}),
+          ...(creditCents > 0 ? { errandCreditCents: creditCents } : {}),
           ...(input.errandTier ? { errandTier: input.errandTier } : {}),
           ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}), status: "in-progress",
           ...(isElitePlan(planOf(ctx, me)) ? { priority: true } : {}),
@@ -3276,7 +3310,11 @@ export const routes: Record<string, Handler> = {
     const { end } = monthBoundsFor(ctx.now());
     const allowance = includedGrabAllowanceFor(planOf(ctx, me));
     const used = includedGrabsUsed(ctx, me);
-    return { allowance, used, remaining: remainingIncludedGrabs(allowance, used), resetsAt: end.toISOString() };
+    const creditCents = errandCreditFor(planOf(ctx, me));
+    return {
+      allowance, used, remaining: remainingIncludedGrabs(allowance, used), resetsAt: end.toISOString(),
+      creditCents, creditUsedCents: Math.min(creditCents, errandCreditUsed(ctx, me)),
+    };
   },
 
   "GET /api/desk/tasks": (ctx) => {

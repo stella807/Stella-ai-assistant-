@@ -8,6 +8,7 @@ afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
   customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
+  errandCreditCover, errandCreditFor, errandCreditUsedIn, errandFeeCents,
   monthBoundsFor, releasedPlans, netAfterProcessorFeeCents, remainingIncludedGrabs, serviceFeeFor, hourlyServiceFee, includedHoursUsedIn,
   type ConciergeCategory, type ConciergeTask, type PlanId,
 } from "../src/index.ts";
@@ -73,8 +74,9 @@ describe("grabs a plan includes", () => {
     for (const plan of releasedPlans()) {
       const n = INCLUDED_GRABS_PER_MONTH[plan.id];
       if (plan.id === "free") continue;
-      // Basic matches Free's one grab — its $29 can carry no more under the half-of-dues rule.
-      if (n !== null) expect(n, plan.id).toBeGreaterThanOrEqual(plan.id === "basic" ? free : free + 1);
+      // Basic's errands come from its $35 credit instead, which covers more than a grab.
+      if (plan.id === "basic") { expect(errandCreditFor("basic")).toBeGreaterThan(free * 1_000); continue; }
+      if (n !== null) expect(n, plan.id).toBeGreaterThanOrEqual(free + 1);
     }
     for (const id of ["elite", "elite-signature", "elite-private"] as const) {
       expect(INCLUDED_GRABS_PER_MONTH[id], id).toBeNull();
@@ -173,5 +175,39 @@ describe("included assistant hours", () => {
       ({ createdAt: iso, includedHoursUsed: used, status }) as never;
     const start = new Date("2026-10-01T00:00:00Z"); const end = new Date("2026-11-01T00:00:00Z");
     expect(includedHoursUsedIn([at("2026-10-03T00:00:00Z", 2), at("2026-10-05T00:00:00Z", 1, "canceled"), at("2026-09-30T00:00:00Z", 4)], start, end)).toBe(2);
+  });
+});
+
+describe("errand credit", () => {
+  const base = { planId: "basic" as const, category: "grab-something" as const, creditUsedThisMonth: 0 };
+
+  it("covers any errand tier up to $35 a month, then bills the rest", () => {
+    const grocery = errandFeeCents("shopping-trip", 5_000);
+    expect(errandCreditCover({ ...base, errandTier: "shopping-trip", feeCents: grocery })).toBe(Math.min(grocery, 3_500));
+    expect(errandCreditCover({ ...base, errandTier: "wait-in-line", feeCents: 2_600, creditUsedThisMonth: 3_000 })).toBe(500);
+    expect(errandCreditCover({ ...base, errandTier: "in-building", feeCents: 1_100, creditUsedThisMonth: 3_500 })).toBe(0);
+  });
+
+  it("is only on Basic, and only for errands", () => {
+    expect(errandCreditCover({ ...base, planId: "premium-basic", errandTier: "in-building", feeCents: 1_100 })).toBe(0);
+    expect(errandCreditCover({ ...base, category: "wait-with-someone", errandTier: "in-building", feeCents: 1_100 })).toBe(0);
+    expect(errandCreditCover({ ...base, feeCents: 1_100 })).toBe(0);
+  });
+
+  it("never costs more than Basic brings in after the card fee", () => {
+    expect(errandCreditFor("basic")).toBeLessThan(netAfterProcessorFeeCents(findPlan("basic").monthlyCents));
+  });
+
+  it("takes the credit off the customer's fee", () => {
+    const fee = errandFeeCents("wait-in-line", 4_000);
+    const charged = customerServiceFeeFor({ ...base, category: "run-errand", errandTier: "wait-in-line", spendCapCents: 4_000, usedThisMonth: 0, creditUsedThisMonth: 3_000 });
+    expect(charged).toBe(fee - 500);
+  });
+
+  it("counts only this month's, non-canceled credit", () => {
+    const at = (iso: string, c: number, status: "completed" | "canceled" = "completed") =>
+      ({ createdAt: iso, errandCreditCents: c, status }) as never;
+    const start = new Date("2026-10-01T00:00:00Z"); const end = new Date("2026-11-01T00:00:00Z");
+    expect(errandCreditUsedIn([at("2026-10-03T00:00:00Z", 2_000), at("2026-10-05T00:00:00Z", 900, "canceled"), at("2026-09-30T00:00:00Z", 1_000)], start, end)).toBe(2_000);
   });
 });

@@ -231,7 +231,7 @@ const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-pro
 /**
  * Basic: the everyday way in, for a household that cannot spend $94 a month.
  * The safety basics, plus booking a personal assistant by the hour and
- * three errands a month with no fee. Everything automatic — Safehubby booking
+ * a $35 monthly errand credit. Everything automatic — Safehubby booking
  * and paying on your behalf — stays on Premium and up.
  */
 const BASIC_FEATURES: Feature[] = [...FREE_FEATURES, "personal-concierge", "drink-details", "safe-routes"];
@@ -406,15 +406,13 @@ export const PLANS: Plan[] = [
     id: "basic",
     name: "Basic",
     // At ownership's direction, so the service reaches every income level:
-    // under half of Premium, card fee included. Three free errands rather
-    // than an included hour: an hour is $35 of pay, an errand about $10, so
-    // an elderly member alone gets more help for the same $39 and the plan
-    // still clears its cost when every errand is used.
+    // under half of Premium, card fee included. A $35 errand credit rather
+    // than an included hour — see ERRAND_CREDIT_CENTS in included-grabs.ts.
     monthlyCents: 3900,
     annualCents: 39000,
     seats: 1,
     features: BASIC_FEATURES,
-    blurb: "For one person. The safety basics, three errands a month with no fee — food or a charger brought to you at home or in a hospital bed — and a personal assistant by the hour when you need one.",
+    blurb: "For one person. The safety basics, $35 a month of errands paid for — whatever food you want brought to you at home or in a hospital bed, a grocery run or a restaurant order — and a personal assistant by the hour when you need one.",
   },
   {
     id: "premium-basic",

@@ -340,7 +340,7 @@ export const COPY: Record<Lang, Copy> = {
     freeLabel: "Always free",
     planBlurbs: {
       free: "Check-ins, location sharing, SOS and ride booking. The safety basics are never behind a paywall.",
-      basic: "The safety basics, three errands a month with no service fee, and a personal assistant by the hour when you need one.",
+      basic: "The safety basics, a monthly errand credit — whatever food you want brought to you, at home or in a hospital bed — and a personal assistant by the hour when you need one.",
       "premium-basic": `Errands from a juice to a shopping trip — ${INCLUDED_GRABS_ENTRY} one-item grabs a month with no service fee — and an assistant who waits with someone or checks on them.`,
       "premium-plus": "Everything Premium does, for two people, with no ceiling on what goes on the card.",
       family: "The same service for a whole household, on one account.",
@@ -408,7 +408,7 @@ export const COPY: Record<Lang, Copy> = {
     freeLabel: "Siempre gratis",
     planBlurbs: {
       free: "Registros, ubicación compartida, SOS y viajes. Lo básico de seguridad nunca se cobra.",
-      basic: "Lo básico de seguridad, tres diligencias al mes sin cargo por servicio, y un asistente personal por hora cuando lo necesites.",
+      basic: "Lo básico de seguridad, un crédito mensual de diligencias — la comida que quieras, traída a tu casa o al hospital — y un asistente personal por hora cuando lo necesites.",
       "premium-basic": `Diligencias desde un jugo hasta un viaje de compras — ${INCLUDED_GRABS_ENTRY} compras de un artículo al mes sin cargo por servicio — y un asistente que acompaña a alguien o pasa a verlo.`,
       "premium-plus": "Todo lo de Premium, para dos personas, sin tope en lo que va en la tarjeta.",
       family: "El mismo servicio para todo un hogar, en una sola cuenta.",

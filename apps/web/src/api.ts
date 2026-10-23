@@ -485,7 +485,7 @@ export const api = {
   /** This month's no-fee grabs — `allowance` and `remaining` are null for no
    *  limit. Same shape as the desk-task allowance. */
   includedGrabs: () =>
-    request<{ allowance: number | null; used: number; remaining: number | null; resetsAt: string }>(
+    request<{ allowance: number | null; used: number; remaining: number | null; resetsAt: string; creditCents: number; creditUsedCents: number }>(
       "GET", "/api/concierge/included-grabs"),
   /** A flight's schedule, status and (while airborne) position — the
    *  preview before booking an airport pickup, and the same call a booked

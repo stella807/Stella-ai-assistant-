@@ -4946,6 +4946,33 @@ describe("hiring somebody and actually sending them to a job", () => {
       expect(Date.parse(status.json.resetsAt)).toBeGreaterThan(clock.getTime());
     });
 
+    it("pays Basic's errands from its $35 credit, on any tier, then bills the rest", async () => {
+      const kit = await runner();
+      await withCard(jordan);
+      const sub = await call("POST", "/api/subscription", { planId: "basic" }, jordan);
+      expect(sub.status, JSON.stringify(sub.json)).toBe(200);
+      const groceries = { category: "run-errand", errandTier: "shopping-trip", note: "Groceries for the week.",
+        location: IN_TEXAS, spendCapCents: 6_000, acknowledgedDisclosures: true, assistantId: kit };
+      const fee = errandFeeCents("shopping-trip", 6_000);
+
+      const quote = await call("POST", "/api/concierge/quote", groceries, jordan);
+      expect(quote.status, JSON.stringify(quote.json)).toBe(200);
+      expect(quote.json.errandCreditCents).toBe(Math.min(fee, 3_500));
+
+      const first = await call("POST", "/api/concierge/tasks", groceries, jordan);
+      expect(first.status, JSON.stringify(first.json)).toBe(200);
+      expect(first.json.task.serviceFeeCents).toBe(fee - Math.min(fee, 3_500));
+      expect(first.json.task.errandCreditCents).toBe(Math.min(fee, 3_500));
+      // The runner is paid in full either way.
+      expect(first.json.task.assistantPayoutCents).toBe(errandPayoutCents("shopping-trip"));
+
+      const second = await call("POST", "/api/concierge/tasks", groceries, jordan);
+      const left = Math.max(0, 3_500 - Math.min(fee, 3_500));
+      expect(second.json.task.serviceFeeCents).toBe(fee - Math.min(fee, left));
+      const status = await call("GET", "/api/concierge/included-grabs", undefined, jordan);
+      expect(status.json).toMatchObject({ creditCents: 3_500, creditUsedCents: Math.min(3_500, fee * 2) });
+    });
+
     it("gives a cancelled grab back to the month", async () => {
       // Cancelling should not cost somebody one of their two. Nothing was
       // brought, so nothing was used.

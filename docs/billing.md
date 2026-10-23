@@ -470,7 +470,9 @@ Included assistant hours each month: Premium 2, Premium Plus 4, Family 8,
 Elite 20, Elite Signature 50, Elite Private 200. Hours beyond that bill at
 $45. Each cap keeps the hours a plan gives away (paid to the assistant at
 $35) well under what the plan brings in. Basic, at $39, is the everyday way in: the safety basics,
-three free errands a month with no fee, and an assistant by the hour. Free is offered
+a $35 monthly errand credit that pays the runner's fee on any errand — a
+grocery run, a restaurant order, a snack to a hospital bed — and an assistant
+by the hour. The food itself is always the customer's. Free is offered
 again for the safety basics alone. See the full rationale in
 `packages/core/src/billing.ts`.
 

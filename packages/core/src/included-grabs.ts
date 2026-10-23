@@ -35,9 +35,8 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   // Sized so a plan's included grabs cost under half its dues at the $10
   // errand minimum (see errand-tiers.ts); they were 2/10/12/30 at $4.
   free: 1,
-  // Three, not under-half like the rest: Basic is how somebody elderly and
-  // alone gets food brought, so it gives as many as $39 carries at a profit.
-  basic: 3,
+  // Basic carries an errand credit instead — see ERRAND_CREDIT_CENTS.
+  basic: 0,
   "premium-basic": 4,
   "premium-plus": 8,
   // Family's price came down to $449, so its allowance follows to stay
@@ -107,10 +106,17 @@ export function isGrabIncluded(input: GrabInput): boolean {
  * shows it, so the two cannot disagree.
  */
 export function customerServiceFeeFor(
-  input: GrabInput & { peopleCount?: number; hours?: number; spendCapCents?: number; hospitalStay?: boolean; armed?: boolean },
+  input: GrabInput & {
+    peopleCount?: number; hours?: number; spendCapCents?: number; hospitalStay?: boolean; armed?: boolean;
+    /** This month's errand credit already used — see `errandCreditUsedIn`. */
+    creditUsedThisMonth?: number;
+  },
 ): number {
   if (isGrabIncluded(input)) return 0;
-  if (input.errandTier !== undefined) return errandFeeCents(input.errandTier, input.spendCapCents ?? 0);
+  if (input.errandTier !== undefined) {
+    const fee = errandFeeCents(input.errandTier, input.spendCapCents ?? 0);
+    return fee - errandCreditCover({ ...input, feeCents: fee, creditUsedThisMonth: input.creditUsedThisMonth ?? 0 });
+  }
   return serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours, input.hospitalStay, input.armed);
 }
 
@@ -119,6 +125,47 @@ export function customerTotalCents(
   input: GrabInput & { spendCapCents: number; peopleCount?: number; hours?: number },
 ): number {
   return input.spendCapCents + customerServiceFeeFor(input);
+}
+
+/* ---------------------------------------------------------------------------
+   Errand credit
+   ------------------------------------------------------------------------ */
+
+/**
+ * A monthly amount of errand fees the plan pays, on any errand tier.
+ *
+ * Basic is how somebody elderly, alone at home or in a hospital bed, gets
+ * food brought: a restaurant order, a grocery run, a cafeteria snack. A count
+ * of free grabs only covered the cheapest of those; a credit covers whichever
+ * they want — one grocery run, or a restaurant pickup and a snack, or a few
+ * snacks — and caps what the plan can cost at a number its dues carry. The
+ * food itself is always the customer's; the credit is the runner's fee.
+ *
+ * $35 against Basic's $39: about $37.60 after the card fee, so the plan clears
+ * its cost even when the whole credit is used. The runner is paid in full
+ * either way.
+ */
+export const ERRAND_CREDIT_CENTS: Partial<Record<PlanId, number>> = { basic: 3_500 };
+
+export const errandCreditFor = (planId: PlanId) => ERRAND_CREDIT_CENTS[planId] ?? 0;
+
+/** Credit used in a month, by errands that were not canceled. */
+export function errandCreditUsedIn(tasks: ConciergeTask[], monthStart: Date, monthEnd: Date): number {
+  return tasks.reduce((sum, t) => {
+    if (!t.errandCreditCents || t.status === "canceled") return sum;
+    const at = new Date(t.createdAt).getTime();
+    return at >= monthStart.getTime() && at < monthEnd.getTime() ? sum + t.errandCreditCents : sum;
+  }, 0);
+}
+
+/** How much of this errand's fee the credit pays: up to what is left of the month's. */
+export function errandCreditCover(input: {
+  planId: PlanId; category: ConciergeCategory; errandTier?: ErrandTierId; feeCents: number; creditUsedThisMonth: number;
+}): number {
+  if (input.errandTier === undefined) return 0;
+  if (input.category !== INCLUDED_GRAB_CATEGORY && input.category !== "run-errand") return 0;
+  const left = Math.max(0, errandCreditFor(input.planId) - input.creditUsedThisMonth);
+  return Math.min(input.feeCents, left);
 }
 
 /* ---------------------------------------------------------------------------
