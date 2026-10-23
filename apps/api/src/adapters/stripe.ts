@@ -112,17 +112,33 @@ export async function ensureStripeCustomer(input: { existingId?: string; email: 
 }
 
 /**
+ * The payment methods Safehubby offers, whatever else is switched on in the
+ * Dashboard. A filter, not a list: Stripe still shows only the ones that are
+ * on and eligible, so turning one off in the Dashboard still hides it.
+ *
+ * Every one of these can be saved and charged later for a renewal or an
+ * errand. Card brings Apple Pay and Google Pay with it. Left out on purpose:
+ * single-use and foreign methods (BLIK, Pix, Kakao Pay, Bancontact…), which a
+ * Dashboard sandbox turns on by default and which cannot pay a renewal.
+ */
+export const SAFEHUBBY_PAYMENT_METHOD_TYPES = ["card", "link", "cashapp", "amazon_pay", "us_bank_account"] as const;
+
+const allowedTypes = () => Object.fromEntries(
+  SAFEHUBBY_PAYMENT_METHOD_TYPES.map((t, i) => [`allowed_payment_method_types[${i}]`, t]),
+);
+
+/**
  * Collect a payment method now, charge it later. `usage: off_session` is the
  * honest declaration: the customer will not be present when it is charged.
  *
  * No `payment_method_types`: current Stripe API versions refuse it and take
  * the list from the Dashboard (Settings → Payment methods) instead — which is
- * also what brings Apple Pay and Google Pay into the form. Methods that can't
- * be saved for later are filtered out by Stripe because of `usage`.
+ * also what brings Apple Pay and Google Pay into the form. The list is then
+ * narrowed with `allowed_payment_method_types` — see above.
  */
 export async function createSetupIntent(customerId: string): Promise<{ clientSecret: string }> {
   const intent = await stripePost<{ client_secret?: string }>("/v1/setup_intents", {
-    customer: customerId, usage: "off_session",
+    customer: customerId, usage: "off_session", ...allowedTypes(),
   });
   if (!intent.client_secret) throw new Error("Stripe returned a SetupIntent with no client secret.");
   return { clientSecret: intent.client_secret };
@@ -323,6 +339,7 @@ export async function createCheckoutSession(input: {
       "name_collection[business][optional]": true,
       "saved_payment_method_options[payment_method_save]": "enabled",
       integration_identifier: "custom_embedded_web_0001",
+      ...allowedTypes(),
       return_url: input.returnUrl,
     }),
   });
@@ -343,4 +360,19 @@ export async function cancelStripeSubscription(subscriptionId: string): Promise<
     const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
     throw new Error(data?.error?.message ?? `Stripe could not cancel that subscription: ${res.status}`);
   }
+}
+
+/**
+ * Which Stripe account and mode the secret key belongs to, for the boot log:
+ * payment-method settings live per account and per mode, so editing a
+ * different one in the Dashboard changes nothing here.
+ */
+export async function describeStripeAccount(): Promise<string> {
+  if (!key()) return "not configured";
+  const res = await fetch(`${api()}/v1/account`, { headers: { authorization: `Bearer ${key()}` } });
+  const a = (await res.json().catch(() => null)) as
+    { id?: string; settings?: { dashboard?: { display_name?: string } }; business_profile?: { name?: string }; error?: { message?: string } } | null;
+  if (!res.ok || !a?.id) return `could not be read (${a?.error?.message ?? res.status})`;
+  const name = a.settings?.dashboard?.display_name ?? a.business_profile?.name ?? "unnamed";
+  return `${a.id} "${name}", ${key()!.startsWith("sk_live_") ? "live" : "test"} mode`;
 }

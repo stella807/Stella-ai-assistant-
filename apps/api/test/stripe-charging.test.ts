@@ -35,6 +35,10 @@ describe("Stripe card charging", () => {
     expect(await createSetupIntent("cus_1")).toEqual({ clientSecret: "seti_secret" });
     expect([...calls[0]!.body.keys()].some((k) => k.startsWith("payment_method_types"))).toBe(false);
     expect(calls[0]!.body.get("usage")).toBe("off_session");
+    // Only methods that can pay a renewal, whatever a sandbox has switched on.
+    expect(calls[0]!.body.getAll("allowed_payment_method_types[0]")).toEqual(["card"]);
+    expect([...calls[0]!.body.keys()].filter((k) => k.startsWith("allowed_payment_method_types")))
+      .toHaveLength(5);
   });
 
   it("refuses a hold the bank wants approved, and cancels it", async () => {
