@@ -146,8 +146,10 @@ export interface Plan {
   /** Hours of personal-assistant time the membership already pays for each
    *  month, on the tiers that include any. Hours beyond it bill at the same
    *  published rate, so the allowance is a prepayment and never a discount
-   *  hiding in a subscription. */
-  includedConciergeHours?: number;
+   *  hiding in a subscription. "unlimited" from Premium up, at ownership's
+   *  direction: every hourly booking is covered, and Safehubby still pays the
+   *  assistant for each hour out of the dues. */
+  includedConciergeHours?: number | "unlimited";
 }
 
 /**
@@ -423,7 +425,7 @@ export const PLANS: Plan[] = [
     // Premium is one seat, so "multiple people, one account" is not a
     // real feature of it. See PREMIUM_FEATURES's own doc comment above.
     features: PREMIUM_FEATURES,
-    includedConciergeHours: 1,
+    includedConciergeHours: "unlimited",
     blurb: "For one person. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
@@ -438,23 +440,22 @@ export const PLANS: Plan[] = [
     // doesn't get — multi-profile — is exactly the one that makes sense
     // once a plan actually covers more than one person.
     features: PLUS_FEATURES,
-    includedConciergeHours: 2,
+    includedConciergeHours: "unlimited",
     blurb: "The same everything as Premium, for two people instead of one, plus multiple people on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
   },
   {
     id: "family",
     name: "Family",
-    // A real family discount: about $66.50 a person, against $93.99 alone.
-    // Was $563.94 (6 x Premium), which gave a household no reason to share.
-    monthlyCents: 39900,
-    annualCents: 399000,
+    // 6 x Premium, at ownership's direction (it was briefly $399).
+    monthlyCents: 56394,
+    annualCents: 563940,
     seats: 6,
     // Identical features to Premium Plus, by design — Family is the same
     // product for more people, not a longer feature list. Differs from
     // Premium only in multi-profile, the same way Premium Plus does — see
     // PREMIUM_FEATURES's own doc comment above.
     features: PLUS_FEATURES,
-    includedConciergeHours: 4,
+    includedConciergeHours: "unlimited",
     blurb: "The same everything as Premium Plus, for up to six people instead of two — one household on one bill, at ownership's set price.",
   },
   {
@@ -464,8 +465,8 @@ export const PLANS: Plan[] = [
     annualCents: 1554999,
     seats: 1,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
-    includedConciergeHours: 10,
-    blurb: "For one person. A desk that answers 24/7 — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately. Ten hours of an assistant's time on the ground each month; more at the usual rate.",
+    includedConciergeHours: "unlimited",
+    blurb: "For one person. A desk that answers 24/7 — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately. An assistant's time on the ground included, with no monthly limit.",
   },
   {
     id: "elite-signature",
@@ -474,8 +475,8 @@ export const PLANS: Plan[] = [
     annualCents: 7774999,
     seats: 2,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
-    includedConciergeHours: 50,
-    blurb: "For two. The same 24/7 desk and the same included physician's retainer, with fifty hours a month of an assistant on the ground behind it — enough that they know your household rather than your last request.",
+    includedConciergeHours: "unlimited",
+    blurb: "For two. The same 24/7 desk and the same included physician's retainer, with an assistant on the ground behind it, no monthly limit on hours — enough that they know your household rather than your last request.",
   },
   {
     id: "elite-private",
@@ -484,8 +485,8 @@ export const PLANS: Plan[] = [
     annualCents: 62174999,
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
-    includedConciergeHours: 200,
-    blurb: "For up to six. A 24/7 desk and a named team, two hundred hours a month of their time on the ground, the physician's retainer included, and at-home doctor visits arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
+    includedConciergeHours: "unlimited",
+    blurb: "For up to six. A 24/7 desk and a named team, their time on the ground with no monthly limit, the physician's retainer included, and at-home doctor visits arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
   },
 ];
 
@@ -565,8 +566,11 @@ export function deskTaskAllowanceFor(id: PlanId): number {
 
 /** The hours a plan's price already covers each month. Zero on Free. */
 export function includedConciergeHours(id: PlanId): number {
-  return findPlan(id).includedConciergeHours ?? 0;
+  const h = findPlan(id).includedConciergeHours ?? 0;
+  return h === "unlimited" ? Number.POSITIVE_INFINITY : h;
 }
+
+export const hasUnlimitedConciergeHours = (id: PlanId) => findPlan(id).includedConciergeHours === "unlimited";
 
 /**
  * Elite's monthly spending allowance: real money loaded onto a member's own

@@ -58,7 +58,7 @@ Computed by `subscribersToCarryRoster`, off the live plan price:
 | Basic | $29.00 | **425** |
 | Premium | $93.99 | **131** |
 | Premium Plus | $187.98 | **66** |
-| Family | $399.00 | **31** |
+| Family | $563.94 | **22** |
 
 Subscription revenue only. Per-job margin from rides and errands is real but
 scales with work done, so leaving it out keeps these a floor: the count that

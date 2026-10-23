@@ -97,7 +97,7 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
   if (hasAssistant) rows.push({
     label: "An assistant by the hour",
     value: `${money(hourlyFee)} an hour`,
-    note: hours > 0 ? `${hours} hours a month are already paid for by your plan.` : "Plus the spending limit you load for what they buy.",
+    note: hours === Number.POSITIVE_INFINITY ? "Every hour is already paid for by your plan — no monthly limit." : hours > 0 ? `${hours} hours a month are already paid for by your plan.` : "Plus the spending limit you load for what they buy.",
   });
   if (hasErrands) {
     rows.push({

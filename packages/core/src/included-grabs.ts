@@ -38,8 +38,6 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   basic: 1,
   "premium-basic": 4,
   "premium-plus": 8,
-  // Family's price came down to $399, so its allowance follows to stay
-  // under half its dues at the $10 errand minimum.
   family: 18,
   elite: null,
   "elite-signature": null,

@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CONCIERGE_DOCTOR_DISCLOSURES, DESK_COVERAGE, ELITE_DESK_MEMBERSHIP, ELITE_EVENTS, ELITE_SERVICES,
-  HOURS_IN_A_MONTH, JET_TRAVEL_DISCLOSURES,
+  JET_TRAVEL_DISCLOSURES,
   MAX_ELITE_BRIEF_LENGTH, commissionCentsFor, directMembershipCrossoverCents, disclosuresFor,
   doctorAvailableFor, eliteBreakEvenMembers, eliteDeskAnnualCostCents, eliteDeskIsViable,
   eliteEventHasRoom, findEliteEvent, findEliteService, upcomingEliteEvents, validateEliteRequest,
 } from "../src/elite.ts";
-import { ELITE_LADDER, ELITE_ONLY, eliteSpendingAllowanceCents, findPlan, includedConciergeHours, isElitePlan } from "../src/billing.ts";
-import { PA_HOURLY_RATE_CENTS, serviceFeeFor } from "../src/concierge.ts";
+import { ELITE_LADDER, ELITE_ONLY, eliteSpendingAllowanceCents, findPlan, hasUnlimitedConciergeHours, isElitePlan } from "../src/billing.ts";
 import type { EliteBooking } from "../src/elite.ts";
 
 describe("the Elite service catalogue", () => {
@@ -193,15 +192,8 @@ describe("whether the Elite desk pays for itself", () => {
     expect(dues * 12).toBeGreaterThanOrEqual(direct);
   });
 
-  it("never includes more hours than the rung's price pays for", () => {
-    // The one line every rung has to stay the right side of. An allowance
-    // worth more than the membership is a tier that loses money before the
-    // desk, the insurance or a single booking is counted.
-    for (const id of ELITE_LADDER) {
-      const plan = findPlan(id);
-      const hoursValue = includedConciergeHours(id) * serviceFeeFor("book-and-buy", false, 1, 1);
-      expect(hoursValue, `${id} hours vs price`).toBeLessThan(plan.monthlyCents);
-    }
+  it("includes unlimited assistant hours on every rung, at ownership's direction", () => {
+    for (const id of ELITE_LADDER) expect(hasUnlimitedConciergeHours(id), id).toBe(true);
   });
 
   it("says the desk is reachable around the clock, on every rung", () => {
@@ -213,40 +205,13 @@ describe("whether the Elite desk pays for itself", () => {
     }
   });
 
-  it("never promises an assistant present around the clock, which no rung pays for", () => {
-    /**
-     * The guard behind the wording. "The desk answers 24/7" is coverage and
-     * is true. "An assistant is with you 24/7" is labour, and labour has a
-     * wage bill: a month is 730 hours, which at the rate the roster is
-     * actually paid costs more than two of the three rungs take in.
-     *
-     * So a rung may say the desk is always open, and must still state the
-     * hours of an assistant's time it includes. Anything that removed the
-     * hours would be an undisclosed limit on a four-figure subscription.
-     */
-    const roundTheClockWages = HOURS_IN_A_MONTH * PA_HOURLY_RATE_CENTS;
-    expect(roundTheClockWages).toBeGreaterThan(findPlan("elite").monthlyCents);
-    expect(roundTheClockWages).toBeGreaterThan(findPlan("elite-signature").monthlyCents);
-
-    for (const id of ELITE_LADDER) {
-      const plan = findPlan(id);
-      // Every rung still discloses a real allowance...
-      expect(includedConciergeHours(id), `${id} allowance`).toBeGreaterThan(0);
-      // ...and none of them claims that allowance is the whole month.
-      expect(includedConciergeHours(id), `${id} vs a full month`).toBeLessThan(HOURS_IN_A_MONTH);
-      expect(plan.blurb, `${id} must not sell unlimited hours`)
-        .not.toMatch(/unlimited|around the clock assistant|24\/7 assistant/i);
-    }
-  });
-
-  it("climbs in both price and hours, so a dearer rung is never a worse deal", () => {
+  it("climbs in price, so a dearer rung is never a worse deal", () => {
     const rungs = ELITE_LADDER.map(findPlan);
     for (let i = 1; i < rungs.length; i++) {
       expect(rungs[i]!.monthlyCents).toBeGreaterThan(rungs[i - 1]!.monthlyCents);
-      expect(includedConciergeHours(rungs[i]!.id))
-        .toBeGreaterThan(includedConciergeHours(rungs[i - 1]!.id));
     }
   });
+
 
   it("reports no crossover at all once dues meet the direct membership", () => {
     // Null rather than zero. At these dues Elite is dearer than joining the
