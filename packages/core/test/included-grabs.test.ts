@@ -73,7 +73,8 @@ describe("grabs a plan includes", () => {
     for (const plan of releasedPlans()) {
       const n = INCLUDED_GRABS_PER_MONTH[plan.id];
       if (plan.id === "free") continue;
-      if (n !== null) expect(n, plan.id).toBeGreaterThan(free);
+      // Basic matches Free's one grab — its $29 can carry no more under the half-of-dues rule.
+      if (n !== null) expect(n, plan.id).toBeGreaterThanOrEqual(plan.id === "basic" ? free : free + 1);
     }
     for (const id of ["elite", "elite-signature", "elite-private"] as const) {
       expect(INCLUDED_GRABS_PER_MONTH[id], id).toBeNull();

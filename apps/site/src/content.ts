@@ -107,7 +107,7 @@ export function formatDate(iso: string, lang: Lang): string {
  * They render as a swipeable rail; see `.plan-rail` in render.ts.
  */
 /** Family and Free are the plan names that change in Spanish. */
-const PLAN_NAMES_ES: Partial<Record<PlanId, string>> = { family: "Familia", free: "Gratis" };
+const PLAN_NAMES_ES: Partial<Record<PlanId, string>> = { family: "Familia", free: "Gratis", basic: "Básico" };
 
 export function planNameIn(plan: Plan, lang: Lang): string {
   return lang === "es" ? PLAN_NAMES_ES[plan.id] ?? plan.name : plan.name;
@@ -339,7 +339,8 @@ export const COPY: Record<Lang, Copy> = {
     seatsMany: (n) => `Up to ${n} people`,
     freeLabel: "Always free",
     planBlurbs: {
-      free: "Check-ins, location sharing, SOS and ride booking. The safety basics are never behind a paywall. Errands start with Premium.",
+      free: "Check-ins, location sharing, SOS and ride booking. The safety basics are never behind a paywall.",
+      basic: "The safety basics, a personal assistant by the hour when you need one, and one errand a month with no service fee.",
       "premium-basic": `Errands from a juice to a shopping trip — ${INCLUDED_GRABS_ENTRY} one-item grabs a month with no service fee — and an assistant who waits with someone or checks on them.`,
       "premium-plus": "Everything Premium does, for two people, with no ceiling on what goes on the card.",
       family: "The same service for a whole household, on one account.",
@@ -406,7 +407,8 @@ export const COPY: Record<Lang, Copy> = {
     seatsMany: (n) => `Hasta ${n} personas`,
     freeLabel: "Siempre gratis",
     planBlurbs: {
-      free: "Registros, ubicación compartida, SOS y viajes. Lo básico de seguridad nunca se cobra. Los encargos empiezan con Premium.",
+      free: "Registros, ubicación compartida, SOS y viajes. Lo básico de seguridad nunca se cobra.",
+      basic: "Lo básico de seguridad, un asistente personal por hora cuando lo necesites, y una diligencia al mes sin cargo por servicio.",
       "premium-basic": `Diligencias desde un jugo hasta un viaje de compras — ${INCLUDED_GRABS_ENTRY} compras de un artículo al mes sin cargo por servicio — y un asistente que acompaña a alguien o pasa a verlo.`,
       "premium-plus": "Todo lo de Premium, para dos personas, sin tope en lo que va en la tarjeta.",
       family: "El mismo servicio para todo un hogar, en una sola cuenta.",

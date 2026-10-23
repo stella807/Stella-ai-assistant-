@@ -35,9 +35,12 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   // Sized so a plan's included grabs cost under half its dues at the $10
   // errand minimum (see errand-tiers.ts); they were 2/10/12/30 at $4.
   free: 1,
+  basic: 1,
   "premium-basic": 4,
   "premium-plus": 8,
-  family: 25,
+  // Family's price came down to $399, so its allowance follows to stay
+  // under half its dues at the $10 errand minimum.
+  family: 18,
   elite: null,
   "elite-signature": null,
   "elite-private": null,

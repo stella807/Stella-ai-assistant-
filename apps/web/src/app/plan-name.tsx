@@ -5,7 +5,7 @@ import { useLanguage } from "../i18n.tsx";
  * names are the same in Spanish; Family and Free are not. Anything not listed
  * keeps the name the server sent.
  */
-const ES: Record<string, string> = { family: "Familia", free: "Gratis" };
+const ES: Record<string, string> = { family: "Familia", free: "Gratis", basic: "Básico" };
 
 export function planNameFor(id: string, name: string, language: string): string {
   return language === "es" ? ES[id] ?? name : name;

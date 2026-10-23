@@ -180,6 +180,8 @@ export const FREE_GRAB_SOMETHING_MAX_CAP_CENTS = 3500;
  * to, never an amount anyone is charged.
  */
 export const PLAN_CAP_CEILINGS_CENTS: Record<Exclude<PlanId, "free">, readonly [number, number]> = {
+  // Basic: a bigger grab than Free's $35, well under Premium's ceilings.
+  basic: [10000, 30000],
   "premium-basic": [GRAB_SOMETHING_MAX_CAP_CENTS, CONCIERGE_MAX_CAP_CENTS],
   "premium-plus": [150000, 100000],
   family: [200000, 150000],

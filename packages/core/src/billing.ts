@@ -12,7 +12,7 @@
 import { isEnabled } from "./features.ts";
 
 export type PlanId =
-  | "free" | "premium-basic" | "premium-plus" | "family"
+  | "free" | "basic" | "premium-basic" | "premium-plus" | "family"
   // Elite is a ladder, not a price. See ELITE_LADDER below.
   | "elite" | "elite-signature" | "elite-private";
 
@@ -229,6 +229,14 @@ const PLUS_FEATURES: Feature[] = ALL_FEATURES.filter((f) => !ELITE_ONLY.includes
 const PREMIUM_FEATURES: Feature[] = PLUS_FEATURES.filter((f) => f !== "multi-profile");
 
 /**
+ * Basic: the everyday way in, for a household that cannot spend $94 a month.
+ * The safety basics, plus booking a personal assistant by the hour and
+ * one errand a month with no fee. Everything automatic — Safehubby booking
+ * and paying on your behalf — stays on Premium and up.
+ */
+const BASIC_FEATURES: Feature[] = [...FREE_FEATURES, "personal-concierge", "drink-details", "safe-routes"];
+
+/**
  * Pricing.
  *
  * The pre-authorization hold in payment.ts still does its job: Safehubby
@@ -395,6 +403,17 @@ export const PLANS: Plan[] = [
     },
   },
   {
+    id: "basic",
+    name: "Basic",
+    // At ownership's direction, so the service reaches every income level:
+    // about a third of Premium, card fee included.
+    monthlyCents: 2900,
+    annualCents: 29000,
+    seats: 1,
+    features: BASIC_FEATURES,
+    blurb: "For one person. The safety basics, a personal assistant by the hour when you need one, and one errand a month with no fee.",
+  },
+  {
     id: "premium-basic",
     name: "Premium",
     monthlyCents: 9399,
@@ -425,8 +444,10 @@ export const PLANS: Plan[] = [
   {
     id: "family",
     name: "Family",
-    monthlyCents: 56394,
-    annualCents: 563999,
+    // A real family discount: about $66.50 a person, against $93.99 alone.
+    // Was $563.94 (6 x Premium), which gave a household no reason to share.
+    monthlyCents: 39900,
+    annualCents: 399000,
     seats: 6,
     // Identical features to Premium Plus, by design — Family is the same
     // product for more people, not a longer feature list. Differs from
@@ -529,6 +550,7 @@ export function isElitePlan(id: PlanId): boolean {
  */
 const DESK_TASK_ALLOWANCE: Record<PlanId, number> = {
   free: 0,
+  basic: 0,
   "premium-basic": 10,
   "premium-plus": 25,
   family: 40,

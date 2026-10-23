@@ -55,7 +55,8 @@ describe("the monthly allowance", () => {
   it("is included on every paid plan and absent on the free one", () => {
     expect(hasFeature("free", "desk-tasks")).toBe(false);
     expect(deskTaskAllowanceFor("free")).toBe(0);
-    for (const plan of PLANS.filter((p) => p.monthlyCents > 0)) {
+    // Basic is the entry plan: no desk tasks, which start with Premium.
+    for (const plan of PLANS.filter((p) => p.monthlyCents > 0 && p.id !== "basic")) {
       expect(hasFeature(plan.id, "desk-tasks"), plan.id).toBe(true);
       expect(deskTaskAllowanceFor(plan.id), plan.id).toBeGreaterThan(0);
     }

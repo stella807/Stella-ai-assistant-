@@ -462,17 +462,20 @@ anchoring against personal-safety apps (Life360, Noonlight) or the
 mid-market concierge-app band this ladder used before. The one rule every
 round of this ladder has still held: seats and price climb together, never
 seats-up-price-down (see the seat-ordering test in `billing.test.ts`,
-scoped to exclude only Elite). Every non-Elite plan is now the same $93.99
-per person: Premium for one, Premium Plus for two ($187.98), Family for six
-($563.94). See the full rationale in
+scoped to exclude only Elite). Premium is $93.99 for one and Premium Plus
+$187.98 for two; Family is $399 for up to six (about $66.50 a person, a real
+household discount). Basic, at $29, is the everyday way in: the safety basics,
+an assistant by the hour, and one errand a month with no fee. Free is offered
+again for the safety basics alone. See the full rationale in
 `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
+| Basic | $29.00 | $290.00 | 1 |
 | Premium | $93.99 | $939.99 | 1 |
 | Premium Plus | $187.98 | $1,879.98 | 2 |
-| Family | $563.94 | $5,639.99 | 6 |
+| Family | $399.00 | $3,990.00 | 6 |
 | Elite (entry rung, live) | $1,555.00 | $15,549.99 | 1 |
 
 **Every paid price includes PayPal's fee.** PayPal keeps 3.49% + $0.49 of

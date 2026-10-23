@@ -33,9 +33,11 @@ describe("plans", () => {
     expect(hasFeature("premium-basic", "quick-tasks")).toBe(true);
   });
 
-  it("does not offer the Free plan while `free-tier` is off, without deleting it", () => {
-    expect(isPlanReleased("free")).toBe(false);
+  it("offers the Free plan again, and can still take it off without deleting it", () => {
+    expect(isPlanReleased("free")).toBe(true);
+    setFlag("free-tier", false);
     expect(releasedPlans().map((p) => p.id)).not.toContain("free");
+    resetFlags();
     // Still a real plan: an account with nothing paid sits on it, and that is
     // what keeps check-ins, location and SOS working for somebody who has not
     // subscribed or who has cancelled.
@@ -381,7 +383,8 @@ describe("prices cover PayPal's fee", () => {
   // What each plan brought in before the fee was built in. After PayPal's cut,
   // every price must still bring in at least this much.
   const before: Record<string, [number, number]> = {
-    "premium-basic": [8999, 89999], "premium-plus": [9999, 99999], family: [53994, 539999],
+    // Family is left out on purpose: it was lowered to $399 for a real family discount.
+    "premium-basic": [8999, 89999], "premium-plus": [9999, 99999],
     elite: [150000, 1499999], "elite-signature": [750000, 7499999], "elite-private": [6000000, 59999999],
   };
 
@@ -393,9 +396,9 @@ describe("prices cover PayPal's fee", () => {
     }
   });
 
-  it("keeps Family at exactly six Premium seats, and yearly at ten months", () => {
-    expect(findPlan("family").monthlyCents).toBe(findPlan("premium-basic").monthlyCents * 6);
-    for (const id of Object.keys(before)) {
+  it("gives Family a real discount per person, and prices every year at ten months", () => {
+    expect(findPlan("family").monthlyCents / 6).toBeLessThan(findPlan("premium-basic").monthlyCents * 0.8);
+    for (const id of [...Object.keys(before), "basic", "family"]) {
       const plan = findPlan(id as Parameters<typeof findPlan>[0]);
       expect(Math.abs(plan.annualCents - plan.monthlyCents * 10), id).toBeLessThan(100);
     }

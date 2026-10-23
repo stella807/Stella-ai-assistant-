@@ -187,10 +187,9 @@ describe("API basics", () => {
     expect((await call("GET", "/api/health")).json.ok).toBe(true);
     const catalog = (await call("GET", "/api/catalog")).json;
     expect(catalog.drinks.length).toBeGreaterThan(5);
-    // Three paid everyday tiers plus the three Elite rungs. Free is not offered
-    // while `free-tier` is off, so it is not in what a visitor can choose from.
-    expect(catalog.plans.length).toBe(3 + ELITE_LADDER.length);
-    expect(catalog.plans.map((p: { id: string }) => p.id)).not.toContain("free");
+    // Free, Basic, Premium, Premium Plus and Family, then the Elite ladder.
+    expect(catalog.plans.length).toBe(5 + ELITE_LADDER.length);
+    expect(catalog.plans.map((p: { id: string }) => p.id)).toContain("free");
   });
 
   it("404s an unknown route and 400s bad JSON", async () => {
@@ -5864,7 +5863,9 @@ describe("the renewal-terms gate", () => {
 
   it("does not let anybody sign up for Free while it is not offered", async () => {
     // Nothing paid, nothing subscribed: there is nothing to cancel, so this is
-    // a sign-up for a plan that is off the shelf.
+    // a sign-up for a plan that is off the shelf. (Free is offered by default
+    // now, so the shelf is taken down here.)
+    setFlag("free-tier", false);
     const res = await call("POST", "/api/subscription", { planId: "free", renewalConsent: null }, jordan);
     expect(res.status).toBe(404);
     expect(res.json.error).toMatch(/not being offered/i);

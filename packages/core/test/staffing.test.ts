@@ -194,7 +194,7 @@ describe("what the roster costs after launch", () => {
 describe("what it takes to carry the roster", () => {
   it("counts subscribers off the live plan price, never a typed figure", () => {
     const monthly = monthlyRosterCents();
-    for (const planId of ["premium-basic", "premium-plus", "family"] as PlanId[]) {
+    for (const planId of ["basic", "premium-basic", "premium-plus", "family"] as PlanId[]) {
       const needed = subscribersToCarryRoster(planId);
       const price = findPlan(planId).monthlyCents;
       // Enough, and not one more than enough.

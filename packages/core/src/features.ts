@@ -84,7 +84,8 @@ export const FLAGS: FlagDefinition[] = [
   },
   {
     id: "free-tier",
-    enabled: false,
+    // Back on at ownership's direction: the safety basics are free again.
+    enabled: true,
     note: "The Free plan is not being offered right now. Check-ins, location sharing and SOS still work on an account with no paid plan; the plans to choose from start with Premium.",
   },
   {
