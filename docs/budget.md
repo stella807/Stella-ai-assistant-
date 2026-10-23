@@ -55,7 +55,7 @@ Computed by `subscribersToCarryRoster`, off the live plan price:
 
 | Plan | Monthly | Subscribers to carry the roster |
 |---|---:|---:|
-| Basic | $29.00 | **425** |
+| Basic | $39.00 | **316** |
 | Premium | $93.99 | **131** |
 | Premium Plus | $187.98 | **66** |
 | Family | $449.00 | **28** |

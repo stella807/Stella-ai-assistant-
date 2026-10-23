@@ -466,18 +466,18 @@ scoped to exclude only Elite). Premium is $93.99 for one and Premium Plus
 $187.98 for two; Family is $449 for up to six (about $75 a person, a real
 household discount).
 
-Included assistant hours each month: Premium 2, Premium Plus 4, Family 8,
+Included assistant hours each month: Basic 1, Premium 2, Premium Plus 4, Family 8,
 Elite 20, Elite Signature 50, Elite Private 200. Hours beyond that bill at
 $45. Each cap keeps the hours a plan gives away (paid to the assistant at
-$35) well under what the plan brings in. Basic, at $29, is the everyday way in: the safety basics,
-an assistant by the hour, and one errand a month with no fee. Free is offered
+$35) well under what the plan brings in. Basic, at $39, is the everyday way in: the safety basics,
+one included assistant hour a month and more by the hour, and one errand a month with no fee. Free is offered
 again for the safety basics alone. See the full rationale in
 `packages/core/src/billing.ts`.
 
 | | Monthly | Annual | Seats |
 |---|---:|---:|---:|
 | Free | $0 | $0 | 1 |
-| Basic | $29.00 | $290.00 | 1 |
+| Basic | $39.00 | $390.00 | 1 |
 | Premium | $93.99 | $939.99 | 1 |
 | Premium Plus | $187.98 | $1,879.98 | 2 |
 | Family | $449.00 | $4,490.00 | 6 |

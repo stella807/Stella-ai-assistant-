@@ -406,12 +406,14 @@ export const PLANS: Plan[] = [
     id: "basic",
     name: "Basic",
     // At ownership's direction, so the service reaches every income level:
-    // about a third of Premium, card fee included.
-    monthlyCents: 2900,
-    annualCents: 29000,
+    // under half of Premium, card fee included. $39 rather than $29 so the
+    // one included hour ($35 of assistant pay) does not cost more than it brings in.
+    monthlyCents: 3900,
+    annualCents: 39000,
     seats: 1,
     features: BASIC_FEATURES,
-    blurb: "For one person. The safety basics, a personal assistant by the hour when you need one, and one errand a month with no fee.",
+    includedConciergeHours: 1,
+    blurb: "For one person. The safety basics, one hour of a personal assistant each month and more by the hour, and one errand a month with no fee.",
   },
   {
     id: "premium-basic",
