@@ -35,7 +35,9 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   // Sized so a plan's included grabs cost under half its dues at the $10
   // errand minimum (see errand-tiers.ts); they were 2/10/12/30 at $4.
   free: 1,
-  basic: 1,
+  // Three, not under-half like the rest: Basic is how somebody elderly and
+  // alone gets food brought, so it gives as many as $39 carries at a profit.
+  basic: 3,
   "premium-basic": 4,
   "premium-plus": 8,
   // Family's price came down to $449, so its allowance follows to stay

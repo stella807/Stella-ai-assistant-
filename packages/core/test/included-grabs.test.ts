@@ -8,7 +8,7 @@ afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
   customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
-  monthBoundsFor, releasedPlans, remainingIncludedGrabs, serviceFeeFor, hourlyServiceFee, includedHoursUsedIn,
+  monthBoundsFor, releasedPlans, netAfterProcessorFeeCents, remainingIncludedGrabs, serviceFeeFor, hourlyServiceFee, includedHoursUsedIn,
   type ConciergeCategory, type ConciergeTask, type PlanId,
 } from "../src/index.ts";
 
@@ -85,13 +85,15 @@ describe("grabs a plan includes", () => {
 
   it("never gives away more in a month than a paid plan takes in", () => {
     // Every included grab is the runner's pay with nothing coming in. On a
-    // paid plan that has to fit inside the dues, with room left over, or the
-    // allowance is a plan that loses money on its heaviest users.
+    // paid plan that has to fit inside the dues after the card fee, or the
+    // allowance is a plan that loses money on its heaviest users. Basic sits
+    // closest to that line on purpose: it gives an elderly member as many
+    // errands as $39 carries.
     const payout = assistantPayoutFor(INCLUDED_GRAB_CATEGORY, true, 1);
     for (const plan of releasedPlans()) {
       const n = INCLUDED_GRABS_PER_MONTH[plan.id];
       if (n === null || plan.monthlyCents === 0) continue;
-      expect(n * payout, plan.id).toBeLessThan(plan.monthlyCents / 2);
+      expect(n * payout, plan.id).toBeLessThan(netAfterProcessorFeeCents(plan.monthlyCents));
     }
   });
 
