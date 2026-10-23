@@ -88,9 +88,9 @@ export const ERRAND_TIERS: ErrandTier[] = [
   { id: "shopping-trip", label: "Shopping trip", example: "A blanket, clothes, a few stops", minutes: 60, miles: 10, suggestedCapCents: 7500 },
   // The cheap way to get groceries: the customer orders and pays in the
   // store's own pickup service, and the runner only collects and delivers —
-  // no shopping, so half the time of a shopping trip. The limit is for
+  // no shopping: 20 minutes and 4 miles, about $15 to the customer. The limit is for
   // anything extra at the counter (a bag fee, a forgotten item).
-  { id: "grocery-pickup", label: "Grocery drop-off", example: "Groceries you ordered for store pickup, collected and brought to you", minutes: 30, miles: 6, suggestedCapCents: 1000 },
+  { id: "grocery-pickup", label: "Grocery drop-off", example: "Groceries you ordered for store pickup, collected and brought to you", minutes: 20, miles: 4, suggestedCapCents: 1000 },
   { id: "wait-in-line", label: "Wait in line", example: "A restaurant or takeout order", minutes: 50, miles: 6, suggestedCapCents: 4000 },
   { id: "pharmacy", label: "Pharmacy pickup", example: "A prescription or medicine from the pharmacy", minutes: 50, miles: 6, suggestedCapCents: 4000 },
 ];
