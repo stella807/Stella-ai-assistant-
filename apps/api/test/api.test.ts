@@ -4355,13 +4355,49 @@ describe("hiring somebody and actually sending them to a job", () => {
       }
     });
 
-    it("has no ATH Móvil routes and no automatic refund any more", async () => {
-      for (const path of ["/api/balance/ath/start", "/api/balance/ath/complete", "/api/balance/refund"]) {
+    it("has no automatic refund route", async () => {
+      for (const path of ["/api/balance/ath/complete", "/api/balance/refund"]) {
         expect((await call("POST", path, {}, sam)).status, path).toBe(404);
       }
-      const res = await call("GET", "/api/balance", undefined, sam);
-      expect(res.json.ath).toBeUndefined();
-      expect(res.json.refundableCents).toBeUndefined();
+      expect((await call("GET", "/api/balance", undefined, sam)).json.refundableCents).toBeUndefined();
+    });
+
+    it("loads the balance with ATH Móvil only once ATH says the member approved it", async () => {
+      delete process.env.ATH_MOVIL_PUBLIC_TOKEN;
+      expect((await call("GET", "/api/balance", undefined, sam)).json.athMovil.ready).toBe(false);
+      expect((await call("POST", "/api/balance/ath/start", { amountCents: 2_000, phone: "7875551234" }, sam)).status).toBe(503);
+
+      process.env.ATH_MOVIL_PUBLIC_TOKEN = "pub";
+      const ath = { status: "OPEN" };
+      const realFetch = globalThis.fetch;
+      globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+        const path = String(url);
+        if (!path.includes("athmovil")) return realFetch(url, init);
+        const ok = (data: unknown) => new Response(JSON.stringify({ status: "success", data }), { status: 200 });
+        if (path.endsWith("/payment")) return ok({ ecommerceId: "ec_1", auth_token: "tok_1" });
+        if (path.endsWith("/findPayment")) return ok({ ecommerceStatus: ath.status, total: "20.00" });
+        if (path.endsWith("/authorization")) return ok({ ecommerceStatus: "COMPLETED", referenceNumber: "ref_1", total: "20.00" });
+        return ok("Payment Cancelled.");
+      }) as typeof fetch;
+      try {
+        expect((await call("POST", "/api/balance/ath/start", { amountCents: 2_000, phone: "555" }, sam)).status).toBe(400);
+        expect((await call("POST", "/api/balance/ath/start", { amountCents: 1, phone: "7875551234" }, sam)).status).toBe(400);
+        const started = await call("POST", "/api/balance/ath/start", { amountCents: 2_000, phone: "(787) 555-1234" }, sam);
+        expect(started.status, JSON.stringify(started.json)).toBe(200);
+        const id = started.json.loadId as string;
+
+        // Someone else's payment is not theirs to check.
+        expect((await call("POST", `/api/balance/ath/${id}/check`, {}, jordan)).status).toBe(404);
+        expect((await call("POST", `/api/balance/ath/${id}/check`, {}, sam)).json.status).toBe("open");
+        expect(await availableOf(sam)).toBe(0);
+
+        ath.status = "CONFIRM";
+        const paid = await call("POST", `/api/balance/ath/${id}/check`, {}, sam);
+        expect(paid.json).toMatchObject({ status: "paid", availableCents: 2_000 });
+      } finally {
+        globalThis.fetch = realFetch;
+        delete process.env.ATH_MOVIL_PUBLIC_TOKEN;
+      }
     });
 
     it("keeps the whole balance under its ceiling", async () => {

@@ -37,7 +37,7 @@ export interface BalanceEntry {
   /** For a payout, the load it was refunded against. */
   againstEntryId?: string;
   /** Where a load came from. Absent on older entries. */
-  source?: "crypto";
+  source?: "crypto" | "ath-movil";
   createdAt: string;
 }
 

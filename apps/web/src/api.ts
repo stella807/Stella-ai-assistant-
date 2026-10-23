@@ -146,7 +146,9 @@ export type BalanceInfo = BalanceSummary & {
   minLoadCents: number;
   maxLoadCents: number;
   crypto: { ready: true } | { ready: false; note: string };
+  athMovil?: { ready: true } | { ready: false; note: string };
 };
+export type AthLoadStatus = "open" | "paid" | "canceled" | "expired";
 
 export interface PaymentMethod {
   id: string;
@@ -367,6 +369,10 @@ export const api = {
   saveEmailAlerts: (scope: "account" | "assistant", input: { email?: string; consent: boolean; language: "en" | "es" }) =>
     request<{ enabled: boolean; emailHint?: string }>("POST", `/api/${scope}/email-alerts`, input),
   balance: () => request<BalanceInfo>("GET", "/api/balance"),
+  startAthLoad: (amountCents: number, phone: string) =>
+    request<{ loadId: string; expiresAt: string }>("POST", "/api/balance/ath/start", { amountCents, phone }),
+  checkAthLoad: (id: string) => request<{ status: AthLoadStatus }>("POST", `/api/balance/ath/${encodeURIComponent(id)}/check`),
+  cancelAthLoad: (id: string) => request<{ status: AthLoadStatus }>("POST", `/api/balance/ath/${encodeURIComponent(id)}/cancel`),
   startCryptoLoad: (amountCents: number) =>
     request<{ reference: string }>("POST", "/api/balance/crypto/start", { amountCents }),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),

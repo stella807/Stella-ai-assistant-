@@ -256,6 +256,23 @@ export interface Db {
   /** Balance loads paid in crypto through OpenReceive — see crypto-loads.ts.
    *  Optional so documents saved before it existed still load. */
   cryptoLoads?: CryptoLoad[];
+  athLoads?: AthLoad[];
+}
+
+/** A balance load paid with ATH Móvil — see ath-loads.ts. */
+export interface AthLoad {
+  id: string;
+  travelerId: string;
+  amountCents: number;
+  /** ATH's ticket for the payment, and the short-lived token that authorizes it. */
+  ecommerceId: string;
+  authToken: string;
+  status: "open" | "paid" | "canceled" | "expired";
+  createdAt: string;
+  expiresAt: string;
+  paidAt?: string;
+  /** ATH's reference for the completed payment — what a refund is issued against. */
+  referenceNumber?: string;
 }
 
 export interface CryptoLoad {

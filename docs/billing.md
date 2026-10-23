@@ -713,3 +713,23 @@ on PayPal. Each method is charged by the processor it was saved with.
   `tax_behavior: inclusive`, so the tax is carved out of the listed price and
   the member is charged exactly what the app shows. Stripe only collects where
   the account has a tax registration.
+
+## ATH Móvil
+
+Members can add money to their Safehubby balance with ATH Móvil, through
+ATH Business's Payment Button API (`apps/api/src/adapters/ath-movil.ts`,
+`apps/api/src/ath-loads.ts`). It is off until `ATH_MOVIL_PUBLIC_TOKEN` is set
+in Railway; `ATH_MOVIL_PRIVATE_TOKEN` is needed for refunds. Both come from the
+ATH Business app's settings.
+
+1. The member picks an amount and enters their ATH Móvil phone number.
+2. The server opens the payment with ATH for that amount (`POST /api/balance/ath/start`).
+3. The member approves it in their ATH Móvil app within 10 minutes.
+4. The page asks the server to check (`POST /api/balance/ath/:id/check`); once ATH
+   reports it approved, the server authorizes it, which takes the money, and
+   credits the balance. A payment that is declined or left unapproved is
+   cancelled and nothing is charged.
+
+ATH Móvil cannot be saved and charged later, so it cannot renew a plan
+automatically; it funds the balance, which pays for errands and assistants.
+Evertec has no test environment: the first check is a small real payment.

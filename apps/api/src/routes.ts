@@ -97,6 +97,8 @@ import { captureHeld, chargeSaved, chargingReady, holdSaved, processorReady, rel
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
+import { athReady, athRequires, normalizeAthPhone } from "./adapters/ath-movil.ts";
+import { cancelAthLoad, checkAthLoad, findAthLoad, startAthLoad } from "./ath-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { cancelStripeSubscription, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
@@ -1935,7 +1937,52 @@ export const routes: Record<string, Handler> = {
       minLoadCents: BALANCE_MIN_LOAD_CENTS,
       maxLoadCents: BALANCE_MAX_LOAD_CENTS,
       crypto: cryptoReady() ? { ready: true as const } : { ready: false as const, note: cryptoRequires },
+      athMovil: athReady() ? { ready: true as const } : { ready: false as const, note: athRequires },
     };
+  },
+
+  /**
+   * The balance, loaded with ATH Móvil. The server opens the payment for the
+   * amount chosen; the member approves it in their ATH Móvil app; the page then
+   * asks `check` until ATH reports it approved, which is when the money is taken
+   * and the balance credited.
+   */
+  "POST /api/balance/ath/start": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    if (!athReady()) throw new HttpError(503, athRequires);
+    const amountCents = Number(body?.amountCents);
+    const current = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+    let phone: string;
+    try {
+      validateLoad(amountCents, current.availableCents + current.heldCents);
+      phone = normalizeAthPhone(String(body?.phone ?? ""));
+    } catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That amount cannot be loaded."); }
+    try {
+      const load = await startAthLoad(ctx.store, { travelerId: me, amountCents, phone, now: ctx.now() });
+      return { loadId: load.id, expiresAt: load.expiresAt };
+    } catch (e) {
+      throw new HttpError(424, e instanceof Error ? e.message : "ATH Móvil could not start the payment.");
+    }
+  },
+
+  "POST /api/balance/ath/:id/check": async (ctx, p) => {
+    const me = actor(ctx);
+    const load = findAthLoad(ctx.store, req(p, "id"));
+    if (!load || load.travelerId !== me) throw notFound("Payment");
+    try {
+      const status = await checkAthLoad(ctx.store, load.id, ctx.now());
+      return { status, ...balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me) };
+    } catch (e) {
+      throw new HttpError(424, e instanceof Error ? e.message : "ATH Móvil could not be reached.");
+    }
+  },
+
+  "POST /api/balance/ath/:id/cancel": async (ctx, p) => {
+    const me = actor(ctx);
+    const load = findAthLoad(ctx.store, req(p, "id"));
+    if (!load || load.travelerId !== me) throw notFound("Payment");
+    await cancelAthLoad(ctx.store, load.id);
+    return { status: findAthLoad(ctx.store, load.id)!.status };
   },
 
   /**
