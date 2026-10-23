@@ -61,7 +61,7 @@ import {
   applyAdjustments, outstandingClawbackCents,
   isInLaunchMarket, launchMarketFor, launchMarketNames, LAUNCH_MARKETS, REFERENCE_MARKET,
   type LaunchMarketId,
-  hireFromApplication, isOnRoster, rosterFor, standDown, teamActivity,
+  hireFromApplication, isArmedAvailable, isOnRoster, rosterFor, standDown, teamActivity,
   canAccess, isActive as isMasterAccountActive, recordAccess, revoke as revokeMasterAccess, scopesFor,
   type MasterAccount, type MasterAuditEntry, type MasterScope,
   buildStatement, chargesFor, describeRail, failCharge, recordCharge, refundCharge, settleCharge,
@@ -81,7 +81,7 @@ import type {
   Feature, GameId, IdentityPhoto, NightOut,
   SpendRequest,
   OrderProvider, Platform, PlanId, PushMessage, RedFlagId, Subscription, TriggerBand,
-  PaymentProcessor, ChargeProcessorPort, LaunchStepId,
+  PaymentProcessor, ChargeProcessorPort, LaunchStepId, Credential, CredentialKind,
 } from "@safehubby/core";
 import { mockDelivery, mockRides, mockRoutes } from "./adapters/mock-providers.ts";
 import { venues as venuePort, venueSource } from "./adapters/venues.ts";
@@ -239,6 +239,24 @@ function resumeFrom(body: any, now: Date): Resume | undefined {
     fileName: String(body.resume.fileName ?? ""),
     uploadedAt: now.toISOString(),
   };
+}
+
+/** The insurance and licences an applicant sent, each as number, issuer,
+ *  expiry and a copy of the document; validated by `submitStaffApplication`. */
+function credentialsFrom(body: any, now: Date): Credential[] | undefined {
+  if (!Array.isArray(body?.credentials)) return undefined;
+  return body.credentials.slice(0, 3).map((c: any): Credential => ({
+    kind: String(c?.kind ?? "") as CredentialKind,
+    number: String(c?.number ?? ""),
+    issuer: String(c?.issuer ?? ""),
+    expiresAt: String(c?.expiresAt ?? ""),
+    document: {
+      base64: String(c?.document?.base64 ?? ""),
+      mimeType: String(c?.document?.mimeType ?? ""),
+      fileName: String(c?.document?.fileName ?? ""),
+      uploadedAt: now.toISOString(),
+    },
+  }));
 }
 
 /** Plan and display name for the signed-in actor, used by the fulfilment paths. */
@@ -407,6 +425,7 @@ function conciergeInputFrom(body: any): ConciergeTaskInput {
     ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
     ...(body?.hours === undefined ? {} : { hours: Number(body.hours) }),
     ...(body?.hospitalStay === true ? { hospitalStay: true } : {}),
+    ...(body?.armed === true ? { armed: true } : {}),
     ...(body?.flight === undefined
       ? {}
       : { flight: { flightNumber: String(body.flight?.flightNumber ?? ""), date: String(body.flight?.date ?? "") } }),
@@ -2879,7 +2898,9 @@ export const routes: Record<string, Handler> = {
     // could never be offered to anybody.
     const now = ctx.now();
     const market = payMarketFor(location);
-    const ours = rosterFor(ctx.store.data.assistants, { category: category as ConciergeCategory, market, now });
+    // An armed job lists only assistants cleared for armed work.
+    const ours = rosterFor(ctx.store.data.assistants, { category: category as ConciergeCategory, market, now })
+      .filter((a) => p.armed !== "true" || isArmedAvailable(a, now));
     const assistants: AssistantProfile[] = ours.map((a) => ({
       id: a.id,
       name: a.name,
@@ -2953,7 +2974,11 @@ export const routes: Record<string, Handler> = {
       category: input.category,
       market: payMarketFor(input.location),
       now: ctx.now(),
-    });
+    }).filter((a) => !input.armed || isArmedAvailable(a, ctx.now()));
+    // Armed work is ours alone — no partner network is sent armed.
+    if (input.armed && ours.length === 0) {
+      throw new HttpError(503, "No assistant cleared for armed work is available there right now.");
+    }
     const needsPartner = ours.length === 0;
     if (needsPartner && !isAutomatic(concierge.status)) {
       throw new HttpError(503, concierge.status.requires);
@@ -2979,7 +3004,7 @@ export const routes: Record<string, Handler> = {
     // one the older flat quick-task rate still applies.
     const hourly = hourlyServiceFee({
       planId, category: input.category, quickTask: input.quickTask, peopleCount: people, hours,
-      hospitalStay: input.hospitalStay === true,
+      hospitalStay: input.hospitalStay === true, armed: input.armed === true,
       includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
     });
     const serviceFeeCents = feeIncluded ? 0
@@ -3043,6 +3068,9 @@ export const routes: Record<string, Handler> = {
     if (ourAssistant && !ourAssistant.categories.includes(input.category)) {
       throw new HttpError(400, `${ourAssistant.name} is not dispatched for that kind of task.`);
     }
+    if (input.armed && !(ourAssistant && isArmedAvailable(ourAssistant, ctx.now()))) {
+      throw new HttpError(400, "Choose an assistant cleared for armed work — their firearms and guard licences must be current.");
+    }
     // Whether anyone can do this at all comes before asking for money: a
     // "add a payment method" answer to a task nobody can take just means
     // adding a card and failing anyway.
@@ -3063,7 +3091,7 @@ export const routes: Record<string, Handler> = {
     // included-grabs.ts. The fee itself is decided below, after the awaits.
     const assistantPayoutCents = input.errandTier
       ? errandPayoutCents(input.errandTier)
-      : assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked, input.hospitalStay === true);
+      : assistantPayoutFor(input.category, input.quickTask, peopleCount, hoursBooked, input.hospitalStay === true, input.armed === true);
     const portalCredentials = assistantId ? await provisionAssistantCredentials(ctx, assistantId) : undefined;
 
     // Only the partner network gets quoted. Our own roster is not a supplier
@@ -3088,7 +3116,7 @@ export const routes: Record<string, Handler> = {
     const hourly = hourlyServiceFee({
       planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask, peopleCount,
       hours: hoursBooked, includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
-      hospitalStay: input.hospitalStay === true,
+      hospitalStay: input.hospitalStay === true, armed: input.armed === true,
     });
     const serviceFeeCents = feeIncluded ? 0
       : input.errandTier
@@ -3181,6 +3209,7 @@ export const routes: Record<string, Handler> = {
           assistantPayoutCents, peopleCount,
           ...(hoursBooked === undefined ? {} : { hoursBooked }),
           ...(input.hospitalStay === true ? { hospitalStay: true } : {}),
+          ...(input.armed === true ? { armed: true } : {}),
           quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
           ...(!feeIncluded && hourly.includedHoursUsed > 0 ? { includedHoursUsed: hourly.includedHoursUsed } : {}),
           ...(input.errandTier ? { errandTier: input.errandTier } : {}),
@@ -3784,6 +3813,8 @@ export const routes: Record<string, Handler> = {
             // The full application, résumé included, is one call away at
             // GET /api/staff/applications (admin key) for whoever needs it.
             hasResume: Boolean(a.resume),
+            // What was attached, never the files themselves — each opens on its own route.
+            credentials: (a.credentials ?? []).map((c) => ({ kind: c.kind, number: c.number, issuer: c.issuer, expiresAt: c.expiresAt })),
           })),
           drivers: pendingDriverApplications.map((a) => ({
             id: a.id, fullName: a.fullName, city: a.city, state: a.state,
@@ -5476,6 +5507,7 @@ export const routes: Record<string, Handler> = {
       resume: resumeFrom(body, ctx.now()),
       hoursPerWeek: Number(body?.hoursPerWeek),
       backgroundCheckConsent: body?.backgroundCheckConsent === true,
+      credentials: credentialsFrom(body, ctx.now()),
       now: ctx.now(),
     });
     ctx.store.update((db) => void db.staffApplications.push(app));
@@ -5518,6 +5550,18 @@ export const routes: Record<string, Handler> = {
     if (!application) throw notFound("Application");
     if (!application.resume) throw new HttpError(404, "That applicant did not attach a résumé.");
     const { fileName, mimeType, base64 } = application.resume;
+    return { fileName, mimeType, base64 };
+  },
+
+  /** One credential's document (insurance certificate or licence), for the
+   *  reviewer to check by eye before hiring — same discipline as the résumé. */
+  "GET /api/applications/:id/credential/:kind": (ctx, p) => {
+    requireAdmin(ctx, "operations");
+    const app = ctx.store.data.staffApplications.find((a) => a.id === req(p, "id"));
+    if (!app) throw notFound("Application");
+    const credential = app.credentials?.find((c) => c.kind === req(p, "kind"));
+    if (!credential) throw new HttpError(404, "That applicant did not attach that document.");
+    const { fileName, mimeType, base64 } = credential.document;
     return { fileName, mimeType, base64 };
   },
 
@@ -5582,6 +5626,7 @@ export const routes: Record<string, Handler> = {
       yearsExperience: body?.yearsExperience !== undefined ? Number(body.yearsExperience) : undefined,
       gender: body?.gender ? String(body.gender) : undefined,
       age: body?.age !== undefined ? Number(body.age) : undefined,
+      armed: body?.armed === true,
       now: ctx.now(),
     });
 

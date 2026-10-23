@@ -31,8 +31,8 @@ At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 | Role | Head | Insurance (2 mo) | Gas | Wages | Total |
 |---|---:|---:|---:|---:|---:|
 | Driver | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
-| Personal assistant | 5 | $750.00 | $0.00 | $0.00 | $750.00 |
-| Errand runner | 4 | $600.00 | $0.00 | $0.00 | $600.00 |
+| Personal assistant | 5 | $0.00 | $0.00 | $0.00 | $0.00 |
+| Errand runner | 4 | $0.00 | $0.00 | $0.00 | $0.00 |
 | Social media manager | 1 | $150.00 | $0.00 | $3,960.00 | $4,110.00 |
 | Secretary | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
 | Lawyer | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
@@ -40,11 +40,12 @@ At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 | Physician (Elite medical advisor) | 1 | $150.00 | $0.00 | $10,800.00 | $10,950.00 |
 | Nurse (Elite tier coordination) | 1 | $150.00 | $0.00 | $6,075.00 | $6,225.00 |
 | Wingman Club coordinator | 1 | $150.00 | $0.00 | $7,200.00 | $7,350.00 |
-| **Total** | **13** | **$1,950.00** | **$0.00** | **$28,035.00** | **$29,985.00** |
+| **Total** | **13** | **$600.00** | **$0.00** | **$28,035.00** | **$28,635.00** |
 
-Recurring after launch: **$14,473.33/month** — $975.00 insurance plus
+Recurring after launch: **$13,798.33/month** — $300.00 insurance plus
 $13,498.33 payroll. Drivers are off the plan too: rides go through Uber and
-Lyft until Safehubby dispatches its own. The lawyer, secretary and web developer are off the plan
+Lyft until Safehubby dispatches its own. Personal assistants and errand
+runners carry their own liability insurance, so none is budgeted for them. The lawyer, secretary and web developer are off the plan
 (headcount 0): legal work is bought per document, and admin and the app are
 covered without a hire for now.
 
@@ -54,9 +55,9 @@ Computed by `subscribersToCarryRoster`, off the live plan price:
 
 | Plan | Monthly | Subscribers to carry the roster |
 |---|---:|---:|
-| Premium | $93.99 | **154** |
-| Premium Plus | $187.98 | **77** |
-| Family | $563.94 | **26** |
+| Premium | $93.99 | **147** |
+| Premium Plus | $187.98 | **74** |
+| Family | $563.94 | **25** |
 
 Subscription revenue only. Per-job margin from rides and errands is real but
 scales with work done, so leaving it out keeps these a floor: the count that
@@ -71,7 +72,7 @@ on their own payroll:
 
 **$200.00/month**, which is **3 Premium subscribers, or 1 Family plan.**
 
-The gap between $200 and $14,473.33 is the entire hiring decision. Each role
+The gap between $200 and $13,798.33 is the entire hiring decision. Each role
 above is a commitment that has to be carried every month whether or not
 anyone books; the solo figure is what it costs to find out whether they will.
 

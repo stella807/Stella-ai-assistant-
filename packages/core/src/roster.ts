@@ -1,3 +1,4 @@
+import { armedUntil, isCurrent, requiresInsurance, type Credential } from "./credentials.ts";
 import type { Iso8601 } from "./types.ts";
 import type { LaunchMarketId } from "./service-area.ts";
 import type { StaffRole } from "./staffing.ts";
@@ -102,11 +103,23 @@ export interface HiredAssistant {
   /** Hacienda exemption certificate number: with one, nothing is withheld.
    *  Set by the owner after seeing the certificate. */
   withholdingExemptionCertificate?: string;
+  /** When their own liability insurance runs out; off the roster after it. */
+  insuranceExpiresAt?: Iso8601;
+  /** Cleared for armed work until the earlier licence expires. */
+  armedUntil?: Iso8601;
 }
 
 export function isOnRoster(assistant: HiredAssistant, now: Date): boolean {
-  if (!assistant.activeUntil) return true;
-  return now.getTime() < new Date(assistant.activeUntil).getTime();
+  if (assistant.activeUntil && now.getTime() >= new Date(assistant.activeUntil).getTime()) return false;
+  // Their own insurance has run out: off the roster until a new policy is on
+  // file. (Recorded at hiring; assistants hired before it was required have none.)
+  if (assistant.insuranceExpiresAt && now.getTime() >= Date.parse(assistant.insuranceExpiresAt)) return false;
+  return true;
+}
+
+/** Whether this assistant may be sent on an armed job right now. */
+export function isArmedAvailable(assistant: HiredAssistant, now: Date): boolean {
+  return Boolean(assistant.armedUntil) && now.getTime() < Date.parse(assistant.armedUntil!);
 }
 
 export interface HireInput {
@@ -117,7 +130,11 @@ export interface HireInput {
     fullName: string;
     status: string;
     hoursPerWeek: number;
+    credentials?: Credential[];
   };
+  /** The reviewer checked the firearms and guard licences and clears this
+   *  person for armed work. Refused unless both are on file and current. */
+  armed?: boolean;
   market: LaunchMarketId;
   maxConcurrentCustomers?: number;
   bio?: string;
@@ -146,6 +163,15 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
     throw new Error(`A ${app.role} does not take concierge tasks, so there is no roster to add them to.`);
   }
 
+  const insurance = app.credentials?.find((c) => c.kind === "liability-insurance");
+  if (requiresInsurance(app.role) && !isCurrent(insurance, input.now)) {
+    throw new Error("Their liability insurance is missing or expired — they need a current policy before they are hired.");
+  }
+  const armed = input.armed ? armedUntil(app.credentials, input.now) : undefined;
+  if (input.armed && !armed) {
+    throw new Error("Armed work needs a current firearms licence and security-guard licence on the application.");
+  }
+
   const capacity = input.maxConcurrentCustomers ?? ASSISTANT_MIN_CAPACITY;
   if (!Number.isInteger(capacity) || capacity < ASSISTANT_MIN_CAPACITY || capacity > ASSISTANT_MAX_CAPACITY) {
     throw new Error(`Capacity must be between ${ASSISTANT_MIN_CAPACITY} and ${ASSISTANT_MAX_CAPACITY} customers at once.`);
@@ -160,6 +186,8 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
     categories: categoriesForRole(app.role),
     maxConcurrentCustomers: capacity,
     hiredAt: input.now.toISOString(),
+    ...(insurance ? { insuranceExpiresAt: insurance.expiresAt } : {}),
+    ...(armed ? { armedUntil: armed } : {}),
     bio: input.bio?.trim() || undefined,
     photoUrl: input.photoUrl?.trim() || undefined,
     yearsExperience: Number.isFinite(input.yearsExperience) ? input.yearsExperience : undefined,

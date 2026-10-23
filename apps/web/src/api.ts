@@ -277,6 +277,12 @@ export interface StaffApplicationInput {
   resume?: { base64: string; mimeType: string; fileName: string };
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
+  /** Liability insurance (field roles) and, for armed work, both licences. */
+  credentials?: {
+    kind: "liability-insurance" | "firearms-license" | "guard-license";
+    number: string; issuer: string; expiresAt: string;
+    document: { base64: string; mimeType: string; fileName: string } | null;
+  }[];
 }
 
 export interface TaskTextMessage {
@@ -454,11 +460,11 @@ export const api = {
   /** `quickTask` is what the free tier books these categories as — send it,
    *  or a free account is told to upgrade for a feature it already has. */
   conciergeAssistants: (
-    category: ConciergeCategory, location: { lat: number; lng: number }, quickTask?: boolean,
+    category: ConciergeCategory, location: { lat: number; lng: number }, quickTask?: boolean, armed?: boolean,
   ) =>
     request<{ assistants: AssistantProfile[]; available: number }>(
       "GET", `/api/concierge/assistants?category=${encodeURIComponent(category)}`
-        + `&lat=${location.lat}&lng=${location.lng}${quickTask ? "&quickTask=true" : ""}`),
+        + `&lat=${location.lat}&lng=${location.lng}${quickTask ? "&quickTask=true" : ""}${armed ? "&armed=true" : ""}`),
   bookConcierge: (input: {
     category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string };
     spendCapCents: number; assistantId?: string; quickTask?: boolean; errandTier?: ErrandTierId; peopleCount?: number;
@@ -468,6 +474,8 @@ export const api = {
     hours?: number;
     /** A wait with someone in hospital, at the hospital-day rate. */
     hospitalStay?: boolean;
+    /** Armed work, for an assistant cleared for it. */
+    armed?: boolean;
     /** Required for, and only for, `airport-pickup` — see `ConciergeTaskInput.flight`. */
     flight?: { flightNumber: string; date: string };
   }) =>
@@ -803,7 +811,9 @@ export const api = {
   /** Hire an approved applicant onto the roster. Returns the portal
    *  credentials **once** — they are not stored readably and cannot be
    *  shown again, so the caller has to surface them immediately. */
-  masterHireStaffApplication: (id: string, market: string, profile?: { bio?: string; age?: number; yearsExperience?: number; photoUrl?: string }) =>
+  masterApplicationCredential: (id: string, kind: string) =>
+    request<{ fileName: string; mimeType: string; base64: string }>("GET", `/api/applications/${encodeURIComponent(id)}/credential/${encodeURIComponent(kind)}`),
+  masterHireStaffApplication: (id: string, market: string, profile?: { bio?: string; age?: number; yearsExperience?: number; photoUrl?: string; armed?: boolean }) =>
     request<{ assistant: { id: string; name: string }; credentials: { username: string; tempPassword?: string } }>(
       "POST", `/api/staff/applications/${id}/hire`, { market, ...profile }),
   /** Tick one of the launch steps the app cannot observe for itself. The
@@ -856,7 +866,11 @@ export interface MasterOverview {
     pendingDriverApplications: number;
     pendingStaffApplications: number;
     applications: {
-      staff: { id: string; role: string; fullName: string; city: string; state: string; hoursPerWeek: number; status: string; submittedAt: string; hasResume: boolean }[];
+      staff: {
+        id: string; role: string; fullName: string; city: string; state: string; hoursPerWeek: number; status: string;
+        submittedAt: string; hasResume: boolean;
+        credentials?: { kind: "liability-insurance" | "firearms-license" | "guard-license"; number: string; issuer: string; expiresAt: string }[];
+      }[];
       drivers: { id: string; fullName: string; city: string; state: string; status: string; submittedAt: string; hasResume: boolean }[];
     };
     recommendedHeadcount: Record<string, number>;

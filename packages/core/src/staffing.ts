@@ -1,5 +1,6 @@
 import { isEnabled } from "./features.ts";
 import { LAUNCH_WINDOW_END, LAUNCH_WINDOW_START } from "./promotions.ts";
+import { requiresInsurance } from "./credentials.ts";
 import { findPlan, type PlanId } from "./billing.ts";
 
 /**
@@ -262,7 +263,10 @@ export function publicBenefits(): HiringBenefit[] {
 }
 
 export function benefitsFor(role: StaffRole): HiringBenefit[] {
-  return publicBenefits().filter((b) => !b.roles || b.roles.includes(role));
+  return publicBenefits()
+    // Field roles bring their own policy, so Safehubby's cover is not their benefit.
+    .filter((b) => !(b.id === "liability-insurance" && requiresInsurance(role)))
+    .filter((b) => !b.roles || b.roles.includes(role));
 }
 
 /* ---------------------------------------------------------------------------
@@ -292,8 +296,11 @@ export const LIABILITY_INSURANCE_CENTS_PER_MONTH = 7500;
  */
 export const DRIVER_INSURANCE_SURCHARGE_CENTS_PER_MONTH = 12500;
 
-/** What one month of cover costs for one person in this role. */
+/** What one month of cover costs Safehubby for one person in this role.
+ *  Personal assistants and errand runners carry their own policy (see
+ *  credentials.ts), so Safehubby budgets nothing for them. */
 export function insuranceCentsPerMonth(role: StaffRole): number {
+  if (requiresInsurance(role)) return 0;
   return LIABILITY_INSURANCE_CENTS_PER_MONTH
     + (findRole(role).drives ? DRIVER_INSURANCE_SURCHARGE_CENTS_PER_MONTH : 0);
 }

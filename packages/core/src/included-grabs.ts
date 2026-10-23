@@ -102,11 +102,11 @@ export function isGrabIncluded(input: GrabInput): boolean {
  * shows it, so the two cannot disagree.
  */
 export function customerServiceFeeFor(
-  input: GrabInput & { peopleCount?: number; hours?: number; spendCapCents?: number; hospitalStay?: boolean },
+  input: GrabInput & { peopleCount?: number; hours?: number; spendCapCents?: number; hospitalStay?: boolean; armed?: boolean },
 ): number {
   if (isGrabIncluded(input)) return 0;
   if (input.errandTier !== undefined) return errandFeeCents(input.errandTier, input.spendCapCents ?? 0);
-  return serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours, input.hospitalStay);
+  return serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours, input.hospitalStay, input.armed);
 }
 
 /** The whole hold: what may be spent, plus the fee if there is one. */
@@ -138,9 +138,11 @@ export function includedHoursUsedIn(tasks: ConciergeTask[], monthStart: Date, mo
  */
 export function hourlyServiceFee(input: {
   planId: PlanId; category: ConciergeCategory; quickTask?: boolean; peopleCount?: number;
-  hours?: number; includedHoursUsedThisMonth: number; hospitalStay?: boolean;
+  hours?: number; includedHoursUsedThisMonth: number; hospitalStay?: boolean; armed?: boolean;
 }): { serviceFeeCents: number; includedHoursUsed: number } {
-  const full = serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours, input.hospitalStay);
+  const full = serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours, input.hospitalStay, input.armed);
+  // Included hours are ordinary assistant time; armed work is never covered by them.
+  if (input.armed) return { serviceFeeCents: full, includedHoursUsed: 0 };
   if (!input.hours || !isHourlyCategory(input.category)) return { serviceFeeCents: full, includedHoursUsed: 0 };
   const left = Math.max(0, includedConciergeHours(input.planId) - input.includedHoursUsedThisMonth);
   const covered = Math.min(input.hours, left);

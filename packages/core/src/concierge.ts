@@ -502,6 +502,17 @@ export const PA_CUSTOMER_HOURLY_CENTS = 4500;
 export const HOSPITAL_DAY_PAYOUT_CENTS = 15_000;
 export const HOSPITAL_DAY_PRICE_CENTS = 19_500;
 export const HOSPITAL_STAY_CATEGORY: ConciergeCategory = "wait-with-someone";
+
+/**
+ * Armed work: a safety wait or check somewhere with no security, done only by
+ * an assistant cleared for it (firearms and security-guard licences — see
+ * credentials.ts). Never a hospital stay. Priced on its own rates, since it
+ * is guard work, not caretaking.
+ */
+export const ARMED_CATEGORIES: ConciergeCategory[] = ["wait-with-someone", "check-in-person"];
+export const ARMED_HOURLY_PAYOUT_CENTS = 5_500;
+export const ARMED_CUSTOMER_HOURLY_CENTS = 7_500;
+const armedRated = (category: ConciergeCategory, armed?: boolean) => armed === true && ARMED_CATEGORIES.includes(category);
 const dayRated = (category: ConciergeCategory, hospitalStay?: boolean) =>
   hospitalStay === true && category === HOSPITAL_STAY_CATEGORY;
 
@@ -576,12 +587,14 @@ export function householdMultiplier(peopleCount = 1): number {
  */
 export function assistantPayoutFor(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number, hospitalStay?: boolean,
+  armed?: boolean,
 ): number {
   // Hourly work ignores the per-task table entirely: the booked hours are the
   // price. `hours` is optional so the published rate cards can ask what a
   // standard booking costs without inventing a number.
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
+    if (armedRated(category, armed)) return Math.round(ARMED_HOURLY_PAYOUT_CENTS * booked * householdMultiplier(peopleCount));
     const hourly = PA_HOURLY_RATE_CENTS * booked;
     const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PAYOUT_CENTS) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
@@ -598,25 +611,28 @@ export function assistantPayoutFor(
  *  out of their pay. */
 export function serviceFeeFor(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number, hospitalStay?: boolean,
+  armed?: boolean,
 ): number {
   // Hourly work is priced at the set customer rate (and the hospital-day cap);
   // everything else is the pay grossed up by the margin.
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
+    if (armedRated(category, armed)) return Math.round(ARMED_CUSTOMER_HOURLY_CENTS * booked * householdMultiplier(peopleCount));
     const hourly = PA_CUSTOMER_HOURLY_CENTS * booked;
     const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
   }
-  return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay) / (1 - CONCIERGE_FEE_MARGIN));
+  return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay, armed) / (1 - CONCIERGE_FEE_MARGIN));
 }
 
 /** Safehubby's cut of one task — the gap between what the customer pays for
  *  the assistant's time and what the assistant receives. */
 export function conciergeMarginCents(
   category: ConciergeCategory, quickTask?: boolean, peopleCount = 1, hours?: number, hospitalStay?: boolean,
+  armed?: boolean,
 ): number {
-  return serviceFeeFor(category, quickTask, peopleCount, hours, hospitalStay)
-    - assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay);
+  return serviceFeeFor(category, quickTask, peopleCount, hours, hospitalStay, armed)
+    - assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay, armed);
 }
 
 /** What actually gets held/charged: the reimbursable spend cap plus the
@@ -713,6 +729,9 @@ export interface ConciergeTaskInput {
    *  at the hospital-day rate (`HOSPITAL_DAY_PRICE_CENTS`) instead of hourly.
    *  Refused on any other category. */
   hospitalStay?: boolean;
+  /** An armed safety job, for an assistant cleared for it — see
+   *  `ARMED_CATEGORIES`. Refused on a hospital stay or any other category. */
+  armed?: boolean;
   /** How many people this task is actually for — one person, or a whole
    *  household. Scales what the assistant is paid (`householdMultiplier`),
    *  since looking after six is more work than looking after one. Defaults
@@ -756,6 +775,12 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
     if (!Number.isInteger(input.peopleCount) || input.peopleCount < 1 || input.peopleCount > MAX_PEOPLE_PER_TASK) {
       throw new Error(`A task can cover between 1 and ${MAX_PEOPLE_PER_TASK} people.`);
     }
+  }
+  if (input.armed && !ARMED_CATEGORIES.includes(input.category)) {
+    throw new Error("Only waiting with someone or checking on someone can be booked armed.");
+  }
+  if (input.armed && input.hospitalStay) {
+    throw new Error("Hospitals don't allow firearms, so a hospital stay can't be booked armed.");
   }
   if (input.hospitalStay && input.category !== HOSPITAL_STAY_CATEGORY) {
     throw new Error("Only \"Wait with someone\" can be booked as a hospital stay.");
@@ -851,6 +876,8 @@ export interface ConciergeTask {
   hoursBooked?: number;
   /** Booked as a hospital stay, at the hospital-day rate. */
   hospitalStay?: boolean;
+  /** Booked as armed work, for an assistant cleared for it. */
+  armed?: boolean;
   /** Purchases the assistant has documented, each with a photo — see
    *  `SpendRequest`. Absent means none yet, which is why the card cannot be
    *  revealed on a task nobody has documented a purchase for. */

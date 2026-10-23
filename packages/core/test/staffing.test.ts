@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { requiresInsurance } from "../src/credentials.ts";
 import { resetFlags, setFlag } from "../src/features.ts";
 import {
   DRIVER_INSURANCE_SURCHARGE_CENTS_PER_MONTH, GAS_STIPEND_CENTS_PER_WEEK, GAS_STIPEND_WEEKS,
@@ -55,9 +56,10 @@ describe("what a hiring page may promise about insurance", () => {
 });
 
 describe("insurance, which everyone hired gets", () => {
-  it("covers every role — nobody is on the roster uninsured", () => {
+  it("covers every role Safehubby insures, and nothing for those who bring their own", () => {
     for (const role of STAFF_ROLES) {
-      expect(insuranceCentsPerMonth(role.id)).toBeGreaterThan(0);
+      if (requiresInsurance(role.id)) expect(insuranceCentsPerMonth(role.id), role.id).toBe(0);
+      else expect(insuranceCentsPerMonth(role.id), role.id).toBeGreaterThan(0);
     }
   });
 
@@ -69,7 +71,7 @@ describe("insurance, which everyone hired gets", () => {
   });
 
   it("charges the same base for every non-driving role", () => {
-    for (const role of STAFF_ROLES.filter((r) => !r.drives)) {
+    for (const role of STAFF_ROLES.filter((r) => !r.drives && !requiresInsurance(r.id))) {
       expect(insuranceCentsPerMonth(role.id)).toBe(LIABILITY_INSURANCE_CENTS_PER_MONTH);
     }
   });

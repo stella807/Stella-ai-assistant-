@@ -36,6 +36,12 @@ let ctx: Ctx;
  * covered in core's auto-renewal.test.ts and in "the renewal-terms gate"
  * below.
  */
+/** A current liability-insurance certificate, which every field applicant now
+ *  has to attach (see credentials.ts). A real PDF header, so it validates. */
+const TEST_INSURANCE = {
+  kind: "liability-insurance", number: "POL-123456", issuer: "Triple-S Propiedad", expiresAt: "2099-01-01T00:00:00.000Z",
+  document: { base64: Buffer.from("%PDF-1.4 test certificate").toString("base64"), mimeType: "application/pdf", fileName: "insurance.pdf" },
+};
 const withRenewalConsent = (path: string, body: unknown): unknown => {
   if (path !== "/api/subscription" || typeof body !== "object" || body === null) return body;
   const b = body as Record<string, unknown>;
@@ -3343,7 +3349,7 @@ describe("driver applications", () => {
     licenseExpiry: "2030-01-01T00:00:00Z",
     yearsDriving: 6,
     vehicle: { make: "Toyota", model: "Camry", year: 2021, licensePlate: "ABC1234" },
-    backgroundCheckConsent: true,
+    backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
     ...over,
   });
 
@@ -3533,7 +3539,7 @@ describe("push to the assistant", () => {
     const app = await call("POST", "/api/staff/apply", {
       role: "errand-runner", fullName: "Nia Osei", email: "nia@example.com",
       phone: "2125550148", city: "Houston", state: "TX", hoursPerWeek: 15,
-      backgroundCheckConsent: true,
+      backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
       experience: "Two years of bike courier work across downtown.",
     });
     await callAdmin("POST", `/api/staff/applications/${app.json.id}/review`, { status: "under-review" });
@@ -3740,8 +3746,14 @@ describe("hiring for the roles that do not drive", () => {
     state: "NJ",
     experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
     hoursPerWeek: 20,
-    backgroundCheckConsent: true,
+    backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
     ...over,
+  });
+
+  it("refuses a field application without the applicant's own insurance", async () => {
+    const res = await call("POST", "/api/staff/apply", application({ credentials: [] }));
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/liability insurance/i);
   });
 
   it("publishes the open roles and what everyone hired gets, without a login", async () => {
@@ -3883,7 +3895,7 @@ describe("the hiring budget", () => {
   it("counts an approved hire into the actual budget", async () => {
     const { json } = await call("POST", "/api/staff/apply", {
       role: "secretary", fullName: "Dana Reyes", email: "dana@example.com", phone: "2125550188",
-      city: "Hoboken", state: "NJ", hoursPerWeek: 20, backgroundCheckConsent: true,
+      city: "Hoboken", state: "NJ", hoursPerWeek: 20, backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
       experience: "Ran scheduling and intake for a two-clinic practice for four years.",
     });
     await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });
@@ -4033,7 +4045,7 @@ describe("hiring somebody and actually sending them to a job", () => {
   const apply = (over: Record<string, unknown> = {}) => call("POST", "/api/staff/apply", {
     role: "personal-assistant", fullName: "Rosa Delgado", email: "rosa@example.com",
     phone: "2125550147", city: "Houston", state: "TX", hoursPerWeek: 20,
-    backgroundCheckConsent: true,
+    backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
     experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
     ...over,
   });
@@ -5165,7 +5177,7 @@ describe("texting the assistant on your task", () => {
     const app = await call("POST", "/api/staff/apply", {
       role: "personal-assistant", fullName: "Rosa Delgado", email: "rosa@example.com",
       phone: "2125550147", city: "Houston", state: "TX", hoursPerWeek: 20,
-      backgroundCheckConsent: true,
+      backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
       experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
     });
     await callAdmin("POST", `/api/staff/applications/${app.json.id}/review`, { status: "under-review" });
@@ -5578,7 +5590,7 @@ describe("master access — a per-account role instead of one shared secret", ()
       tier: "standard", fullName: "Pat Rivera", email: "driver-pat@example.com", phone: "404-555-0199",
       city: "Atlanta", state: "GA", licenseNumber: "GA999999", licenseExpiry: "2030-01-01T00:00:00Z",
       yearsDriving: 5, vehicle: { make: "Honda", model: "Accord", year: 2022, licensePlate: "XYZ9876" },
-      backgroundCheckConsent: true,
+      backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
     });
     await callAdmin("POST", `/api/drivers/applications/${applied.json.id}/review`, { status: "under-review" });
     await callAdmin("POST", `/api/drivers/applications/${applied.json.id}/review`, { status: "approved" });
@@ -5764,7 +5776,7 @@ describe("the launch plan on the master dashboard", () => {
     const apply = (over: Record<string, unknown>) => call("POST", "/api/staff/apply", {
       role: "personal-assistant", fullName: "Rosa Delgado", email: "rosa@example.com",
       phone: "2125550147", city: "Houston", state: "TX", hoursPerWeek: 20,
-      backgroundCheckConsent: true,
+      backgroundCheckConsent: true, credentials: [TEST_INSURANCE],
       experience: "Six years as a home health aide, plus weekend shifts at a shelter.",
       ...over,
     });

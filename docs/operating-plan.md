@@ -44,8 +44,8 @@ desk work. Pilot numbers are my recommendation, not code.
 
 ## 3. What that costs
 
-**The code's full pre-launch plan: $29,985 for the 9 weeks to 1 December.**
-Insurance $1,950 and $28,035 of wages; no drivers, since rides go through Uber
+**The code's full pre-launch plan: $28,635 for the 9 weeks to 1 December.**
+Insurance $600 and $28,035 of wages (assistants carry their own insurance); no drivers, since rides go through Uber
 and Lyft for now. The lawyer,
 secretary and web developer are off the plan; what remains is mostly the social
 media manager and the Elite and club roles, which is why most are zero in the pilot.

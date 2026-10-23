@@ -6,7 +6,7 @@ import {
   BOOKED_HOUR_STEP, MAX_BOOKED_HOURS, MIN_BOOKED_HOURS,
   assistantPayoutFor, capPresetsFor, capScaleFor, clampAmount, clampHours, conciergeCategoryLabel,
   defaultCapFor, defaultHoursFor, findRole, hasCapCeiling, hasFeature, hourlyRateCentsFor,
-  HOSPITAL_DAY_PRICE_CENTS, HOSPITAL_STAY_CATEGORY, PA_CUSTOMER_HOURLY_CENTS,
+  ARMED_CATEGORIES, ARMED_CUSTOMER_HOURLY_CENTS, HOSPITAL_DAY_PRICE_CENTS, HOSPITAL_STAY_CATEGORY, PA_CUSTOMER_HOURLY_CENTS,
   isAssistantAvailable, isElitePlan, isHourlyCategory, isInLaunchMarket, isQuickTaskEligible,
   launchMarketNames, minutesFor, serviceFeeFor, customerServiceFeeFor, isGrabIncluded,
   ERRAND_MILEAGE_CENTS, ERRAND_RATE_PER_HOUR_CENTS, ERRAND_TIERS, LAUNCH_MARKETS, ON_BEHALF_DISCLOSURES,
@@ -143,6 +143,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
   /** "Wait with someone" for a patient in hospital: the day rate, not hourly. */
   const [hospitalStay, setHospitalStay] = useState(false);
+  /** A safety job somewhere with no security, done by an armed, licensed assistant. */
+  const [armedJob, setArmedJob] = useState(false);
   /** The typed cap, kept as text so a half-entered "40" is not parsed as $40
    *  and snapped away while somebody is still typing "40000". */
   const [capEntry, setCapEntry] = useState("");
@@ -308,13 +310,14 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const hourly = isHourlyCategory(category);
   const bookedHours = hourly ? clampHours(hours) : undefined;
   const isHospitalStay = hospitalStay && category === HOSPITAL_STAY_CATEGORY;
+  const isArmed = armedJob && !isHospitalStay && ARMED_CATEGORIES.includes(category);
   const usedThisMonth = includedGrabs?.used ?? Number.POSITIVE_INFINITY;
   const feeIncluded = isGrabIncluded({ planId, category, quickTask: effectiveQuickTask, errandTier: tier, usedThisMonth });
   const serviceFee = customerServiceFeeFor({
     planId, category, quickTask: effectiveQuickTask, errandTier: tier, spendCapCents,
-    hours: bookedHours, usedThisMonth, hospitalStay: isHospitalStay,
+    hours: bookedHours, usedThisMonth, hospitalStay: isHospitalStay, armed: isArmed,
   });
-  const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours, isHospitalStay);
+  const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours, isHospitalStay, isArmed);
   const totalHeld = spendCapCents + serviceFee;
   const resetsOn = includedGrabs
     ? new Date(includedGrabs.resetsAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })
@@ -330,7 +333,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       const at = onBehalfOf ? locationForOnBehalf(onBehalfOf) : await currentFix();
       if (!at) throw new Error("Turn on location to browse assistants — they need to know where to go.");
       if (!onBehalfOf) setFix(at as Fix);
-      const res = await api.conciergeAssistants(category, at, effectiveQuickTask);
+      const res = await api.conciergeAssistants(category, at, effectiveQuickTask, isArmed);
       setRoster(res.assistants);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the roster right now");
@@ -350,7 +353,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       const at = onBehalfOf ? locationForOnBehalf(onBehalfOf) : await currentFix();
       if (!at) throw new Error("Turn on location to send this — the assistant needs to know where to go.");
       if (!onBehalfOf) setFix(at as Fix);
-      const res = await api.conciergeAssistants(category, selectedPlace && !onBehalfOf ? selectedPlace : at, effectiveQuickTask);
+      const res = await api.conciergeAssistants(category, selectedPlace && !onBehalfOf ? selectedPlace : at, effectiveQuickTask, isArmed);
       const available = res.assistants.find((a) => isAssistantAvailable(a));
       if (!available) throw new Error("No one is available for this right now — try again shortly.");
       setAutoAssistant(available);
@@ -375,6 +378,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         assistantId: assistant.id,
         ...(hourly ? { hours: bookedHours } : {}),
         ...(isHospitalStay ? { hospitalStay: true } : {}),
+        ...(isArmed ? { armed: true } : {}),
         ...(isAirportPickup ? { flight: { flightNumber: flightNumber.trim(), date: flightDate } } : {}),
         ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf: obAgreed } : {}),
       });
@@ -775,7 +779,16 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {/* Hours first, then the card. They are the two halves of an hourly
           booking and they are not the same kind of money — what you are
           paying the person, and what you are handing them to spend. */}
-      {category === HOSPITAL_STAY_CATEGORY && !simple && (
+      {ARMED_CATEGORIES.includes(category) && !isHospitalStay && !simple && (
+        <label className="row small" style={{ gap: 8, alignItems: "center" }}>
+          <input type="checkbox" checked={armedJob} onChange={(e) => { setArmedJob(e.target.checked); setRoster(null); }} />
+          <span>
+            Armed assistant — somewhere with no security. A licensed, armed assistant at {money(ARMED_CUSTOMER_HOURLY_CENTS)}/hr.
+          </span>
+        </label>
+      )}
+
+      {category === HOSPITAL_STAY_CATEGORY && !simple && !isArmed && (
         <label className="row small" style={{ gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={hospitalStay} onChange={(e) => { setHospitalStay(e.target.checked); setRoster(null); }} />
           <span>
@@ -791,7 +804,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           unit="hours"
           hint={isHospitalStay
             ? `${money(PA_CUSTOMER_HOURLY_CENTS)}/hr, and never more than ${money(HOSPITAL_DAY_PRICE_CENTS)} for the day.`
-            : `Billed at ${money(PA_CUSTOMER_HOURLY_CENTS)}/hr. Book more or less any time before they start.`}
+            : `Billed at ${money(isArmed ? ARMED_CUSTOMER_HOURLY_CENTS : PA_CUSTOMER_HOURLY_CENTS)}/hr. Book more or less any time before they start.`}
           valueCents={Math.round(clampHours(hours) * 100)}
           scale={{
             minCents: MIN_BOOKED_HOURS * 100,
@@ -864,7 +877,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           {hourly
             ? isHospitalStay && serviceFee >= HOSPITAL_DAY_PRICE_CENTS
               ? `A hospital day: ${clampHours(hours)} hours at the day rate.`
-              : `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(PA_CUSTOMER_HOURLY_CENTS)}/hr.`
+              : `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(isArmed ? ARMED_CUSTOMER_HOURLY_CENTS : PA_CUSTOMER_HOURLY_CENTS)}/hr.`
             : `Pays your assistant for about ${tier ? findErrandTier(tier).minutes : minutesFor(category, effectiveQuickTask)} minutes of their time.`}
         </p>
         {/* What the person doing the work actually takes home, said plainly to

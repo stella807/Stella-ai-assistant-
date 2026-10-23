@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
-import { MAX_RESUME_BYTES, payLabelFor, type StaffRole } from "@safehubby/core";
+import { MAX_RESUME_BYTES, payLabelFor, requiresInsurance, type StaffRole } from "@safehubby/core";
+import { CredentialFields, credentialPayload, emptyCredential, isCredentialFilled } from "./CredentialFields.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
 
@@ -34,6 +35,10 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   const [consent, setConsent] = useState(false);
   const [resume, setResume] = useState<{ base64: string; mimeType: string; fileName: string } | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [insurance, setInsurance] = useState(() => emptyCredential("liability-insurance"));
+  const [armedLicences, setArmedLicences] = useState(false);
+  const [firearms, setFirearms] = useState(() => emptyCredential("firearms-license"));
+  const [guard, setGuard] = useState(() => emptyCredential("guard-license"));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<{ id: string } | null>(null);
@@ -68,6 +73,10 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         hoursPerWeek: Number(hoursPerWeek),
         backgroundCheckConsent: consent,
         ...(resume ? { resume } : {}),
+        credentials: [
+          ...(needsInsurance ? [credentialPayload(insurance)] : []),
+          ...(needsInsurance && armedLicences ? [credentialPayload(firearms), credentialPayload(guard)] : []),
+        ],
       });
       setSubmitted({ id: res.id });
     } catch (e) {
@@ -76,6 +85,10 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
       setBusy(false);
     }
   };
+
+  const needsInsurance = Boolean(role) && requiresInsurance(role as StaffRole);
+  const credentialsReady = !needsInsurance
+    || (isCredentialFilled(insurance) && (!armedLicences || (isCredentialFilled(firearms) && isCredentialFilled(guard))));
 
   if (submitted) {
     return (
@@ -179,6 +192,31 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
+        {needsInsurance && (
+          <>
+            <p className="tiny muted" style={{ margin: 0 }}>
+              {lang === "es"
+                ? "Todo el que va donde los clientes tiene su propio seguro de responsabilidad civil. Adjunta el certificado."
+                : "Everyone who goes out to customers carries their own liability insurance. Attach the certificate."}
+            </p>
+            <CredentialFields value={insurance} onChange={setInsurance} lang={lang} />
+            <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
+              <input type="checkbox" checked={armedLicences} onChange={(e) => setArmedLicences(e.target.checked)} />
+              <span>
+                {lang === "es"
+                  ? "Tengo licencia de armas y licencia de guardia de seguridad, y quiero hacer trabajos armados (opcional, mejor pagados)."
+                  : "I hold a firearms licence and a security-guard licence, and want armed jobs (optional, better paid)."}
+              </span>
+            </label>
+            {armedLicences && (
+              <>
+                <CredentialFields value={firearms} onChange={setFirearms} lang={lang} />
+                <CredentialFields value={guard} onChange={setGuard} lang={lang} />
+              </>
+            )}
+          </>
+        )}
+
         <div className="field">
           <label htmlFor="s-hours">{w.hours}</label>
           <input id="s-hours" type="number" min={1} max={80} value={hoursPerWeek}
@@ -192,7 +230,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           </span>
         </label>
 
-        <button className="btn btn-primary btn-block" disabled={busy || !ready} onClick={submit}>
+        <button className="btn btn-primary btn-block" disabled={busy || !ready || !credentialsReady} onClick={submit}>
           {w.apply}
         </button>
 

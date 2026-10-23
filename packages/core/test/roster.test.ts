@@ -8,9 +8,13 @@ import { ASSISTANT_MAX_CAPACITY, CONCIERGE_CATEGORIES } from "../src/concierge.t
 
 const now = new Date("2026-12-05T18:00:00Z");
 
+const INSURANCE = {
+  kind: "liability-insurance" as const, number: "POL-1", issuer: "Triple-S", expiresAt: "2099-01-01T00:00:00.000Z",
+  document: { base64: Buffer.from("%PDF-1.4 x").toString("base64"), mimeType: "application/pdf", fileName: "i.pdf", uploadedAt: "2026-10-01T00:00:00.000Z" },
+};
 const approved = (over: Record<string, unknown> = {}) => ({
   id: "sa1", role: "personal-assistant" as const, fullName: "Rosa Delgado",
-  status: "approved", hoursPerWeek: 20, ...over,
+  status: "approved", hoursPerWeek: 20, credentials: [INSURANCE], ...over,
 });
 
 const hire = (over: Record<string, unknown> = {}) => hireFromApplication({

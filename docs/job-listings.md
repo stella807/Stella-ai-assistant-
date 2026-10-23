@@ -669,3 +669,17 @@ Worth stating, because applicants ask:
 - No signing in as a customer. An assistant drafts things for a customer to
   send, or sends from Safehubby and says so.
 - No fronting your own money. Purchases go on a card funded per task.
+
+## Requirements: insurance and licences
+
+- **Personal assistants and errand runners carry their own liability
+  insurance.** The application asks for the insurer, policy number, expiry and
+  a copy of the certificate; nobody is hired without a current policy, and an
+  expired one takes them off the roster until a new one is on file.
+- **Armed jobs need two licences.** A safety wait or check somewhere with no
+  security can be booked with an armed assistant ($75/hr to the customer,
+  $55/hr to the assistant). Only someone with a current **firearms licence and
+  security-guard licence**, checked by the owner and cleared at hiring, is sent.
+  Armed work is never offered for a hospital stay. In Puerto Rico paid armed
+  protection is regulated guard work (Ley 108): confirm the company's licensing
+  with a lawyer before offering it.

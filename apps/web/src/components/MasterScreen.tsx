@@ -2,7 +2,7 @@ import { ScreenCover } from "./ScreenCover.tsx";
 import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
-import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
+import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
 import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
@@ -401,7 +401,11 @@ function CustomersSection({ customers }: { customers: NonNullable<MasterOverview
  * server refuses either way.
  */
 function ApplicationRow({ app, canWrite, onChanged }: {
-  app: { id: string; fullName: string; role: string; city: string; state: string; status: string; hoursPerWeek?: number; hasResume?: boolean; kind: "staff" | "driver" };
+  app: {
+    id: string; fullName: string; role: string; city: string; state: string; status: string; hoursPerWeek?: number;
+    hasResume?: boolean; kind: "staff" | "driver";
+    credentials?: { kind: "liability-insurance" | "firearms-license" | "guard-license"; number: string; issuer: string; expiresAt: string }[];
+  };
   canWrite: boolean;
   onChanged: () => void;
 }) {
@@ -414,6 +418,9 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   const [age, setAge] = useState("");
   const [years, setYears] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
+  // Both licences on file: the reviewer may clear them for armed jobs.
+  const canBeArmed = ["firearms-license", "guard-license"].every((k) => app.credentials?.some((c) => c.kind === k));
+  const [armed, setArmed] = useState(false);
   // Shown once and never again: the server does not store this readably, so
   // if it scrolls past unread the person needs a fresh provisioning.
   const [issued, setIssued] = useState<{ username: string; tempPassword?: string } | null>(null);
@@ -441,6 +448,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
       ...(age ? { age: Number(age) } : {}),
       ...(years ? { yearsExperience: Number(years) } : {}),
       ...(photo ? { photoUrl: photo } : {}),
+      ...(armed ? { armed: true } : {}),
     });
     setIssued(res.credentials);
   });
@@ -464,6 +472,25 @@ function ApplicationRow({ app, canWrite, onChanged }: {
         </span>
         <span className="tiny">{app.city}, {app.state}</span>
       </div>
+
+      {/* Insurance and licences: check each document before hiring. */}
+      {(app.credentials?.length ?? 0) > 0 && (
+        <ul className="tiny" style={{ margin: 0, paddingLeft: 18 }}>
+          {app.credentials!.map((c) => (
+            <li key={c.kind}>
+              {CREDENTIAL_LABEL[c.kind]}: {c.issuer} · {c.number} · expires {new Date(c.expiresAt).toLocaleDateString()}
+              {Date.parse(c.expiresAt) <= Date.now() && <strong style={{ color: "var(--danger)" }}> — expired</strong>}
+              <button className="btn btn-sm btn-ghost" style={{ marginLeft: 6 }} disabled={busy}
+                onClick={() => run(async () => {
+                  const file = await api.masterApplicationCredential(app.id, c.kind);
+                  downloadBase64(file.fileName, file.mimeType, file.base64);
+                })}>
+                View
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Drivers review through their own pipeline (docs/driving.md), so
           only staff applications get buttons here. */}
@@ -509,6 +536,12 @@ function ApplicationRow({ app, canWrite, onChanged }: {
                 </label>
                 {photo && <img src={photo} alt="" width={64} height={64} style={{ borderRadius: 14, objectFit: "cover" }} />}
               </div>
+              {canBeArmed && (
+                <label className="row tiny" style={{ gap: 6, alignItems: "center", width: "100%" }}>
+                  <input type="checkbox" checked={armed} onChange={(e) => setArmed(e.target.checked)} />
+                  I checked their firearms and guard licences — clear them for armed jobs
+                </label>
+              )}
               <button className="btn btn-sm btn-primary" disabled={busy} onClick={hire}>
                 Hire onto the roster
               </button>

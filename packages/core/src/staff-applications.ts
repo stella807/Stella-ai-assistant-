@@ -4,6 +4,7 @@ import {
   assertWithdrawable, nextReviewStatus, type ApplicationStatus,
 } from "./application-review.ts";
 import { validateResume, type Resume } from "./resume.ts";
+import { requiresInsurance, validateCredential, type Credential } from "./credentials.ts";
 
 /**
  * Applications for the roles that do not drive: personal assistant, errand
@@ -49,6 +50,9 @@ export interface StaffApplication {
    *  same reason the driver form requires them: this is in-person work with
    *  vulnerable people. */
   backgroundCheckConsent: boolean;
+  /** Their own liability insurance (required for field roles) and, for armed
+   *  work, firearms and security-guard licences — see credentials.ts. */
+  credentials?: Credential[];
   submittedAt: Iso8601;
   status: ApplicationStatus;
   reviewedAt?: Iso8601;
@@ -67,6 +71,7 @@ export interface SubmitStaffApplicationInput {
   resume?: Resume;
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
+  credentials?: Credential[];
   now: Date;
 }
 
@@ -118,6 +123,17 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
 
   if (input.resume) validateResume(input.resume);
 
+  const credentials = input.credentials ?? [];
+  for (const c of credentials) validateCredential(c, input.now);
+  if (requiresInsurance(input.role) && !credentials.some((c) => c.kind === "liability-insurance")) {
+    throw new Error("Attach proof of your own liability insurance — everyone who goes out to customers carries it.");
+  }
+  const gun = credentials.some((c) => c.kind === "firearms-license");
+  const guard = credentials.some((c) => c.kind === "guard-license");
+  if (gun !== guard) {
+    throw new Error("For armed work, attach both your firearms licence and your security-guard licence.");
+  }
+
   return {
     id: input.id,
     role: input.role,
@@ -130,6 +146,7 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
     ...(input.resume ? { resume: input.resume } : {}),
     hoursPerWeek: input.hoursPerWeek,
     backgroundCheckConsent: true,
+    ...(credentials.length ? { credentials } : {}),
     submittedAt: input.now.toISOString(),
     status: "submitted",
   };
