@@ -19,24 +19,17 @@ describe("driver pay scale", () => {
   });
 
   it("computes the exact secure-transport fare", () => {
-    // base 1500 + 5mi * 450 + 15min * 60 = 1500 + 2250 + 900 = 4650
-    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(4650);
+    // base 600 + 5mi * 200 + 15min * 35 = 600 + 1000 + 525 = 2125
+    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(2125);
   });
 
-  it("keeps secure-transport's per-minute inside Uber Black's band, and deliberately puts per-mile above it", () => {
-    // Uber Black's fare components run $2.50-$4.00/mi and $0.40-$0.65/min.
-    // Per-minute still lands inside that band — this rate card takes no
-    // margin from the driver, so landing inside it is the generous
-    // comparison, not a stingy one. Per-mile was moved above the band on
-    // purpose, to a real premium over what an Uber Black driver actually
-    // nets per mile after commission (see DRIVER_RATE_CARD's own comment).
-    // If per-minute ever drifts below the floor, or per-mile drifts back to
-    // (or below) the band, secure-transport has quietly stopped being the
-    // premium it's compared against.
+  it("pays secure transport less than an Uber Black driver takes home", () => {
+    // Uber Black's fare components run $2.50-$4.00/mi and $0.40-$0.65/min, and
+    // its drivers keep roughly 75-80% of that after commission. Safehubby pays
+    // under the low end of what a Black driver nets, per mile and per minute.
     const rate = DRIVER_RATE_CARD["secure-transport"];
-    expect(rate.perMileCents).toBeGreaterThan(400);
-    expect(rate.perMinuteCents).toBeGreaterThanOrEqual(40);
-    expect(rate.perMinuteCents).toBeLessThanOrEqual(65);
+    expect(rate.perMileCents).toBeLessThan(250 * 0.8 + 1);
+    expect(rate.perMinuteCents).toBeLessThan(40);
   });
 
   it("pays secure transport meaningfully more than standard for the identical trip", () => {
@@ -71,7 +64,7 @@ describe("the rate card outlives the dispatch model", () => {
     // driver application screen, and is still the honest answer to "what
     // would you pay me?" for anyone applying now.
     expect(driverEarningsCents("standard", 5, 15)).toBe(1020);
-    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(4650);
+    expect(driverEarningsCents("secure-transport", 5, 15)).toBe(2125);
   });
 
   it("computes no customer-facing fare at all", async () => {

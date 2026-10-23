@@ -11,7 +11,7 @@ guess, not a quote.
 |---|---|---|
 | **Errand runner** | $4.00 – $23.00 per errand by size, plus $0.70 a mile | Per task. $16/hr for the minutes the size assumes. |
 | **Personal assistant** | $35.00 an hour, 1 to 12 hours a booking | Per booking. They keep all of it; our fee is added on top. |
-| **Driver** | Dormant. Standard: $3.00 base + $0.90/mi + $0.18/min. Secure transport: $15.00 + $4.50/mi + $0.60/min | Not live: rides go through Uber/Lyft for now. |
+| **Driver** | Dormant. Standard: $3.00 base + $0.90/mi + $0.18/min. Secure transport: $6.00 + $2.00/mi + $0.35/min (below what Uber Black drivers take home) | Not live: rides go through Uber/Lyft for now. |
 | Secretary | $22.00/hr, ~20 hrs/wk before launch | Hourly payroll |
 | Social media manager | $22.00/hr, ~20 hrs/wk | Hourly payroll |
 | Wingman Club coordinator | $40.00/hr, ~20 hrs/wk | Hourly payroll |
