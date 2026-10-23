@@ -480,7 +480,7 @@ submission; staff review the ID (`GET /api/admin/senior-ids`, then
 `POST /api/admin/senior-ids/:travelerId/review`), and a rejected ID ends the
 food credit at once. See `packages/core/src/senior.ts`.
 
-**Pharmacy pickups are billed** at a flat $19.99, not by the hour or mile,
+**Pharmacy pickups are billed** at a flat $34.99, not by the hour or mile,
 plus the medication. The credit never pays for them. On a very expensive
 prescription the fee rises just enough to cover the card's cut of the hold.
 

@@ -14,11 +14,16 @@ import {
 const CAPS = [500, 1_000, 2_000, 4_000, 8_000, 10_000, 25_000, 100_000];
 
 describe("errand tiers", () => {
-  it("pays minimum wage for the minutes, plus the mileage, and never under $10", () => {
-    expect(ERRAND_RATE_PER_HOUR_CENTS).toBe(1_050);
-    for (const t of ERRAND_TIERS) {
-      expect(errandPayoutCents(t.id), t.id).toBe(Math.max(1_000, Math.round((1_050 * t.minutes) / 60 + 70 * t.miles)));
-    }
+  it("pays $24 an hour for the minutes, plus the mileage, and never under $10", () => {
+    expect(ERRAND_RATE_PER_HOUR_CENTS).toBe(2_400);
+    // 15 minutes at $24/hr is $6.00 — under the minimum, so $10.00.
+    expect(errandPayoutCents("in-building")).toBe(1_000);
+    // 35 min = $14.00 + 4 mi x $0.70 = $2.80
+    expect(errandPayoutCents("nearby-store")).toBe(1_680);
+    // 60 min = $24.00 + 10 mi = $7.00
+    expect(errandPayoutCents("shopping-trip")).toBe(3_100);
+    // 50 min = $20.00 + 6 mi = $4.20
+    expect(errandPayoutCents("wait-in-line")).toBe(2_420);
   });
 
   it("climbs with the work: more time and miles never pays less", () => {
@@ -27,7 +32,7 @@ describe("errand tiers", () => {
     for (const t of ERRAND_TIERS) expect(errandPayoutCents(t.id), t.id).toBeGreaterThanOrEqual(1_000);
   });
 
-  it("never pays the runner less than minimum wage for the time the tier assumes", () => {
+  it("never pays the runner less than $24 an hour for the time the tier assumes", () => {
     for (const t of ERRAND_TIERS) {
       const hourly = (errandPayoutCents(t.id) / t.minutes) * 60;
       // Mileage is on top, so the floor is the wage alone — rounding may cost a cent.
@@ -93,7 +98,7 @@ describe("errand tiers", () => {
 describe("pharmacy pickup", () => {
   it("is one flat fee, whatever the prescription costs, until the card's cut outgrows it", () => {
     expect(errandFeeCents("pharmacy", 500)).toBe(PHARMACY_RUN_FEE_CENTS);
-    expect(errandFeeCents("pharmacy", 4_000)).toBe(PHARMACY_RUN_FEE_CENTS);
+    expect(errandFeeCents("pharmacy", 15_000)).toBe(PHARMACY_RUN_FEE_CENTS);
     expect(errandFeeCents("pharmacy", 100_000)).toBeGreaterThan(PHARMACY_RUN_FEE_CENTS);
   });
 

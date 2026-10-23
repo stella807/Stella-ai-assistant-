@@ -219,7 +219,7 @@ market and types who it is for, the hospital or address, and the room.
 ### Errand tiers
 
 Errands are priced by how much work they are (`errand-tiers.ts`), not by a flat
-label. The runner is paid **$10.50 an hour (Puerto Rico minimum wage) for the minutes the tier assumes, plus
+label. The runner is paid **$24 an hour for the minutes the tier assumes, plus
 $0.70 a mile** (their own car), and **never less than $10 an errand**. That is
 close to what TaskRabbit errand Taskers earn (about $28 an hour, usually with a
 one-hour minimum), raised from $16 so a short errand is worth the trip. The fee is the runner's pay, the card processor's cut

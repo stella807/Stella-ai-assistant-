@@ -98,7 +98,7 @@ describe("the marketing site", () => {
     }
     // Dearer work costs more, in the order the list reads.
     const fees = errandTierRows("en").map((r) => r.feeCents);
-    expect(fees[1]!).toBeGreaterThanOrEqual(fees[0]!);
+    expect(fees[1]!).toBeGreaterThan(fees[0]!);
     expect(fees[2]!).toBeGreaterThan(fees[1]!);
   });
 
