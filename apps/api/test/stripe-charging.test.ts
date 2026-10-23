@@ -41,6 +41,26 @@ describe("Stripe card charging", () => {
       .toHaveLength(5);
   });
 
+  it("keeps a customer that exists, and replaces one Stripe no longer knows (test id under live keys)", async () => {
+    const { ensureStripeCustomer } = await import("../src/adapters/stripe.ts");
+    stubStripe(() => ({ body: { id: "cus_old" } }));
+    expect(await ensureStripeCustomer({ existingId: "cus_old", email: "a@b.c", travelerId: "u" })).toBe("cus_old");
+    expect(calls).toHaveLength(1);
+
+    stubStripe((c) => c.url.endsWith("/v1/customers/cus_test")
+      ? { ok: false, body: { error: { code: "resource_missing", message: "No such customer: 'cus_test'" } } }
+      : { body: { id: "cus_live" } });
+    expect(await ensureStripeCustomer({ existingId: "cus_test", email: "a@b.c", travelerId: "u" })).toBe("cus_live");
+    expect(calls[1]!.body.get("email")).toBe("a@b.c");
+  });
+
+  it("does not replace a customer when Stripe fails for another reason", async () => {
+    const { ensureStripeCustomer } = await import("../src/adapters/stripe.ts");
+    stubStripe(() => ({ ok: false, body: { error: { code: "api_error", message: "Stripe is down" } } }));
+    await expect(ensureStripeCustomer({ existingId: "cus_old", email: "a@b.c", travelerId: "u" })).rejects.toThrow(/down/);
+    expect(calls).toHaveLength(1);
+  });
+
   it("refuses a hold the bank wants approved, and cancels it", async () => {
     stubStripe(() => ({ body: { id: "pi_2", status: "requires_action" } }));
     await expect(holdOnCard(charge)).rejects.toThrow(/bank/i);

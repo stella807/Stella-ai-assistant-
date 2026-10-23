@@ -104,11 +104,24 @@ async function stripePost<T>(
  * when a hold is placed or a plan renews — when it is attached to one.
  */
 export async function ensureStripeCustomer(input: { existingId?: string; email: string; name?: string; travelerId: string }): Promise<string> {
-  if (input.existingId) return input.existingId;
+  // A saved id can belong to the other mode: one made with test keys does not
+  // exist once the live keys are in (Stripe answers "No such customer"), and
+  // a customer deleted in the Dashboard is gone too. Either way, make a new one.
+  if (input.existingId && await customerExists(input.existingId)) return input.existingId;
   const created = await stripePost<{ id: string }>("/v1/customers", {
     email: input.email, name: input.name, "metadata[travelerId]": input.travelerId,
-  }, `customer:${input.travelerId}`);
+  }, `customer:${input.travelerId}:${/^(sk|rk)_live_/.test(key()) ? "live" : "test"}:${input.existingId ?? "new"}`);
   return created.id;
+}
+
+async function customerExists(id: string): Promise<boolean> {
+  const res = await fetch(`${api()}/v1/customers/${encodeURIComponent(id)}`, { headers: { authorization: `Bearer ${key()}` } });
+  const data = (await res.json().catch(() => null)) as { deleted?: boolean; error?: { code?: string; message?: string } } | null;
+  if (res.status === 404 || data?.error?.code === "resource_missing") return false;
+  // Anything else (a network blip, a permissions error) is not proof it is gone;
+  // say so rather than quietly replacing a customer that has saved cards.
+  if (!res.ok) throw new Error(data?.error?.message ?? `Stripe refused the customer lookup: ${res.status}`);
+  return !data?.deleted;
 }
 
 /**
