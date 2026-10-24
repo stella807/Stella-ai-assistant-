@@ -7,9 +7,12 @@ requires.
 
 ## Not yet built — blocking for production
 
-**Key rotation.** `SAFEHUBBY_ENCRYPTION_KEY` cannot be rotated without
-re-encrypting every stored trace. The ciphertext envelope is versioned (`v1.`)
-so a rotation path can be added, but it does not exist yet.
+**Key rotation.** `SAFEHUBBY_ENCRYPTION_KEY` rotates by deploying the new key
+with the old one in `SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS`: the server reads under
+either, writes the whole document back under the new key at boot, and the old
+key is then deleted — see "Rotating secrets" in `docs/deploy.md`. Rotation
+protects what is stored from now on; a copy of the database taken while the
+old key was exposed stays readable with it.
 
 **Horizontal scale.** The store keeps the database document in one JSONB row,
 which is safe only at a single replica — see `docs/deploy.md`. Concurrent

@@ -1,6 +1,7 @@
 import { Pool } from "pg";
 import {
-  openLocations, openTaskMessages, sealLocations, sealTaskMessages, type Cipher,
+  countUnreadable, openLocations, openTaskMessages, resealPayoutDestinations, sealLocations, sealTaskMessages,
+  type Cipher,
 } from "./crypto.ts";
 import type { Db, StoreLike } from "./store.ts";
 
@@ -117,7 +118,17 @@ export class PostgresStore implements StoreLike {
       return new PostgresStore(pool, cipher, structuredClone(empty), 0);
     }
 
+    if (cipher?.rotating) {
+      const unreadable = countUnreadable(rows[0]!.document, cipher);
+      if (unreadable > 0) {
+        await pool.end();
+        throw new Error(`${unreadable} encrypted value(s) open under neither SAFEHUBBY_ENCRYPTION_KEY nor `
+          + `SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS. Refusing to start: the first save would erase them. `
+          + `Check that SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS is the key this database was using.`);
+      }
+    }
     const loaded = openAll(rows[0]!.document, cipher);
+    resealPayoutDestinations(loaded, cipher);
     return new PostgresStore(pool, cipher, { ...structuredClone(empty), ...loaded }, Number(rows[0]!.version));
   }
 

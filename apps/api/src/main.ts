@@ -95,6 +95,13 @@ async function main(): Promise<void> {
   }
 
   console.log(`[safehubby] Location encryption: ${cipher ? "on" : "OFF"}`);
+  if (cipher?.rotating) {
+    // Loading opened everything under either key; one save writes it all back
+    // under the new one, so the old key is not needed after this boot.
+    store.update(() => {});
+    console.log(`[safehubby] Encryption key rotated: writing everything back under the new key. `
+      + `Remove SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS once this deploy is healthy.`);
+  }
   console.log(`[safehubby] Location retention: ${LOCATION_RETENTION_DAYS} days`);
 
   /**

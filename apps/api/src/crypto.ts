@@ -18,6 +18,13 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:
 const ALGO = "aes-256-gcm";
 const IV_BYTES = 12;
 const KEY_ENV = "SAFEHUBBY_ENCRYPTION_KEY";
+/**
+ * The key being retired, readable but never written with. A key that may have
+ * leaked (a host's breach, a pasted log) has to be replaceable without losing
+ * everything it sealed: set the new key, move the old one here for one deploy,
+ * and every save writes the document back under the new key. Then delete it.
+ */
+const PREVIOUS_KEY_ENV = "SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS";
 
 export class MissingKeyError extends Error {}
 
@@ -38,32 +45,72 @@ export function keyFrom(secret: string | undefined): Buffer | null {
 export interface Cipher {
   encrypt(plaintext: string): string;
   decrypt(payload: string): string;
+  /** The same plaintext sealed under the current key; unchanged if it already is. */
+  reseal(payload: string): string;
   readonly enabled: true;
+  /** A previous key is still accepted for reading. */
+  readonly rotating: boolean;
 }
 
-/** Envelope: v1.<iv>.<authTag>.<ciphertext>, all base64url. */
-export function makeCipher(key: Buffer): Cipher {
+function decryptWith(key: Buffer, payload: string): string {
+  const [version, ivB64, tagB64, dataB64] = payload.split(".");
+  if (version !== "v1" || !ivB64 || !tagB64 || !dataB64) throw new Error("Unrecognised ciphertext");
+  const decipher = createDecipheriv(ALGO, key, Buffer.from(ivB64, "base64url"));
+  decipher.setAuthTag(Buffer.from(tagB64, "base64url"));
+  return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64url")), decipher.final()]).toString("utf8");
+}
+
+/**
+ * Envelope: v1.<iv>.<authTag>.<ciphertext>, all base64url.
+ *
+ * The envelope names no key, so a previous key is found by trying it: GCM's
+ * tag fails for any key but the one that sealed it, which makes a wrong guess
+ * an exception rather than garbage.
+ */
+export function makeCipher(key: Buffer, previous: Buffer[] = []): Cipher {
+  const encrypt = (plaintext: string): string => {
+    const iv = randomBytes(IV_BYTES);
+    const cipher = createCipheriv(ALGO, key, iv);
+    const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+    return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), enc.toString("base64url")].join(".");
+  };
+  const decryptOld = (payload: string, firstError: unknown): string => {
+    for (const old of previous) {
+      try {
+        return decryptWith(old, payload);
+      } catch {
+        // Not this one either.
+      }
+    }
+    throw firstError;
+  };
   return {
     enabled: true,
-    encrypt(plaintext: string): string {
-      const iv = randomBytes(IV_BYTES);
-      const cipher = createCipheriv(ALGO, key, iv);
-      const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-      return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), enc.toString("base64url")].join(".");
-    },
+    rotating: previous.length > 0,
+    encrypt,
     decrypt(payload: string): string {
-      const [version, ivB64, tagB64, dataB64] = payload.split(".");
-      if (version !== "v1" || !ivB64 || !tagB64 || !dataB64) throw new Error("Unrecognised ciphertext");
-      const decipher = createDecipheriv(ALGO, key, Buffer.from(ivB64, "base64url"));
-      decipher.setAuthTag(Buffer.from(tagB64, "base64url"));
-      return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64url")), decipher.final()]).toString("utf8");
+      try {
+        return decryptWith(key, payload);
+      } catch (err) {
+        return decryptOld(payload, err);
+      }
+    },
+    reseal(payload: string): string {
+      try {
+        decryptWith(key, payload);
+        return payload;
+      } catch (err) {
+        return encrypt(decryptOld(payload, err));
+      }
     },
   };
 }
 
 export function cipherFromEnv(): Cipher | null {
   const key = keyFrom(process.env[KEY_ENV]);
-  return key ? makeCipher(key) : null;
+  if (!key) return null;
+  const previous = keyFrom(process.env[PREVIOUS_KEY_ENV]);
+  return makeCipher(key, previous && !previous.equals(key) ? [previous] : []);
 }
 
 export const isCiphertext = (value: unknown): value is string =>
@@ -134,6 +181,30 @@ export function openPayoutDestination(
 }
 
 /**
+ * Bank details stay sealed in memory (unlike pings and messages, which are
+ * opened on load and sealed again on every save), so a rotation has to move
+ * them across explicitly. One this server cannot read is left exactly as it
+ * is: overwriting it would destroy somebody's payout details for good, while
+ * leaving it means a payout that fails loudly and can be re-entered.
+ */
+export function resealPayoutDestinations(
+  db: { assistantPayoutDestinations: Record<string, { routingNumberEnc: string; accountNumberEnc: string }> },
+  cipher: Cipher | null,
+): void {
+  if (!cipher?.rotating) return;
+  for (const destination of Object.values(db.assistantPayoutDestinations ?? {})) {
+    try {
+      const routingNumberEnc = cipher.reseal(destination.routingNumberEnc);
+      const accountNumberEnc = cipher.reseal(destination.accountNumberEnc);
+      destination.routingNumberEnc = routingNumberEnc;
+      destination.accountNumberEnc = accountNumberEnc;
+    } catch {
+      // Unreadable under every key this server has; see above.
+    }
+  }
+}
+
+/**
  * Field-level encryption for everything a task's thread carries: voice
  * clips, the photos that gate spending, and typed messages.
  *
@@ -190,6 +261,30 @@ function messageFields(db: SealableDb): { get(): unknown; set(v: unknown): void 
     }
   }
   return fields;
+}
+
+/**
+ * Sealed values no key this server holds can open. Opening a document turns
+ * each of those into an empty value, and the next save writes the empty value
+ * back for good — so a rotation started with a mistyped previous key would
+ * quietly erase everything it could not read. Counted before opening, so boot
+ * can refuse instead.
+ */
+export function countUnreadable(
+  db: SealableDb & { nights: { pings: unknown }[] },
+  cipher: Cipher,
+): number {
+  const values = [...db.nights.map((n) => n.pings), ...messageFields(db).map((f) => f.get())];
+  let unreadable = 0;
+  for (const value of values) {
+    if (!isCiphertext(value)) continue;
+    try {
+      cipher.decrypt(value);
+    } catch {
+      unreadable++;
+    }
+  }
+  return unreadable;
 }
 
 export function sealTaskMessages<T extends SealableDb>(db: T, cipher: Cipher | null): T {
