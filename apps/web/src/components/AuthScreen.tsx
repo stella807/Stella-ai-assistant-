@@ -9,7 +9,7 @@ import { useLanguage } from "../i18n.tsx";
  * thing to fight at 1am.
  */
 export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account: Account) => void; startInSignup?: boolean }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [mode, setMode] = useState<"login" | "signup">(startInSignup ? "signup" : "login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,13 +35,13 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
       const res = mode === "login"
         ? await api.login({ email, password })
         : await api.signup({
-          email, password, displayName, homeLabel: homeLabel || "Home",
+          email, password, displayName, homeLabel: homeLabel || (language === "es" ? "Casa" : "Home"),
           referralCode: referralCode.trim() || undefined,
         });
       if (mode === "signup") clearReferralCode();
       onSignedIn(res.traveler);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      setError(e instanceof Error ? e.message : language === "es" ? "Algo salió mal" : "Something went wrong");
     } finally {
       setBusy(false);
     }

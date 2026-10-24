@@ -170,12 +170,13 @@ const EN = {
   "compare.secureTransport": "Secure transport",
   "compare.extendedSos": "Extended SOS contacts",
   "compare.multiProfile": "Multiple people, one account",
-  "compare.freeErrands": "Free each month",
+  "compare.freeErrands": "No-fee pickups a month",
   "compare.errands": "Errands & quick grabs",
-  "compare.foodCredit": "{amount} food",
+  "compare.foodCredit": "{amount} credit",
   "compare.bookAndPay": "We book & pay for you",
   "compare.nightOut": "Night-out tools",
   "compare.everyPlan": "Every plan: SOS, check-ins, location sharing, rides and secure transport. Pharmacy pickup {amount} flat + medication.",
+  "compare.freeErrandsNote": "No-fee pickups: an errand runner brings you one thing — a juice, a charger, a snack — and you pay only for the item, with no service fee. Basic has a {credit} monthly credit instead, which pays the delivery fee on food errands (a snack, a restaurant order, groceries); the food itself is still yours to pay. Both start over on the 1st of every month.",
   "compare.freeFood": "{amount} of free food pickups",
   "compare.perMonth": "{n} a month",
   "compare.hoursIncluded": "Concierge hours / month",
@@ -312,7 +313,7 @@ const ES: Record<TranslationKey, string> = {
   "app.drive": "Maneja para Safehubby →",
   "app.careers": "Empleo →",
   "app.offline": "No se puede conectar con la API de Safehubby. Inícialo con pnpm dev.",
-  "app.footer": "Safehubby nunca le dice a nadie que puede manejar. En una emergencia, llama al 911.",
+  "app.footer": "Safehubby nunca le dice a nadie que está en condiciones de manejar. En una emergencia, llama al 911.",
   "nav.tonight": "Inicio",
   "nav.watch": "Vigilar",
   "nav.games": "Juegos",
@@ -333,7 +334,7 @@ const ES: Record<TranslationKey, string> = {
   "lux.d3": "Viajes", "lux.d3t": "Los reservamos por ti, con el precio por delante.",
   "lux.d4": "Resuelto por ti", "lux.d4t": "Citas, recordatorios, llamadas y correos.",
   "lux.d5": "El Wingman Club", "lux.d5t": "Una noche al mes: puros, bourbon, eventos.",
-  "lux.d6": "Seguridad", "lux.d6t": "Check-ins, ubicación y SOS, siempre gratis.",
+  "lux.d6": "Seguridad", "lux.d6t": "Chequeos, ubicación y SOS, siempre gratis.",
   "lux.tagline": "Disponible 24/7 · Puerto Rico",
   "landing.heading": "Llega a casa a salvo. Nunca solo.",
   "landing.subtitle": "Safehubby cuida de ti en una noche de fiesta y envía ayuda real cuando un mensaje o un viaje no es suficiente.",
@@ -362,7 +363,7 @@ const ES: Record<TranslationKey, string> = {
   "mission.heading": "Nuestra misión",
   "mission.p1": "Safehubby existe para ayudar a las personas a llegar a casa a salvo, y para asegurarse de que nadie enfrente un momento de riesgo solo. Una llamada contestada, un viaje solicitado, o alguien que llegue en persona puede ser la diferencia entre una mala noche y una tragedia — y demasiadas familias han perdido a alguien en un momento que pudo haber sido diferente.",
   "mission.p2": "Construimos esto para la persona que no pudo conseguir un viaje, el amigo que necesitaba que alguien lo revisara y no tenía a quién llamar, y la familia que desearía haber tenido otra opción. Cada función aquí — chequeos, una forma sobria de llegar a casa, escalamiento de emergencia, un asistente verificado que puede presentarse en persona — existe porque alguien, en algún lugar, necesitó exactamente eso y no lo tuvo.",
-  "mission.disclaimer": "Safehubby no es un servicio de emergencia y nunca le dice a nadie que puede manejar. En una emergencia, llama primero a tu número de emergencia local.",
+  "mission.disclaimer": "Safehubby no es un servicio de emergencia y nunca le dice a nadie que está en condiciones de manejar. En una emergencia, llama primero a tu número de emergencia local.",
 
   "leadership.heading": "Liderazgo",
   "leadership.name": "Luis Garcia — Fundador y Director Ejecutivo",
@@ -399,7 +400,7 @@ const ES: Record<TranslationKey, string> = {
   "auth.referralHint": "¿Tienes un código de un amigo? Ingrésalo y recibirá el crédito.",
 
   "share.heading": "Invita a un amigo",
-  "share.body": "Safehubby funciona mejor cuando las personas con quienes sales también lo tienen — un registro necesita a alguien del otro lado.",
+  "share.body": "Safehubby funciona mejor cuando las personas con quienes sales también lo tienen — un chequeo necesita a alguien del otro lado.",
   "share.yourCode": "Tu código de referencia",
   "share.shareCta": "Compartir",
   "share.copyCta": "Copiar referencia",
@@ -461,12 +462,13 @@ const ES: Record<TranslationKey, string> = {
   "compare.secureTransport": "Transporte seguro",
   "compare.extendedSos": "Contactos SOS ampliados",
   "compare.multiProfile": "Varias personas, una cuenta",
-  "compare.freeErrands": "Gratis cada mes",
+  "compare.freeErrands": "Recogidos sin cargo al mes",
   "compare.errands": "Mandados y recogidos rápidos",
-  "compare.foodCredit": "{amount} en comida",
+  "compare.foodCredit": "{amount} de crédito",
   "compare.bookAndPay": "Reservamos y pagamos por ti",
   "compare.nightOut": "Herramientas de salida",
-  "compare.everyPlan": "Todos los planes: SOS, registros, compartir ubicación, viajes y transporte seguro. Recogido en farmacia {amount} fijo + la medicina.",
+  "compare.everyPlan": "Todos los planes: SOS, chequeos, compartir ubicación, viajes y transporte seguro. Recogido en farmacia {amount} fijo + la medicina.",
+  "compare.freeErrandsNote": "Recogidos sin cargo: un mensajero te trae una cosa —un jugo, un cargador, una merienda— y solo pagas lo que se compra, sin cargo de servicio. El plan Básico trae en cambio un crédito de {credit} al mes, que paga el cargo de entrega de mandados de comida (una merienda, un pedido de restaurante o la compra); la comida la pagas tú. Ambos vuelven a empezar el día 1 de cada mes.",
   "compare.freeFood": "{amount} en recogidos de comida gratis",
   "compare.perMonth": "{n} al mes",
   "compare.hoursIncluded": "Horas de concierge / mes",
@@ -487,7 +489,7 @@ const ES: Record<TranslationKey, string> = {
   "plans.save": "Ahorra {pct}%",
   "plans.launchParty": "Fiesta de lanzamiento — {amount} de descuento el primer año",
   "plans.notOpenYet": "Aún no está disponible — consulta la página de precios para ver cuánto falta para activarlo.",
-  "plans.paymentsSoon": "Abre en cuanto los pagos estén activos. Mientras tanto, los check-ins, la ubicación compartida y el SOS funcionan.",
+  "plans.paymentsSoon": "Abre en cuanto los pagos estén activos. Mientras tanto, los chequeos, la ubicación compartida y el SOS funcionan.",
   "plans.currentPlan": "Plan actual",
   "plans.switchToFree": "Cambiar a Gratis",
   "plans.choose": "Elegir {name}",
@@ -596,6 +598,15 @@ const ES: Record<TranslationKey, string> = {
 
 const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES };
 
+/**
+ * The language outside React — for the API client, which puts the server's
+ * English into it. Kept in step with the provider below.
+ */
+let active: Language | null = null;
+export function currentLanguage(): Language {
+  return active ?? detectLanguage();
+}
+
 function detectLanguage(): Language {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -617,6 +628,7 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => detectLanguage());
+  active = language;
 
   useEffect(() => {
     try {

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api, type PaymentMethod, type ProcessorStatus } from "../api.ts";
 import { PayPalButton } from "./PayPalButton.tsx";
 import { StripeCardForm } from "./StripeCardForm.tsx";
+import { useLanguage } from "../i18n.tsx";
+import { paymentWords } from "../app/payments-copy.ts";
 
 /**
  * PayPal's own logo, the files PayPal itself serves (public/img/paypal-logo.svg
@@ -38,6 +40,8 @@ function PayPalLogo({ mark = false }: { mark?: boolean }) {
  * docs/billing.md.
  */
 export function PaymentMethodCard() {
+  const { language } = useLanguage();
+  const w = paymentWords(language).method;
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [paypal, setPaypal] = useState<ProcessorStatus | null>(null);
   const [stripe, setStripe] = useState<ProcessorStatus | null>(null);
@@ -71,7 +75,7 @@ export function PaymentMethodCard() {
       await api.removePaymentMethod();
       setMethod(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not remove the payment method");
+      setError(e instanceof Error ? e.message : w.removeFailed);
     } finally {
       setBusy(false);
     }
@@ -88,14 +92,10 @@ export function PaymentMethodCard() {
   return (
     <section className="card">
       <div className="row-between">
-        <h3 style={{ margin: 0 }}>Payment method</h3>
+        <h3 style={{ margin: 0 }}>{w.title}</h3>
         {paypalReady && <PayPalLogo />}
       </div>
-      <p className="small muted">
-        {paypalReady ? "A card or your PayPal account" : "A credit or debit card"}, for everything: rides, secure transport, pharmacy runs, and your plan.
-        Nothing is charged when you add it — only when something actually happens, and only up to what that
-        thing costs.
-      </p>
+      <p className="small muted">{w.intro(paypalReady)}</p>
 
       {method && !adding && (
         <>
@@ -107,10 +107,10 @@ export function PaymentMethodCard() {
             {/* An account-based method has no card behind it and so no
                 expiry — see PaymentMethodOnFile in core's payment.ts. */}
             {method.expMonth !== undefined && method.expYear !== undefined && (
-              <span className="tiny muted">Exp {String(method.expMonth).padStart(2, "0")}/{method.expYear}</span>
+              <span className="tiny muted">{w.exp} {String(method.expMonth).padStart(2, "0")}/{method.expYear}</span>
             )}
           </div>
-          <button className="btn btn-block btn-ghost" disabled={busy} onClick={remove}>Remove</button>
+          <button className="btn btn-block btn-ghost" disabled={busy} onClick={remove}>{w.remove}</button>
         </>
       )}
 
@@ -119,15 +119,15 @@ export function PaymentMethodCard() {
           {/* Cards go through Stripe only; PayPal is offered for PayPal accounts. */}
           {stripeReady && (
             <>
-              <p className="tiny muted" style={{ margin: 0 }}>Visa, Mastercard, American Express and Discover.</p>
+              <p className="tiny muted" style={{ margin: 0 }}>{w.brands}</p>
               <button className="btn btn-block btn-primary" disabled={busy} onClick={() => { setError(null); setAdding("card"); }}>
-                Add a credit or debit card
+                {w.addCard}
               </button>
             </>
           )}
           {paypalReady && (
             <button className="btn btn-block" disabled={busy} onClick={() => { setError(null); setAdding("paypal"); }}>
-              Add your PayPal account
+              {w.addPaypal}
             </button>
           )}
         </div>
@@ -139,7 +139,7 @@ export function PaymentMethodCard() {
           onToken={(token) => {
             setBusy(true); setError(null);
             save(token, "stripe")
-              .catch((e) => setError(e instanceof Error ? e.message : "Could not save that card"))
+              .catch((e) => setError(e instanceof Error ? e.message : w.cardFailed))
               .finally(() => setBusy(false));
           }}
           onError={setError}
@@ -153,12 +153,12 @@ export function PaymentMethodCard() {
             onToken={(token) => {
               setBusy(true); setError(null);
               save(token)
-                .catch((e) => setError(e instanceof Error ? e.message : "Could not save that account"))
+                .catch((e) => setError(e instanceof Error ? e.message : w.accountFailed))
                 .finally(() => setBusy(false));
             }}
             onError={setError}
           />
-          <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(null)}>Cancel</button>
+          <button className="btn btn-block btn-ghost" disabled={busy} onClick={() => setAdding(null)}>{w.cancel}</button>
         </>
       )}
 

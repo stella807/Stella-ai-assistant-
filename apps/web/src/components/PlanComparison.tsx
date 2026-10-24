@@ -86,6 +86,11 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
           <p className="tiny muted" style={{ margin: 0 }}>
             {t("compare.everyPlan").replace("{amount}", money(PHARMACY_RUN_FEE_CENTS))}
           </p>
+          {/* What the "no-fee pickups" row counts, said once: a number and a
+              dollar amount in one row otherwise read as the same thing. */}
+          <p className="tiny muted" style={{ margin: 0 }}>
+            {t("compare.freeErrandsNote").replace("{credit}", `$${Math.round(errandCreditFor("basic") / 100)}`)}
+          </p>
         </>
       )}
     </section>

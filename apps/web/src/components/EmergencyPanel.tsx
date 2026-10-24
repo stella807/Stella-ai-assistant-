@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Assessment, type EmergencyNumber, type RedFlag } from "../api.ts";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 /**
  * Medical escalation.
@@ -11,6 +13,7 @@ import { api, type Assessment, type EmergencyNumber, type RedFlag } from "../api
  * and have something useful to say when they do.
  */
 export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompted: boolean }) {
+  const w = nightWords(useLanguage().language).emergency;
   const [open, setOpen] = useState(prompted);
   const [flags, setFlags] = useState<RedFlag[]>([]);
   const [checked, setChecked] = useState<string[]>([]);
@@ -48,7 +51,7 @@ export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompte
   if (!open) {
     return (
       <button className="btn btn-block btn-ghost" onClick={() => setOpen(true)}>
-        Someone doesn&apos;t look right
+        {w.open}
       </button>
     );
   }
@@ -56,21 +59,19 @@ export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompte
   const critical = result?.assessment.escalation === "call-emergency";
 
   return (
-    <section className={critical ? "card emergency-critical" : "card"} aria-label="Medical help">
+    <section className={critical ? "card emergency-critical" : "card"} aria-label={w.label}>
       <div className="row-between">
-        <h3 style={{ color: "var(--text)", fontSize: 17 }}>Is this an emergency?</h3>
-        {!result && <button className="btn btn-sm btn-ghost" onClick={() => setOpen(false)}>Close</button>}
+        <h3 style={{ color: "var(--text)", fontSize: 17 }}>{w.title}</h3>
+        {!result && <button className="btn btn-sm btn-ghost" onClick={() => setOpen(false)}>{w.close}</button>}
       </div>
 
       {prompted && !result && (
-        <div className="banner banner-danger">
-          The estimate is in the danger range. Check the list — it takes ten seconds.
-        </div>
+        <div className="banner banner-danger">{w.prompted}</div>
       )}
 
       {!result ? (
         <>
-          <p className="small muted">Tick anything that&apos;s true right now.</p>
+          <p className="small muted">{w.tick}</p>
           <ul className="flags">
             {flags.map((f) => (
               <li key={f.id}>
@@ -85,7 +86,7 @@ export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompte
             ))}
           </ul>
           <button className="btn btn-primary btn-block" disabled={busy} onClick={run}>
-            {checked.length ? "Check these symptoms" : "Nothing on this list"}
+            {checked.length ? w.check : w.nothing}
           </button>
         </>
       ) : (
@@ -94,7 +95,7 @@ export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompte
 
           {critical && emergency && (
             <a className="btn btn-danger btn-block call" href={`tel:${emergency.number}`}>
-              Call {emergency.number} now
+              {w.call(emergency.number)}
             </a>
           )}
 
@@ -104,7 +105,7 @@ export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompte
 
           {critical && result.script.length > 0 && (
             <>
-              <h3>Say this to the dispatcher</h3>
+              <h3>{w.say}</h3>
               <ul className="script">
                 {result.script.map((line) => <li key={line}>{line}</li>)}
               </ul>
@@ -113,20 +114,18 @@ export function EmergencyPanel({ nightId, prompted }: { nightId: string; prompte
 
           {!critical && emergency?.poisonControl && (
             <a className="btn btn-block" href={`tel:${emergency.poisonControl}`}>
-              Not sure? Call poison control on {emergency.poisonControl}
+              {w.poison(emergency.poisonControl)}
             </a>
           )}
 
           <button className="btn btn-block btn-ghost" onClick={() => { setResult(null); setChecked([]); }}>
-            Check again
+            {w.again}
           </button>
         </>
       )}
 
       {!emergency && (
-        <div className="banner banner-danger">
-          Safehubby doesn&apos;t know the emergency number where you are. Look it up now, before you need it.
-        </div>
+        <div className="banner banner-danger">{w.unknown}</div>
       )}
 
       <p className="tiny muted">{disclaimer}</p>

@@ -3,12 +3,18 @@ import { describeFixAge, isFixStale } from "@safehubby/core";
 import { api, type WatchView } from "../api.ts";
 import { PushArmPanel } from "./PushArmPanel.tsx";
 import { ShareCard } from "./ShareCard.tsx";
+import { useLanguage } from "../i18n.tsx";
+import { watchWords } from "../app/watch-copy.ts";
+import { localized } from "../app/server-es.ts";
+import { timeOf } from "../app/dates.ts";
 
 /**
  * The watching side. It shows only what the current grant allows, and says so
  * plainly when sharing is off — an empty map must never read as "he's fine".
  */
 export function GuardianScreen() {
+  const { language } = useLanguage();
+  const w = watchWords(language);
   const [inviteCode, setInviteCode] = useState("");
   const [view, setView] = useState<WatchView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +50,7 @@ export function GuardianScreen() {
       const grant = await api.claimGrant(code.trim().toUpperCase());
       setView(await api.watch(grant.id));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start watching");
+      setError(e instanceof Error ? e.message : w.claimFailed);
     }
   };
 
@@ -52,18 +58,15 @@ export function GuardianScreen() {
     return (
       <div className="stack">
       <section className="card stack">
-        <h2>Watching someone tonight</h2>
-        <p className="small muted">
-          Enter the invite code they read out to you. They can see that you are watching, and they can stop
-          sharing at any moment.
-        </p>
+        <h2>{w.title}</h2>
+        <p className="small muted">{w.intro}</p>
         <div className="field">
-          <label htmlFor="code">Invite code</label>
+          <label htmlFor="code">{w.code}</label>
           <input id="code" value={inviteCode} placeholder="ABC-234" autoCapitalize="characters"
             onChange={(e) => setInviteCode(e.target.value)} />
         </div>
         <button className="btn btn-primary btn-block" disabled={!inviteCode.trim()} onClick={() => claim(inviteCode)}>
-          Start watching
+          {w.start}
         </button>
         {error && <div className="banner banner-danger">{error}</div>}
       </section>
@@ -86,25 +89,20 @@ export function GuardianScreen() {
     <div className="stack">
       <div className="row-between">
         <div>
-          <h2>{traveler?.displayName ?? "Watching"}</h2>
-          <p className="tiny muted">Started {new Date(night.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
+          <h2>{traveler?.displayName ?? w.watching}</h2>
+          <p className="tiny muted">{w.started(timeOf(night.startedAt, language))}</p>
         </div>
-        <span className={night.status === "home-safe" ? "pill pill-safe" : "pill"}>{night.status}</span>
+        <span className={night.status === "home-safe" ? "pill pill-safe" : "pill"}>{w.status[night.status] ?? night.status}</span>
       </div>
 
       {staleSince !== null && (
         <div className="banner banner-danger" role="alert">
-          <strong>Can&apos;t reach Safehubby.</strong> What you see below is from{" "}
-          {Math.max(1, Math.round((Date.now() - staleSince) / 60_000))} minute(s) ago, not now. Check your
-          connection — and if you are worried, call them.
+          <strong>{w.unreachable}</strong> {w.staleBody(Math.max(1, Math.round((Date.now() - staleSince) / 60_000)))}
         </div>
       )}
 
       {!sharingActive && (
-        <div className="banner">
-          Sharing is off right now — either it expired or they turned it off. What you see below is the last
-          thing shared, not where they are now.
-        </div>
+        <div className="banner">{w.sharingOff}</div>
       )}
 
       <PushArmPanel />
@@ -118,31 +116,26 @@ export function GuardianScreen() {
         {warnings.slice(-3).map((a) => <div key={a.id} className="alert alert-warn"><p className="small">{a.message}</p></div>)}
       </div>
       {urgent.length === 0 && warnings.length === 0 && (
-        <div className="banner banner-safe">Nothing to worry about right now. Check-ins are being answered.</div>
+        <div className="banner banner-safe">{w.allClear}</div>
       )}
 
       <section className="card stack">
-        <h3>Tonight</h3>
+        <h3>{w.tonight}</h3>
         <div className="row wrap">
-          <Stat label="Drinks" value={`${stats.alcoholicDrinks} / ${night.drinkLimit}`} />
-          <Stat label="Standard" value={String(stats.standardDrinks)} />
-          <Stat label="Missed check-ins" value={String(stats.missedCheckIns)} />
+          <Stat label={w.drinks} value={`${stats.alcoholicDrinks} / ${night.drinkLimit}`} />
+          <Stat label={w.standard} value={String(stats.standardDrinks)} />
+          <Stat label={w.missed} value={String(stats.missedCheckIns)} />
         </div>
-        {bac && (
-          <p className="small muted">
-            Estimated {bac.low.toFixed(3)}–{bac.high.toFixed(3)} %BAC. This is a rough estimate from a typed log,
-            not a breathalyzer. Whatever it says, they should not drive.
-          </p>
-        )}
+        {bac && <p className="small muted">{w.bac(bac.low.toFixed(3), bac.high.toFixed(3))}</p>}
       </section>
 
       {night.drinks.length > 0 && (
         <section className="card stack">
-          <h3>Drink timeline</h3>
+          <h3>{w.timeline}</h3>
           <ul className="timeline">
             {night.drinks.map((d) => (
               <li key={d.id}>
-                <time>{new Date(d.loggedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
+                <time>{timeOf(d.loggedAt, language)}</time>
                 <div className="grow">
                   <span className="small">{d.name}</span>
                   {d.venueName && <span className="tiny muted"> · {d.venueName}</span>}
@@ -155,34 +148,31 @@ export function GuardianScreen() {
       )}
 
       <section className="card stack">
-        <h3>Last known location</h3>
+        <h3>{w.lastLocation}</h3>
         {lastPing ? (
           <>
             <div className="row-between">
-              <p className="small">{lastPing.venueName ?? "Shared location"}</p>
+              <p className="small">{lastPing.venueName ?? w.sharedLocation}</p>
               {/* Age first, and loud when it is old. A clock time reads like a
                   location; "3 hours ago" reads like what it actually is. */}
               <span className={isFixStale(lastPing.at, new Date()) ? "pill pill-warn" : "pill"}>
-                {describeFixAge(lastPing.at, new Date())}
+                {localized(describeFixAge(lastPing.at, new Date()), language)}
               </span>
             </div>
             {isFixStale(lastPing.at, new Date()) && night.status !== "home-safe" && (
-              <p className="small">
-                This is where they <strong>were</strong>, not where they are. Their phone has not
-                reported in since.
-              </p>
+              <p className="small">{w.wereNotAre[0]}<strong>{w.wereNotAre[1]}</strong>{w.wereNotAre[2]}</p>
             )}
             <p className="tiny muted">
               {lastPing.lat.toFixed(4)}, {lastPing.lng.toFixed(4)} · ±{lastPing.accuracyMeters}m ·{" "}
-              {new Date(lastPing.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              {timeOf(lastPing.at, language)}
             </p>
           </>
         ) : (
-          <p className="small muted">No location shared.</p>
+          <p className="small muted">{w.noLocation}</p>
         )}
       </section>
 
-      <button className="btn btn-block btn-ghost" onClick={() => setView(null)}>Stop watching</button>
+      <button className="btn btn-block btn-ghost" onClick={() => setView(null)}>{w.stop}</button>
     </div>
   );
 }

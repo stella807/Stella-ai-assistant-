@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api.ts";
 import { setupTokenFromApproval } from "../app/paypal-checkout.ts";
 import { loadPaypal, type PayPalButtons } from "../native/paypal.ts";
+import { useLanguage } from "../i18n.tsx";
+import { paymentWords } from "../app/payments-copy.ts";
 
 /**
  * PayPal's own button, saving the customer's PayPal account for later without
@@ -10,6 +12,10 @@ import { loadPaypal, type PayPalButtons } from "../native/paypal.ts";
  * into the durable token and verifies with PayPal before keeping anything.
  */
 export function PayPalButton({ onToken, onError }: { onToken: (token: string) => void; onError: (message: string) => void }) {
+  const { language } = useLanguage();
+  const w = paymentWords(language).paypal;
+  const wRef = useRef(w);
+  wRef.current = w;
   const mount = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"loading" | "ready" | "unavailable">("loading");
 
@@ -32,14 +38,14 @@ export function PayPalButton({ onToken, onError }: { onToken: (token: string) =>
         createVaultSetupToken: async () => (await api.paypalSetupToken("paypal")).id,
         onApprove: async (approval) => {
           const setupToken = setupTokenFromApproval(approval);
-          if (!setupToken) return onErrorRef.current("PayPal did not finish saving that account. Nothing was saved.");
+          if (!setupToken) return onErrorRef.current(wRef.current.unfinished);
           try {
             onTokenRef.current((await api.paypalPaymentToken(setupToken)).token);
           } catch (e) {
-            onErrorRef.current(e instanceof Error ? e.message : "PayPal could not save that account.");
+            onErrorRef.current(e instanceof Error ? e.message : wRef.current.failed);
           }
         },
-        onError: () => onErrorRef.current("PayPal could not save that account. Nothing was saved."),
+        onError: () => onErrorRef.current(wRef.current.failedNothingSaved),
       });
       void buttons.render(mount.current).then(() => { if (!cancelled) setState("ready"); })
         .catch(() => { if (!cancelled) setState("unavailable"); });
@@ -54,8 +60,8 @@ export function PayPalButton({ onToken, onError }: { onToken: (token: string) =>
   return (
     <div>
       <div ref={mount} />
-      {state === "loading" && <p className="small muted">Loading PayPal…</p>}
-      {state === "unavailable" && <p className="small muted">PayPal couldn't be loaded right now.</p>}
+      {state === "loading" && <p className="small muted">{w.loading}</p>}
+      {state === "unavailable" && <p className="small muted">{w.unavailable}</p>}
     </div>
   );
 }

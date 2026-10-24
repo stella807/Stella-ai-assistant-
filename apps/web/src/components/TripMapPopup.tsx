@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { LiveMap } from "./LiveMap.tsx";
 import { PopupCard } from "./PopupCard.tsx";
+import { useLanguage } from "../i18n.tsx";
+import { rideWords } from "../app/rides-copy.ts";
 
 /**
  * The map that comes up on its own when a ride is on its way or a flight is
@@ -17,9 +19,10 @@ export function TripMapPopup({ kind, title, status, points, lines, actions, onCl
   actions?: ReactNode;
   onClose: () => void;
 }) {
+  const w = rideWords(useLanguage().language).trip;
   return (
     <PopupCard
-      label={kind === "ride" ? "Your ride" : "Your flight"}
+      label={kind === "ride" ? w.ride : w.flight}
       onClose={onClose}
       header={
         <>
@@ -28,7 +31,7 @@ export function TripMapPopup({ kind, title, status, points, lines, actions, onCl
             <strong>{title}</strong>
             <span className="tiny popup-status popup-status-live">{status}</span>
           </div>
-          <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close map">Close</button>
+          <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label={w.closeMap}>{w.close}</button>
         </>
       }
       footer={actions ? <div className="row" style={{ gap: 8, width: "100%" }}>{actions}</div> : undefined}

@@ -4,6 +4,8 @@ import "leaflet/dist/leaflet.css";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import { useLanguage } from "../i18n.tsx";
+import { rideWords } from "../app/rides-copy.ts";
 
 // Leaflet's default marker points at relative image paths that only resolve
 // when its CSS is served from leaflet's own directory, which a bundler
@@ -55,6 +57,7 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: 
   /** Asks the device where it is; shown as a "my location" button when given. */
   onLocate?: () => Promise<{ lat: number; lng: number } | null>;
 }) {
+  const { language } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -158,19 +161,20 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: 
   };
 
   if (!hasPoints) return null;
+  const w = rideWords(language).map;
 
   return (
     <div className={`live-map${expanded ? " live-map-expanded" : ""}`} style={expanded ? undefined : { height }}>
-      <div ref={containerRef} className="live-map-canvas" aria-label="Map" />
+      <div ref={containerRef} className="live-map-canvas" aria-label={w.label} />
       <div className="live-map-tools">
         {onLocate && (
-          <button type="button" className="btn live-map-btn" onClick={locate} disabled={locating} aria-label="Go to my location">
-            {locating ? "Finding you…" : "◎ My location"}
+          <button type="button" className="btn live-map-btn" onClick={locate} disabled={locating} aria-label={w.locate}>
+            {locating ? w.finding : w.myLocation}
           </button>
         )}
         <button type="button" className="btn live-map-btn" onClick={() => setExpanded((v) => !v)}
-          aria-label={expanded ? "Close full-screen map" : "Open full-screen map"}>
-          {expanded ? "✕ Done" : "⤢ Expand"}
+          aria-label={expanded ? w.collapse : w.expand}>
+          {expanded ? w.done : w.expandShort}
         </button>
       </div>
     </div>

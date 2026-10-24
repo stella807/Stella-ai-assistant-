@@ -3,10 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { MAX_ELITE_BRIEF_LENGTH } from "@safehubby/core";
 import type { EliteBooking, EliteService, EliteServiceId } from "@safehubby/core";
 import { api } from "../api.ts";
-import { money } from "../money.ts";
 import { CategoryIcon } from "./CategoryIcons.tsx";
 import { FlightCard } from "./FlightCard.tsx";
 import { TaskCardVisual } from "./TaskCardVisual.tsx";
+import { useLanguage } from "../i18n.tsx";
+import { eliteWords } from "../app/elite-copy.ts";
+import { localeOf } from "../app/dates.ts";
 
 /**
  * The Elite luxury desk: jet travel, yacht charter, villas, event production,
@@ -20,6 +22,8 @@ import { TaskCardVisual } from "./TaskCardVisual.tsx";
  * gate in HiringScreen.tsx.
  */
 export function EliteDeskPanel() {
+  const { language } = useLanguage();
+  const w = eliteWords(language);
   const [services, setServices] = useState<(EliteService & { disclosures: string[]; commissionNote: string })[]>([]);
   const [bookings, setBookings] = useState<EliteBooking[]>([]);
   const [events, setEvents] = useState<Awaited<ReturnType<typeof api.eliteEvents>>["events"]>([]);
@@ -52,7 +56,7 @@ export function EliteDeskPanel() {
       const { card } = await api.issueEliteSpendingCard();
       setSpendingCard((s) => (s ? { ...s, card } : s));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not issue your spending card");
+      setError(e instanceof Error ? e.message : w.errors.issue);
     } finally {
       setSpendingBusy(false);
     }
@@ -65,7 +69,7 @@ export function EliteDeskPanel() {
       const r = isGoing ? await api.cancelEliteEventRsvp(eventId) : await api.rsvpEliteEvent(eventId);
       setEvents((es) => es.map((e) => (e.id === eventId ? { ...e, isGoing: r.isGoing, rsvpCount: r.rsvpCount } : e)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not update your RSVP");
+      setError(e instanceof Error ? e.message : w.errors.rsvp);
     } finally {
       setEventBusy(null);
     }
@@ -84,7 +88,7 @@ export function EliteDeskPanel() {
       setNote(res.note);
       await Promise.resolve(load());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that to the desk.");
+      setError(e instanceof Error ? e.message : w.errors.send);
     } finally {
       setBusy(false);
     }
@@ -93,8 +97,8 @@ export function EliteDeskPanel() {
   if (services.length === 0) {
     return (
       <section className="card stack">
-        <h3>Elite desk</h3>
-        <p className="small muted">Nothing on the desk yet for your plan.</p>
+        <h3>{w.desk}</h3>
+        <p className="small muted">{w.empty}</p>
       </section>
     );
   }
@@ -103,66 +107,57 @@ export function EliteDeskPanel() {
     <div className="stack">
       {spendingCard && (
         <section className="card stack">
-          <h3>Your monthly spending allowance</h3>
-          <p className="tiny muted" style={{ margin: 0 }}>
-            {money(spendingCard.capCents)} a month, loaded onto a card Safehubby pays for — a free bee that comes
-            with the tier, never billed to you and never drawn from your own card on file.
-          </p>
+          <h3>{w.allowance}</h3>
+          <p className="tiny muted" style={{ margin: 0 }}>{w.allowanceBody(spendingCard.capCents)}</p>
           {spendingCard.card ? (
             <>
               <TaskCardVisual
                 card={spendingCard.card}
                 capCents={spendingCard.capCents}
-                caption="This month's allowance"
-                holderLabel="For"
-                holderValue="You"
-                footnote="Resets every calendar month — unused balance does not roll over."
+                caption={w.thisMonth}
+                holderLabel={w.holderFor}
+                holderValue={w.you}
+                footnote={w.resets}
               />
               {showCard
                 ? <IssuingCardView getKey={getKey} />
-                : <button className="btn btn-sm" onClick={() => setShowCard(true)}>Show card number</button>}
+                : <button className="btn btn-sm" onClick={() => setShowCard(true)}>{w.showNumber}</button>}
             </>
           ) : spendingCard.automatic ? (
             <button className="btn btn-primary btn-block" disabled={spendingBusy} onClick={issueSpendingCard}>
-              {spendingBusy ? "Issuing…" : `Activate this month's ${money(spendingCard.capCents)} card`}
+              {spendingBusy ? w.issuing : w.activate(spendingCard.capCents)}
             </button>
           ) : (
-            <p className="tiny muted" style={{ margin: 0 }}>
-              Card issuing isn't set up on this server yet, so there is nothing to activate — the allowance is
-              real and disclosed, just not live without Lithic configured. See adapters/cards.ts.
-            </p>
+            <p className="tiny muted" style={{ margin: 0 }}>{w.noIssuing}</p>
           )}
         </section>
       )}
 
       {events.length > 0 && (
         <section className="card stack">
-          <h3>Elite member events</h3>
-          <p className="tiny muted" style={{ margin: 0 }}>
-            Hosted by Safehubby, free to RSVP to — separate from the Wingman Club's monthly pick, which is
-            included with Elite too. Seats are limited, so an RSVP holds one.
-          </p>
+          <h3>{w.events}</h3>
+          <p className="tiny muted" style={{ margin: 0 }}>{w.eventsBody}</p>
           <ul className="timeline">
             {events.map((e) => (
               <li key={e.id} className="card card-quiet stack" style={{ gap: 4 }}>
                 <div className="row-between">
                   <strong className="small">{e.emoji} {e.label}</strong>
                   <span className="tiny muted">
-                    {new Date(e.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    {new Date(e.date).toLocaleDateString(localeOf(language), { month: "short", day: "numeric", year: "numeric" })}
                     {" · "}{e.city}
                   </span>
                 </div>
                 <p className="tiny muted" style={{ margin: 0 }}>{e.description}</p>
                 <div className="row-between">
                   <span className="tiny muted">
-                    {e.rsvpCount}/{e.capacity} seats taken
+                    {w.seats(e.rsvpCount, e.capacity)}
                   </span>
                   <button
                     className={`btn btn-sm${e.isGoing ? "" : " btn-primary"}`}
                     disabled={eventBusy === e.id || (!e.isGoing && !e.hasRoom)}
                     onClick={() => toggleRsvp(e.id, e.isGoing)}
                   >
-                    {e.isGoing ? "Cancel RSVP" : e.hasRoom ? "RSVP" : "Full"}
+                    {e.isGoing ? w.cancelRsvp : e.hasRoom ? w.rsvp : w.full}
                   </button>
                 </div>
               </li>
@@ -182,7 +177,7 @@ export function EliteDeskPanel() {
                 service, and it's the same reason a customer picking a plan
                 shouldn't have to swipe through all of them to see it. */}
             <span className="category-tile-price">
-              {s.commissionRate === 0 ? "no commission" : `${Math.round(s.commissionRate * 100)}% fee`}
+              {s.commissionRate === 0 ? w.noCommission : w.fee(Math.round(s.commissionRate * 100))}
             </span>
           </button>
         ))}
@@ -203,14 +198,14 @@ export function EliteDeskPanel() {
           )}
 
           <div className="field">
-            <label htmlFor="elite-brief">What do you need?</label>
+            <label htmlFor="elite-brief">{w.need}</label>
             <textarea id="elite-brief" rows={3} value={brief} maxLength={MAX_ELITE_BRIEF_LENGTH}
-              placeholder="Austin to Aspen, four of us, Friday afternoon"
+              placeholder={w.briefPlaceholder}
               onChange={(e) => setBrief(e.target.value)} />
           </div>
 
           <button className="btn btn-primary btn-block" disabled={busy || !brief.trim()} onClick={send}>
-            Send it to the desk
+            {w.sendDesk}
           </button>
 
           {note && <p className="small">{note}</p>}
@@ -220,7 +215,7 @@ export function EliteDeskPanel() {
 
       {bookings.length > 0 && (
         <section className="card stack">
-          <h3>Your requests</h3>
+          <h3>{w.requests}</h3>
           <ul className="timeline">
             {bookings.map((b) => {
               const label = services.find((s) => s.id === b.serviceId)?.label ?? b.serviceId;
@@ -228,14 +223,11 @@ export function EliteDeskPanel() {
                 <li key={b.id}>
                   <div className="row-between">
                     <strong className="small">{label}</strong>
-                    <span className={`pill${b.status === "quoted" ? " pill-safe" : ""}`}>{b.status}</span>
+                    <span className={`pill${b.status === "quoted" ? " pill-safe" : ""}`}>{w.status[b.status] ?? b.status}</span>
                   </div>
                   <p className="tiny muted" style={{ margin: "2px 0 0" }}>{b.brief}</p>
                   {b.status === "quoted" && typeof b.supplierQuoteCents === "number" && (
-                    <p className="tiny muted" style={{ margin: "2px 0 0" }}>
-                      {money(b.supplierQuoteCents)}, paid to the supplier directly
-                      {b.operatorName ? ` — operated by ${b.operatorName}` : ""}.
-                    </p>
+                    <p className="tiny muted" style={{ margin: "2px 0 0" }}>{w.quote(b.supplierQuoteCents, b.operatorName)}</p>
                   )}
                   {/* Entered by the desk's PA once the flight is actually booked —
                       see POST /api/admin/elite/bookings/:id/flight. A charter has no

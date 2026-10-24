@@ -1,4 +1,6 @@
 import { dollars } from "../money.ts";
+import { useLanguage } from "../i18n.tsx";
+import { eliteWords } from "../app/elite-copy.ts";
 
 type MaskedCard = { network: string; last4: string; expMonth: number; expYear: number };
 
@@ -30,6 +32,7 @@ export function TaskCardVisual({ card, capCents, caption, holderLabel, holderVal
   holderValue: string;
   footnote: string;
 }) {
+  const w = eliteWords(useLanguage().language).card;
   if (!card) return null;
 
   return (
@@ -47,13 +50,13 @@ export function TaskCardVisual({ card, capCents, caption, holderLabel, holderVal
           <span className="task-card-visual-value">{holderValue}</span>
         </div>
         <div className="stack" style={{ gap: 1 }}>
-          <span className="task-card-visual-caption">Exp</span>
+          <span className="task-card-visual-caption">{w.exp}</span>
           <span className="task-card-visual-value">
             {String(card.expMonth).padStart(2, "0")}/{String(card.expYear).slice(-2)}
           </span>
         </div>
         <div className="stack" style={{ gap: 1 }}>
-          <span className="task-card-visual-caption">Spend cap</span>
+          <span className="task-card-visual-caption">{w.cap}</span>
           <span className="task-card-visual-value">{dollars(capCents)}</span>
         </div>
       </div>

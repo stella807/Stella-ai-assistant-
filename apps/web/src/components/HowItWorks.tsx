@@ -9,15 +9,13 @@ import { money } from "../money.ts";
 import { AssistantArt, DeskArt, ErrandArt, RideArt } from "./art/Art.tsx";
 import { PlanArt } from "./art/PlanArt.tsx";
 import { PlanName } from "../app/plan-name.tsx";
+import { useLanguage } from "../i18n.tsx";
+import { howWords } from "../app/how-copy.ts";
+import { localized } from "../app/server-es.ts";
 
 interface CatalogPlan { id: string; name: string; monthlyCents: number; annualCents: number; blurb: string; seats: number }
 
-const STEPS = [
-  { art: <AssistantArt />, title: "Tell us what you need", text: "Pick the kind of help and say it in your own words. You see the full price before anything is sent." },
-  { art: <ErrandArt />, title: "Choose your assistant", text: "See who is available — their photo, how long they have been doing this, and their age — and pick the one you want." },
-  { art: <RideArt />, title: "Follow it from your phone", text: "Chat with them, see where they are, and approve any purchase before it is made." },
-  { art: <DeskArt />, title: "Pay only for what was used", text: "You set a spending limit up front and are never charged past it. What is not spent is not charged." },
-];
+const STEP_ART = [<AssistantArt key="a" />, <ErrandArt key="e" />, <RideArt key="r" />, <DeskArt key="d" />];
 
 /**
  * How the money works, plan by plan — the prices come from the same core
@@ -25,6 +23,8 @@ const STEPS = [
  * booking really costs.
  */
 export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
+  const w = howWords(useLanguage().language);
+  const STEPS = w.steps.map((s, i) => ({ ...s, art: STEP_ART[i] }));
   const [plans, setPlans] = useState<CatalogPlan[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -40,7 +40,7 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
 
   return (
     <div className="stack how">
-      <ScreenCover photo="hero" kicker="Safehubby" title="How it works">A person you choose, doing one thing, at a limit you set.</ScreenCover>
+      <ScreenCover photo="hero" kicker="Safehubby" title={w.title}>{w.lead}</ScreenCover>
 
       <ol className="how-steps">
         {STEPS.map((s, i) => (
@@ -56,8 +56,8 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
       </ol>
 
       <section className="stack">
-        <h3>What you pay, on your plan</h3>
-        <div className="how-chips" role="tablist" aria-label="Plan">
+        <h3>{w.whatYouPay}</h3>
+        <div className="how-chips" role="tablist" aria-label={w.plan}>
           {plans.map((p) => (
             <button key={p.id} role="tab" aria-selected={selected === p.id} className="how-chip" onClick={() => setSelected(p.id)}><PlanName id={p.id} name={p.name} /></button>
           ))}
@@ -67,14 +67,14 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
       </section>
 
       <section className="stack">
-        <h3>Behind the scenes</h3>
+        <h3>{w.behind}</h3>
         <div className="how-portals">
           <div className="card portal-card"><div className="how-art"><AssistantArt /></div>
-            <strong>The workers' portal</strong>
-            <p className="small muted">Each assistant signs in to their own portal: their requests, the chat with you, receipts, and what they are paid. Pay rates are published before anyone applies.</p></div>
+            <strong>{w.workers}</strong>
+            <p className="small muted">{w.workersBody}</p></div>
           <div className="card portal-card"><div className="how-art"><DeskArt /></div>
-            <strong>The owner's and secretary's portal</strong>
-            <p className="small muted">Hiring, payroll, prices and the access log. A secretary sees only the parts the owner opens to them, and everything done there is recorded.</p></div>
+            <strong>{w.owners}</strong>
+            <p className="small muted">{w.ownersBody}</p></div>
         </div>
       </section>
     </div>
@@ -82,6 +82,8 @@ export function HowItWorks({ onOpenPlans }: { onOpenPlans: () => void }) {
 }
 
 function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: () => void }) {
+  const { language } = useLanguage();
+  const w = howWords(language);
   const id = plan.id as PlanId;
   const hourlyFee = serviceFeeFor("wait-with-someone", false, 1, 1);
   const hours = includedConciergeHours(id);
@@ -92,25 +94,25 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
   const hasRides = hasFeature(id, "ride-booking");
 
   const rows: { label: string; value: string; note?: string }[] = [
-    { label: "Your plan", value: plan.monthlyCents === 0 ? "Free" : `${money(plan.monthlyCents)} a month`, note: plan.annualCents > 0 ? `or ${money(plan.annualCents)} a year` : undefined },
+    { label: w.yourPlan, value: plan.monthlyCents === 0 ? w.free : w.perMonth(money(plan.monthlyCents)), note: plan.annualCents > 0 ? w.orYear(money(plan.annualCents)) : undefined },
   ];
   if (hasAssistant) rows.push({
-    label: "An assistant by the hour",
-    value: `${money(hourlyFee)} an hour`,
-    note: hours > 0 ? `${hours} hours a month are already paid for by your plan.` : "Plus the spending limit you load for what they buy.",
+    label: w.hourly,
+    value: w.perHour(money(hourlyFee)),
+    note: hours > 0 ? w.hoursPaid(hours) : w.plusCap,
   });
   const credit = errandCreditFor(id);
-  if (credit > 0) rows.push({ label: "Free food pickups", value: `${money(credit)} of errands a month`, note: "A snack, a restaurant or takeout order, or a grocery pickup — the runner's fee is paid; you pay only for the food. A pharmacy pickup is a flat fee plus the medication." });
+  if (credit > 0) rows.push({ label: w.foodTitle, value: w.foodValue(money(credit)), note: w.foodNote });
   // Free errands are paused on every plan but Basic's credit; nothing is shown for a 0.
   if (hasErrands && credit === 0 && grabs !== 0) {
     rows.push({
-      label: "A free errand every month",
-      value: grabs === null ? "No limit" : grabs === 0 ? "Not on this plan" : `${grabs} a month`,
-      note: "A small thing from inside the building — a soda, a snack — carries no fee.",
+      label: w.freeErrand,
+      value: grabs === null ? w.noLimit : grabs === 0 ? w.notOnPlan : w.perMonthCount(grabs),
+      note: w.freeErrandNote,
     });
   }
-  if (desk > 0) rows.push({ label: "Handled-for-you tasks", value: `${desk} a month`, note: "Appointments, reminders, calls and emails." });
-  if (hasRides) rows.push({ label: "Rides", value: `${money(ARRANGE_RIDE_FEE_CENTS)} to arrange`, note: "Plus the fare itself, shown before it is confirmed." });
+  if (desk > 0) rows.push({ label: w.desk, value: w.perMonthCount(desk), note: w.deskNote });
+  if (hasRides) rows.push({ label: w.rides, value: w.toArrange(money(ARRANGE_RIDE_FEE_CENTS)), note: w.ridesNote });
 
   return (
     <div className="card stack how-plan">
@@ -124,18 +126,18 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
 
       {hasErrands && (
         <div className="stack" style={{ gap: 6 }}>
-          <strong className="small">Errands, by how big they are</strong>
+          <strong className="small">{w.errandsBySize}</strong>
           {ERRAND_TIERS.map((t) => (
             <div key={t.id} className="row-between small">
-              <span>{t.label}<span className="tiny muted"> · {t.example}</span></span>
+              <span>{localized(t.label, language)}<span className="tiny muted"> · {localized(t.example, language)}</span></span>
               <span className="charge-amount">{money(errandFeeCents(t.id, t.suggestedCapCents))}</span>
             </div>
           ))}
-          <p className="tiny muted" style={{ margin: 0 }}>Fees shown with a typical spending limit for that size. On top of the fee, you pay what is actually bought.</p>
+          <p className="tiny muted" style={{ margin: 0 }}>{w.feesNote}</p>
         </div>
       )}
 
-      <button className="btn btn-block" onClick={onOpenPlans}>See all the plans</button>
+      <button className="btn btn-block" onClick={onOpenPlans}>{w.seeAll}</button>
     </div>
   );
 }

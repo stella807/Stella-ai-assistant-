@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account, type LaunchStatus } from "./api.ts";
 import { configError } from "./native/platform.ts";
@@ -77,14 +77,18 @@ export function App() {
   const { language, setLanguage, t } = useLanguage();
 
   useEffect(() => {
-    api.catalog()
-      .then((c) => { setDrinks(c.drinks); setLaunch(c.launch); })
-      .catch(() => setOffline(true));
     api.me()
       .then((r) => setAccount(r.traveler))
       .catch(() => setOffline(true))
       .finally(() => setReady(true));
   }, []);
+  // The catalog carries words (drink names, the launch note), so it is read
+  // again in the new language when the reader switches.
+  useEffect(() => {
+    api.catalog()
+      .then((c) => { setDrinks(c.drinks); setLaunch(c.launch); })
+      .catch(() => setOffline(true));
+  }, [language]);
 
   return (
     // `app-customer` is the hook for the desktop layout (styles/desktop.css);
@@ -126,7 +130,7 @@ export function App() {
         />
       ) : (
         <>
-          <nav className="tabs-bottom" role="tablist" aria-label="Main">
+          <nav className="tabs-bottom" role="tablist" aria-label={language === "es" ? "Principal" : "Main"}>
             <button role="tab" aria-selected={role === "out"} onClick={() => setRole("out")}>
               <span className="tab-icon"><IconMoon /></span><span>{t("nav.tonight")}</span>
             </button>
@@ -147,6 +151,9 @@ export function App() {
               answer it. */}
           <PendingOrderPrompt />
           {role !== "out" && <BackButton onBack={goBack} />}
+          {/* Keyed by language: switching remounts the screen, so what it
+              loaded in the old language is loaded again in the new one. */}
+          <Fragment key={language}>
           {role === "out" && (
             <TravelerScreen drinks={drinks} account={account}
               onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}
@@ -170,6 +177,7 @@ export function App() {
           {role === "hiring" && <HiringScreen account={account} initialTab={hiringTab} />}
           {role === "about" && <AboutScreen />}
           {role === "how" && <HowItWorks onOpenPlans={() => setRole("plans")} />}
+          </Fragment>
         </>
       )}
 
@@ -180,13 +188,13 @@ export function App() {
             every customer sees. Signed out, the landing carries both already. */}
         {account && role !== "drive" && role !== "work" && (
           <div className="stack" style={{ gap: 6, marginTop: 10 }}>
-            <nav className="footer-links" aria-label="More">
+            <nav className="footer-links" aria-label={language === "es" ? "Más" : "More"}>
               <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
               <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
               {isEnabled("party-supply") && <button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button>}
               <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
             </nav>
-            <nav className="footer-links footer-portals" aria-label="Work with us">
+            <nav className="footer-links footer-portals" aria-label={language === "es" ? "Trabaja con nosotros" : "Work with us"}>
               <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
               <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>
               <a href="/employee">{t("footer.employeePortal")}</a>
@@ -201,7 +209,7 @@ export function App() {
 
 function LanguageToggle({ language, setLanguage }: { language: Language; setLanguage: (l: Language) => void }) {
   return (
-    <div className="row" style={{ gap: 2 }} aria-label="Language">
+    <div className="row" style={{ gap: 2 }} aria-label={language === "es" ? "Idioma" : "Language"}>
       <button
         className="btn btn-sm btn-ghost"
         aria-pressed={language === "en"}

@@ -1,0 +1,88 @@
+/**
+ * The words on Watch (following someone's night) and on Who can see me, in
+ * English and Spanish. Spanish is typed against English, so a string added to
+ * one and not the other fails the build.
+ */
+export type Lang = "en" | "es";
+
+const EN = {
+  claimFailed: "Could not start watching",
+  title: "Watching someone tonight",
+  intro: "Enter the invite code they read out to you. They can see that you are watching, and they can stop sharing at any moment.",
+  code: "Invite code",
+  start: "Start watching",
+  watching: "Watching",
+  started: (time: string) => `Started ${time}`,
+  status: { active: "Out tonight", "heading-home": "Heading home", "home-safe": "Home safe", ended: "Ended" } as Record<string, string>,
+  unreachable: "Can't reach Safehubby.",
+  staleBody: (minutes: number) => `What you see below is from ${minutes} minute(s) ago, not now. Check your connection — and if you are worried, call them.`,
+  sharingOff: "Sharing is off right now — either it expired or they turned it off. What you see below is the last thing shared, not where they are now.",
+  allClear: "Nothing to worry about right now. Check-ins are being answered.",
+  tonight: "Tonight",
+  drinks: "Drinks",
+  standard: "Standard",
+  missed: "Missed check-ins",
+  bac: (low: string, high: string) => `Estimated ${low}–${high} %BAC. This is a rough estimate from a typed log, not a breathalyzer. Whatever it says, they should not drive.`,
+  timeline: "Drink timeline",
+  lastLocation: "Last known location",
+  sharedLocation: "Shared location",
+  wereNotAre: ["This is where they ", "were", ", not where they are. Their phone has not reported in since."] as [string, string, string],
+  noLocation: "No location shared.",
+  stop: "Stop watching",
+  sharing: {
+    title: "Who can see me",
+    count: (n: number) => `${n} sharing`,
+    none: "Not sharing",
+    nobody: "Nobody can see your location right now.",
+    watchedBy: (who: string) => `Watched by ${who}`,
+    waiting: "Waiting to be claimed",
+    until: (time: string) => `until ${time}`,
+    code: "Code:",
+    stop: "Stop",
+    share: "Share with someone",
+    note: "Read the code out to one person — it works once, and only for the account that claims it. Sharing always expires on its own, ends when you get home, and you can stop it at any moment. There is no hidden mode.",
+    scopes: { location: "location", drinks: "drinks", "check-ins": "check-ins", route: "route" } as Record<string, string>,
+  },
+};
+
+const ES: typeof EN = {
+  claimFailed: "No se pudo empezar a vigilar",
+  title: "Vigilar a alguien esta noche",
+  intro: "Escribe el código de invitación que te leyó. Puede ver que lo estás vigilando y puede dejar de compartir en cualquier momento.",
+  code: "Código de invitación",
+  start: "Empezar a vigilar",
+  watching: "Vigilando",
+  started: (time: string) => `Empezó a las ${time}`,
+  status: { active: "De salida", "heading-home": "Camino a casa", "home-safe": "Llegó bien", ended: "Terminó" },
+  unreachable: "No hay conexión con Safehubby.",
+  staleBody: (minutes: number) => `Lo que ves abajo es de hace ${minutes} minuto(s), no de ahora. Revisa tu conexión y, si estás preocupado, llámalo.`,
+  sharingOff: "Ahora mismo no está compartiendo: venció o lo apagó. Lo que ves abajo es lo último que compartió, no dónde está ahora.",
+  allClear: "Nada de qué preocuparse ahora mismo. Está contestando los chequeos.",
+  tonight: "Esta noche",
+  drinks: "Bebidas",
+  standard: "Estándar",
+  missed: "Chequeos perdidos",
+  bac: (low: string, high: string) => `Estimado de ${low}–${high} % de alcohol en la sangre. Es un cálculo aproximado de lo que anotó, no un alcoholímetro. Diga lo que diga, no debe manejar.`,
+  timeline: "Bebidas de la noche",
+  lastLocation: "Última ubicación conocida",
+  sharedLocation: "Ubicación compartida",
+  wereNotAre: ["Aquí es donde ", "estaba", ", no donde está. Su teléfono no ha reportado desde entonces."],
+  noLocation: "No ha compartido ubicación.",
+  stop: "Dejar de vigilar",
+  sharing: {
+    title: "Quién me puede ver",
+    count: (n: number) => `${n} ${n === 1 ? "persona" : "personas"}`,
+    none: "No estás compartiendo",
+    nobody: "Nadie puede ver tu ubicación ahora mismo.",
+    watchedBy: (who: string) => `Te vigila ${who}`,
+    waiting: "Esperando a que lo usen",
+    until: (time: string) => `hasta las ${time}`,
+    code: "Código:",
+    stop: "Parar",
+    share: "Compartir con alguien",
+    note: "Léele el código a una sola persona: funciona una vez y solo para la cuenta que lo use. Compartir siempre se vence solo, termina cuando llegas a casa y lo puedes parar en cualquier momento. No hay modo escondido.",
+    scopes: { location: "ubicación", drinks: "bebidas", "check-ins": "chequeos", route: "ruta" },
+  },
+};
+
+export const watchWords = (lang: Lang) => (lang === "es" ? ES : EN);

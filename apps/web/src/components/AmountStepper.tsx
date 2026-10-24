@@ -3,6 +3,7 @@ import { canStepDown, canStepUp, clampAmount, presetAmounts, stepAmount, type Am
 /** Whole dollars. Every amount this control can produce sits on a step of at
  *  least a dollar, so there are never cents to lose. */
 import { dollars } from "../money.ts";
+import { useLanguage } from "../i18n.tsx";
 
 /** What the control is counting. The stepper is the same control either way —
  *  big targets, valid-by-construction values, presets plus a coarse nudge —
@@ -11,9 +12,9 @@ import { dollars } from "../money.ts";
 export type StepperUnit = "money" | "hours";
 
 const HOURS_PER_UNIT = 100;
-const hoursLabel = (units: number) => {
+const hoursLabel = (units: number, es = false) => {
   const hours = units / HOURS_PER_UNIT;
-  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${hours === 1 ? "hr" : "hrs"}`;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${es ? "h" : hours === 1 ? "hr" : "hrs"}`;
 };
 
 interface AmountStepperProps {
@@ -45,16 +46,17 @@ interface AmountStepperProps {
 export function AmountStepper(
   { id, label, hint, valueCents, scale, presetsCents, unit = "money", onChange }: AmountStepperProps,
 ) {
+  const es = useLanguage().language === "es";
   const value = clampAmount(valueCents, scale);
   const presets = presetAmounts(presetsCents, scale);
-  const show = unit === "hours" ? hoursLabel : dollars;
+  const show = unit === "hours" ? (u: number) => hoursLabel(u, es) : dollars;
 
   return (
     <div className="field amount-stepper">
       <label htmlFor={id}>{label}</label>
 
       <div className="amount-row">
-        <button type="button" className="amount-step" aria-label={`Less — down to ${show(stepAmount(value, -1, scale))}`}
+        <button type="button" className="amount-step" aria-label={`${es ? "Menos: baja a" : "Less — down to"} ${show(stepAmount(value, -1, scale))}`}
           disabled={!canStepDown(value, scale)} onClick={() => onChange(stepAmount(value, -1, scale))}>
           −
         </button>
@@ -62,7 +64,7 @@ export function AmountStepper(
             number that lives somewhere else on the screen, which a screen
             reader would otherwise never mention. */}
         <output id={id} className="amount-value" aria-live="polite">{show(value)}</output>
-        <button type="button" className="amount-step" aria-label={`More — up to ${show(stepAmount(value, 1, scale))}`}
+        <button type="button" className="amount-step" aria-label={`${es ? "Más: sube a" : "More — up to"} ${show(stepAmount(value, 1, scale))}`}
           disabled={!canStepUp(value, scale)} onClick={() => onChange(stepAmount(value, 1, scale))}>
           +
         </button>

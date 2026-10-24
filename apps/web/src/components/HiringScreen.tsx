@@ -98,7 +98,7 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
     <div className="stack help-simple">
       <ScreenCover photo="jet" kicker={w.kicker} title={w.title} />
 
-      <div className="tabs tabs-scroll" role="tablist" aria-label="What you need">
+      <div className="tabs tabs-scroll" role="tablist" aria-label={w.need}>
         {tabs.map((tab) => (
           <button key={tab.id} role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)}>
             {tab.id === "club" && <WingmanIcon size={18} style={{ marginRight: 6, verticalAlign: "-3px" }} />}
@@ -113,7 +113,7 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
         : kind === "ride"
-        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || "home"} planId={planId} />
+        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || (language === "es" ? "casa" : "home")} planId={planId} />
         : kind === "club"
         ? <WingmanClub />
         : kind === "elite"

@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { CardView } from "../api.ts";
 import { loadStripeJs } from "../native/stripe.ts";
+import { useLanguage } from "../i18n.tsx";
+import { eliteWords } from "../app/elite-copy.ts";
 
 // Lithic's embed is only downloaded when a Lithic card is actually opened.
 const LithicCardFields = lazy(() => import("./LithicCardFields.tsx"));
@@ -16,6 +18,9 @@ export function IssuingCardView({ getKey }: {
   /** Without a nonce: the card's id, and for Lithic already the view. With one: Stripe's key. */
   getKey: (nonce?: string) => Promise<{ cardId: string; view?: CardView }>;
 }) {
+  const w = eliteWords(useLanguage().language).card;
+  const wRef = useRef(w);
+  wRef.current = w;
   const number = useRef<HTMLDivElement>(null);
   const expiry = useRef<HTMLDivElement>(null);
   const cvc = useRef<HTMLDivElement>(null);
@@ -36,9 +41,9 @@ export function IssuingCardView({ getKey }: {
         }
         if (!cancelled) setProvider("stripe");
         const s = await loadStripeJs();
-        if (!s) throw new Error("Card details can't be shown until Stripe is set up on this site.");
+        if (!s) throw new Error(wRef.current.notReady);
         const { nonce } = await s.createEphemeralKeyNonce({ issuingCard: first.cardId });
-        if (!nonce) throw new Error("Stripe could not open this card.");
+        if (!nonce) throw new Error(wRef.current.notOpened);
         const second = await getKey(nonce);
         const ephemeralKeySecret = second.view?.provider === "stripe" ? second.view.ephemeralKeySecret : undefined;
         if (!ephemeralKeySecret || cancelled) return;
@@ -54,41 +59,35 @@ export function IssuingCardView({ getKey }: {
         if (cvc.current) create("issuingCardCvcDisplay", opts).mount(cvc.current);
         setReady(true);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Could not show the card");
+        if (!cancelled) setError(e instanceof Error ? e.message : wRef.current.showFailed);
       }
     })();
     return () => { cancelled = true; };
   }, [getKey]);
 
   return (
-    <div className="card card-quiet stack issuing-card" aria-label="Card details">
+    <div className="card card-quiet stack issuing-card" aria-label={w.details}>
       {lithic ? (
-        <Suspense fallback={<p className="tiny muted" style={{ margin: 0 }}>Loading from Lithic…</p>}>
+        <Suspense fallback={<p className="tiny muted" style={{ margin: 0 }}>{w.loadingLithic}</p>}>
           <LithicCardFields session={lithic.embedSession} environment={lithic.environment} onError={onFieldsError} />
         </Suspense>
       ) : (
         <div className="stack" style={{ gap: 2, display: provider === "stripe" ? undefined : "none" }}>
-          <span className="tiny muted">Card number</span>
+          <span className="tiny muted">{w.number}</span>
           <div ref={number} className="issuing-field" />
           <div className="row" style={{ gap: 16 }}>
-            <div className="stack grow" style={{ gap: 2 }}><span className="tiny muted">Expires</span><div ref={expiry} className="issuing-field" /></div>
-            <div className="stack grow" style={{ gap: 2 }}><span className="tiny muted">CVC</span><div ref={cvc} className="issuing-field" /></div>
+            <div className="stack grow" style={{ gap: 2 }}><span className="tiny muted">{w.expires}</span><div ref={expiry} className="issuing-field" /></div>
+            <div className="stack grow" style={{ gap: 2 }}><span className="tiny muted">{w.cvc}</span><div ref={cvc} className="issuing-field" /></div>
           </div>
         </div>
       )}
-      {!ready && !error && <p className="tiny muted" style={{ margin: 0 }}>Loading the card…</p>}
+      {!ready && !error && <p className="tiny muted" style={{ margin: 0 }}>{w.loading}</p>}
       {error && <p className="tiny" role="alert" style={{ margin: 0 }}>{error}</p>}
-      <p className="tiny muted" style={{ margin: 0 }}>
-        Shown by {provider === "lithic" ? "Lithic" : "Stripe"}. Safehubby never sees or stores this number.
-      </p>
+      <p className="tiny muted" style={{ margin: 0 }}>{w.shownBy(provider === "lithic" ? "Lithic" : "Stripe")}</p>
       <details className="wallet-steps">
-        <summary className="small">Add it to Apple Wallet</summary>
+        <summary className="small">{w.wallet}</summary>
         <ol className="small" style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-          <li>Open the <b>Wallet</b> app and tap <b>+</b>.</li>
-          <li>Choose <b>Debit or Credit Card</b>, then <b>Enter Card Details Manually</b>.</li>
-          <li>Type the number, expiry and CVC shown above. Name: <b>Safehubby</b>.</li>
-          <li>If Apple asks for a verification code, ask dispatch for it.</li>
-          <li>Pay by holding your iPhone to the reader. Remove the card from Wallet when the task is done — it stops working then anyway.</li>
+          {w.walletSteps.map((step) => <li key={step}>{step}</li>)}
         </ol>
       </details>
     </div>

@@ -1,4 +1,6 @@
 import { isNative, platform } from "./platform.ts";
+import { currentLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 /**
  * Asking for the camera and the microphone, properly.
@@ -43,30 +45,17 @@ export interface PermissionCopy {
   recovery: string;
 }
 
-const COPY: Record<PermissionName, PermissionCopy> = {
-  camera: {
-    prime:
-      "Safehubby needs your camera for the photos that keep a task honest — the assistant's selfie when they arrive, what they're about to buy, and the receipt after. Photos are only ever taken when you or your assistant tap to take one.",
-    recovery:
-      "Camera access is turned off, and iOS only asks once. Open Settings → Safehubby → Camera to turn it back on.",
-  },
-  microphone: {
-    prime:
-      "Safehubby needs your microphone so you can send a voice message instead of typing — to the assistant working your task, or to whoever is watching out for you tonight. Nothing is recorded until you hold the record button.",
-    recovery:
-      "Microphone access is turned off, and iOS only asks once. Open Settings → Safehubby → Microphone to turn it back on.",
-  },
-};
-
+/** In the reader's language; the words live with the rest of a night's in night-copy.ts. */
 export function permissionCopy(name: PermissionName): PermissionCopy {
-  return COPY[name];
+  return nightWords(currentLanguage()).permission[name];
 }
 
 /** Where to send someone whose only remaining fix is the OS settings app. */
 export function settingsPath(name: PermissionName): string {
-  if (platform() === "ios") return `Settings → Safehubby → ${name === "camera" ? "Camera" : "Microphone"}`;
-  if (platform() === "android") return "Settings → Apps → Safehubby → Permissions";
-  return "your browser's site settings for this page";
+  const w = nightWords(currentLanguage()).permission.settings;
+  if (platform() === "ios") return w.ios(name === "camera");
+  if (platform() === "android") return w.android;
+  return w.web;
 }
 
 /**

@@ -1,4 +1,6 @@
 import { apiBase, platform } from "./native/platform.ts";
+import { currentLanguage } from "./i18n.tsx";
+import { localized, localizeDeep } from "./app/server-es.ts";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
@@ -232,8 +234,14 @@ async function request<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, (json as any)?.error ?? `Request failed (${res.status})`);
-  return json as T;
+  // The API writes in English; its sentences are put in the reader's language here, once.
+  const lang = currentLanguage();
+  if (!res.ok) {
+    const error = (json as any)?.error;
+    throw new ApiError(res.status, typeof error === "string" ? localized(error, lang)
+      : lang === "es" ? `La solicitud falló (${res.status})` : `Request failed (${res.status})`);
+  }
+  return localizeDeep(json as T, lang);
 }
 
 /** The launch-party window, as the API reports it. Carried on the public
