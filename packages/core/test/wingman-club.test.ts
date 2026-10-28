@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  CLUB_BASE_DUES_CENTS, CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH,
+  CLUB_CONTRIBUTION_PER_MEMBER_CENTS, CLUB_INCLUDED_EVENT_MAX_CENTS, CLUB_MONTHLY_DUES_CENTS, CLUB_PREMIUM_CREDIT_CENTS,
+  CLUB_PREMIUM_MARKUP, CLUB_PREMIUM_MONTHS, eventExtraCents, isIncludedEvent, CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH,
   CLUB_GROUP_RATE_MIN_MEMBERS, CLUB_PERKS, clubBaseRevenueCents, clubMonthKey, duesForCents, findClubExperience,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience,
 } from "../src/wingman-club.ts";
@@ -26,45 +27,49 @@ describe("perks", () => {
   });
 });
 
-describe("dues track the month's pick", () => {
-  it("is the flat base plus the group rate once the club is big enough to get one", () => {
-    for (const e of CLUB_EXPERIENCES) {
-      expect(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS)).toBe(CLUB_BASE_DUES_CENTS + e.negotiatedPerPersonCents);
-      expect(duesForCents(e, 500)).toBe(CLUB_BASE_DUES_CENTS + e.negotiatedPerPersonCents);
+describe("a flat $99 with an event inside it", () => {
+  it("is $99 a month", () => {
+    expect(CLUB_MONTHLY_DUES_CENTS).toBe(9900);
+  });
+
+  it("includes the light outings at the group rate, with nothing extra", () => {
+    const light = CLUB_EXPERIENCES.filter(isIncludedEvent).map((e) => e.id).sort();
+    expect(light).toEqual(["cigar-night", "golf", "steak-cigar-night"]);
+    for (const e of CLUB_EXPERIENCES.filter(isIncludedEvent)) {
+      expect(eventExtraCents(e, CLUB_GROUP_RATE_MIN_MEMBERS), e.id).toBe(0);
+      expect(e.negotiatedPerPersonCents).toBeLessThanOrEqual(CLUB_INCLUDED_EVENT_MAX_CENTS);
     }
   });
 
-  it("is built on the venue's regular price below that size, so one member covers the first experience", () => {
+  it("charges the rest of a bigger day, at cost plus 15%, after the credit", () => {
+    for (const e of CLUB_EXPERIENCES.filter((x) => !isIncludedEvent(x))) {
+      const price = Math.round(e.negotiatedPerPersonCents * (1 + CLUB_PREMIUM_MARKUP));
+      expect(eventExtraCents(e, CLUB_GROUP_RATE_MIN_MEMBERS), e.id).toBe(price - CLUB_PREMIUM_CREDIT_CENTS);
+      expect(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS), e.id).toBe(CLUB_MONTHLY_DUES_CENTS + price - CLUB_PREMIUM_CREDIT_CENTS);
+    }
+    const track = CLUB_EXPERIENCES.find((e) => e.id === "track-day")!;
+    expect(duesForCents(track, CLUB_GROUP_RATE_MIN_MEMBERS)).toBe(9900 + 27600 - 7800);
+  });
+
+  it("never costs a member less than the flat $99", () => {
+    for (const e of CLUB_EXPERIENCES) expect(duesForCents(e, 50)).toBeGreaterThanOrEqual(CLUB_MONTHLY_DUES_CENTS);
+  });
+
+  it("is built on the venue's regular price below the group size, so the club is never out of pocket", () => {
     for (const e of CLUB_EXPERIENCES) {
-      for (const members of [0, 1, 2, CLUB_GROUP_RATE_MIN_MEMBERS - 1]) {
-        expect(duesForCents(e, members), `${e.id} with ${members}`).toBe(CLUB_BASE_DUES_CENTS + e.retailPerPersonCents);
+      for (const members of [0, 1, CLUB_GROUP_RATE_MIN_MEMBERS - 1]) {
+        expect(eventExtraCents(e, members), `${e.id} with ${members}`).toBeGreaterThanOrEqual(eventExtraCents(e, CLUB_GROUP_RATE_MIN_MEMBERS));
       }
-      // A lone member pays at least what the venue itself would charge one person.
-      expect(duesForCents(e)).toBeGreaterThanOrEqual(e.retailPerPersonCents);
     }
-  });
-
-  it("drops the price, never raises it, when the roster reaches the group size", () => {
-    for (const e of CLUB_EXPERIENCES) {
-      expect(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS)).toBeLessThan(duesForCents(e, CLUB_GROUP_RATE_MIN_MEMBERS - 1));
-    }
+    // A light outing priced at retail can run over the included amount: a small extra until the club is 10.
+    expect(eventExtraCents(CLUB_EXPERIENCES.find((e) => e.id === "golf")!, 1)).toBe(2000);
+    expect(eventExtraCents(CLUB_EXPERIENCES.find((e) => e.id === "steak-cigar-night")!, 1)).toBe(5000);
+    expect(eventExtraCents(CLUB_EXPERIENCES.find((e) => e.id === "cigar-night")!, 1)).toBe(0);
   });
 
   it("tells members about the group-size rule before they join", () => {
     expect(CLUB_DISCLOSURES.join(" ")).toMatch(/group rate/i);
     expect(CLUB_DISCLOSURES.join(" ")).toContain(String(CLUB_GROUP_RATE_MIN_MEMBERS));
-  });
-
-  it("goes up for a pricier pick and down for a cheaper one", () => {
-    const cheapest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents < b.negotiatedPerPersonCents ? a : b));
-    const priciest = CLUB_EXPERIENCES.reduce((a, b) => (a.negotiatedPerPersonCents > b.negotiatedPerPersonCents ? a : b));
-    expect(duesForCents(priciest)).toBeGreaterThan(duesForCents(cheapest));
-  });
-
-  it("never charges less than the flat base, even for the cheapest pick", () => {
-    for (const e of CLUB_EXPERIENCES) {
-      expect(duesForCents(e)).toBeGreaterThan(CLUB_BASE_DUES_CENTS);
-    }
   });
 });
 
@@ -74,8 +79,8 @@ describe("base revenue and overhead", () => {
     expect(() => clubBaseRevenueCents(1.5)).toThrow(/non-negative/i);
   });
 
-  it("computes base revenue as the flat base times members, exactly", () => {
-    expect(clubBaseRevenueCents(100)).toBe(CLUB_BASE_DUES_CENTS * 100);
+  it("computes the roster's contribution as the per-member amount times members, exactly", () => {
+    expect(clubBaseRevenueCents(100)).toBe(CLUB_CONTRIBUTION_PER_MEMBER_CENTS * 100);
   });
 
   it("keeps the fixed overhead genuinely material, not a rounding error dressed up as one", () => {
@@ -85,7 +90,7 @@ describe("base revenue and overhead", () => {
     expect(CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH).toBeGreaterThanOrEqual(500_000);
   });
 
-  it("names a real, finite roster size that clears overhead on base dues alone", () => {
+  it("names a real, finite roster size that clears overhead", () => {
     const n = minMembersForOverhead();
     expect(n).toBeGreaterThan(0);
     expect(Number.isFinite(n)).toBe(true);
@@ -103,6 +108,14 @@ describe("the monthly reveal", () => {
     const a = pickMonthlyExperience(new Date("2026-09-03T00:00:00Z"));
     const b = pickMonthlyExperience(new Date("2026-09-29T00:00:00Z"));
     expect(a.id).toBe(b.id);
+  });
+
+  it("picks a light outing three months in four and a bigger day in March, June, September and December", () => {
+    for (let m = 0; m < 12; m++) {
+      const pick = pickMonthlyExperience(new Date(Date.UTC(2026, m, 15)));
+      const big = CLUB_PREMIUM_MONTHS.includes(m + 1);
+      expect(isIncludedEvent(pick), `month ${m + 1} picked ${pick.id}`).toBe(!big);
+    }
   });
 
   it("changes across months, at least somewhere in a year", () => {
@@ -140,11 +153,14 @@ describe("disclosures", () => {
     expect(CLUB_DISCLOSURES.join(" ")).toMatch(/not a credit/i);
   });
 
-  it("says dues track the pick rather than a smoothed average", () => {
-    expect(CLUB_DISCLOSURES.join(" ")).toMatch(/pricier month costs more/i);
+  it("says the fee is flat and what a bigger day adds, and that skipping it costs nothing more", () => {
+    const all = CLUB_DISCLOSURES.join(" ");
+    expect(all).toMatch(/flat \$99/);
+    expect(all).toMatch(/\$78 credit/);
+    expect(all).toMatch(/only if you sign up to go/i);
   });
 
-  it("says the cigar and drink are included in the due, not billed at the venue", () => {
+  it("says the cigar and drink are included in the price, not billed at the venue", () => {
     expect(CLUB_DISCLOSURES.join(" ")).toMatch(/cigar and drink/i);
   });
 });

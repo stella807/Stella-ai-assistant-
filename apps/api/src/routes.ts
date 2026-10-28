@@ -48,7 +48,7 @@ import {
   errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
   errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
-  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_PERKS, duesForCents,
+  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
@@ -3500,7 +3500,10 @@ export const routes: Record<string, Handler> = {
       duesCoveredBySafehubby: isElitePlan(traveler.planId as PlanId),
       thisMonth: {
         experience: pick,
-        duesCents: duesForCents(pick, memberCount),
+        // Flat every month; what going adds is separate and zero for a light outing.
+        duesCents: CLUB_MONTHLY_DUES_CENTS,
+        eventExtraCents: eventExtraCents(pick, memberCount),
+        included: isIncludedEvent(pick),
       },
     };
   },
