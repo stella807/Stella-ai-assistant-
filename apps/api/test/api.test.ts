@@ -2583,7 +2583,7 @@ describe("biweekly payroll", () => {
     it("brings in research added later without duplicating or resurrecting anything", async () => {
       // A list loaded by the first version: every suggestion except the skydiving ones, and no record of what was offered.
       store.update((db) => {
-        db.vendors = SUGGESTED_VENDORS.filter((v) => v.category !== "skydiving")
+        db.vendors = SUGGESTED_VENDORS.filter((v) => v.category !== "skydiving" && v.category !== "motorsport")
           .map((v) => ({ ...v, status: "lead" as const, updatedAt: "2026-10-28T00:00:00.000Z" }));
         delete db.vendorSeedsOffered;
       });
@@ -2591,6 +2591,7 @@ describe("biweekly payroll", () => {
       store.update((db) => { db.vendors = db.vendors!.filter((v) => v.id !== removed); });
       const first = (await callAdmin("GET", "/api/master/vendors")).json.vendors as { id: string; category: string }[];
       expect(first.filter((v) => v.category === "skydiving")).toHaveLength(2);
+      expect(first.filter((v) => v.category === "motorsport")).toHaveLength(4);
       // A removed one is not "new", so it stays removed; and asking again changes nothing.
       expect(first.some((v) => v.id === removed)).toBe(false);
       expect((await callAdmin("GET", "/api/master/vendors")).json.vendors).toHaveLength(first.length);

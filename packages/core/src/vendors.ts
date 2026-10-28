@@ -12,7 +12,7 @@
  */
 
 export type VendorCategory =
-  | "boats" | "bio-bay" | "skydiving" | "rum-cigars" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "growth";
+  | "boats" | "bio-bay" | "skydiving" | "motorsport" | "rum-cigars" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "growth";
 
 export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "event-planner", label: "Event planners and DMCs" },
@@ -21,6 +21,7 @@ export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "fishing", label: "Deep-sea fishing" },
   { id: "air", label: "Helicopter and seaplane" },
   { id: "skydiving", label: "Skydiving" },
+  { id: "motorsport", label: "Drifting and motorsport" },
   { id: "off-road", label: "Off-road and adventure" },
   { id: "rum-cigars", label: "Rum and cigars" },
   { id: "private-chef", label: "Private chefs and dining" },
@@ -126,6 +127,22 @@ export const SUGGESTED_VENDORS: Seed[] = [
     offers: "Skydiving operation founded in 2002 that has run free-fall jumps from the Arecibo airport.",
     sourceUrl: "https://nowtoronto.com/lifestyle/puerto-rican-free-fall/",
     notes: "The sources are an undated article and a 2019 travel blog (a $50-a-person deposit, weekends or by appointment). Confirm it is still operating before you rely on it." },
+
+  // ---- drifting and motorsport. No drift school or paid driving experience turned
+  // up in Puerto Rico, so a drift day would be built with local drivers and a venue.
+  // That needs the venue's insurance, helmets, a safety crew and a waiver for every member.
+  { id: "vnd-arecibo-motorsport", name: "Arecibo Motorsport", category: "motorsport", area: "Arecibo",
+    offers: "A motorsport venue that has hosted drift bashes, drift exhibitions and ride-alongs, and the Drift Wars: Puerto Rico vs. Dominican Republic (listed for November 14, 2026).",
+    sourceUrl: "https://www.pietix.com/pr-100x35-expo", notes: "The best lead for a drift day. The listings are public ticketed events, so ask whether it hires out the venue and drivers for a private group." },
+  { id: "vnd-pr-pro-drift", name: "PR Pro Drift", category: "motorsport", area: "Puerto Rico",
+    offers: "Covers Formula Drift Pro-Am activity in Puerto Rico, including drift events and demos.",
+    sourceUrl: "https://www.facebook.com/prprodrift/", notes: "A Facebook page, so a way to reach local drift drivers who could give ride-alongs or an exhibition for the club." },
+  { id: "vnd-ponce-speedway", name: "Ponce International Speedway Park", category: "motorsport", area: "Ponce",
+    offers: "A circuit that opened in 2003 and hosted the Grand Prix de Ponce, a car race that ran from 1993 to 2012.",
+    sourceUrl: "https://en.wikipedia.org/wiki/Grand_Prix_de_Ponce", notes: "No drift or private-rental information was found. Ask whether a private track day is possible." },
+  { id: "vnd-salinas-speedway", name: "Salinas Speedway", category: "motorsport", area: "Salinas",
+    offers: "A quarter-mile NHRA drag strip that also hosts circuit races.",
+    sourceUrl: "https://www.performanceracing.com/magazine/featured/11-01-2023/regional-report-puerto-rico", notes: "Drag-focused, not a drift venue. Ask about private days, which could suit a speed-and-cars outing." },
 
   // ---- off-road and adventure
   { id: "vnd-carabali", name: "Carabalí Rainforest Park", category: "off-road", area: "Luquillo (El Yunque foothills)",

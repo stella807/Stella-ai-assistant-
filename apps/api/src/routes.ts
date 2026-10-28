@@ -1037,7 +1037,7 @@ function clubAccount(ctx: Ctx): MasterAccount {
 }
 
 /** Suggested vendors added after the list first shipped: a list loaded before then never had them. */
-const SUGGESTED_LATER = new Set(["vnd-skydive-pr", "vnd-xtreme-divers"]);
+const SUGGESTED_LATER = new Set(["vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway"]);
 
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
 function cleanText(value: unknown, max: number): string {
