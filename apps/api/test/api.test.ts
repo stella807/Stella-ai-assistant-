@@ -12,8 +12,7 @@ import { taskCards } from "../src/adapters/cards.ts";
 import {
   ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PHARMACY_RUN_FEE_CENTS, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
   eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
-  OPEN_POSITIONS, errandFeeCents, errandPayoutCents, settleCharge, setFlag, type CardIssuingPort,
-} from "@safehubby/core";
+  OPEN_POSITIONS, errandFeeCents, errandPayoutCents, settleCharge, setFlag, SUGGESTED_VENDORS, type CardIssuingPort } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
 } from "@safehubby/core";
@@ -2579,6 +2578,22 @@ describe("biweekly payroll", () => {
       expect(res.json.vendors.every((v: { status: string }) => v.status === "lead")).toBe(true);
       // Loaded once: asking again does not duplicate them.
       expect((await callAdmin("GET", "/api/master/vendors")).json.vendors.length).toBe(res.json.vendors.length);
+    });
+
+    it("brings in research added later without duplicating or resurrecting anything", async () => {
+      // A list loaded by the first version: every suggestion except the skydiving ones, and no record of what was offered.
+      store.update((db) => {
+        db.vendors = SUGGESTED_VENDORS.filter((v) => v.category !== "skydiving")
+          .map((v) => ({ ...v, status: "lead" as const, updatedAt: "2026-10-28T00:00:00.000Z" }));
+        delete db.vendorSeedsOffered;
+      });
+      const removed = SUGGESTED_VENDORS[0]!.id;
+      store.update((db) => { db.vendors = db.vendors!.filter((v) => v.id !== removed); });
+      const first = (await callAdmin("GET", "/api/master/vendors")).json.vendors as { id: string; category: string }[];
+      expect(first.filter((v) => v.category === "skydiving")).toHaveLength(2);
+      // A removed one is not "new", so it stays removed; and asking again changes nothing.
+      expect(first.some((v) => v.id === removed)).toBe(false);
+      expect((await callAdmin("GET", "/api/master/vendors")).json.vendors).toHaveLength(first.length);
     });
 
     it("lets the owner work a vendor: status, contact and notes, and refuses nonsense", async () => {

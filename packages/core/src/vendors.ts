@@ -12,7 +12,7 @@
  */
 
 export type VendorCategory =
-  | "boats" | "bio-bay" | "rum-cigars" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "growth";
+  | "boats" | "bio-bay" | "skydiving" | "rum-cigars" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "growth";
 
 export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "event-planner", label: "Event planners and DMCs" },
@@ -20,6 +20,7 @@ export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "bio-bay", label: "Bioluminescent bays" },
   { id: "fishing", label: "Deep-sea fishing" },
   { id: "air", label: "Helicopter and seaplane" },
+  { id: "skydiving", label: "Skydiving" },
   { id: "off-road", label: "Off-road and adventure" },
   { id: "rum-cigars", label: "Rum and cigars" },
   { id: "private-chef", label: "Private chefs and dining" },
@@ -114,6 +115,17 @@ export const SUGGESTED_VENDORS: Seed[] = [
   { id: "vnd-tropic-ocean", name: "Tropic Ocean Airways", category: "air", area: "San Juan (SJU and Old San Juan dock)",
     offers: "Seaplane flights that take off and land on water, from the airport or the Bahía Urbana dock.",
     sourceUrl: "https://flytropic.com/?p=629", notes: "Fixed-wing, not a helicopter. A memorable way to reach Culebra or Vieques." },
+
+  // ---- skydiving. Whoever jumps, the club needs the operator's USPA affiliation,
+  // its insurance and a signed waiver for every member before a date is set.
+  { id: "vnd-skydive-pr", name: "Skydive Puerto Rico", category: "skydiving", area: "Arecibo",
+    offers: "A drop zone that hosted a 400-person skydiving boogie in February 2024, with two Twin Otters and its own Caravan; jumps go out over the beach and the field.",
+    sourceUrl: "https://parachutist.com/p/PgrID/2839/PageID/43/ArtMID/2834/ArticleID/9399",
+    notes: "Found in a trade-magazine report on the event, so it is proven at scale. Tandem prices and group terms were not found: ask for a private group tandem day and for proof of insurance." },
+  { id: "vnd-xtreme-divers", name: "Xtreme Divers", category: "skydiving", area: "Arecibo airport",
+    offers: "Skydiving operation founded in 2002 that has run free-fall jumps from the Arecibo airport.",
+    sourceUrl: "https://nowtoronto.com/lifestyle/puerto-rican-free-fall/",
+    notes: "The sources are an undated article and a 2019 travel blog (a $50-a-person deposit, weekends or by appointment). Confirm it is still operating before you rely on it." },
 
   // ---- off-road and adventure
   { id: "vnd-carabali", name: "Carabalí Rainforest Park", category: "off-road", area: "Luquillo (El Yunque foothills)",

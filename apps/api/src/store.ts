@@ -249,6 +249,8 @@ export interface Db {
   priceOverrides: PriceOverride[];
   /** The businesses that could help put on the club's events, worked through by the owner; seeded on first use. */
   vendors?: Vendor[];
+  /** Ids of the suggested vendors already offered, so a later round of research adds only the new ones and a removed vendor stays removed. */
+  vendorSeedsOffered?: string[];
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */
   monthlyFreebies?: MonthlyFreebies;
   /** Prepaid balance loads and refunds — see balance.ts. The balance itself
