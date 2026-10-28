@@ -407,8 +407,11 @@ describe("what the hiring pages promise", () => {
     // 'Liability insurance from day one' tells somebody deciding whether to
     // take a job that they are covered while working. Until a policy is bound
     // (`insurance-in-place`) that is a promise with nothing behind it.
+    // Telling applicants to bring their own cover is a requirement, not a
+    // promise; anything else that mentions insurance would be Safehubby claiming it.
+    const asksForTheirOwn = /bring their own liability insurance|traen su propio seguro de responsabilidad civil/gi;
     for (const lang of LANGS) {
-      expect(work[lang], `${lang} work page`).not.toMatch(/insurance|seguro de responsabilidad/i);
+      expect(work[lang].replace(asksForTheirOwn, ""), `${lang} work page`).not.toMatch(/insur|asegur|seguro de responsabilidad/i);
     }
   });
 

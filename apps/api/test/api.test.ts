@@ -4207,13 +4207,13 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(assistant.pay).toContain("$35.00");
     expect(assistant.openings).toBe(OPEN_POSITIONS["personal-assistant"]);
     expect(assistant.hiring).toBe(true);
-    // Errand runners are on hold: the pay is still stated, and it says so.
+    // Every role is open; each states its pay.
     const runner = roles.find((r) => r.id === "errand-runner")!;
     expect(runner.pay).toContain(`$${(errandPayoutCents("in-building") / 100).toFixed(2)}`);
-    expect(runner.openings).toBe(0);
-    expect(runner.hiring).toBe(false);
+    expect(runner.openings).toBe(OPEN_POSITIONS["errand-runner"]);
+    expect(runner.hiring).toBe(true);
     const physician = roles.find((r) => r.id === "physician")!;
-    expect(physician.hiring).toBe(false);
+    expect(physician.hiring).toBe(true);
     // Every role says what it pays; none is left blank.
     for (const r of roles) expect(String(r.pay).length, r.id).toBeGreaterThan(5);
     // Drivers apply through their own screen.
@@ -4224,8 +4224,9 @@ describe("hiring somebody and actually sending them to a job", () => {
     // An applicant should see the open jobs before the closed ones.
     const roles = (await call("GET", "/api/staff/roles")).json.roles as { id: string; hiring: boolean }[];
     const firstClosed = roles.findIndex((r) => !r.hiring);
-    expect(firstClosed).toBeGreaterThan(0);
-    for (const r of roles.slice(firstClosed)) expect(r.hiring, r.id).toBe(false);
+    // With every role open there is no closed one; if one is set to zero again it must sort last.
+    if (firstClosed >= 0) for (const r of roles.slice(firstClosed)) expect(r.hiring, r.id).toBe(false);
+    expect(roles.some((r) => r.hiring)).toBe(true);
   });
 
   it("counts an opening down when somebody is hired, so a filled role stops advertising", async () => {

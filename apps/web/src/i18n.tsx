@@ -132,7 +132,7 @@ const EN = {
   "news.failed": "Couldn't add you to the list. Try again in a moment.",
   "news.privacy": "One email when we launch. We don't sell your address, and you can leave the list at any time.",
   "work.staff": "I want to work with people, not drive",
-  "work.staffNote": "Personal assistant, errand runner, or secretary — insured from day one, with the rate published before you apply.",
+  "work.staffNote": "Personal assistant, errand runner, secretary and more, with the rate published before you apply.",
   "work.staffCta": "See open roles →",
 
   "slide.pricing": "What it costs",
@@ -430,7 +430,7 @@ const ES: Record<TranslationKey, string> = {
   "news.failed": "No pudimos agregarte a la lista. Inténtalo de nuevo en un momento.",
   "news.privacy": "Un solo correo cuando lancemos. No vendemos tu dirección y puedes salir de la lista cuando quieras.",
   "work.staff": "Quiero trabajar con personas, no manejar",
-  "work.staffNote": "Asistente personal, mensajero de encargos o secretario/a — con seguro desde el primer día y la tarifa publicada antes de que apliques.",
+  "work.staffNote": "Asistente personal, mensajero de encargos, secretario/a y más, con la tarifa publicada antes de que apliques.",
   "work.staffCta": "Ver puestos disponibles →",
 
   "slide.pricing": "Cuánto cuesta",
