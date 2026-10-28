@@ -781,3 +781,7 @@ A member says yes to the month's outing with `POST /api/club/rsvp`.
 - **Cancelling:** `POST /api/club/rsvp/cancel` refunds the extra in full through Stripe and marks the ledger charge refunded, until the club locks the day. If Stripe cannot refund, nothing is changed and the member can try again.
 - **The club's controls** are in `/master`, in the Club desk (club scope): **Lock the day in** stops members cancelling themselves for an automatic refund (the club desk handles changes after that), and **Call it off** refunds everyone who paid and closes sign-ups. If any refund fails it lists the names and can be run again.
 - Charges show on the member's statement as "Wingman Club" (charge kind `club`). Puerto Rico IVU is **not** added to the extra; check with your accountant whether it should be.
+
+## Monthly profit calculator (owner, /master)
+
+`packages/core/src/pnl.ts` works out a month as a spreadsheet: profit by source (each plan, extra assistant hours, errands with a fee, Wingman Club), less fixed costs (payroll, $75 liability insurance per insured person, other), giving net, how many more Premium members reach break-even, and how long cash lasts. It uses the live prices and the free-each-month switch. Usage and attendance are the owner's guesses. Scenarios are saved in the browser only.
