@@ -19,6 +19,7 @@ import { HowItWorks } from "./components/HowItWorks.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage } from "./i18n.tsx";
 import { LanguageToggle } from "./components/LanguageToggle.tsx";
+import { ScreenGuard } from "./components/ScreenGuard.tsx";
 import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
@@ -155,6 +156,7 @@ export function App() {
           {/* Keyed by language: switching remounts the screen, so what it
               loaded in the old language is loaded again in the new one. */}
           <Fragment key={language}>
+          <ScreenGuard key={role}>
           {role === "out" && (
             <TravelerScreen drinks={drinks} account={account}
               onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}
@@ -178,6 +180,7 @@ export function App() {
           {role === "hiring" && <HiringScreen account={account} initialTab={hiringTab} />}
           {role === "about" && <AboutScreen />}
           {role === "how" && <HowItWorks onOpenPlans={() => setRole("plans")} />}
+          </ScreenGuard>
           </Fragment>
         </>
       )}

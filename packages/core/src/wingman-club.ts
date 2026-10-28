@@ -112,6 +112,32 @@ export interface ClubSubscription {
   canceledAt?: string;
 }
 
+/**
+ * A member's yes to this month's outing. For a light outing it costs nothing;
+ * for a bigger day the extra (`eventExtraCents`) is charged to their saved
+ * card when they sign up, and refunded in full if they cancel before the club
+ * locks the day, or if the club cancels it.
+ */
+export interface ClubRsvp {
+  id: string;
+  travelerId: string;
+  /** "2026-12": the month of the outing, from `clubMonthKey`. */
+  monthKey: string;
+  experienceId: string;
+  /** What was charged for going; 0 when the outing is included. */
+  extraCents: number;
+  status: "going" | "canceled";
+  /** The Stripe payment, kept so it can be refunded. */
+  processorRef?: string;
+  chargeId?: string;
+  createdAt: string;
+  canceledAt?: string;
+  refunded?: boolean;
+}
+
+/** The month's outing once the club has locked it in: no more automatic refunds, or called off. */
+export interface ClubMonthState { lockedAt?: string; canceledAt?: string }
+
 /** An outing is included in the monthly dues when it costs the club no more than this a head. */
 export const CLUB_INCLUDED_EVENT_MAX_CENTS = 10_000;
 

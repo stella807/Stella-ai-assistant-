@@ -48,7 +48,7 @@ import {
   errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
   errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
-  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, CLUB_PERKS, eventExtraCents, isIncludedEvent,
+  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
@@ -94,7 +94,7 @@ import {
 import { flightTracking } from "./adapters/flight-tracking.ts";
 import { cardViewFor, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
-import { captureHeld, chargeSaved, chargingReady, holdSaved, processorReady, releaseHeld } from "./adapters/charging.ts";
+import { captureHeld, chargeSaved, chargingReady, holdSaved, paySavedNow, processorReady, refundPaid, releaseHeld } from "./adapters/charging.ts";
 import { eliteDesk } from "./adapters/elite-desk.ts";
 import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
@@ -1034,6 +1034,24 @@ function clubAccount(ctx: Ctx): MasterAccount {
   const now = ctx.now();
   if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "club", now)) throw unauthorized();
   return account;
+}
+
+/**
+ * Gives one member's RSVP back: the refund at Stripe first, and only if that
+ * works the ledger and the RSVP change, so a refund that failed is never
+ * recorded as done.
+ */
+async function refundClubRsvp(ctx: Ctx, rsvp: ClubRsvp): Promise<void> {
+  if (rsvp.extraCents > 0 && rsvp.processorRef) {
+    try { await refundPaid(rsvp.processorRef); }
+    catch (e) { throw new HttpError(424, `Stripe could not refund that, so nothing was changed. ${e instanceof Error ? e.message : ""}`.trim()); }
+  }
+  const now = ctx.now();
+  if (rsvp.chargeId) updateCharge(ctx, rsvp.chargeId, (c) => refundCharge(c, now));
+  ctx.store.update((db) => {
+    const r = (db.clubRsvps ?? []).find((x) => x.id === rsvp.id);
+    if (r) { r.status = "canceled"; r.canceledAt = now.toISOString(); if (rsvp.extraCents > 0) r.refunded = true; }
+  });
 }
 
 /** Suggested vendors added after the list first shipped: a list loaded before then never had them. */
@@ -3528,6 +3546,13 @@ export const routes: Record<string, Handler> = {
         needsPayment: isAutomatic(stripeProcessor.status) && !traveler.clubMember && !isElitePlan(traveler.planId as PlanId),
         subscriptionStatus: ctx.store.data.clubSubscriptions?.[me]?.status ?? null,
       },
+      // Whether this member is in for this month's outing, and whether the club has locked it or called it off.
+      outing: {
+        going: (ctx.store.data.clubRsvps ?? []).some((r) => r.travelerId === me && r.monthKey === clubMonthKey(ctx.now()) && r.status === "going"),
+        locked: Boolean(ctx.store.data.clubMonths?.[clubMonthKey(ctx.now())]?.lockedAt),
+        canceled: Boolean(ctx.store.data.clubMonths?.[clubMonthKey(ctx.now())]?.canceledAt),
+        hasCard: ctx.store.data.paymentMethods[me]?.processor === "stripe" && Boolean(ctx.store.data.paymentMethods[me]?.processorToken),
+      },
       thisMonth: {
         experience: pick,
         // Flat every month; what going adds is separate and zero for a light outing.
@@ -3576,6 +3601,50 @@ export const routes: Record<string, Handler> = {
 
   /* The club assistant: the owner's own assistant for the club. Invites
      people, arranges what members ask for, and keeps the owner posted. */
+  /* This month's outing from the club's side: who is in, what was charged, and
+     the two things only the club can do: lock the day in (no more automatic
+     refunds) or call it off (everyone is refunded). */
+  "GET /api/master/club/event": (ctx) => {
+    clubAccount(ctx);
+    const monthKey = clubMonthKey(ctx.now());
+    const state = ctx.store.data.clubMonths?.[monthKey] ?? {};
+    const going = (ctx.store.data.clubRsvps ?? []).filter((r) => r.monthKey === monthKey && r.status === "going");
+    const pick = pickMonthlyExperience(ctx.now());
+    return {
+      monthKey, experience: pick, locked: Boolean(state.lockedAt), canceled: Boolean(state.canceledAt),
+      going: going.map((r) => ({ travelerId: r.travelerId, name: nameOf(ctx, r.travelerId), extraCents: r.extraCents })),
+      totalExtraCents: going.reduce((sum, r) => sum + r.extraCents, 0),
+    };
+  },
+
+  "POST /api/master/club/event/lock": (ctx) => {
+    clubAccount(ctx);
+    const monthKey = clubMonthKey(ctx.now());
+    ctx.store.update((db) => {
+      db.clubMonths = { ...db.clubMonths, [monthKey]: { ...db.clubMonths?.[monthKey], lockedAt: ctx.now().toISOString() } };
+    });
+    return { ok: true };
+  },
+
+  "POST /api/master/club/event/cancel": async (ctx) => {
+    clubAccount(ctx);
+    const monthKey = clubMonthKey(ctx.now());
+    const going = (ctx.store.data.clubRsvps ?? []).filter((r) => r.monthKey === monthKey && r.status === "going");
+    const failed: string[] = [];
+    let refunded = 0;
+    for (const rsvp of going) {
+      try { await refundClubRsvp(ctx, rsvp); refunded += 1; }
+      catch { failed.push(nameOf(ctx, rsvp.travelerId)); }
+    }
+    // Only called off once everyone is refunded; otherwise the failures are listed and it can be run again.
+    if (failed.length === 0) {
+      ctx.store.update((db) => {
+        db.clubMonths = { ...db.clubMonths, [monthKey]: { ...db.clubMonths?.[monthKey], canceledAt: ctx.now().toISOString() } };
+      });
+    }
+    return { refunded, failed, canceled: failed.length === 0 };
+  },
+
   "GET /api/master/club/desk": (ctx) => {
     const account = clubAccount(ctx);
     const now = ctx.now();
@@ -3657,6 +3726,70 @@ export const routes: Record<string, Handler> = {
       console.error("[safehubby] Stripe club checkout-session failed:", e instanceof Error ? e.message : e);
       throw new HttpError(424, e instanceof Error ? e.message : "Stripe could not be reached.");
     }
+  },
+
+  /* Saying yes to this month's outing. A light outing is included; for a bigger
+     day the extra is charged to the saved Stripe card now and refunded in full
+     if the member cancels before the club locks the day, or the club calls it off. */
+  "POST /api/club/rsvp": async (ctx) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    if (!traveler.clubMember) throw new HttpError(403, "Join the club first.");
+    const now = ctx.now();
+    const monthKey = clubMonthKey(now);
+    const state = ctx.store.data.clubMonths?.[monthKey] ?? {};
+    if (state.canceledAt) throw new HttpError(409, "This month's outing was called off.");
+    if (state.lockedAt) throw new HttpError(409, "This month's outing is locked in. Ask the club desk to add you.");
+    const existing = (ctx.store.data.clubRsvps ?? []).find((r) => r.travelerId === me && r.monthKey === monthKey && r.status === "going");
+    if (existing) return { rsvp: existing };
+    const memberCount = ctx.store.data.travelers.filter((t) => t.clubMember).length;
+    const pick = pickMonthlyExperience(now);
+    const extraCents = eventExtraCents(pick, memberCount);
+    const id = newId("rsvp");
+    let processorRef: string | undefined;
+    let chargeId: string | undefined;
+    if (extraCents > 0) {
+      const method = ctx.store.data.paymentMethods[me];
+      const customerId = ctx.store.data.stripeCustomers[me];
+      const price = `$${(extraCents / 100).toFixed(2)}`;
+      if (!method?.processorToken || method.processor !== "stripe" || !customerId || !processorReady("stripe")) {
+        throw new HttpError(402, `Going costs ${price} more. Save a card under Payments first.`);
+      }
+      const description = `Wingman Club — ${pick.label} (extra for the day)`;
+      let paid: { id: string };
+      try {
+        paid = await paySavedNow({
+          processor: "stripe", customerId, paymentMethodId: method.processorToken, method: { brand: method.brand, last4: method.last4 },
+          amountCents: extraCents, description, idempotencyKey: id,
+        });
+      } catch (e) {
+        throw new HttpError(402, e instanceof Error ? e.message : "Your card could not be charged.");
+      }
+      processorRef = paid.id;
+      chargeId = `club_${id}`;
+      const charge = recordCharge({ id: chargeId, travelerId: me, kind: "club", platform: "web", description, amountCents: extraCents, now });
+      ctx.store.update((db) => void db.charges.push(settleCharge(charge, now, undefined, paid.id)));
+    }
+    const rsvp: ClubRsvp = {
+      id, travelerId: me, monthKey, experienceId: pick.id, extraCents, status: "going",
+      ...(processorRef ? { processorRef } : {}), ...(chargeId ? { chargeId } : {}), createdAt: now.toISOString(),
+    };
+    ctx.store.update((db) => { db.clubRsvps = [...(db.clubRsvps ?? []), rsvp]; });
+    return { rsvp };
+  },
+
+  "POST /api/club/rsvp/cancel": async (ctx) => {
+    const me = actor(ctx);
+    const now = ctx.now();
+    const monthKey = clubMonthKey(now);
+    const rsvp = (ctx.store.data.clubRsvps ?? []).find((r) => r.travelerId === me && r.monthKey === monthKey && r.status === "going");
+    if (!rsvp) throw new HttpError(409, "You are not signed up for this month's outing.");
+    if (ctx.store.data.clubMonths?.[monthKey]?.lockedAt) {
+      throw new HttpError(409, "This month's outing is locked in, so it can no longer be cancelled here. Ask the club desk.");
+    }
+    await refundClubRsvp(ctx, rsvp);
+    return { ok: true, refundedCents: rsvp.extraCents };
   },
 
   "POST /api/club/leave": async (ctx) => {

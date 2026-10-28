@@ -8,6 +8,7 @@ import { DeskTasksPanel, DeskTiles } from "./DeskTasksPanel.tsx";
 import { EliteDeskPanel } from "./EliteDeskPanel.tsx";
 import { GetHomePanel } from "./GetHomePanel.tsx";
 import { WingmanClub } from "./WingmanClub.tsx";
+import { ScreenGuard } from "./ScreenGuard.tsx";
 import { WingmanIcon } from "./art/Art.tsx";
 import { currentFix, type Fix } from "../native/location.ts";
 import { api, type Account } from "../api.ts";
@@ -110,6 +111,7 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
 
       {/* Keyed by tab so switching resets the form rather than carrying a
           half-filled concierge request into the errands screen. */}
+      <ScreenGuard key={kind}>
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
         : kind === "ride"
@@ -119,6 +121,7 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
         : kind === "elite"
         ? <EliteDeskPanel />
         : <AskAssistant account={account} />}
+      </ScreenGuard>
     </div>
   );
 }

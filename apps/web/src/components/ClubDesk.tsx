@@ -18,6 +18,10 @@ export function ClubDeskSection() {
     try { await fn(); await load(); } catch (e) { setError(e instanceof Error ? e.message : "That did not go through"); }
   };
 
+  const [outing, setOuting] = useState<Awaited<ReturnType<typeof api.clubEvent>> | null>(null);
+  useEffect(() => { api.clubEvent().then(setOuting).catch(() => {}); }, []);
+  const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
   if (!desk) return error ? <p className="tiny" role="alert">{error}</p> : null;
   const u = desk.update;
   const open = desk.requests.filter((r) => r.status === "open");
@@ -32,6 +36,30 @@ export function ClubDeskSection() {
         </span>
         <span className="tiny muted">{u.clubMembers} club members · {u.clubInvited} invited, not joined · {u.openClubRequests} requests open</span>
       </div>
+
+      {outing && (
+        <div className="card card-quiet stack" style={{ gap: 6 }}>
+          <strong className="small">This month's outing: {outing.experience.emoji} {outing.experience.label}</strong>
+          <span className="tiny muted">
+            {outing.going.length} going{outing.totalExtraCents > 0 ? ` · ${dollars(outing.totalExtraCents)} charged for the day` : ""}
+            {outing.canceled ? " · called off" : outing.locked ? " · locked in" : ""}
+          </span>
+          {outing.going.length > 0 && <span className="tiny">{outing.going.map((g) => g.name).join(", ")}</span>}
+          {!outing.canceled && (
+            <div className="row">
+              <button className="btn btn-sm grow" disabled={outing.locked}
+                onClick={() => void act(async () => { await api.clubEventLock(); setOuting(await api.clubEvent()); })}>
+                Lock the day in
+              </button>
+              <button className="btn btn-sm btn-ghost grow"
+                onClick={() => { if (window.confirm("Call this outing off and refund everyone who paid?")) void act(async () => { await api.clubEventCancel(); setOuting(await api.clubEvent()); }); }}>
+                Call it off
+              </button>
+            </div>
+          )}
+          <p className="tiny muted" style={{ margin: 0 }}>Locking stops members cancelling themselves for an automatic refund. Calling it off refunds everyone.</p>
+        </div>
+      )}
 
       <strong className="small">Member requests</strong>
       {open.length === 0 && <p className="tiny muted">Nothing waiting.</p>}

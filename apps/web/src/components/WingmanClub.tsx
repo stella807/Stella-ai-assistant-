@@ -42,12 +42,25 @@ export function WingmanClub() {
   // By invitation: anyone not invited never sees that the club exists.
   if (!status || !status.invited) return null;
 
+  const rsvp = async (action: "in" | "out") => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (action === "in") await api.clubRsvp(); else await api.clubRsvpCancel();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("wingman.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggle = async () => {
     setBusy(true);
     setError(null);
     try {
       if (status.isMember) await api.leaveClub();
-      else if (status.billing.needsPayment) { setPaying(true); setBusy(false); return; }
+      else if (status.billing?.needsPayment) { setPaying(true); setBusy(false); return; }
       else await api.joinClub();
       await load();
     } catch (e) {
@@ -130,12 +143,44 @@ export function WingmanClub() {
         {status.disclosures.map((d) => <li key={d}>{d}</li>)}
       </ul>
 
+      {status.isMember && status.outing && (
+        <div className="wm-rsvp" style={{ margin: "4px 0 14px" }}>
+          {status.outing.canceled ? (
+            <p className="small" style={{ margin: 0, color: "var(--wm-soft)" }}>{t("wingman.calledOff")}</p>
+          ) : status.outing.going ? (
+            <>
+              <p className="small" style={{ margin: "0 0 8px" }}>{t("wingman.youreIn").replace("{label}", thisMonth.experience.label)}</p>
+              {status.outing.locked ? (
+                <p className="tiny" style={{ margin: 0, color: "var(--wm-soft)" }}>{t("wingman.locked")}</p>
+              ) : (
+                <button className="wm-cta leave" disabled={busy} onClick={() => void rsvp("out")}>
+                  {thisMonth.eventExtraCents > 0 ? t("wingman.cancelRsvpRefund").replace("{amount}", money(thisMonth.eventExtraCents)) : t("wingman.cancelRsvp")}
+                </button>
+              )}
+            </>
+          ) : status.outing.locked ? (
+            <p className="tiny" style={{ margin: 0, color: "var(--wm-soft)" }}>{t("wingman.locked")}</p>
+          ) : (
+            <>
+              <button className="wm-cta" disabled={busy || (thisMonth.eventExtraCents > 0 && !status.outing.hasCard)} onClick={() => void rsvp("in")}>
+                {thisMonth.eventExtraCents > 0 ? t("wingman.imInPay").replace("{amount}", money(thisMonth.eventExtraCents)) : t("wingman.imIn")}
+              </button>
+              {thisMonth.eventExtraCents > 0 && (
+                <p className="tiny" style={{ margin: "8px 0 0", color: "var(--wm-soft)" }}>
+                  {(status.outing.hasCard ? t("wingman.rsvpNote") : t("wingman.addCard")).replace("{amount}", money(thisMonth.eventExtraCents))}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <button className={`wm-cta${status.isMember ? " leave" : ""}`} disabled={busy} onClick={toggle}>
         {status.isMember ? t("wingman.leave")
-          : status.billing.needsPayment ? t("wingman.joinPaid").replace("{amount}", money(status.billing.monthlyCents))
+          : status.billing?.needsPayment ? t("wingman.joinPaid").replace("{amount}", money(status.billing.monthlyCents))
           : t("wingman.join")}
       </button>
-      {paying && !status.isMember && (
+      {paying && !status.isMember && status.billing && (
         <div style={{ marginTop: 12 }}>
           <p className="tiny" style={{ margin: "0 0 8px", color: "var(--wm-soft)" }}>{t("wingman.billedNote").replace("{amount}", money(status.billing.monthlyCents))}</p>
           <StripeCheckoutForm planId="wingman-club" cadence="monthly" club onClose={() => { setPaying(false); void load(); }} />

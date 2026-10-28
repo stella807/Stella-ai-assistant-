@@ -5557,6 +5557,119 @@ describe("the Wingman Club is by invitation, run by the club assistant", () => {
   });
 });
 
+describe("the Wingman Club outing: the extra for a bigger day is charged, and refunded", () => {
+  useAdminKey("the-server-admin-key");
+  const stripeCalls: { path: string; body: string }[] = [];
+  const realFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    stripeCalls.length = 0;
+    process.env.STRIPE_SECRET_KEY = "sk_test_outing";
+    process.env.STRIPE_PUBLISHABLE_KEY = "pk_test_outing";
+    process.env.STRIPE_API_BASE = "http://stripe.fake";
+    // A stand-in Stripe: succeeds, and remembers what it was asked.
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = String(url);
+      if (!u.startsWith("http://stripe.fake")) return realFetch(url as never, init);
+      stripeCalls.push({ path: u.replace("http://stripe.fake", ""), body: String(init?.body ?? "") });
+      const json = u.includes("/payment_intents") ? { id: `pi_${stripeCalls.length}`, status: "succeeded" } : { id: `re_${stripeCalls.length}`, status: "succeeded" };
+      return new Response(JSON.stringify(json), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    for (const t of store.data.travelers) { t.clubInvited = true; t.clubMember = true; }
+    // Ten members, so outings are priced at the group rate: a light one is then fully included.
+    store.update((db) => {
+      for (let i = 0; i < 8; i++) {
+        db.travelers.push({ ...structuredClone(db.travelers[0]!), id: `club_fill_${i}`, email: `fill${i}@example.com` });
+      }
+      db.stripeCustomers[samId] = "cus_sam";
+      db.paymentMethods[samId] = { id: "pm_sam", processor: "stripe", processorToken: "pm_card", brand: "Visa", last4: "4242", accountLabel: "Visa 4242", addedAt: clock.toISOString() };
+    });
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_PUBLISHABLE_KEY; delete process.env.STRIPE_API_BASE;
+  });
+
+  /** Moves the clock into a month and signs Sam in again, since a session does not outlast months. */
+  const inMonth = async (month: number) => {
+    clock = new Date(Date.UTC(2027, month - 1, 15, 20, 0, 0));
+    const res = await call("POST", "/api/auth/login", { email: "sam@example.com", password: "a-long-enough-passphrase" });
+    sam = /sh_session=([^;]+)/.exec(res.setCookie ?? "")?.[1] ?? sam;
+  };
+  const owner = async () => {
+    const created = await callAdmin("POST", "/api/admin/master-accounts", { name: "O", email: `o${Math.random()}@example.com`, role: "owner" }, "the-server-admin-key");
+    const signedIn = await call("POST", "/api/master/auth/login", { key: created.json.key });
+    return { Cookie: `sh_master_session=${/sh_master_session=([^;]+)/.exec(signedIn.setCookie ?? "")?.[1] ?? ""}` };
+  };
+
+  it("lets a member into a light month's outing for nothing, and out again", async () => {
+    await inMonth(1); // January: a light outing, included
+    const join = await call("POST", "/api/club/rsvp", {}, sam);
+    expect(join.status, JSON.stringify(join.json)).toBe(200);
+    expect(join.json.rsvp).toMatchObject({ status: "going", monthKey: "2027-01" });
+    expect(stripeCalls.filter((c) => c.path.includes("payment_intents"))).toHaveLength(0);
+    expect((await call("POST", "/api/club/rsvp", {}, sam)).json.rsvp.id).toBe(join.json.rsvp.id); // asking twice is one yes
+    expect((await call("GET", "/api/club/status", undefined, sam)).json.outing.going).toBe(true);
+    expect((await call("POST", "/api/club/rsvp/cancel", {}, sam)).status).toBe(200);
+    expect((await call("GET", "/api/club/status", undefined, sam)).json.outing.going).toBe(false);
+  });
+
+  it("charges the extra for a bigger day to the saved card, and refunds it in full on cancel", async () => {
+    await inMonth(12); // December: a bigger day
+    const status = (await call("GET", "/api/club/status", undefined, sam)).json;
+    const extra = status.thisMonth.eventExtraCents as number;
+    expect(extra).toBeGreaterThan(0);
+    const join = await call("POST", "/api/club/rsvp", {}, sam);
+    expect(join.status, JSON.stringify(join.json)).toBe(200);
+    expect(join.json.rsvp.extraCents).toBe(extra);
+    const pay = stripeCalls.find((c) => c.path === "/v1/payment_intents")!;
+    expect(pay.body).toContain(`amount=${extra}`);
+    expect(pay.body).toContain("customer=cus_sam");
+    expect(store.data.charges.find((c) => c.id === `club_${join.json.rsvp.id}`)).toMatchObject({ kind: "club", amountCents: extra, status: "settled" });
+
+    const cancel = await call("POST", "/api/club/rsvp/cancel", {}, sam);
+    expect(cancel.json.refundedCents).toBe(extra);
+    expect(stripeCalls.some((c) => c.path === "/v1/refunds" && c.body.includes("payment_intent=pi_"))).toBe(true);
+    expect(store.data.charges.find((c) => c.id === `club_${join.json.rsvp.id}`)!.status).toBe("refunded");
+    expect(store.data.clubRsvps!.find((r) => r.id === join.json.rsvp.id)).toMatchObject({ status: "canceled", refunded: true });
+  });
+
+  it("will not take the extra without a saved card, and says so", async () => {
+    await inMonth(12);
+    store.update((db) => { delete db.paymentMethods[samId]; });
+    const res = await call("POST", "/api/club/rsvp", {}, sam);
+    expect(res.status).toBe(402);
+    expect(res.json.error).toMatch(/Save a card/);
+    expect(stripeCalls).toHaveLength(0);
+  });
+
+  it("only lets members in, and not once the club has locked the day or called it off", async () => {
+    await inMonth(1);
+    store.update((db) => { db.travelers.find((t) => t.id === samId)!.clubMember = false; });
+    expect((await call("POST", "/api/club/rsvp", {}, sam)).status).toBe(403);
+    store.update((db) => { db.travelers.find((t) => t.id === samId)!.clubMember = true; });
+    const asOwner = await owner();
+    expect((await call("POST", "/api/master/club/event/lock", {}, sam)).status).toBe(401);
+    await call("POST", "/api/club/rsvp", {}, sam);
+    expect((await call("POST", "/api/master/club/event/lock", {}, null, asOwner)).status).toBe(200);
+    expect((await call("POST", "/api/club/rsvp/cancel", {}, sam)).status).toBe(409); // locked: no automatic cancel
+    expect((await call("GET", "/api/master/club/event", undefined, null, asOwner)).json).toMatchObject({ locked: true });
+  });
+
+  it("refunds everyone when the club calls the day off, and says if any refund failed", async () => {
+    await inMonth(12);
+    await call("POST", "/api/club/rsvp", {}, sam);
+    const asOwner = await owner();
+    const view = (await call("GET", "/api/master/club/event", undefined, null, asOwner)).json;
+    expect(view.going).toHaveLength(1);
+    expect(view.totalExtraCents).toBeGreaterThan(0);
+    const off = await call("POST", "/api/master/club/event/cancel", {}, null, asOwner);
+    expect(off.json).toMatchObject({ refunded: 1, failed: [], canceled: true });
+    expect(store.data.clubRsvps!.every((r) => r.status === "canceled")).toBe(true);
+    expect((await call("POST", "/api/club/rsvp", {}, sam)).status).toBe(409); // called off
+  });
+});
+
 describe("the Wingman Club — modeled economics, no billing wired to it yet", () => {
   beforeEach(() => {
     for (const t of store.data.travelers) t.clubInvited = true;
