@@ -13,27 +13,25 @@ import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
  * turns into a promise.
  *
  * These are the owner's to change: the number of people wanted in each role
- * today. They size a pilot in one area of Puerto Rico, with the owner doing the
- * desk work, so most roles are zero. A role at zero still takes applications —
- * it just says it is not hiring yet.
+ * today. A role at zero still takes applications — it just says it is not
+ * hiring yet.
  */
 export const OPEN_POSITIONS: Record<StaffRole, number> = {
-  driver: 0,
-  // Personal assistants are the go: they cover errands as well as sitting with
-  // somebody and checking on them, so they are the hire that opens the service.
-  // Errand runners are on hold until there is volume that a dedicated runner
-  // would be busy for.
+  // Every role is open, at ownership's direction. Personal assistants are the
+  // hire that opens the service, so they carry the most seats; the rest start
+  // at three. Lower one, or set it to zero, to show "not hiring yet" again.
+  driver: 3,
   "personal-assistant": 5,
-  // Hospital days, at ownership's direction.
+  // Hospital days.
   caretaker: 3,
-  "errand-runner": 0,
-  secretary: 0,
-  "social-media-manager": 0,
-  lawyer: 0,
-  "web-developer": 0,
-  physician: 0,
-  nurse: 0,
-  "wingman-club-coordinator": 0,
+  "errand-runner": 3,
+  secretary: 3,
+  "social-media-manager": 3,
+  lawyer: 3,
+  "web-developer": 3,
+  physician: 3,
+  nurse: 3,
+  "wingman-club-coordinator": 3,
 };
 
 /** How many openings remain once some are filled. Never negative. */

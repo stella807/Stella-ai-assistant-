@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ERRAND_MILEAGE_CENTS, ERRAND_TIERS, OPEN_POSITIONS, PA_HOURLY_RATE_CENTS, PRELAUNCH_HEADCOUNT, STAFF_ROLES,
+  ERRAND_MILEAGE_CENTS, ERRAND_TIERS, OPEN_POSITIONS, PA_HOURLY_RATE_CENTS, STAFF_ROLES,
   errandPayoutCents, openingsFor, payLabelFor,
 } from "../src/index.ts";
 
@@ -40,26 +40,26 @@ describe("how many people we are looking for", () => {
     }
   });
 
-  it("never asks for more people than the pre-launch budget already funds", () => {
-    // PRELAUNCH_HEADCOUNT is what the cost plan is worked out against. A hiring
-    // page that asks for more promises jobs the budget does not cover.
-    for (const role of STAFF_ROLES) {
-      expect(OPEN_POSITIONS[role.id], role.id).toBeLessThanOrEqual(PRELAUNCH_HEADCOUNT[role.id]);
-    }
+  it("has every role open, at ownership's direction", () => {
+    // Opening a role beyond the pre-launch cost plan (PRELAUNCH_HEADCOUNT) is
+    // the owner's call, not an accident: the plan is a budget, this is the ask.
+    for (const role of STAFF_ROLES) expect(OPEN_POSITIONS[role.id], role.id).toBeGreaterThan(0);
   });
 
-  it("is hiring personal assistants, and has errand runners on hold", () => {
-    // Assistants cover errands as well as staying with somebody, so they are the
-    // hire that opens the service; a dedicated runner waits for the volume.
-    expect(OPEN_POSITIONS["personal-assistant"]).toBeGreaterThan(0);
-    expect(OPEN_POSITIONS["errand-runner"]).toBe(0);
+  it("is hiring personal assistants first", () => {
+    // They cover errands as well as staying with somebody, so they are the hire
+    // that opens the service and carry the most seats.
+    for (const role of STAFF_ROLES) {
+      expect(OPEN_POSITIONS["personal-assistant"], role.id).toBeGreaterThanOrEqual(OPEN_POSITIONS[role.id]);
+    }
   });
 
   it("counts down as people are hired, and never goes below zero", () => {
     expect(openingsFor("personal-assistant", 0)).toBe(OPEN_POSITIONS["personal-assistant"]);
     expect(openingsFor("personal-assistant", 1)).toBe(OPEN_POSITIONS["personal-assistant"] - 1);
     expect(openingsFor("personal-assistant", 99)).toBe(0);
-    // A role on hold stays at zero however many are hired.
-    expect(openingsFor("errand-runner", 0)).toBe(0);
+    // A role stays at zero once it is filled, however many more are hired.
+    expect(openingsFor("errand-runner", OPEN_POSITIONS["errand-runner"])).toBe(0);
+    expect(openingsFor("errand-runner", 99)).toBe(0);
   });
 });
