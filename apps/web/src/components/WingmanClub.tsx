@@ -60,7 +60,7 @@ export function WingmanClub() {
     setError(null);
     try {
       if (status.isMember) await api.leaveClub();
-      else if (status.billing.needsPayment) { setPaying(true); setBusy(false); return; }
+      else if (status.billing?.needsPayment) { setPaying(true); setBusy(false); return; }
       else await api.joinClub();
       await load();
     } catch (e) {
@@ -143,7 +143,7 @@ export function WingmanClub() {
         {status.disclosures.map((d) => <li key={d}>{d}</li>)}
       </ul>
 
-      {status.isMember && (
+      {status.isMember && status.outing && (
         <div className="wm-rsvp" style={{ margin: "4px 0 14px" }}>
           {status.outing.canceled ? (
             <p className="small" style={{ margin: 0, color: "var(--wm-soft)" }}>{t("wingman.calledOff")}</p>
@@ -177,10 +177,10 @@ export function WingmanClub() {
 
       <button className={`wm-cta${status.isMember ? " leave" : ""}`} disabled={busy} onClick={toggle}>
         {status.isMember ? t("wingman.leave")
-          : status.billing.needsPayment ? t("wingman.joinPaid").replace("{amount}", money(status.billing.monthlyCents))
+          : status.billing?.needsPayment ? t("wingman.joinPaid").replace("{amount}", money(status.billing.monthlyCents))
           : t("wingman.join")}
       </button>
-      {paying && !status.isMember && (
+      {paying && !status.isMember && status.billing && (
         <div style={{ marginTop: 12 }}>
           <p className="tiny" style={{ margin: "0 0 8px", color: "var(--wm-soft)" }}>{t("wingman.billedNote").replace("{amount}", money(status.billing.monthlyCents))}</p>
           <StripeCheckoutForm planId="wingman-club" cadence="monthly" club onClose={() => { setPaying(false); void load(); }} />
