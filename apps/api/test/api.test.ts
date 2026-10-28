@@ -2596,6 +2596,25 @@ describe("biweekly payroll", () => {
       const mine = await call("GET", "/api/assistant/payouts", undefined, null, cookie);
       expect(mine.json.withheldThisYearCents).toBe(90);
     });
+
+    it("shows the owner who is owed what, and keeps it away from everyone else", async () => {
+      store.update((db) => {
+        db.assistants.push({ id: assistantId, applicationId: "a", name: "Pay Test", role: "personal-assistant", market: "puerto-rico",
+          categories: [], maxConcurrentCustomers: 1, hiredAt: "2026-01-01T00:00:00.000Z" } as any);
+      });
+      const club = await master("club-assistant", "sheetclub@example.com");
+      expect((await call("GET", "/api/master/payout-sheet", undefined, null, club)).status).toBe(401);
+      expect((await call("GET", "/api/master/payout-sheet")).status).toBe(401);
+      const owner = await master("owner", "sheet@example.com");
+      const sheet = await call("GET", "/api/master/payout-sheet", undefined, null, owner);
+      expect(sheet.status).toBe(200);
+      const line = sheet.json.lines.find((l: { assistantId: string }) => l.assistantId === assistantId);
+      expect(line.tasks.some((t: { taskId: string }) => t.taskId === taskId)).toBe(true);
+      expect(line.netCents + line.withheldCents + line.clawbackCents).toBe(line.earnedCents);
+      // Looking never pays: nothing is tagged as sent.
+      expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeUndefined();
+      expect(JSON.stringify(sheet.json)).not.toMatch(/routingNumber|accountNumberEnc/);
+    });
   });
 
   it("never pays out a task still inside the current, open period", async () => {

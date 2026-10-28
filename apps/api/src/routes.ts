@@ -71,7 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
-  withholdingFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
+  withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
 import type {
@@ -4411,6 +4411,27 @@ export const routes: Record<string, Handler> = {
 
   /* What was held back from each worker in a year — the figures behind the
      year-end return and the payment to Hacienda. Money scope only. */
+  /* Who is owed what for a payroll period, task by task: a preview of what a
+     payroll run would send. Read-only; money scope only. `period=current` is
+     the one still open, anything else the last closed one a run would pay. */
+  "GET /api/master/payout-sheet": (ctx, p) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "money", now)) throw unauthorized();
+    const db = ctx.store.data;
+    return payoutSheet({
+      tasks: db.conciergeTasks,
+      period: p.period === "current" ? payoutPeriodFor(now) : previousPayoutPeriod(now),
+      adjustments: db.assistantAdjustments,
+      payouts: db.payouts,
+      workers: Object.fromEntries(db.assistants.map((a) => [
+        a.id, { name: a.name, market: a.market, exempt: Boolean(a.withholdingExemptionCertificate) },
+      ])),
+      destinations: db.assistantPayoutDestinations,
+      clientName: (travelerId) => nameOf(ctx, travelerId),
+    });
+  },
+
   "GET /api/master/withholding": (ctx, p) => {
     const account = masterAccountOf(ctx);
     const now = ctx.now();

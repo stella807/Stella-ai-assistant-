@@ -5,7 +5,7 @@ import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
-  RecoveryPlan, ShareGrant, SpendRequest,
+  PayoutSheet, RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
@@ -825,6 +825,8 @@ export const api = {
   masterWithholding: () =>
     request<{ year: string; totalWithheldCents: number; workers: { assistantId: string; name: string; paidCents: number; withheldCents: number }[] }>(
       "GET", "/api/master/withholding"),
+  masterPayoutSheet: (period: "previous" | "current") =>
+    request<PayoutSheet>("GET", `/api/master/payout-sheet?period=${period}`),
   masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
 
   /** Move a staff application through review. Owner only — `write` is not a
