@@ -71,6 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
+  SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
@@ -1033,6 +1034,23 @@ function clubAccount(ctx: Ctx): MasterAccount {
   const now = ctx.now();
   if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "club", now)) throw unauthorized();
   return account;
+}
+
+/** Text the owner typed, trimmed and capped; anything else becomes empty. */
+function cleanText(value: unknown, max: number): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+/** A link only if it is a plain https address, so nothing else can sit behind a "source" link. */
+function cleanUrl(value: unknown): string | undefined {
+  const text = cleanText(value, 400);
+  if (!text) return undefined;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function masterAccountOf(ctx: Ctx): MasterAccount | null {
@@ -5983,6 +6001,62 @@ export const routes: Record<string, Handler> = {
       delivery: email.status,
       subscribers: all,
     };
+  },
+
+  /* The vendor list: businesses that could help put on the club's events. The
+     research is loaded the first time the owner opens it, then it is theirs
+     to work through. Owner-level access, like pricing. */
+  "GET /api/master/vendors": (ctx) => {
+    requireAdmin(ctx, "operations");
+    if (!ctx.store.data.vendors) {
+      const now = ctx.now().toISOString();
+      ctx.store.update((db) => {
+        db.vendors = SUGGESTED_VENDORS.map((v) => ({ ...v, status: "lead" as const, updatedAt: now }));
+      });
+    }
+    return { vendors: ctx.store.data.vendors ?? [], categories: VENDOR_CATEGORIES, statuses: VENDOR_STATUSES };
+  },
+
+  "POST /api/master/vendors": (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    const name = cleanText(body?.name, 120);
+    const category = String(body?.category ?? "") as VendorCategory;
+    if (!name) throw new HttpError(400, "A vendor needs a name.");
+    if (!VENDOR_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Pick a category.");
+    const vendor: Vendor = {
+      id: newId("vnd"), name, category, area: cleanText(body?.area, 120), offers: cleanText(body?.offers, 400),
+      notes: cleanText(body?.notes, 600), sourceUrl: cleanUrl(body?.sourceUrl), status: "lead",
+      contactName: cleanText(body?.contactName, 120) || undefined, phone: cleanText(body?.phone, 40) || undefined,
+      email: cleanText(body?.email, 160) || undefined, updatedAt: ctx.now().toISOString(),
+    };
+    ctx.store.update((db) => { db.vendors = [...(db.vendors ?? []), vendor]; });
+    return { vendor };
+  },
+
+  "POST /api/master/vendors/:id": (ctx, p, body) => {
+    requireAdmin(ctx, "operations");
+    const id = req(p, "id");
+    const found = (ctx.store.data.vendors ?? []).find((v) => v.id === id);
+    if (!found) throw notFound("Vendor");
+    const status = body?.status === undefined ? undefined : String(body.status) as VendorStatus;
+    if (status !== undefined && !VENDOR_STATUSES.includes(status)) throw new HttpError(400, "That is not a status.");
+    ctx.store.update((db) => {
+      const v = (db.vendors ?? []).find((x) => x.id === id)!;
+      if (status !== undefined) v.status = status;
+      if (body?.contactName !== undefined) v.contactName = cleanText(body.contactName, 120) || undefined;
+      if (body?.phone !== undefined) v.phone = cleanText(body.phone, 40) || undefined;
+      if (body?.email !== undefined) v.email = cleanText(body.email, 160) || undefined;
+      if (body?.ownerNotes !== undefined) v.ownerNotes = cleanText(body.ownerNotes, 1000) || undefined;
+      v.updatedAt = ctx.now().toISOString();
+    });
+    return { vendor: (ctx.store.data.vendors ?? []).find((v) => v.id === id)! };
+  },
+
+  "POST /api/master/vendors/:id/delete": (ctx, p) => {
+    requireAdmin(ctx, "operations");
+    const id = req(p, "id");
+    ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
+    return { ok: true };
   },
 
   /** Master: what is free each month, and the owner's switch and amounts for it. */

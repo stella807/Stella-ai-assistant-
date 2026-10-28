@@ -68,3 +68,4 @@ export * from "./flight-tracking.ts";
 export * from "./pricing-overrides.ts";
 export * from "./ride-coordination.ts";
 export * from "./resume.ts";
+export * from "./vendors.ts";
