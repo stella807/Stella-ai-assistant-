@@ -576,6 +576,8 @@ export const api = {
     thisMonth: {
       experience: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number };
       duesCents: number;
+      eventExtraCents: number;
+      included: boolean;
     };
   }>("GET", "/api/club/status"),
   clubRequests: () => request<{ requests: ClubRequestRow[] }>("GET", "/api/club/requests"),

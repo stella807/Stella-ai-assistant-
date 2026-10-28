@@ -750,3 +750,14 @@ Stored in `monthlyFreebies`, loaded before each API request, sent to the app in
 `GET /api/catalog` (`freebies`), and changed at `POST /api/master/freebies`,
 which writes an audit-log entry. The static marketing site bakes its numbers
 at build time, so it shows the standard amounts until it is rebuilt.
+
+## Wingman Club pricing
+
+A flat **$99 a month**, set in `CLUB_MONTHLY_DUES_CENTS` (`packages/core/src/wingman-club.ts`).
+
+- **Three months in four** the pick is a light outing (cigar night, golf, steak and cigar night), included in the $99.
+- **March, June, September and December** the pick is a bigger day (boat, motorcycle tour, fishing, off-road, skydiving, private event day). The $99 carries a **$78 credit** toward it; a member who signs up to go pays the rest at the group rate plus **15%**, and nobody pays for one they skip.
+- **Under 10 members** outings are priced at the venue's regular price, so a light outing that costs more than $100 a head (golf, steak night) adds a small extra until the club reaches 10.
+- The cigar and drink at each event stay included.
+
+Why this structure: a flat price with a real event inside is easier to say yes to than dues that swung between $99 and $279. Modelled at 50% attendance on light outings and 25% on bigger days, with the card fee, each member contributes about $62 a month toward overhead (`CLUB_CONTRIBUTION_PER_MEMBER_CENTS`), so $8,000 a month of overhead is covered at about 130 members. That is an estimate: it moves with attendance and with whether venues bill per attendee or charge a flat buyout.

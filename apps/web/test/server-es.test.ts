@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BASKETS, CLUB_EXPERIENCES, CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, DESK_TASK_KINDS, DRINK_CATALOG,
-  ELITE_EVENTS, ELITE_SERVICES, ERRAND_TIERS, FEATURE_LABELS, GAMES, LAUNCH_MARKETS, ON_BEHALF_DISCLOSURES,
+  CLUB_DISCLOSURES, ELITE_EVENTS, ELITE_SERVICES, ERRAND_TIERS, FEATURE_LABELS, GAMES, LAUNCH_MARKETS, ON_BEHALF_DISCLOSURES,
   PLANS, RED_FLAGS, REWARD_CATALOG, assistantPayoutFor, describePayAgainstMarket, describeSubscription, minutesFor,
 } from "@safehubby/core";
 import { localizeDeep, localized, spanishFor } from "../src/app/server-es.ts";
@@ -23,6 +23,7 @@ const shown = (): string[] => [
   ...ELITE_SERVICES.flatMap((s) => [s.label, s.description]),
   ...ELITE_EVENTS.flatMap((e) => [e.label]),
   ...CLUB_EXPERIENCES.map((e) => e.label),
+  ...CLUB_DISCLOSURES,
   // The assistants' pay rates page, in every market and for every task.
   ...LAUNCH_MARKETS.flatMap((m) => CONCIERGE_CATEGORIES.map((c) =>
     describePayAgainstMarket(assistantPayoutFor(c.id), minutesFor(c.id), m.id))),

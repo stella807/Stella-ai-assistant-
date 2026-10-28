@@ -1,5 +1,5 @@
 import {
-  CLUB_BASE_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, includedGrabAllowanceFor, LAUNCH_DISCOUNT_RATE,
+  CLUB_MONTHLY_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, includedGrabAllowanceFor, LAUNCH_DISCOUNT_RATE,
   LAUNCH_WINDOW_END, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
   OPEN_POSITIONS, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
@@ -194,11 +194,11 @@ export const ERRAND_ENTRY_PLAN: PlanId = "premium-basic";
 /** How many no-fee grabs the entry plan gets a month, for the copy. */
 export const INCLUDED_GRABS_ENTRY = includedGrabAllowanceFor(ERRAND_ENTRY_PLAN) ?? 0;
 
-/** The Wingman Club's dues, as the span they actually move across: a flat
- *  base plus whatever that month's experience costs at the negotiated rate. */
+/** The Wingman Club's dues: a flat monthly price, and the most a member can pay in
+ *  a month that has a bigger day in it (only if they go). */
 export function clubDuesRangeCents(): { base: number; low: number; high: number } {
   const dues = CLUB_EXPERIENCES.map((e) => duesForCents(e));
-  return { base: CLUB_BASE_DUES_CENTS, low: Math.min(...dues), high: Math.max(...dues) };
+  return { base: CLUB_MONTHLY_DUES_CENTS, low: Math.min(...dues), high: Math.max(...dues) };
 }
 
 /** Every experience in the rotation, newest naming from core. */
@@ -358,7 +358,7 @@ export const COPY: Record<Lang, Copy> = {
     clubHeading: "The Wingman Club",
     clubBody:
       "An add-on, on top of whichever plan you are on. One membership, and once a month the club's pick is revealed — the same outing for everybody that month, booked as a group at a rate none of you would get at the door.",
-    clubDues: "{base} a month to run the club and help cover event costs, plus that month's outing at exactly what the venue charges us. In practice {low} to {high}, depending on the pick.",
+    clubDues: "{base} a month, flat. Three months in four the outing is included. Four times a year it is a bigger day: your fee carries a credit toward it, and you pay the rest only if you go, up to {high} in all.",
     clubPerk: "A cigar and a drink of your choice at every event, whatever the month lands on. Folded into the group rate, never an extra line.",
     clubRotation: "In the rotation:",
     pricingNote:
@@ -426,7 +426,7 @@ export const COPY: Record<Lang, Copy> = {
     clubHeading: "El Wingman Club",
     clubBody:
       "Un añadido, sobre el plan que ya tengas. Una sola membresía, y una vez al mes se revela la actividad del club — la misma para todos ese mes, reservada en grupo a un precio que ninguno conseguiría por su cuenta.",
-    clubDues: "{base} al mes para manejar el club y ayudar a cubrir los costos de los eventos, más la actividad de ese mes a exactamente lo que nos cobra el lugar. En la práctica entre {low} y {high}, según la que toque.",
+    clubDues: "{base} al mes, fijo. Tres de cada cuatro meses la actividad está incluida. Cuatro veces al año es un día más grande: tu cuota trae un crédito para ella y pagas el resto solo si vas, hasta {high} en total.",
     clubPerk: "Un cigarro y un trago de tu elección en cada evento, sea cual sea la actividad del mes. Va incluido en la tarifa de grupo, nunca como un cargo aparte.",
     clubRotation: "En la rotación:",
     pricingNote:

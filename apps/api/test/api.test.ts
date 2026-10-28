@@ -5516,15 +5516,19 @@ describe("the Wingman Club — modeled economics, no billing wired to it yet", (
     expect(res.json.disclosures.length).toBeGreaterThan(0);
   });
 
-  it("prices a lone member at the venue's regular price, so the first experience is covered", async () => {
+  it("keeps the monthly fee flat, and prices what going adds at the venue's regular price for a lone member", async () => {
     const res = await call("GET", "/api/club/status", undefined, sam);
     expect(res.json.memberCount).toBe(0);
-    expect(res.json.thisMonth.duesCents).toBeGreaterThanOrEqual(res.json.thisMonth.experience.retailPerPersonCents);
+    const { experience, duesCents, eventExtraCents, included } = res.json.thisMonth;
+    expect(duesCents).toBe(9900);
+    const retail = experience.retailPerPersonCents;
+    expect(eventExtraCents).toBe(included ? Math.max(0, retail - 10_000) : Math.round(retail * 1.15) - 7_800);
   });
 
-  it("charges more for a pricier pick than a cheaper one, in the same due", async () => {
+  it("says a month's outing is included when it is a light one, and adds nothing for it at the group rate", async () => {
     const res = await call("GET", "/api/club/status", undefined, sam);
-    expect(res.json.thisMonth.duesCents).toBeGreaterThan(res.json.thisMonth.experience.negotiatedPerPersonCents);
+    const { experience, included } = res.json.thisMonth;
+    expect(included).toBe(experience.negotiatedPerPersonCents <= 10_000);
   });
 
   it("lets someone join and leave, and the roster count follows them", async () => {

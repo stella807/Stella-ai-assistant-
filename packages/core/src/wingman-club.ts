@@ -28,23 +28,11 @@
  * so charging for it separately would just be re-billing something already
  * paid for once.
  *
- * **Pricing: this month's pick, not the rotation's average.** An earlier
- * version priced membership against the rotation's *average* negotiated cost
- * and let a reserve absorb the difference between a cheap month and a
- * pricey one — real club economics, but it also meant dues never actually
- * moved, which is not what was asked for. Dues now track the pick directly:
- * `duesForCents` is a flat base (the desk work behind running the club at
- * all, independent of which experience gets picked) plus that month's own
- * negotiated per-person cost, passed through at cost. A cheap month (golf, a
- * steak night) is a cheap month's due; an expensive one (a track day,
- * skydiving) is an expensive one's — stated plainly in `CLUB_DISCLOSURES`
- * rather than smoothed into a number that never moves.
- *
- * The trade this makes on purpose: no reserve means no cushion, so a member
- * assigned an expensive month pays for that month, full stop, whether or not
- * they attend. What it buys back is honesty and simplicity — nobody's due is
- * secretly subsidizing a month they will never see, and "why did my dues go
- * up" always has the same one-line answer: this month's pick costs more.
+ * **Pricing: a flat $99 with an event inside it.** See `CLUB_MONTHLY_DUES_CENTS`.
+ * Dues used to be a $39 base plus the month's outing passed through at cost,
+ * which swung between $99 and $279 and was the kind of number people stop
+ * looking at. Now the dues are the same every month, and what moves is only
+ * what a member adds to go on one of the four bigger days a year.
  */
 
 export interface ClubExperience {
@@ -95,39 +83,71 @@ export const CLUB_PERKS = [
 ] as const;
 
 /**
- * The flat part of the due: the desk work behind running the club at all —
- * arranging each booking, the venue relationships, the reveal and the
- * roster — and, since the last revision, a share of what the events cost
- * beyond the venue's own price. Independent of which experience the month
- * lands on, and the only part of the due that does not move with the pick.
+ * What a member pays every month: a flat $99, the same whatever the month's
+ * outing is. At ownership's direction, after modelling four structures against
+ * what comparable clubs charge ($25-$150 a month for lounge access): a flat
+ * price with a real event inside it is easier to say yes to than a due that
+ * swings between $99 and $279.
  *
- * Raised from $29 to $39 so the membership helps pay for the events rather
- * than only for the desk behind them. It is the one number to change to
- * make the club cost more or less.
+ * Three months in four the outing is a light one — a cigar night, a golf
+ * outing or a steak night — and it is included. The other four months a year
+ * (`CLUB_PREMIUM_MONTHS`) it is a bigger day. The $99 then carries a credit
+ * toward it (`CLUB_PREMIUM_CREDIT_CENTS`), and only a member who signs up to
+ * go pays the rest, at the club's price plus `CLUB_PREMIUM_MARKUP`. Nobody pays
+ * for a skydive they skipped.
  */
-export const CLUB_BASE_DUES_CENTS = 3900;
+export const CLUB_MONTHLY_DUES_CENTS = 9900;
+
+/** An outing is included in the monthly dues when it costs the club no more than this a head. */
+export const CLUB_INCLUDED_EVENT_MAX_CENTS = 10_000;
+
+/** What the monthly dues put toward a bigger day: about what a light outing costs. */
+export const CLUB_PREMIUM_CREDIT_CENTS = 7800;
+
+/** What the club adds to a bigger day's price, for the planning and the risk of a group booking. */
+export const CLUB_PREMIUM_MARKUP = 0.15;
+
+/** Calendar months (1-12, UTC) when the pick is a bigger day: once a quarter. */
+export const CLUB_PREMIUM_MONTHS: readonly number[] = [3, 6, 9, 12];
+
+/** Whether the monthly dues already cover this outing. */
+export const isIncludedEvent = (e: ClubExperience): boolean => e.negotiatedPerPersonCents <= CLUB_INCLUDED_EVENT_MAX_CENTS;
 
 /**
- * Fixed monthly overhead the base due exists to cover. Stated as a flat
+ * What a member who goes pays on top of the monthly dues, in cents. Zero for a
+ * light outing the group rate covers. Below `CLUB_GROUP_RATE_MIN_MEMBERS` the
+ * venue's regular price applies, so a light outing that costs more than the
+ * included amount carries a small extra until the club reaches that size.
+ */
+export function eventExtraCents(experience: ClubExperience, memberCount: number = 1): number {
+  const unit = memberCount >= CLUB_GROUP_RATE_MIN_MEMBERS
+    ? experience.negotiatedPerPersonCents
+    : experience.retailPerPersonCents;
+  if (isIncludedEvent(experience)) return Math.max(0, unit - CLUB_INCLUDED_EVENT_MAX_CENTS);
+  return Math.max(0, Math.round(unit * (1 + CLUB_PREMIUM_MARKUP)) - CLUB_PREMIUM_CREDIT_CENTS);
+}
+
+/** The most this month can cost a member who goes: the monthly dues plus any extra for the outing. */
+export function duesForCents(experience: ClubExperience, memberCount: number = 1): number {
+  return CLUB_MONTHLY_DUES_CENTS + eventExtraCents(experience, memberCount);
+}
+
+/**
+ * What each member leaves with after the card fee and the events they attend,
+ * from the pricing model (attendance 50% for light outings and 25% for bigger
+ * days, the card fee 3.49% + 49 cents). An estimate to size the roster against
+ * overhead, not a promise: it moves with attendance and with how venues bill.
+ */
+export const CLUB_CONTRIBUTION_PER_MEMBER_CENTS = 6200;
+
+/**
+ * Fixed monthly overhead the roster's contribution exists to cover. Stated as a flat
  * dollar figure rather than a percentage of dues on purpose: a clubhouse
  * desk does not get cheaper because thirty people joined instead of three
  * hundred, so a percentage split would silently overstate how much of a
  * small roster's dues are actually free and clear.
  */
 export const CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH = 800_000;
-
-/**
- * This month's actual due: the flat base, plus that month's own negotiated
- * per-person cost, passed through at exactly what the venue charges — no
- * markup, no averaging. This is the number that goes up for an expensive
- * pick and down for a cheap one.
- */
-export function duesForCents(experience: ClubExperience, memberCount: number = 1): number {
-  const perPerson = memberCount >= CLUB_GROUP_RATE_MIN_MEMBERS
-    ? experience.negotiatedPerPersonCents
-    : experience.retailPerPersonCents;
-  return CLUB_BASE_DUES_CENTS + perPerson;
-}
 
 /**
  * How many members it takes before a venue will quote the group rate.
@@ -143,31 +163,22 @@ export function duesForCents(experience: ClubExperience, memberCount: number = 1
  */
 export const CLUB_GROUP_RATE_MIN_MEMBERS = 10;
 
-/** The base-due revenue a roster of this size produces — the part that
- *  funds fixed overhead, independent of whichever experience got picked
- *  (that part of the due is a pass-through, not revenue: it goes straight
- *  to paying for what attendees actually got). */
+/** What a roster of this size contributes toward fixed overhead each month,
+ *  after the events its members attend and the card fees (see
+ *  `CLUB_CONTRIBUTION_PER_MEMBER_CENTS`). */
 export function clubBaseRevenueCents(memberCount: number): number {
   if (!Number.isInteger(memberCount) || memberCount < 0) {
     throw new Error("Member count must be a non-negative whole number.");
   }
-  return CLUB_BASE_DUES_CENTS * memberCount;
+  return CLUB_CONTRIBUTION_PER_MEMBER_CENTS * memberCount;
 }
 
-/**
- * The smallest roster whose base dues alone clear fixed overhead, forever —
- * unlike the old average-cost model, this no longer depends on which
- * experience is picked, because the pick's own cost is now paid for
- * dollar-for-dollar by that month's dues rather than drawn from a shared
- * reserve.
- */
+/** The smallest roster whose contribution clears fixed overhead. */
 export function minMembersForOverhead(): number {
-  return Math.ceil(CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH / CLUB_BASE_DUES_CENTS);
+  return Math.ceil(CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH / CLUB_CONTRIBUTION_PER_MEMBER_CENTS);
 }
 
-/** Whether the roster's base dues alone clear fixed overhead this month —
- *  the only real affordability question left once the pick's own cost is a
- *  pass-through rather than a shared draw. */
+/** Whether the roster's contribution clears fixed overhead this month. */
 export function overheadCovered(memberCount: number): boolean {
   return clubBaseRevenueCents(memberCount) >= CLUB_FIXED_OVERHEAD_CENTS_PER_MONTH;
 }
@@ -200,8 +211,12 @@ export function pickMonthlyExperience(
   now: Date, catalog: readonly ClubExperience[] = CLUB_EXPERIENCES,
 ): ClubExperience {
   if (catalog.length === 0) throw new Error("The rotation needs at least one experience to draw from.");
-  const index = stableHash(clubMonthKey(now)) % catalog.length;
-  return catalog[index]!;
+  // Light outings most months, a bigger day once a quarter. If the catalogue
+  // has none of the kind the month calls for, it draws from all of it.
+  const bigMonth = CLUB_PREMIUM_MONTHS.includes(now.getUTCMonth() + 1);
+  const pool = catalog.filter((e) => isIncludedEvent(e) !== bigMonth);
+  const from = pool.length > 0 ? pool : catalog;
+  return from[stableHash(clubMonthKey(now)) % from.length]!;
 }
 
 /**
@@ -215,8 +230,8 @@ export const CLUB_DISCLOSURES = [
   "The month's experience is revealed, not chosen by any one member — everyone on the roster gets the same pick.",
   "A reveal is not a booking. Safehubby confirms dates and capacity with the venue afterward, and multiple dates may be offered so one facility does not need the whole roster at once.",
   "Attendance is optional. Skipping a month is not a credit toward a future one — dues fund the month's pick for whoever comes, not a personal balance.",
-  "The flat monthly fee runs the club and helps cover the cost of the events. The venue's price for the month's outing is added on top, at exactly what the venue charges.",
-  "Dues track the pick, not a rotation average — a pricier month costs more, a simple one costs less, and that due is the same for every member whether or not they attend.",
-  "Venues only give a group rate to a group. Until the club has 10 members, dues are built on the venue's regular price, so the first events are covered; once it reaches 10 they drop to the group rate.",
-  "The cigar and drink of your choice at the event are included in the due above — never a separate charge at the venue.",
+  "The monthly fee is a flat $99. Three months in four the outing — a cigar night, a golf outing or a steak night — is included in it.",
+  "Four months a year (March, June, September and December) the outing is a bigger day, such as a boat day, deep-sea fishing, a motorcycle tour, an off-road day, skydiving or a private event day. Your $99 carries a $78 credit toward it, and you pay the rest only if you sign up to go. Skip it and you owe nothing more.",
+  "Venues only give a group rate to a group. Until the club has 10 members, outings are priced at the venue's regular price, so a few outings may carry a small extra charge until then; once it reaches 10 they drop to the group rate.",
+  "The cigar and drink of your choice at the event are included in the price above — never a separate charge at the venue.",
 ] as const;

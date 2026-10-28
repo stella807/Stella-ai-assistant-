@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CLUB_EXPERIENCES, duesForCents } from "@safehubby/core";
+import { CLUB_EXPERIENCES, CLUB_PREMIUM_CREDIT_CENTS, eventExtraCents } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
@@ -79,6 +79,13 @@ export function WingmanClub() {
             .replace("{rate}", money(thisMonth.experience.negotiatedPerPersonCents))
             .replace("{retail}", money(thisMonth.experience.retailPerPersonCents))}
         </p>
+        <p className="tiny" style={{ margin: "6px 0 0", color: "var(--wm-soft)" }}>
+          {thisMonth.eventExtraCents === 0
+            ? t("wingman.includedNote")
+            : t("wingman.extraNote")
+              .replace("{credit}", money(CLUB_PREMIUM_CREDIT_CENTS))
+              .replace("{amount}", money(thisMonth.eventExtraCents))}
+        </p>
       </div>
 
       <div className="wm-rot-title">{t("wingman.comingUp")}</div>
@@ -90,7 +97,7 @@ export function WingmanClub() {
               : e.id === "cigar-night" ? <CigarArt className="cigar-mini" />
               : <span className="em" aria-hidden="true">{e.emoji}</span>}
             <b>{e.label}</b>
-            <span className="p">{money(duesForCents(e, status.memberCount))}</span>
+            <span className="p">{eventExtraCents(e, status.memberCount) === 0 ? t("wingman.included") : t("wingman.plusIfYouGo").replace("{amount}", money(eventExtraCents(e, status.memberCount)))}</span>
           </div>
         ))}
       </div>
