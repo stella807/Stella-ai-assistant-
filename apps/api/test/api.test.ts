@@ -5588,6 +5588,47 @@ describe("the Wingman Club — modeled economics, no billing wired to it yet", (
     expect(included).toBe(experience.negotiatedPerPersonCents <= 10_000);
   });
 
+  it("asks for $99 through Stripe before joining once Stripe is live, but not before", async () => {
+    store.update((db) => { db.travelers.find((t) => t.id === samId)!.clubInvited = true; });
+    // Stripe not configured: joining is free, as before.
+    const status = (await call("GET", "/api/club/status", undefined, sam)).json;
+    expect(status.billing).toMatchObject({ monthlyCents: 9900, stripeReady: false, needsPayment: false });
+    process.env.STRIPE_SECRET_KEY = "sk_test_club";
+    process.env.STRIPE_PUBLISHABLE_KEY = "pk_test_club";
+    try {
+      const live = (await call("GET", "/api/club/status", undefined, sam)).json;
+      expect(live.billing).toMatchObject({ stripeReady: true, needsPayment: true });
+      const join = await call("POST", "/api/club/join", {}, sam);
+      expect(join.status).toBe(402);
+      expect(join.json.error).toMatch(/\$99 a month/);
+      expect(store.data.travelers.find((t) => t.id === samId)!.clubMember).toBeFalsy();
+      // Not invited: no checkout either.
+      store.update((db) => { db.travelers.find((t) => t.id === samId)!.clubInvited = false; });
+      expect((await call("POST", "/api/club/checkout-session", {}, sam)).status).toBe(403);
+    } finally {
+      delete process.env.STRIPE_SECRET_KEY;
+      delete process.env.STRIPE_PUBLISHABLE_KEY;
+    }
+  });
+
+  it("will not let a member leave while Stripe is still billing them, so nobody is dropped and charged", async () => {
+    store.update((db) => {
+      db.travelers.find((t) => t.id === samId)!.clubMember = true;
+      db.clubSubscriptions = { [samId]: { travelerId: samId, stripeSubscriptionId: "sub_club", status: "active", startedAt: "2026-12-01T00:00:00Z", currentPeriodEnd: "2027-01-01T00:00:00Z" } };
+    });
+    // Stripe is not reachable here, so billing cannot be stopped: nothing changes.
+    const res = await call("POST", "/api/club/leave", {}, sam);
+    expect(res.status).toBe(424);
+    expect(store.data.travelers.find((t) => t.id === samId)!.clubMember).toBe(true);
+    expect(store.data.clubSubscriptions![samId]!.status).toBe("active");
+  });
+
+  it("lets a member with no Stripe subscription leave as before", async () => {
+    store.update((db) => { db.travelers.find((t) => t.id === samId)!.clubMember = true; });
+    const res = await call("POST", "/api/club/leave", {}, sam);
+    expect(res.json.isMember).toBe(false);
+  });
+
   it("lets someone join and leave, and the roster count follows them", async () => {
     const before = (await call("GET", "/api/club/status", undefined, sam)).json.memberCount;
     const joined = await call("POST", "/api/club/join", {}, sam);

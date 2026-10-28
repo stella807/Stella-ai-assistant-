@@ -69,6 +69,47 @@ describe("Stripe webhook", () => {
     expect(second.cancelStripeSubscriptions).toEqual(["sub_1"]);
   });
 
+  describe("the Wingman Club subscription", () => {
+    const club = {
+      id: "cs_club", mode: "subscription", subscription: "sub_club", payment_status: "paid", amount_total: 9900,
+      metadata: { travelerId: "t1", planId: "wingman-club", cadence: "monthly" },
+    };
+
+    it("makes the member, once, records the $99, and leaves their plan alone", () => {
+      const { db, store } = storeWithMember();
+      const raw = event("checkout.session.completed", club);
+      expect(deliver(store, raw).handled).toBe(true);
+      deliver(store, raw); // Stripe retries
+      const t = db.travelers.find((x) => x.id === "t1")!;
+      expect(t.clubMember).toBe(true);
+      expect(t.planId).toBe("free");
+      expect(db.subscriptions.t1).toBeUndefined();
+      expect(db.clubSubscriptions!.t1).toMatchObject({ status: "active", stripeSubscriptionId: "sub_club" });
+      expect(db.charges.filter((c) => c.id === "stripe_cs_club")).toHaveLength(1);
+      expect(db.charges.find((c) => c.id === "stripe_cs_club")).toMatchObject({ amountCents: 9900, status: "settled" });
+    });
+
+    it("does not make anyone a member for a payment that did not go through", () => {
+      const { db, store } = storeWithMember();
+      expect(deliver(store, event("checkout.session.completed", { ...club, payment_status: "unpaid" })).handled).toBe(false);
+      expect(db.travelers.find((x) => x.id === "t1")!.clubMember).toBeFalsy();
+    });
+
+    it("keeps a paid renewal running, marks a failed one past-due without ending membership, and ends it when Stripe does", () => {
+      const { db, store } = storeWithMember();
+      deliver(store, event("checkout.session.completed", club));
+      deliver(store, event("invoice.payment_failed", { id: "in_f", subscription: "sub_club" }));
+      expect(db.clubSubscriptions!.t1!.status).toBe("past-due");
+      expect(db.travelers.find((x) => x.id === "t1")!.clubMember).toBe(true);
+      deliver(store, event("invoice.paid", { id: "in_2", subscription: "sub_club", billing_reason: "subscription_cycle", amount_paid: 9900 }));
+      expect(db.clubSubscriptions!.t1!.status).toBe("active");
+      expect(db.charges.find((c) => c.id === "stripe_in_2")).toMatchObject({ amountCents: 9900 });
+      deliver(store, event("customer.subscription.deleted", { id: "sub_club" }));
+      expect(db.clubSubscriptions!.t1!.status).toBe("canceled");
+      expect(db.travelers.find((x) => x.id === "t1")!.clubMember).toBe(false);
+    });
+  });
+
   it("is not billed again by the app's own renewal sweep", () => {
     const { db, store } = storeWithMember();
     deliver(store, event("checkout.session.completed", completed));

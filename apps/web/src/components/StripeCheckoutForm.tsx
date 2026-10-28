@@ -11,8 +11,10 @@ import { paymentWords } from "../app/payments-copy.ts";
  * secret; Stripe draws the form in its own frame and confirms the payment
  * itself, so no card number touches this app.
  */
-export function StripeCheckoutForm({ planId, cadence, onClose }: {
+export function StripeCheckoutForm({ planId, cadence, onClose, club = false }: {
   planId: string; cadence: "monthly" | "annual"; onClose: () => void;
+  /** Pay for the Wingman Club instead of a plan; the server sets the price. */
+  club?: boolean;
 }) {
   const { language } = useLanguage();
   const w = paymentWords(language).checkout;
@@ -28,7 +30,7 @@ export function StripeCheckoutForm({ planId, cadence, onClose }: {
       const stripe = await loadStripeDahlia();
       if (cancelled) return;
       if (!stripe) return setState("unavailable");
-      const clientSecret = api.stripeCheckoutSession(planId, cadence).then((json) => json.client_secret);
+      const clientSecret = (club ? api.clubCheckoutSession() : api.stripeCheckoutSession(planId, cadence)).then((json) => json.client_secret);
       const checkout = stripe.initCheckoutFormSdk({ clientSecret, appearance: STRIPE_APPEARANCE });
       const form = checkout.createForm({ layout: "expanded" });
       form.mount(node.current!);
@@ -50,7 +52,7 @@ export function StripeCheckoutForm({ planId, cadence, onClose }: {
       setError(e instanceof Error ? e.message : wRef.current.unreachable);
     });
     return () => { cancelled = true; };
-  }, [planId, cadence]);
+  }, [planId, cadence, club]);
 
   return (
     <section className="card stack">

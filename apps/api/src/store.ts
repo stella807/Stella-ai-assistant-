@@ -5,7 +5,7 @@ import type {
   DeskTask, DriverApplication, GameRound, MasterAccount, MasterAuditEntry, NewsletterSubscriber, NightOut,
   PaymentMethodOnFile, PendingOrder,
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
-  ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor,
+  ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor, ClubSubscription,
 } from "@safehubby/core";
 import type { MonthlyFreebies, SeniorIdCheck } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
@@ -249,6 +249,8 @@ export interface Db {
   priceOverrides: PriceOverride[];
   /** The businesses that could help put on the club's events, worked through by the owner; seeded on first use. */
   vendors?: Vendor[];
+  /** Members' Wingman Club subscriptions, billed through Stripe; absent for Elite, whose dues Safehubby covers. */
+  clubSubscriptions?: Record<string, ClubSubscription>;
   /** Ids of the suggested vendors already offered, so a later round of research adds only the new ones and a removed vendor stays removed. */
   vendorSeedsOffered?: string[];
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */

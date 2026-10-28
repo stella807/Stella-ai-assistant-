@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
-  PLANS, autoRenewalTermsFor, effectivePlan, findPlan, isElitePlan, periodEnd, recordCharge, settleCharge,
+  CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, PLANS, autoRenewalTermsFor, effectivePlan, findPlan, isElitePlan, periodEnd, recordCharge, settleCharge,
   type Cadence, type PlanId, type Subscription,
 } from "@safehubby/core";
 import type { StoreLike } from "./store.ts";
@@ -65,6 +65,8 @@ export function handleStripeWebhook(
 
   const byStripeId = (id: string | undefined) =>
     id ? Object.values(store.data.subscriptions).find((s) => s.stripeSubscriptionId === id) : undefined;
+  const clubByStripeId = (id: string | undefined) =>
+    id ? Object.values(store.data.clubSubscriptions ?? {}).find((s) => s.stripeSubscriptionId === id) : undefined;
   const syncPlan = (travelerId: string) => {
     const traveler = store.data.travelers.find((t) => t.id === travelerId);
     if (!traveler) return;
@@ -85,6 +87,30 @@ export function handleStripeWebhook(
       const planId = String(meta.planId ?? "") as PlanId;
       const cadence: Cadence = meta.cadence === "annual" ? "annual" : "monthly";
       const stripeSubscriptionId = typeof object.subscription === "string" ? object.subscription : undefined;
+      if (String(meta.planId ?? "") === CLUB_PLAN_ID) {
+        if (object.mode !== "subscription" || !stripeSubscriptionId) return { handled: false, cancelStripeSubscriptions: [] };
+        if (!store.data.travelers.some((t) => t.id === travelerId)) return { handled: false, cancelStripeSubscriptions: [] };
+        if (object.payment_status !== "paid" && object.payment_status !== "no_payment_required") {
+          return { handled: false, cancelStripeSubscriptions: [] };
+        }
+        store.update((db) => {
+          const existing = db.clubSubscriptions?.[travelerId];
+          if (existing?.stripeSubscriptionId === stripeSubscriptionId) return; // already applied
+          if (existing?.stripeSubscriptionId && existing.status !== "canceled") toCancel.push(existing.stripeSubscriptionId);
+          db.clubSubscriptions = {
+            ...db.clubSubscriptions,
+            [travelerId]: {
+              travelerId, stripeSubscriptionId, status: "active", startedAt: now.toISOString(),
+              currentPeriodEnd: periodEnd("monthly", now).toISOString(),
+            },
+          };
+          const traveler = db.travelers.find((t) => t.id === travelerId);
+          if (traveler) traveler.clubMember = true;
+          recordPaid(db, `stripe_${object.id}`, travelerId, Number(object.amount_total ?? CLUB_MONTHLY_DUES_CENTS),
+            "Wingman Club (monthly) — paid through Stripe");
+        });
+        return { handled: true, cancelStripeSubscriptions: toCancel };
+      }
       if (object.mode !== "subscription" || !stripeSubscriptionId || !PLANS.some((p) => p.id === planId)) {
         return { handled: false, cancelStripeSubscriptions: [] };
       }
@@ -123,6 +149,20 @@ export function handleStripeWebhook(
     case "invoice.paid": {
       // The first invoice is the checkout itself, already handled above.
       if (object.billing_reason === "subscription_create") return { handled: true, cancelStripeSubscriptions: [] };
+      const club = clubByStripeId(invoiceSubscriptionId(object));
+      if (club) {
+        store.update((db) => {
+          const chargeId = `stripe_${object.id}`;
+          if (db.charges.some((c) => c.id === chargeId)) return;
+          const current = db.clubSubscriptions![club.travelerId]!;
+          current.status = "active";
+          current.currentPeriodEnd = periodEnd("monthly", now).toISOString();
+          const traveler = db.travelers.find((t) => t.id === club.travelerId);
+          if (traveler) traveler.clubMember = true;
+          recordPaid(db, chargeId, club.travelerId, Number(object.amount_paid ?? 0), "Wingman Club renewal — paid through Stripe");
+        });
+        return { handled: true, cancelStripeSubscriptions: [] };
+      }
       const sub = byStripeId(invoiceSubscriptionId(object));
       if (!sub) return { handled: false, cancelStripeSubscriptions: [] };
       store.update((db) => {
@@ -140,6 +180,12 @@ export function handleStripeWebhook(
     }
 
     case "invoice.payment_failed": {
+      const club = clubByStripeId(invoiceSubscriptionId(object));
+      if (club) {
+        // Membership stays on while past-due; Stripe retries the card itself.
+        store.update((db) => { db.clubSubscriptions![club.travelerId]!.status = "past-due"; });
+        return { handled: true, cancelStripeSubscriptions: [] };
+      }
       const sub = byStripeId(invoiceSubscriptionId(object));
       if (!sub) return { handled: false, cancelStripeSubscriptions: [] };
       // Features stay on while past-due; Stripe retries the card itself.
@@ -148,6 +194,18 @@ export function handleStripeWebhook(
     }
 
     case "customer.subscription.deleted": {
+      const club = clubByStripeId(typeof object.id === "string" ? object.id : undefined);
+      if (club) {
+        // The club has no grace period: when Stripe ends the subscription, membership ends.
+        store.update((db) => {
+          const current = db.clubSubscriptions![club.travelerId]!;
+          current.status = "canceled";
+          current.canceledAt ??= now.toISOString();
+          const traveler = db.travelers.find((t) => t.id === club.travelerId);
+          if (traveler && !isElitePlan(traveler.planId as PlanId)) traveler.clubMember = false;
+        });
+        return { handled: true, cancelStripeSubscriptions: [] };
+      }
       const sub = byStripeId(typeof object.id === "string" ? object.id : undefined);
       if (!sub) return { handled: false, cancelStripeSubscriptions: [] };
       store.update((db) => {

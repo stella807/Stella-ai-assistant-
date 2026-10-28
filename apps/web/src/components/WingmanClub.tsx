@@ -5,6 +5,7 @@ import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
 import { CigarArt, FlagArt } from "./CigarArt.tsx";
 import { BourbonGlassArt, ParachuteArt } from "./art/Art.tsx";
+import { StripeCheckoutForm } from "./StripeCheckoutForm.tsx";
 
 /**
  * The Wingman Club: shown as its own folded section, the same treatment
@@ -14,9 +15,9 @@ import { BourbonGlassArt, ParachuteArt } from "./art/Art.tsx";
  * event, and why the due moves with the month's pick instead of sitting at
  * one flat number.
  *
- * There is deliberately no charge wired to the join button yet — see the
- * doc on `clubMember` in the API's store.ts. Joining changes the roster
- * count this screen shows honestly; it does not move any money.
+ * With Stripe live, joining is paid: the join button opens the same card form
+ * the plans use, and membership starts when Stripe confirms the payment. Until
+ * then, and for Elite (whose dues Safehubby covers), joining is free.
  */
 export function WingmanClub() {
   const { t, language } = useLanguage();
@@ -24,9 +25,19 @@ export function WingmanClub() {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof api.clubStatus>> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
 
   const load = () => api.clubStatus().then(setStatus).catch(() => {});
   useEffect(() => { void load(); }, []);
+
+  // While the card form is open, notice the moment Stripe has confirmed the payment.
+  useEffect(() => {
+    if (!paying) return;
+    const timer = setInterval(() => {
+      api.clubStatus().then((s) => { setStatus(s); if (s.isMember) setPaying(false); }).catch(() => {});
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [paying]);
 
   // By invitation: anyone not invited never sees that the club exists.
   if (!status || !status.invited) return null;
@@ -36,6 +47,7 @@ export function WingmanClub() {
     setError(null);
     try {
       if (status.isMember) await api.leaveClub();
+      else if (status.billing.needsPayment) { setPaying(true); setBusy(false); return; }
       else await api.joinClub();
       await load();
     } catch (e) {
@@ -119,8 +131,16 @@ export function WingmanClub() {
       </ul>
 
       <button className={`wm-cta${status.isMember ? " leave" : ""}`} disabled={busy} onClick={toggle}>
-        {status.isMember ? t("wingman.leave") : t("wingman.join")}
+        {status.isMember ? t("wingman.leave")
+          : status.billing.needsPayment ? t("wingman.joinPaid").replace("{amount}", money(status.billing.monthlyCents))
+          : t("wingman.join")}
       </button>
+      {paying && !status.isMember && (
+        <div style={{ marginTop: 12 }}>
+          <p className="tiny" style={{ margin: "0 0 8px", color: "var(--wm-soft)" }}>{t("wingman.billedNote").replace("{amount}", money(status.billing.monthlyCents))}</p>
+          <StripeCheckoutForm planId="wingman-club" cadence="monthly" club onClose={() => { setPaying(false); void load(); }} />
+        </div>
+      )}
 
       {error && <div className="banner banner-danger" style={{ marginTop: 12 }}>{error}</div>}
       {status.isMember && <ClubAsk />}

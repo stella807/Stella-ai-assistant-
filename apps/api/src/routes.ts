@@ -48,7 +48,7 @@ import {
   errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
   errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
-  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PERKS, eventExtraCents, isIncludedEvent,
+  CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
   eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
@@ -3488,8 +3488,9 @@ export const routes: Record<string, Handler> = {
   },
 
   /* ---------------------------------------------------------------
-     Wingman Club — a real, tested membership economics model with no
-     billing wired to it yet. See wingman-club.ts for the pricing, the
+     Wingman Club — a tested membership economics model. The monthly $99 is
+     billed through Stripe once Stripe is live (see /api/club/checkout-session);
+     what a member adds to go on a bigger day is not charged yet. See wingman-club.ts for the pricing, the
      monthly reveal mechanic, and why the name is not what this
      started as. `clubMember` is a plain flag (store.ts) so the roster
      size behind the economics below is a real count, not a
@@ -3519,6 +3520,14 @@ export const routes: Record<string, Handler> = {
       // (see the block comment above), so there is nothing to waive today,
       // but the flag says plainly who the day that lands actually charges.
       duesCoveredBySafehubby: isElitePlan(traveler.planId as PlanId),
+      // Whether joining is paid for through Stripe: only when Stripe is live and
+      // Safehubby is not already covering the dues (Elite).
+      billing: {
+        monthlyCents: CLUB_MONTHLY_DUES_CENTS,
+        stripeReady: isAutomatic(stripeProcessor.status),
+        needsPayment: isAutomatic(stripeProcessor.status) && !traveler.clubMember && !isElitePlan(traveler.planId as PlanId),
+        subscriptionStatus: ctx.store.data.clubSubscriptions?.[me]?.status ?? null,
+      },
       thisMonth: {
         experience: pick,
         // Flat every month; what going adds is separate and zero for a light outing.
@@ -3535,6 +3544,11 @@ export const routes: Record<string, Handler> = {
     if (!self) throw notFound("Traveler");
     if (!self.clubInvited && !self.clubMember && !isElitePlan(self.planId as PlanId)) {
       throw new HttpError(403, "The Wingman Club is by invitation only.");
+    }
+    // With Stripe live, membership is bought: joining free would skip the $99.
+    // Elite is the exception, since Safehubby pays those dues.
+    if (isAutomatic(stripeProcessor.status) && !self.clubMember && !isElitePlan(self.planId as PlanId)) {
+      throw new HttpError(402, `The Wingman Club is $${(CLUB_MONTHLY_DUES_CENTS / 100).toFixed(0)} a month. Pay with a card to join.`);
     }
     ctx.store.update((db) => {
       const traveler = db.travelers.find((t) => t.id === me);
@@ -3616,11 +3630,48 @@ export const routes: Record<string, Handler> = {
     return { ok: true };
   },
 
-  "POST /api/club/leave": (ctx) => {
+  /** A Stripe Checkout Session for the club's $99 a month, in the same embedded
+   *  form the plans use. The price is read from the club's own constant, never
+   *  from the browser; the webhook makes the member once Stripe confirms payment. */
+  "POST /api/club/checkout-session": async (ctx) => {
     const me = actor(ctx);
+    if (!isAutomatic(stripeProcessor.status)) throw new HttpError(503, stripeProcessor.status.requires);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Traveler");
+    if (isElitePlan(traveler.planId as PlanId)) throw new HttpError(409, "The Wingman Club is included with Elite, so there is nothing to pay.");
+    if (!traveler.clubInvited && !traveler.clubMember) throw new HttpError(403, "The Wingman Club is by invitation only.");
+    const existing = ctx.store.data.clubSubscriptions?.[me];
+    if (traveler.clubMember && existing && existing.status !== "canceled") throw new HttpError(409, "You are already a member.");
+    const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
+    try {
+      const customerId = await ensureStripeCustomer({
+        existingId: ctx.store.data.stripeCustomers[me], email: traveler.email, name: traveler.displayName, travelerId: me,
+      });
+      ctx.store.update((db) => { db.stripeCustomers[me] = customerId; });
+      const { clientSecret } = await createCheckoutSession({
+        customerId, returnUrl: `${base}/#billing?session_id={CHECKOUT_SESSION_ID}`,
+        plan: { planId: CLUB_PLAN_ID, name: "Wingman Club", cadence: "monthly", travelerId: me, amountCents: CLUB_MONTHLY_DUES_CENTS },
+      });
+      return { client_secret: clientSecret };
+    } catch (e) {
+      console.error("[safehubby] Stripe club checkout-session failed:", e instanceof Error ? e.message : e);
+      throw new HttpError(424, e instanceof Error ? e.message : "Stripe could not be reached.");
+    }
+  },
+
+  "POST /api/club/leave": async (ctx) => {
+    const me = actor(ctx);
+    // Leaving stops the billing too, so a member who has left is never charged again.
+    const sub = ctx.store.data.clubSubscriptions?.[me];
+    if (sub && sub.status !== "canceled") await stopStripeBilling(sub.stripeSubscriptionId);
     ctx.store.update((db) => {
       const traveler = db.travelers.find((t) => t.id === me);
       if (traveler) traveler.clubMember = false;
+      const current = db.clubSubscriptions?.[me];
+      if (current && current.status !== "canceled") {
+        current.status = "canceled";
+        current.canceledAt = ctx.now().toISOString();
+      }
     });
     return { isMember: false };
   },
