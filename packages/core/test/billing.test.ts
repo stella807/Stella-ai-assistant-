@@ -245,9 +245,10 @@ describe("plans", () => {
         if (!hasFeature(plan.id, feature)) continue;
         expect(isElitePlan(plan.id), `${plan.id} reaches ${feature}`).toBe(true);
       }
-      // The concierge itself is on every paid tier — that is the thing the
-      // doctor and the jets are kept distinct from, not hidden behind.
-      if (plan.monthlyCents > 0) expect(hasFeature(plan.id, "personal-concierge")).toBe(true);
+      // The concierge itself is on every paid tier but Basic (errands only,
+      // at ownership's direction) — the thing the doctor and the jets are
+      // kept distinct from, not hidden behind.
+      if (plan.monthlyCents > 0 && plan.id !== "basic") expect(hasFeature(plan.id, "personal-concierge")).toBe(true);
     }
 
     // The duties themselves, asserted here rather than left to elite.ts, so
