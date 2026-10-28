@@ -38,6 +38,7 @@ export function Footer() {
       </nav>
       {/* Real links, not router pushes: each portal is its own area with its own sign-in. */}
       <nav className="footer-links footer-portals" aria-label={language === "es" ? "Portales" : "Portals"}>
+        <a href="/careers">{t("app.careers")}</a>
         <a href="/employee">{t("footer.employeePortal")}</a>
         <a href="/master">{t("footer.ownerPortal")}</a>
       </nav>
