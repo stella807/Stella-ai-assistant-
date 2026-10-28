@@ -8,6 +8,7 @@ import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
+import { FreebiesSection } from "./FreebiesSection.tsx";
 
 /**
  * The master (owner/secretary) dashboard — a third area of the app, reached
@@ -318,6 +319,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       )}
       {overview.money && <MoneySection money={overview.money} />}
       {overview.money && <PayoutSheetSection />}
+      {overview.account.role === "owner" && <FreebiesSection />}
 
       {overview.account.role === "owner" && <PricingSection />}
 

@@ -49,6 +49,64 @@ export const INCLUDED_GRABS_PER_MONTH: Record<PlanId, number | null> = {
   "elite-private": null,
 };
 
+/**
+ * What the owner can switch and adjust: whether the monthly freebies exist at
+ * all, how many no-fee pickups each plan with a count gets, and Basic's food
+ * credit. Unset means the table above and `ERRAND_CREDIT_CENTS`. The Elite
+ * plans stay unlimited, and included assistant hours and desk tasks are plan
+ * features priced into the dues, so neither is touched here.
+ *
+ * Held as live state, like `setFlag` in features.ts, because the prices a
+ * screen shows and the fee the server charges both read these functions and
+ * have to agree: the API loads the stored setting before each request and the
+ * app takes it from the catalog.
+ */
+export type FreebiePlanId = "free" | "premium-basic" | "premium-plus" | "family";
+export const FREEBIE_PLANS: FreebiePlanId[] = ["free", "premium-basic", "premium-plus", "family"];
+/** Ceilings, so a typo cannot hand out a hundred free pickups or a $3,500 credit. */
+export const MAX_FREE_PICKUPS_PER_MONTH = 30;
+export const MAX_ERRAND_CREDIT_CENTS = 10_000;
+
+export interface MonthlyFreebies {
+  enabled: boolean;
+  pickupsPerMonth: Record<FreebiePlanId, number>;
+  basicCreditCents: number;
+}
+
+export const defaultMonthlyFreebies = (): MonthlyFreebies => ({
+  enabled: true,
+  pickupsPerMonth: Object.fromEntries(FREEBIE_PLANS.map((id) => [id, INCLUDED_GRABS_PER_MONTH[id] ?? 0])) as Record<FreebiePlanId, number>,
+  basicCreditCents: ERRAND_CREDIT_CENTS.basic ?? 0,
+});
+
+/** Whatever was stored or typed, made into something safe: whole numbers inside the ceilings. */
+export function sanitizeMonthlyFreebies(raw: unknown): MonthlyFreebies {
+  const base = defaultMonthlyFreebies();
+  const r = (raw && typeof raw === "object" ? raw : {}) as Partial<{
+    enabled: unknown; pickupsPerMonth: Record<string, unknown>; basicCreditCents: unknown;
+  }>;
+  const whole = (v: unknown, max: number, fallback: number) => {
+    const n = Number(v);
+    return v === undefined || v === null || v === "" || !Number.isFinite(n) ? fallback : Math.min(max, Math.max(0, Math.round(n)));
+  };
+  for (const id of FREEBIE_PLANS) {
+    base.pickupsPerMonth[id] = whole(r.pickupsPerMonth?.[id], MAX_FREE_PICKUPS_PER_MONTH, base.pickupsPerMonth[id]);
+  }
+  base.basicCreditCents = whole(r.basicCreditCents, MAX_ERRAND_CREDIT_CENTS, base.basicCreditCents);
+  base.enabled = r.enabled === undefined ? true : r.enabled === true;
+  return base;
+}
+
+let live: MonthlyFreebies | null = null;
+
+/** Apply the owner's setting; `null` goes back to the built-in numbers. */
+export function setMonthlyFreebies(config: unknown | null): void {
+  live = config === null || config === undefined ? null : sanitizeMonthlyFreebies(config);
+}
+
+/** The numbers in force now, whether set by the owner or the built-in ones. */
+export const currentMonthlyFreebies = (): MonthlyFreebies => live ?? defaultMonthlyFreebies();
+
 /** The one category the allowance covers. An errand is a list and a longer
  *  trip, and keeps its rate. */
 export const INCLUDED_GRAB_CATEGORY = "grab-something" satisfies ConciergeCategory;
@@ -60,6 +118,10 @@ export function includedGrabAllowanceFor(planId: PlanId): number | null {
   if (planId === "free" && !isEnabled("free-errands")) return 0;
   // Every plan's free errands are paused for now — see `plan-free-errands`.
   if (!isEnabled("plan-free-errands")) return 0;
+  if (live) {
+    if (!live.enabled) return 0;
+    if ((FREEBIE_PLANS as string[]).includes(planId)) return live.pickupsPerMonth[planId as FreebiePlanId];
+  }
   return INCLUDED_GRABS_PER_MONTH[planId];
 }
 
@@ -151,7 +213,13 @@ export function customerTotalCents(
  */
 export const ERRAND_CREDIT_CENTS: Partial<Record<PlanId, number>> = { basic: 3_500 };
 
-export const errandCreditFor = (planId: PlanId) => ERRAND_CREDIT_CENTS[planId] ?? 0;
+export const errandCreditFor = (planId: PlanId): number => {
+  if (live) {
+    if (!live.enabled) return 0;
+    if (planId === "basic") return live.basicCreditCents;
+  }
+  return ERRAND_CREDIT_CENTS[planId] ?? 0;
+};
 
 /** Credit used in a month, by errands that were not canceled. */
 export function errandCreditUsedIn(tasks: ConciergeTask[], monthStart: Date, monthEnd: Date): number {

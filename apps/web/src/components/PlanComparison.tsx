@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  PHARMACY_RUN_FEE_CENTS, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor,
+  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor,
 } from "@safehubby/core";
 import type { Feature, Plan } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
@@ -24,6 +24,7 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
   const [open, setOpen] = useState(true);
   if (plans.length === 0) return null;
 
+  const freebies = currentMonthlyFreebies();
   const rows: { label: TranslationKey; cell: (p: Plan) => Cell }[] = [
     { label: "compare.seats", cell: (p) => ({ kind: "text", text: String(p.seats) }) },
     { label: "compare.errands", cell: (p) => yesNo(has(p, "quick-tasks")) },
@@ -50,6 +51,9 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
     { label: "compare.extendedSos", cell: (p) => yesNo(has(p, "extended-sos-contacts")) },
   ];
 
+  // Switched off by the owner: no row and no note, rather than a column of dashes.
+  const shown = freebies.enabled ? rows : rows.filter((r) => r.label !== "compare.freeErrands");
+
   const render = (c: Cell): ReactNode =>
     c.kind === "yes" ? <span className="compare-yes" aria-label={t("compare.included")}>✓</span>
       : c.kind === "no" ? <span className="compare-no" aria-label={t("compare.notIncluded")}>—</span>
@@ -74,7 +78,7 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {shown.map((row) => (
                   <tr key={row.label}>
                     <td>{t(row.label)}</td>
                     {plans.map((p) => <td key={p.id} className="compare-cell">{render(row.cell(p))}</td>)}
@@ -88,9 +92,9 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
           </p>
           {/* What the "no-fee pickups" row counts, said once: a number and a
               dollar amount in one row otherwise read as the same thing. */}
-          <p className="tiny muted" style={{ margin: 0 }}>
+          {freebies.enabled && <p className="tiny muted" style={{ margin: 0 }}>
             {t("compare.freeErrandsNote").replace("{credit}", `$${Math.round(errandCreditFor("basic") / 100)}`)}
-          </p>
+          </p>}
         </>
       )}
     </section>

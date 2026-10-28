@@ -733,3 +733,20 @@ ATH Business app's settings.
 ATH Móvil cannot be saved and charged later, so it cannot renew a plan
 automatically; it funds the balance, which pays for errands and assistants.
 Evertec has no test environment: the first check is a small real payment.
+
+## Free each month: the owner's switch
+
+What a plan gives free each month (no-fee pickups, and Basic's food credit) is
+not fixed in code. In `/master`, **Free each month** (owner only) has an
+on/off switch and the amounts: pickups per month for Free, Premium, Premium
+Plus and Family, and Basic's credit in dollars. Off removes every free pickup
+and credit and hides the row from the plan table; "Back to standard" restores
+the built-in numbers. Elite stays unlimited, and included assistant hours and
+desk tasks are plan features, not part of this. Limits are 30 pickups and $100
+so a typo cannot give away the margin.
+
+The runner is paid in full whatever is set; Safehubby covers the waived fee.
+Stored in `monthlyFreebies`, loaded before each API request, sent to the app in
+`GET /api/catalog` (`freebies`), and changed at `POST /api/master/freebies`,
+which writes an audit-log entry. The static marketing site bakes its numbers
+at build time, so it shows the standard amounts until it is rebuilt.

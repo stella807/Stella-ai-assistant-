@@ -71,7 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
-  withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
+  currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
 import type {
@@ -2131,6 +2131,8 @@ export const routes: Record<string, Handler> = {
   "GET /api/catalog": (ctx) => {
     const eliteUnlock = eliteUnlockStatus(ctx);
     return {
+      // What is free each month, so the app shows what the server will charge.
+      freebies: currentMonthlyFreebies(),
       drinks: DRINK_CATALOG,
       // Only what has actually shipped: the Elite tier is built and held
       // behind `elite-tier` (see features.ts), so it is absent here rather
@@ -5978,6 +5980,31 @@ export const routes: Record<string, Handler> = {
       delivery: email.status,
       subscribers: all,
     };
+  },
+
+  /** Master: what is free each month, and the owner's switch and amounts for it. */
+  "GET /api/master/freebies": (ctx) => {
+    requireAdmin(ctx, "operations");
+    return { freebies: currentMonthlyFreebies(), defaults: defaultMonthlyFreebies() };
+  },
+
+  /** Master: switch the monthly freebies on or off and set how much each plan gets. */
+  "POST /api/master/freebies": (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    const account = masterAccountOf(ctx);
+    // Sanitised against the ceilings in core, so a typo cannot hand out a hundred pickups.
+    const freebies = sanitizeMonthlyFreebies(body);
+    ctx.store.update((db) => {
+      db.monthlyFreebies = freebies;
+      if (account) {
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "operations",
+          subject: freebies.enabled ? "monthly freebies changed" : "monthly freebies switched off", at: ctx.now().toISOString(),
+        });
+      }
+    });
+    setMonthlyFreebies(freebies);
+    return { freebies, defaults: defaultMonthlyFreebies() };
   },
 
   /** Master: get current pricing including any overrides. */

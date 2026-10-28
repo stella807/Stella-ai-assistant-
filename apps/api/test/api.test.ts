@@ -2567,6 +2567,35 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("the owner's switch for what is free each month", () => {
+    useAdminKey();
+
+    it("shows the numbers in force, and only the owner can change them", async () => {
+      const before = (await call("GET", "/api/catalog")).json.freebies;
+      expect(before).toMatchObject({ enabled: true, basicCreditCents: 3500 });
+      expect((await call("POST", "/api/master/freebies", { enabled: false })).status).toBe(401);
+      expect((await call("POST", "/api/master/freebies", { enabled: false }, jordan)).status).toBe(401);
+      expect((await call("GET", "/api/catalog")).json.freebies.enabled).toBe(true);
+    });
+
+    it("switches the freebies off for everyone, adjusts the amounts, and survives the next request", async () => {
+      const off = await callAdmin("POST", "/api/master/freebies", { enabled: false });
+      expect(off.status).toBe(200);
+      const catalog = (await call("GET", "/api/catalog")).json;
+      expect(catalog.freebies.enabled).toBe(false);
+      expect(store.data.monthlyFreebies?.enabled).toBe(false);
+
+      const adjusted = await callAdmin("POST", "/api/master/freebies", {
+        enabled: true, pickupsPerMonth: { family: 6, "premium-plus": 99999 }, basicCreditCents: 2000,
+      });
+      expect(adjusted.json.freebies).toMatchObject({ enabled: true, basicCreditCents: 2000 });
+      expect(adjusted.json.freebies.pickupsPerMonth).toMatchObject({ family: 6, "premium-plus": 30, "premium-basic": 2 });
+      // A later request still sees it: it is stored, not just remembered in memory.
+      expect((await call("GET", "/api/catalog")).json.freebies.pickupsPerMonth.family).toBe(6);
+      expect((await callAdmin("GET", "/api/master/freebies")).json.defaults.pickupsPerMonth.family).toBe(15);
+    });
+  });
+
   describe("recording an exemption certificate and the year's totals", () => {
     useAdminKey();
     const master = async (role: string, email: string) => {

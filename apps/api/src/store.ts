@@ -7,7 +7,7 @@ import type {
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage, PriceOverride,
 } from "@safehubby/core";
-import type { SeniorIdCheck } from "@safehubby/core";
+import type { MonthlyFreebies, SeniorIdCheck } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
@@ -247,6 +247,8 @@ export interface Db {
   /** Dynamic price overrides for all roles, allowing owner to adjust rates
    *  and maintain audit trail of pricing changes. */
   priceOverrides: PriceOverride[];
+  /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */
+  monthlyFreebies?: MonthlyFreebies;
   /** Prepaid balance loads and refunds — see balance.ts. The balance itself
    *  is derived from these and from the holds, never stored. */
   balanceEntries: BalanceEntry[];
