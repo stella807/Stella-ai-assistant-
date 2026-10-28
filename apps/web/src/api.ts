@@ -572,6 +572,7 @@ export const api = {
     perks: readonly string[];
     disclosures: string[];
     duesCoveredBySafehubby: boolean;
+    billing: { monthlyCents: number; stripeReady: boolean; needsPayment: boolean; subscriptionStatus: "active" | "past-due" | "canceled" | null };
     catalog: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number }[];
     thisMonth: {
       experience: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number };
@@ -587,6 +588,7 @@ export const api = {
     request<{ invited: boolean }>("POST", "/api/master/club/invite", { travelerId, invited }),
   clubArrange: (id: string, status: "arranged" | "declined", reply: string) =>
     request<{ ok: true }>("POST", `/api/master/club/requests/${id}`, { status, reply }),
+  clubCheckoutSession: () => request<{ client_secret: string }>("POST", "/api/club/checkout-session", {}),
   joinClub: () => request<{ isMember: boolean }>("POST", "/api/club/join", {}),
   leaveClub: () => request<{ isMember: boolean }>("POST", "/api/club/leave", {}),
   completeConcierge: (taskId: string, billedCents?: number) =>

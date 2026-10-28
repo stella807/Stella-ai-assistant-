@@ -98,6 +98,20 @@ export const CLUB_PERKS = [
  */
 export const CLUB_MONTHLY_DUES_CENTS = 9900;
 
+/** The id the club's Stripe subscription carries in its metadata, in the place a plan id goes. */
+export const CLUB_PLAN_ID = "wingman-club";
+
+/** A member's Wingman Club subscription, billed monthly through Stripe apart from their plan. */
+export interface ClubSubscription {
+  travelerId: string;
+  stripeSubscriptionId: string;
+  /** Past-due keeps membership on while Stripe retries the card; canceled ends it. */
+  status: "active" | "past-due" | "canceled";
+  startedAt: string;
+  currentPeriodEnd: string;
+  canceledAt?: string;
+}
+
 /** An outing is included in the monthly dues when it costs the club no more than this a head. */
 export const CLUB_INCLUDED_EVENT_MAX_CENTS = 10_000;
 

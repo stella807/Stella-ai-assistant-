@@ -310,6 +310,8 @@ const EN = {
   "wingman.overheadNotCovered": "the dues need {n} members to clear what it costs to run; below that, the club still runs, on less margin.",
   "wingman.leave": "Leave the club",
   "wingman.join": "Join the club",
+  "wingman.joinPaid": "Join for {amount} a month",
+  "wingman.billedNote": "{amount} a month, charged to your card through Stripe. Leave the club any time and the billing stops.",
   "wingman.error": "Could not update your membership.",
 } as const;
 
@@ -612,6 +614,8 @@ const ES: Record<TranslationKey, string> = {
   "wingman.overheadNotCovered": "las cuotas del club necesitan {n} miembros para cubrir lo que cuesta operar; por debajo de eso, el club sigue funcionando, con menos margen.",
   "wingman.leave": "Salir del club",
   "wingman.join": "Unirse al club",
+  "wingman.joinPaid": "Unirme por {amount} al mes",
+  "wingman.billedNote": "{amount} al mes, cobrado a tu tarjeta con Stripe. Sal del club cuando quieras y se detiene el cobro.",
   "wingman.error": "No se pudo actualizar tu membresía.",
 };
 

@@ -761,3 +761,15 @@ A flat **$99 a month**, set in `CLUB_MONTHLY_DUES_CENTS` (`packages/core/src/win
 - The cigar and drink at each event stay included.
 
 Why this structure: a flat price with a real event inside is easier to say yes to than dues that swung between $99 and $279. Modelled at 50% attendance on light outings and 25% on bigger days, with the card fee, each member contributes about $62 a month toward overhead (`CLUB_CONTRIBUTION_PER_MEMBER_CENTS`), so $8,000 a month of overhead is covered at about 130 members. That is an estimate: it moves with attendance and with whether venues bill per attendee or charge a flat buyout.
+
+### Charging the club through Stripe
+
+The $99 is a Stripe subscription, separate from the member's plan (a member can be on Premium and in the club). Elite members are not charged: Safehubby covers their dues.
+
+- `POST /api/club/checkout-session` opens the same embedded Stripe form the plans use, priced from `CLUB_MONTHLY_DUES_CENTS` on the server, never from the browser. IVU is added the same way as for plans, by billing address.
+- With Stripe live (`STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` set), `POST /api/club/join` answers 402 and the app shows **Join for $99 a month**. With Stripe off, joining stays free, as before.
+- The webhook (`stripe-webhook.ts`) handles it on the same four events the plans use, so **no new events need turning on in Stripe**: `checkout.session.completed` makes the member and records the $99; `invoice.paid` records each renewal; `invoice.payment_failed` marks it past-due without ending membership while Stripe retries; `customer.subscription.deleted` ends membership. The checkout carries `planId = wingman-club` in its metadata.
+- Leaving cancels the Stripe subscription first. If Stripe cannot be reached, nothing changes (the member stays in and stays billed consistently) and they are asked to try again.
+- Records live in `clubSubscriptions` in the store.
+
+**Not charged yet:** the extra a member pays to go on a bigger day (the group price plus 15%, less the $78 credit). Only the monthly $99 is billed. Charging the extra to the saved card when a member signs up for the day is the next piece.
