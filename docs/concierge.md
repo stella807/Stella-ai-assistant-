@@ -92,7 +92,7 @@ all.
 `CONCIERGE_ASSISTANT_PAYOUT_CENTS` in `concierge.ts` is a published rate per
 category. It is what the **assistant** earns, and `payroll.ts` pays it out in
 full. The **customer** pays that grossed up by Safehubby's margin
-(`CONCIERGE_FEE_MARGIN`, 20%) — `serviceFeeFor` — held and charged on top of
+(`CONCIERGE_FEE_MARGIN`, 10%) — `serviceFeeFor` — held and charged on top of
 the spend cap:
 
 | Category | Assistant earns | Customer pays | Safehubby keeps | Why |
@@ -147,7 +147,7 @@ mostly the same errand. `HOUSEHOLD_INCREMENT` is the one number to change if
 real assistants report that big households are harder than this assumes.
 
 The customer's fee follows automatically, since `serviceFeeFor` grosses up
-whatever the scaled payout is — so the margin stays at 20% of the fee at
+whatever the scaled payout is — so the margin stays at 10% of the fee at
 every household size (within a rounding cent; both amounts are whole cents,
 so a multiplier like 1.75 cannot land the ratio exactly on 0.2).
 

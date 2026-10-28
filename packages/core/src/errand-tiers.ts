@@ -2,7 +2,7 @@ import type { ConciergeCategory } from "./concierge.ts";
 
 /**
  * Errands priced by how much work they are, with a fee sized so Safehubby
- * keeps a real margin on every one: 20% of the runner's pay, at least $2.
+ * keeps a real margin on every one: 10% of the runner's pay, at least $1.
  *
  * **The runner.** Paid $24 an hour for the minutes the tier assumes, plus
  * $0.70 a mile because they drive their own car, and never less than $10 for
@@ -38,12 +38,12 @@ export const CARD_FEE_FIXED_CENTS = 30;
 export const ERRAND_PROFIT_FLOOR_CENTS = 5;
 /**
  * What Safehubby keeps on an errand, on top of the runner's pay and the card
- * fee: 20% of the runner's pay, never under $2. At ownership's direction —
- * five cents left nothing to run the service on, and even with this the fee
- * stays under what DoorDash, Uber Eats and TaskRabbit charge for the same trip.
+ * fee: 10% of the runner's pay, never under $1. Halved at ownership's direction
+ * to lower what customers pay; the runner's pay and the card processor's cut
+ * are untouched, and five cents left nothing to run the service on.
  */
-export const ERRAND_MARGIN_RATE = 0.2;
-export const ERRAND_MARGIN_MIN_CENTS = 200;
+export const ERRAND_MARGIN_RATE = 0.1;
+export const ERRAND_MARGIN_MIN_CENTS = 100;
 export const errandMarginCents = (id: ErrandTierId): number =>
   Math.max(ERRAND_MARGIN_MIN_CENTS, Math.round(errandPayoutCents(id) * ERRAND_MARGIN_RATE));
 /** The purchase every "from $X" errand price is quoted against, so the
@@ -63,7 +63,7 @@ export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "g
  * hold would outgrow it, so the fee rises to the usual formula there rather
  * than losing money.
  */
-export const PHARMACY_RUN_FEE_CENTS = 3_499;
+export const PHARMACY_RUN_FEE_CENTS = 2_999;
 
 /** The tiers that are food: a snack in the building, a restaurant or takeout
  *  order, a grocery run. Basic's errand credit covers only these. */

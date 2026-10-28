@@ -480,7 +480,7 @@ submission; staff review the ID (`GET /api/admin/senior-ids`, then
 `POST /api/admin/senior-ids/:travelerId/review`), and a rejected ID ends the
 food credit at once. See `packages/core/src/senior.ts`.
 
-**Pharmacy pickups are billed** at a flat $34.99, not by the hour or mile,
+**Pharmacy pickups are billed** at a flat $29.99, not by the hour or mile,
 plus the medication. The credit never pays for them. On a very expensive
 prescription the fee rises just enough to cover the card's cut of the hold.
 
@@ -530,7 +530,7 @@ ladder now — the positioning is deliberately closer to a luxury
 concierge membership's own price than to a safety app's.
 
 **The subscription is still not the whole business.** The other margin is
-the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is
+the 10% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is
 commission rather than dues.
 
 ### The trade-off, stated

@@ -158,7 +158,7 @@ their time — $9-$18 by task type, or $5 for a quick, single-purpose task
 (grabbing one named thing or running one errand, capped at a lower $100 spend
 to keep it honest). The spend cap only ever reimburses what they buy, the
 same way a ride fare passes through to a driver rather than being their wage.
-Safehubby's 20% margin is added on top of that rate rather than taken out of
+Safehubby's 10% margin is added on top of that rate rather than taken out of
 it, so the customer's service fee is $11.25-$22.50 ($6.25 quick) and the
 assistant is paid their published rate in full — raising the margin can only
 ever raise what a customer pays, never cut what the assistant earns. The

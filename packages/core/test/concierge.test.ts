@@ -310,7 +310,7 @@ describe("household scaling — a bigger family is more work, but not linearly",
   it("charges the plain rate for one person", () => {
     expect(householdMultiplier(1)).toBe(1);
     expect(assistantPayoutFor("grab-something", false, 1)).toBe(1050);
-    expect(serviceFeeFor("grab-something", false, 1)).toBe(1313);
+    expect(serviceFeeFor("grab-something", false, 1)).toBe(1167);
   });
 
   it("defaults to one person when the count is omitted", () => {

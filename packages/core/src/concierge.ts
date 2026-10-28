@@ -385,7 +385,7 @@ export const CONCIERGE_ASSISTANT_PAYOUT_CENTS: Record<PerTaskCategory, number> =
  * change quietly repriced somebody's labour. So a margin rise raises what
  * the customer pays; it never lowers what the assistant earns.
  */
-export const CONCIERGE_FEE_MARGIN = 0.2;
+export const CONCIERGE_FEE_MARGIN = 0.1;
 
 /**
  * "Quick task" is a discounted tier for the categories that are genuinely

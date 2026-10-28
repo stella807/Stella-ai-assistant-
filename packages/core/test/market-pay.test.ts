@@ -103,7 +103,7 @@ describe("what the customer pays for it", () => {
       const fee = serviceFeeFor(id);
       expect(fee).toBeGreaterThan(pay);
       // Per-task work keeps 20%; hourly work is at the set $45 against $35 paid.
-      if (!isHourlyCategory(id)) expect((fee - pay) / fee).toBeCloseTo(0.2, 2);
+      if (!isHourlyCategory(id)) expect((fee - pay) / fee).toBeCloseTo(0.1, 2);
     }
   });
 

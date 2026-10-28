@@ -354,7 +354,7 @@ const BASIC_FEATURES: Feature[] = [...FREE_FEATURES, "personal-concierge", "drin
  * in billing.test.ts, which excludes only Elite).
  *
  * **The subscription is still not the whole business.** Every tier's other
- * margin is the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same
+ * margin is the 10% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same
  * way Elite's is commission rather than dues.
  *
  * Annual stays ~17% off, the same discount shape every round of this ladder
