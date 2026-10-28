@@ -108,6 +108,10 @@ const PATTERNS: Rule[] = [
   [/^(.+) does not cover this one\. The desk will come back to you\.$/, (d) => `${d} no cubre este. El servicio te contestará.`],
   [/^You pay the supplier directly\. Safehubby is paid (\d+)% by them, disclosed up front\.$/, (p) => `Le pagas directamente al proveedor. El proveedor le paga a Safehubby un ${p}%, informado desde el principio.`],
   [/^(.+) isn't eligible for the quick-task discount\.$/, (c) => `${label(c)} no tiene el descuento de tarea rápida.`],
+  // ---- the assistants' pay against their market (market-pay.ts)
+  [/^Above the top of the (.+) range for this work \((\$\d+-\$\d+)\/hr\)\.$/, (m, r) => `Por encima del tope del rango de ${m} para este trabajo (${r}/h).`],
+  [/^In the high-end (.+) range for this work \((\$\d+-\$\d+)\/hr\)\.$/, (m, r) => `En la parte alta del rango de ${m} para este trabajo (${r}/h).`],
+  [/^Above the typical (.+) rate \((\$\d+-\$\d+)\/hr\)\.$/, (m, r) => `Por encima de la tarifa típica de ${m} (${r}/h).`],
   [/^(.+) is priced per task, not by the hour\.$/, (c) => `${label(c)} se cobra por tarea, no por hora.`],
   [/^(.+) does not track a flight\.$/, (c) => `${label(c)} no sigue un vuelo.`],
   [/^(.+) is not dispatched for that kind of task\.$/, (n) => `A ${n} no se le envía a ese tipo de tarea.`],

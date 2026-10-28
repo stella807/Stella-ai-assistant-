@@ -1,13 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 /**
- * English/Spanish for the screens a visitor sees before and around signing
- * up — the landing page (mission, what-we-do, leadership), the sign-in
- * gate, and the main navigation. This deliberately does not cover every
- * string in the app: the deeper, signed-in screens (billing detail,
- * concierge dispatch, the employee portal) stay English-only for now. Widen
- * `EN`/`ES` and wrap more components in `t()` calls as those get prioritized
- * — the dictionary shape does not need to change to grow.
+ * English/Spanish for the landing page, the sign-in gate, the navigation and
+ * the shared screens. Deeper screens keep their words in their own
+ * `src/app/*-copy.ts` module, typed the same way; the server's and core's
+ * English is put into Spanish by `app/server-es.ts` as responses arrive. The
+ * customer app and the assistants' portal are both covered; the owner
+ * dashboard (/master) is English-only and sits outside the provider.
  */
 
 export type Language = "en" | "es";
@@ -600,11 +599,13 @@ const DICTS: Record<Language, Record<TranslationKey, string>> = { en: EN, es: ES
 
 /**
  * The language outside React — for the API client, which puts the server's
- * English into it. Kept in step with the provider below.
+ * English into it. Kept in step with the provider below; with no provider
+ * mounted (the English-only owner dashboard) the server's words stay as
+ * written rather than turning Spanish under an English screen.
  */
 let active: Language | null = null;
 export function currentLanguage(): Language {
-  return active ?? detectLanguage();
+  return active ?? "en";
 }
 
 function detectLanguage(): Language {

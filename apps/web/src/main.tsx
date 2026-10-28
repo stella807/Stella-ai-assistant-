@@ -31,9 +31,11 @@ const isMasterArea = path === "/master";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isEmployeeArea ? <EmployeePortal /> : isMasterArea ? <MasterScreen /> : (
+    {/* The owner dashboard is English-only; the assistants' portal and the
+        customer app each carry the EN/ES toggle. */}
+    {isMasterArea ? <MasterScreen /> : (
       <LanguageProvider>
-        <App />
+        {isEmployeeArea ? <EmployeePortal /> : <App />}
       </LanguageProvider>
     )}
   </StrictMode>,

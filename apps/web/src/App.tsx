@@ -17,7 +17,8 @@ import { HiringScreen, type HiringTab } from "./components/HiringScreen.tsx";
 import { AboutScreen } from "./components/AboutScreen.tsx";
 import { HowItWorks } from "./components/HowItWorks.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
-import { useLanguage, type Language } from "./i18n.tsx";
+import { useLanguage } from "./i18n.tsx";
+import { LanguageToggle } from "./components/LanguageToggle.tsx";
 import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
@@ -74,7 +75,7 @@ export function App() {
   const [launch, setLaunch] = useState<LaunchStatus | null>(null);
   const [ready, setReady] = useState(false);
   const [offline, setOffline] = useState(false);
-  const { language, setLanguage, t } = useLanguage();
+  const { language, t } = useLanguage();
 
   useEffect(() => {
     api.me()
@@ -107,7 +108,7 @@ export function App() {
           ) : (
             <span className="tiny muted">{t("app.tagline")}</span>
           )}
-          <LanguageToggle language={language} setLanguage={setLanguage} />
+          <LanguageToggle />
         </div>
       </header>
 
@@ -203,29 +204,6 @@ export function App() {
           </div>
         )}
       </footer>
-    </div>
-  );
-}
-
-function LanguageToggle({ language, setLanguage }: { language: Language; setLanguage: (l: Language) => void }) {
-  return (
-    <div className="row" style={{ gap: 2 }} aria-label={language === "es" ? "Idioma" : "Language"}>
-      <button
-        className="btn btn-sm btn-ghost"
-        aria-pressed={language === "en"}
-        style={language === "en" ? { fontWeight: 700 } : undefined}
-        onClick={() => setLanguage("en")}
-      >
-        EN
-      </button>
-      <button
-        className="btn btn-sm btn-ghost"
-        aria-pressed={language === "es"}
-        style={language === "es" ? { fontWeight: 700 } : undefined}
-        onClick={() => setLanguage("es")}
-      >
-        ES
-      </button>
     </div>
   );
 }
