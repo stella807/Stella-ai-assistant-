@@ -1036,6 +1036,9 @@ function clubAccount(ctx: Ctx): MasterAccount {
   return account;
 }
 
+/** Suggested vendors added after the list first shipped: a list loaded before then never had them. */
+const SUGGESTED_LATER = new Set(["vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway"]);
+
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
 function cleanText(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -6008,10 +6011,15 @@ export const routes: Record<string, Handler> = {
      to work through. Owner-level access, like pricing. */
   "GET /api/master/vendors": (ctx) => {
     requireAdmin(ctx, "operations");
-    if (!ctx.store.data.vendors) {
+    // Research is added once per vendor: a later round brings in only the new
+    // ones, and a vendor the owner removed does not come back.
+    const offered = new Set(ctx.store.data.vendorSeedsOffered ?? (ctx.store.data.vendors ? SUGGESTED_VENDORS.filter((v) => !SUGGESTED_LATER.has(v.id)).map((v) => v.id) : []));
+    const fresh = SUGGESTED_VENDORS.filter((v) => !offered.has(v.id));
+    if (fresh.length > 0 || !ctx.store.data.vendors || !ctx.store.data.vendorSeedsOffered) {
       const now = ctx.now().toISOString();
       ctx.store.update((db) => {
-        db.vendors = SUGGESTED_VENDORS.map((v) => ({ ...v, status: "lead" as const, updatedAt: now }));
+        db.vendors = [...(db.vendors ?? []), ...fresh.map((v) => ({ ...v, status: "lead" as const, updatedAt: now }))];
+        db.vendorSeedsOffered = SUGGESTED_VENDORS.map((v) => v.id);
       });
     }
     return { vendors: ctx.store.data.vendors ?? [], categories: VENDOR_CATEGORIES, statuses: VENDOR_STATUSES };
