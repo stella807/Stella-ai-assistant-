@@ -5048,10 +5048,10 @@ describe("hiring somebody and actually sending them to a job", () => {
       const sub = await call("POST", "/api/subscription", { planId: "basic" }, jordan);
       expect(sub.status, JSON.stringify(sub.json)).toBe(200);
       // A pharmacy pickup is not food: billed at its flat fee, never from the credit.
-      const meds = await call("POST", "/api/concierge/quote", { category: "run-errand", errandTier: "pharmacy",
+      const meds = await call("POST", "/api/concierge/quote", { category: "run-errand", quickTask: true, errandTier: "pharmacy",
         note: "My prescription.", location: IN_TEXAS, spendCapCents: 2_000 }, jordan);
       expect(meds.json).toMatchObject({ serviceFeeCents: PHARMACY_RUN_FEE_CENTS, errandCreditCents: 0 });
-      const groceries = { category: "run-errand", errandTier: "shopping-trip", note: "Groceries for the week.",
+      const groceries = { category: "run-errand", quickTask: true, errandTier: "shopping-trip", note: "Groceries for the week.",
         location: IN_TEXAS, spendCapCents: 6_000, acknowledgedDisclosures: true, assistantId: kit };
       const fee = errandFeeCents("shopping-trip", 6_000);
 
