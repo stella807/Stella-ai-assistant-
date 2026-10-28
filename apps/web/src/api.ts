@@ -572,6 +572,7 @@ export const api = {
     perks: readonly string[];
     disclosures: string[];
     duesCoveredBySafehubby: boolean;
+    outing: { going: boolean; locked: boolean; canceled: boolean; hasCard: boolean };
     billing: { monthlyCents: number; stripeReady: boolean; needsPayment: boolean; subscriptionStatus: "active" | "past-due" | "canceled" | null };
     catalog: { id: string; label: string; emoji: string; retailPerPersonCents: number; negotiatedPerPersonCents: number }[];
     thisMonth: {
@@ -588,6 +589,14 @@ export const api = {
     request<{ invited: boolean }>("POST", "/api/master/club/invite", { travelerId, invited }),
   clubArrange: (id: string, status: "arranged" | "declined", reply: string) =>
     request<{ ok: true }>("POST", `/api/master/club/requests/${id}`, { status, reply }),
+  clubRsvp: () => request<{ rsvp: { id: string; extraCents: number } }>("POST", "/api/club/rsvp", {}),
+  clubRsvpCancel: () => request<{ ok: true; refundedCents: number }>("POST", "/api/club/rsvp/cancel", {}),
+  clubEvent: () => request<{
+    monthKey: string; experience: { label: string; emoji: string }; locked: boolean; canceled: boolean;
+    going: { travelerId: string; name: string; extraCents: number }[]; totalExtraCents: number;
+  }>("GET", "/api/master/club/event"),
+  clubEventLock: () => request<{ ok: true }>("POST", "/api/master/club/event/lock", {}),
+  clubEventCancel: () => request<{ refunded: number; failed: string[]; canceled: boolean }>("POST", "/api/master/club/event/cancel", {}),
   clubCheckoutSession: () => request<{ client_secret: string }>("POST", "/api/club/checkout-session", {}),
   joinClub: () => request<{ isMember: boolean }>("POST", "/api/club/join", {}),
   leaveClub: () => request<{ isMember: boolean }>("POST", "/api/club/leave", {}),

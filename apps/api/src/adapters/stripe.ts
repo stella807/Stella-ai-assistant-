@@ -180,6 +180,29 @@ export async function holdOnCard(input: StripeCharge): Promise<{ id: string }> {
   return { id: intent.id };
 }
 
+/**
+ * A one-time charge to a saved card, taken at once: the extra for a bigger
+ * day. A PaymentIntent rather than an invoice, because it can be refunded by
+ * its id, and a hold would lapse in about a week while the outing is weeks away.
+ */
+export async function payOnCard(input: StripeCharge): Promise<{ id: string }> {
+  const intent = await stripePost<{ id: string; status: string }>("/v1/payment_intents", {
+    amount: input.amountCents, currency: "usd", customer: input.customerId, payment_method: input.paymentMethodId,
+    confirm: true, off_session: true, description: input.description.slice(0, 200),
+    "automatic_payment_methods[enabled]": true, "automatic_payment_methods[allow_redirects]": "never",
+  }, `pay:${input.idempotencyKey}`);
+  if (intent.status !== "succeeded") {
+    await stripePost(`/v1/payment_intents/${encodeURIComponent(intent.id)}/cancel`, {}).catch(() => {});
+    throw new Error(BANK_WANTS_APPROVAL);
+  }
+  return { id: intent.id };
+}
+
+/** Gives a one-time charge back in full. */
+export async function refundOnCard(intentId: string): Promise<void> {
+  await stripePost("/v1/refunds", { payment_intent: intentId }, `refund:${intentId}`);
+}
+
 export async function captureOnCard(intentId: string, amountCents: number): Promise<void> {
   if (amountCents <= 0) return releaseOnCard(intentId);
   await stripePost(`/v1/payment_intents/${encodeURIComponent(intentId)}/capture`, { amount_to_capture: amountCents },

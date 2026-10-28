@@ -772,4 +772,12 @@ The $99 is a Stripe subscription, separate from the member's plan (a member can 
 - Leaving cancels the Stripe subscription first. If Stripe cannot be reached, nothing changes (the member stays in and stays billed consistently) and they are asked to try again.
 - Records live in `clubSubscriptions` in the store.
 
-**Not charged yet:** the extra a member pays to go on a bigger day (the group price plus 15%, less the $78 credit). Only the monthly $99 is billed. Charging the extra to the saved card when a member signs up for the day is the next piece.
+### Charging the extra for a bigger day
+
+A member says yes to the month's outing with `POST /api/club/rsvp`.
+
+- **Light outing:** nothing to pay.
+- **Bigger day:** the extra (`eventExtraCents`) is charged to the member's **saved Stripe card** when they sign up. It is a one-time Stripe PaymentIntent, not a hold, because a card hold lapses in about a week and the outing can be weeks away. A card saved with PayPal cannot be used for this yet; the member is asked to save a Stripe card under Payments.
+- **Cancelling:** `POST /api/club/rsvp/cancel` refunds the extra in full through Stripe and marks the ledger charge refunded, until the club locks the day. If Stripe cannot refund, nothing is changed and the member can try again.
+- **The club's controls** are in `/master`, in the Club desk (club scope): **Lock the day in** stops members cancelling themselves for an automatic refund (the club desk handles changes after that), and **Call it off** refunds everyone who paid and closes sign-ups. If any refund fails it lists the names and can be run again.
+- Charges show on the member's statement as "Wingman Club" (charge kind `club`). Puerto Rico IVU is **not** added to the extra; check with your accountant whether it should be.
