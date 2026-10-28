@@ -288,14 +288,14 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
  * The rate was already published — it was just one click too deep. Somebody
  * deciding whether to apply is exactly who the number is for.
  */
-export function PublicWorkerPay() {
+export function PublicWorkerPay({ heading = true }: { heading?: boolean } = {}) {
   const { t, language } = useLanguage();
   const lang = language === "es" ? "es" : "en";
   const standard = DRIVER_RATE_CARD.standard;
   const pays = ERRAND_TIERS.map((tier) => errandPayoutCents(tier.id));
   return (
     <div className="stack" style={{ gap: 8 }}>
-      <strong className="small">{t("pay.heading")}</strong>
+      {heading && <strong className="small">{t("pay.heading")}</strong>}
 
       <div className="card card-quiet stack" style={{ gap: 2 }}>
         <span className="tiny muted">{t("pay.assistants")}</span>
