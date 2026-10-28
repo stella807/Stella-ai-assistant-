@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { DrinkDefinition, Venue } from "@safehubby/core";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 interface Props {
   drinks: DrinkDefinition[];
@@ -17,6 +19,7 @@ interface Props {
  * because logging it earns points and we want it to be the easiest tap.
  */
 export function DrinkLogger({ drinks, venues, onLog, busy, venueOrigin, onFindNearby }: Props) {
+  const w = nightWords(useLanguage().language).drinks;
   const [venueId, setVenueId] = useState<string>(venues[0]?.id ?? "");
   const [showAll, setShowAll] = useState(false);
 
@@ -39,11 +42,11 @@ export function DrinkLogger({ drinks, venues, onLog, busy, venueOrigin, onFindNe
   const shown = showAll || menu.length === 0 ? drinks.filter((d) => d.category !== "non-alcoholic") : menu.filter((d) => d.category !== "non-alcoholic");
 
   return (
-    <section className="card stack" aria-label="Log a drink">
+    <section className="card stack" aria-label={w.title}>
       <div className="row-between">
-        <h3>Log a drink</h3>
+        <h3>{w.title}</h3>
         <button className="btn btn-sm btn-ghost" onClick={() => setShowAll((s) => !s)}>
-          {showAll ? "Show menu" : "Show all"}
+          {showAll ? w.showMenu : w.showAll}
         </button>
       </div>
 
@@ -52,24 +55,20 @@ export function DrinkLogger({ drinks, venues, onLog, busy, venueOrigin, onFindNe
           someone would log a whole night against the wrong place. */}
       {venueOrigin === "fallback" && (
         <div className="banner">
-          These aren&apos;t places near you — your device didn&apos;t share a location, so this is a
-          stand-in list.{" "}
+          {w.fallback}{" "}
           <button className="btn btn-sm btn-ghost" style={{ marginTop: 8 }} onClick={onFindNearby}>
-            Find bars near me
+            {w.findBars}
           </button>
         </div>
       )}
 
       {venues.length === 0 && venueOrigin === "device" && (
-        <div className="banner">
-          Nothing found within a few blocks. Pick from the full list below — the log still counts,
-          it just won&apos;t be tied to a venue.
-        </div>
+        <div className="banner">{w.nothingNear}</div>
       )}
 
       {venues.length > 0 && (
         <div className="field">
-          <label htmlFor="venue">Where are you?</label>
+          <label htmlFor="venue">{w.where}</label>
           <select id="venue" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
             {venues.map((v) => (
               <option key={v.id} value={v.id}>{v.name}</option>
@@ -79,7 +78,7 @@ export function DrinkLogger({ drinks, venues, onLog, busy, venueOrigin, onFindNe
               neither Places nor Yelp returns a real drink list. Saying so is the
               difference between a helpful shortcut and a quiet wrong number. */}
           {!showAll && venue?.menuReason && (
-            <p className="tiny muted">{venue.menuReason} · tap Show all for the full list</p>
+            <p className="tiny muted">{venue.menuReason} · {w.tapAll}</p>
           )}
         </div>
       )}
@@ -94,16 +93,16 @@ export function DrinkLogger({ drinks, venues, onLog, busy, venueOrigin, onFindNe
       </div>
 
       <button className="btn btn-water btn-block" disabled={busy} onClick={() => onLog("na-water", venue?.name)}>
-        + Water &nbsp;<span style={{ fontWeight: 600, opacity: .8 }}>(earns points)</span>
+        {w.water} &nbsp;<span style={{ fontWeight: 600, opacity: .8 }}>{w.points}</span>
       </button>
 
       {venue && venue.foodMenu.length > 0 && (
         <div className="stack" style={{ gap: 6 }}>
-          <h3>Eat something here</h3>
+          <h3>{w.eat}</h3>
           <p className="tiny muted">
             {venue.foodMenu.map((f) => `${f.name} $${(f.priceCents / 100).toFixed(0)}`).join(" · ")}
           </p>
-          <p className="tiny muted">Food slows how fast the next drinks hit you. It does nothing for what you already drank.</p>
+          <p className="tiny muted">{w.food}</p>
         </div>
       )}
     </section>

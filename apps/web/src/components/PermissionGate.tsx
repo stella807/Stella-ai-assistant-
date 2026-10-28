@@ -3,6 +3,8 @@ import {
   permissionCopy, permissionState, requestPermission, settingsPath, shouldPrime,
   type PermissionName, type PermissionState,
 } from "../native/permissions.ts";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 /**
  * Wraps anything that needs the camera or the microphone.
@@ -26,6 +28,7 @@ export function PermissionGate({ name, children, compact }: {
   const [state, setState] = useState<PermissionState | null>(null);
   const [busy, setBusy] = useState(false);
   const copy = permissionCopy(name);
+  const w = nightWords(useLanguage().language).permission;
 
   useEffect(() => {
     let alive = true;
@@ -44,7 +47,7 @@ export function PermissionGate({ name, children, compact }: {
   if (state === "unavailable") {
     return (
       <p className="tiny muted" style={{ margin: 0 }}>
-        This device has no {name === "camera" ? "camera" : "microphone"} available.
+        {w.none(name === "camera")}
       </p>
     );
   }
@@ -52,7 +55,7 @@ export function PermissionGate({ name, children, compact }: {
   if (state === "denied") {
     return (
       <div className={compact ? "stack" : "card stack"} style={{ gap: 6 }}>
-        <strong className="small">{name === "camera" ? "Camera is off" : "Microphone is off"}</strong>
+        <strong className="small">{w.off(name === "camera")}</strong>
         <p className="tiny muted" style={{ margin: 0 }}>{copy.recovery}</p>
         <p className="tiny muted" style={{ margin: 0 }}>{settingsPath(name)}</p>
       </div>
@@ -72,10 +75,10 @@ export function PermissionGate({ name, children, compact }: {
 
   return (
     <div className={compact ? "stack" : "card stack"} style={{ gap: 8 }}>
-      <strong className="small">{name === "camera" ? "Allow the camera" : "Allow the microphone"}</strong>
+      <strong className="small">{w.allow(name === "camera")}</strong>
       <p className="tiny muted" style={{ margin: 0 }}>{copy.prime}</p>
       <button className="btn btn-sm btn-primary" disabled={busy} onClick={ask}>
-        {busy ? "Asking…" : "Continue"}
+        {busy ? w.asking : w.continue}
       </button>
     </div>
   );

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import LithicEmbed, { Environment, type CardEmbed } from "lithic-embed";
+import { useLanguage } from "../i18n.tsx";
+import { paymentWords } from "../app/payments-copy.ts";
 
 /**
  * Lithic's embedded card: number, expiry and CVV drawn in Lithic's own frames,
@@ -10,6 +12,10 @@ import LithicEmbed, { Environment, type CardEmbed } from "lithic-embed";
 export default function LithicCardFields({ session, environment, onError }: {
   session: string; environment: "sandbox" | "production"; onError: (message: string) => void;
 }) {
+  const { language } = useLanguage();
+  const w = paymentWords(language).lithic;
+  const wRef = useRef(w);
+  wRef.current = w;
   const pan = useRef<HTMLDivElement>(null);
   const expMonth = useRef<HTMLDivElement>(null);
   const expYear = useRef<HTMLDivElement>(null);
@@ -26,27 +32,27 @@ export default function LithicCardFields({ session, environment, onError }: {
       expMonth: { element: expMonth.current!, styles: style },
       expYear: { element: expYear.current!, styles: style },
       cvv: { element: cvv.current!, styles: style },
-    }).catch(() => onError("Lithic could not show this card."));
+    }).catch(() => onError(wRef.current.failed));
     return () => { void card.unmount().catch(() => {}); embed.current = null; };
   }, [session, environment, onError]);
 
   const toggle = async () => {
     try { setShown(await embed.current!.toggleMasking()); }
-    catch { onError("Lithic could not show this card. Close it and open it again."); }
+    catch { onError(w.failedReopen); }
   };
 
   return (
     <>
-      <span className="tiny muted">Card number</span>
+      <span className="tiny muted">{w.number}</span>
       <div ref={pan} className="issuing-field" />
       <div className="row" style={{ gap: 16 }}>
         <div className="stack grow" style={{ gap: 2 }}>
-          <span className="tiny muted">Expires</span>
+          <span className="tiny muted">{w.expires}</span>
           <div className="row" style={{ gap: 4 }}><div ref={expMonth} className="issuing-field" /><span>/</span><div ref={expYear} className="issuing-field" /></div>
         </div>
-        <div className="stack grow" style={{ gap: 2 }}><span className="tiny muted">CVV</span><div ref={cvv} className="issuing-field" /></div>
+        <div className="stack grow" style={{ gap: 2 }}><span className="tiny muted">{w.cvv}</span><div ref={cvv} className="issuing-field" /></div>
       </div>
-      <button className="btn btn-sm" onClick={toggle}>{shown ? "Hide number" : "Show number"}</button>
+      <button className="btn btn-sm" onClick={toggle}>{shown ? w.hide : w.show}</button>
     </>
   );
 }

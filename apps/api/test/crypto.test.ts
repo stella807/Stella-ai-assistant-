@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isCiphertext, keyFrom, makeCipher, openLocations, openTaskMessages, sealLocations, sealTaskMessages } from "../src/crypto.ts";
+import {
+  cipherFromEnv, isCiphertext, keyFrom, makeCipher, openLocations, openPayoutDestination, openTaskMessages,
+  countUnreadable, resealPayoutDestinations, sealLocations, sealPayoutDestination, sealTaskMessages,
+} from "../src/crypto.ts";
 
 const cipher = makeCipher(keyFrom("a".repeat(64))!);
 
@@ -162,5 +165,97 @@ describe("sealing a task's thread", () => {
   it("is a no-op without a cipher, so local development still runs", () => {
     const plain = sealTaskMessages(dbWith(), null);
     expect(contents(plain)).toEqual(contents(dbWith()));
+  });
+});
+
+/**
+ * A key that may have leaked has to be replaceable without losing what it
+ * sealed. The old key stays readable for one deploy, everything is written
+ * back under the new one, and then the old key can be deleted.
+ */
+describe("rotating the key", () => {
+  const oldKey = keyFrom("a".repeat(64))!;
+  const newKey = keyFrom("b".repeat(64))!;
+  const before = makeCipher(oldKey);
+  const rotating = makeCipher(newKey, [oldKey]);
+  const after = makeCipher(newKey);
+  const bank = { accountHolderName: "Mark Rivera", routingNumber: "021000021", accountNumber: "000123456789" };
+
+  it("reads what the previous key sealed, and seals only with the new one", () => {
+    expect(rotating.decrypt(before.encrypt("old secret"))).toBe("old secret");
+    const fresh = rotating.encrypt("new secret");
+    expect(after.decrypt(fresh)).toBe("new secret");
+    expect(() => before.decrypt(fresh)).toThrow();
+  });
+
+  it("still refuses a key that is neither the current one nor the previous one", () => {
+    const stranger = makeCipher(keyFrom("c".repeat(64))!);
+    expect(() => rotating.decrypt(stranger.encrypt("secret"))).toThrow();
+  });
+
+  it("says when it is rotating, so the server can log it", () => {
+    expect(rotating.rotating).toBe(true);
+    expect(after.rotating).toBe(false);
+  });
+
+  it("moves location history to the new key on the next save", () => {
+    const stored = sealLocations(dbWith([{ lat: 18.4, lng: -66.1 }]), before);
+    const resaved = sealLocations(openLocations(stored, rotating), rotating);
+    expect(openLocations(resaved, after).nights[0].pings).toEqual([{ lat: 18.4, lng: -66.1 }]);
+  });
+
+  it("moves a payout destination to the new key", () => {
+    const db = { assistantPayoutDestinations: { asst_mark: { ...sealPayoutDestination(bank, before), updatedAt: "2026-10-01T00:00:00Z" } } };
+    resealPayoutDestinations(db, rotating);
+    expect(openPayoutDestination(db.assistantPayoutDestinations.asst_mark, after)).toEqual(bank);
+    expect(db.assistantPayoutDestinations.asst_mark.accountNumberLast4).toBe("6789");
+  });
+
+  it("leaves a payout destination already under the new key exactly as it is", () => {
+    const sealed = sealPayoutDestination(bank, after);
+    const db = { assistantPayoutDestinations: { asst_mark: { ...sealed, updatedAt: "2026-10-01T00:00:00Z" } } };
+    resealPayoutDestinations(db, rotating);
+    expect(db.assistantPayoutDestinations.asst_mark.accountNumberEnc).toBe(sealed.accountNumberEnc);
+  });
+
+  it("leaves a payout destination it cannot read untouched rather than destroying it", () => {
+    const stranger = makeCipher(keyFrom("c".repeat(64))!);
+    const sealed = sealPayoutDestination(bank, stranger);
+    const db = { assistantPayoutDestinations: { asst_mark: { ...sealed, updatedAt: "2026-10-01T00:00:00Z" } } };
+    resealPayoutDestinations(db, rotating);
+    expect(db.assistantPayoutDestinations.asst_mark.accountNumberEnc).toBe(sealed.accountNumberEnc);
+  });
+
+  it("reads the previous key from SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS", () => {
+    const saved = { ...process.env };
+    try {
+      process.env.SAFEHUBBY_ENCRYPTION_KEY = "b".repeat(64);
+      process.env.SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS = "a".repeat(64);
+      const fromEnv = cipherFromEnv()!;
+      expect(fromEnv.rotating).toBe(true);
+      expect(fromEnv.decrypt(before.encrypt("old secret"))).toBe("old secret");
+      delete process.env.SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS;
+      expect(cipherFromEnv()!.rotating).toBe(false);
+    } finally {
+      process.env = saved;
+    }
+  });
+});
+
+describe("a rotation with the wrong previous key", () => {
+  const oldKey = keyFrom("a".repeat(64))!;
+  const before = makeCipher(oldKey);
+  const thread = (body: unknown) => ({ voiceMessages: [], textMessages: [{ body }], conciergeTasks: [] }) as any;
+
+  it("counts nothing unreadable when the previous key is the right one", () => {
+    const rotating = makeCipher(keyFrom("b".repeat(64))!, [oldKey]);
+    const db = { ...sealLocations(dbWith([{ lat: 18.4 }]), before), ...thread(before.encrypt("hola")) };
+    expect(countUnreadable(db, rotating)).toBe(0);
+  });
+
+  it("counts what neither key opens, so the server can refuse to start before a save wipes it", () => {
+    const wrong = makeCipher(keyFrom("b".repeat(64))!, [keyFrom("c".repeat(64))!]);
+    const db = { ...sealLocations(dbWith([{ lat: 18.4 }]), before), ...thread(before.encrypt("hola")) };
+    expect(countUnreadable(db, wrong)).toBe(2);
   });
 });

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 import { api } from "../api.ts";
 import { registerForPush, type PushState } from "../native/push.ts";
 
@@ -34,10 +36,12 @@ export interface PushArmPanelProps {
 export function PushArmPanel({
   statusApi = api.pushStatus,
   registerApi = api.registerPushDevice,
-  title = "Alerts on your phone",
-  armedCopy = "This phone will buzz for a missed check-in, a fast pace, or an SOS — even with the app closed. "
-    + "It stops the moment they stop sharing.",
+  title: titleProp,
+  armedCopy: armedCopyProp,
 }: PushArmPanelProps) {
+  const w = nightWords(useLanguage().language).push;
+  const title = titleProp ?? w.title;
+  const armedCopy = armedCopyProp ?? w.armed;
   const [state, setState] = useState<PushState | "idle">("idle");
   const [devices, setDevices] = useState<number | null>(null);
   const [deliveryMode, setDeliveryMode] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export function PushArmPanel({
       <div className="row-between">
         <h3>{title}</h3>
         {armed && <span className={senderLive ? "pill pill-safe" : "pill pill-warn"}>
-          {senderLive ? "On" : "Not sending"}
+          {senderLive ? w.on : w.notSending}
         </span>}
       </div>
 
@@ -84,36 +88,25 @@ export function PushArmPanel({
 
       {armed && !senderLive && (
         <div className="banner">
-          This phone is registered, but the server has no push sender configured, so <strong>nothing will
-          actually reach you</strong>. Keep the app open tonight, or set <code>PUSH_API_URL</code> — see
-          docs/push.md.
+          {w.noSender[0]}<strong>{w.noSender[1]}</strong>{w.noSender[2]}<code>PUSH_API_URL</code>{w.noSender[3]}
         </div>
       )}
 
       {!armed && state === "unsupported" && (
-        <div className="banner">
-          Push needs the installed app. In a browser this page only updates while it is open, so keep the
-          tab open if you are watching tonight.
-        </div>
+        <div className="banner">{w.unsupported}</div>
       )}
 
       {!armed && state === "denied" && (
-        <div className="banner banner-danger">
-          Notifications are turned off for Safehubby. Turn them on in your phone&apos;s settings, or keep the
-          app open.
-        </div>
+        <div className="banner banner-danger">{w.denied}</div>
       )}
 
       {!armed && (
         <button className="btn btn-primary btn-block" disabled={busy} onClick={arm}>
-          {busy ? "Asking…" : "Alert me on this phone"}
+          {busy ? w.asking : w.arm}
         </button>
       )}
 
-      <p className="tiny muted">
-        Alerts carry no address or map position — a lock screen is readable without unlocking the phone.
-        The buzz tells you to look; the app shows you where.
-      </p>
+      <p className="tiny muted">{w.privacy}</p>
     </section>
   );
 }

@@ -2567,6 +2567,35 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("the owner's switch for what is free each month", () => {
+    useAdminKey();
+
+    it("shows the numbers in force, and only the owner can change them", async () => {
+      const before = (await call("GET", "/api/catalog")).json.freebies;
+      expect(before).toMatchObject({ enabled: true, basicCreditCents: 3500 });
+      expect((await call("POST", "/api/master/freebies", { enabled: false })).status).toBe(401);
+      expect((await call("POST", "/api/master/freebies", { enabled: false }, jordan)).status).toBe(401);
+      expect((await call("GET", "/api/catalog")).json.freebies.enabled).toBe(true);
+    });
+
+    it("switches the freebies off for everyone, adjusts the amounts, and survives the next request", async () => {
+      const off = await callAdmin("POST", "/api/master/freebies", { enabled: false });
+      expect(off.status).toBe(200);
+      const catalog = (await call("GET", "/api/catalog")).json;
+      expect(catalog.freebies.enabled).toBe(false);
+      expect(store.data.monthlyFreebies?.enabled).toBe(false);
+
+      const adjusted = await callAdmin("POST", "/api/master/freebies", {
+        enabled: true, pickupsPerMonth: { family: 6, "premium-plus": 99999 }, basicCreditCents: 2000,
+      });
+      expect(adjusted.json.freebies).toMatchObject({ enabled: true, basicCreditCents: 2000 });
+      expect(adjusted.json.freebies.pickupsPerMonth).toMatchObject({ family: 6, "premium-plus": 30, "premium-basic": 2 });
+      // A later request still sees it: it is stored, not just remembered in memory.
+      expect((await call("GET", "/api/catalog")).json.freebies.pickupsPerMonth.family).toBe(6);
+      expect((await callAdmin("GET", "/api/master/freebies")).json.defaults.pickupsPerMonth.family).toBe(15);
+    });
+  });
+
   describe("recording an exemption certificate and the year's totals", () => {
     useAdminKey();
     const master = async (role: string, email: string) => {
@@ -2595,6 +2624,25 @@ describe("biweekly payroll", () => {
       const { cookie } = await assistantLogin(assistantId);
       const mine = await call("GET", "/api/assistant/payouts", undefined, null, cookie);
       expect(mine.json.withheldThisYearCents).toBe(90);
+    });
+
+    it("shows the owner who is owed what, and keeps it away from everyone else", async () => {
+      store.update((db) => {
+        db.assistants.push({ id: assistantId, applicationId: "a", name: "Pay Test", role: "personal-assistant", market: "puerto-rico",
+          categories: [], maxConcurrentCustomers: 1, hiredAt: "2026-01-01T00:00:00.000Z" } as any);
+      });
+      const club = await master("club-assistant", "sheetclub@example.com");
+      expect((await call("GET", "/api/master/payout-sheet", undefined, null, club)).status).toBe(401);
+      expect((await call("GET", "/api/master/payout-sheet")).status).toBe(401);
+      const owner = await master("owner", "sheet@example.com");
+      const sheet = await call("GET", "/api/master/payout-sheet", undefined, null, owner);
+      expect(sheet.status).toBe(200);
+      const line = sheet.json.lines.find((l: { assistantId: string }) => l.assistantId === assistantId);
+      expect(line.tasks.some((t: { taskId: string }) => t.taskId === taskId)).toBe(true);
+      expect(line.netCents + line.withheldCents + line.clawbackCents).toBe(line.earnedCents);
+      // Looking never pays: nothing is tagged as sent.
+      expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeUndefined();
+      expect(JSON.stringify(sheet.json)).not.toMatch(/routingNumber|accountNumberEnc/);
     });
   });
 

@@ -17,7 +17,7 @@ import { useLanguage } from "../i18n.tsx";
  * a fabricated policy nobody actually reviewed.
  */
 export function Footer() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [open, setOpen] = useState<"terms" | "privacy" | "press" | null>(null);
 
   return (
@@ -37,7 +37,7 @@ export function Footer() {
         <button className="linklike" aria-expanded={open === "privacy"} onClick={() => setOpen((o) => (o === "privacy" ? null : "privacy"))}>{t("footer.privacy")}</button>
       </nav>
       {/* Real links, not router pushes: each portal is its own area with its own sign-in. */}
-      <nav className="footer-links footer-portals" aria-label="Portals">
+      <nav className="footer-links footer-portals" aria-label={language === "es" ? "Portales" : "Portals"}>
         <a href="/employee">{t("footer.employeePortal")}</a>
         <a href="/master">{t("footer.ownerPortal")}</a>
       </nav>

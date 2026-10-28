@@ -54,7 +54,7 @@ const COPY = {
       { title: "En persona", items: ["Acompañar a alguien que no debe estar solo — un familiar en el hospital", "Visitar a alguien en persona y contarte cómo está", "Entregar en mano en una habitación o puerta, con una foto al terminar"] },
       { title: "Mandados", items: ["Traer un jugo, un cargador, una cobija — una cosa, hasta ti", "Hacer un mandado: farmacia, compra, recoger o devolver algo", "Artículos para fiestas y eventos"] },
       { title: "Reservar y comprar", items: ["Vuelos, hoteles, mesas en restaurantes y boletos", "Botes privados, jets y villas con Elite", "Pagado con una tarjeta con el límite que tú pones — nunca más"] },
-      { title: "Moverse", items: ["Reservar un viaje y decirte el precio primero", "Recogido en el aeropuerto, siguiendo el vuelo", "Transporte seguro a casa"] },
+      { title: "Moverse", items: ["Reservar un viaje y decirte el precio primero", "Transporte seguro a casa"] },
       { title: "Desde un escritorio", items: ["Citas, recordatorios, llamadas y correos"] },
       { title: "Siempre en contacto", items: ["Chat o mensaje de voz con tu asistente", "Recibos y avisos por texto o correo"] },
     ],
@@ -157,7 +157,7 @@ export function HomeHelp({ account, onOpenHelp, onOpenPlans, onOpenHow, onOpenGa
       )}
 
       {running.length > 0 && (
-        <section className="card stack" aria-label="In progress">
+        <section className="card stack" aria-label={c.inProgress}>
           <h3>{c.inProgress}</h3>
           {running.map((t) => (
             <button key={t.id} className="home-running" onClick={() => onOpenHelp(helpTabFor(t.category))}>

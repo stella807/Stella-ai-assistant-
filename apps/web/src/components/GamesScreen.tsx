@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Account, type GameDef } from "../api.ts";
+import { useLanguage } from "../i18n.tsx";
+import { gamesWords } from "../app/games-copy.ts";
 
 /**
  * The games. Every one of them scores on checking in, pacing, water, or getting
@@ -9,6 +11,7 @@ import { api, type Account, type GameDef } from "../api.ts";
  * already in trouble.
  */
 export function GamesScreen({ account }: { account: Account }) {
+  const w = gamesWords(useLanguage().language).games;
   const [games, setGames] = useState<GameDef[]>([]);
   const [rounds, setRounds] = useState<any[]>([]);
   const [crew, setCrew] = useState<{ id: string; players: { id: string; displayName: string }[] } | null>(null);
@@ -43,7 +46,7 @@ export function GamesScreen({ account }: { account: Account }) {
       await api.startRound(game.id, players);
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start that round");
+      setError(e instanceof Error ? e.message : w.failed);
     } finally {
       setBusy(false);
     }
@@ -54,28 +57,23 @@ export function GamesScreen({ account }: { account: Account }) {
   return (
     <div className="stack">
       <div>
-        <h2>Games</h2>
-        <p className="small muted">
-          Seven ways to make looking after each other competitive. None of them score on how much you drink.
-        </p>
+        <h2>{w.title}</h2>
+        <p className="small muted">{w.lead}</p>
       </div>
 
       {!crew && (
-        <div className="banner">
-          Games are played with the table you are out with. Start or join a crew on the Tonight tab, then
-          come back — rounds use whoever is in it.
-        </div>
+        <div className="banner">{w.noCrew}</div>
       )}
 
       {live.length > 0 && (
         <section className="card">
-          <h3>Live rounds</h3>
+          <h3>{w.live}</h3>
           <ul className="timeline">
             {live.map((r) => (
               <li key={r.id}>
                 <div className="grow">
                   <strong className="small">{games.find((g) => g.id === r.gameId)?.name ?? r.gameId}</strong>
-                  <div className="tiny muted">{r.players.length} playing</div>
+                  <div className="tiny muted">{w.playing(r.players.length)}</div>
                 </div>
               </li>
             ))}
@@ -95,17 +93,17 @@ export function GamesScreen({ account }: { account: Account }) {
 
           <button className="btn btn-sm btn-ghost" onClick={() => setOpen(open === g.id ? null : g.id)}
             aria-expanded={open === g.id}>
-            {open === g.id ? "Hide rules" : "How it works"}
+            {open === g.id ? w.hide : w.how}
           </button>
 
           {open === g.id && (
             <>
               <p className="small">{g.howItWorks}</p>
               <div className="forfeit">
-                <span className="tiny muted">Forfeit</span>
+                <span className="tiny muted">{w.forfeit}</span>
                 <p className="small">{g.forfeit}</p>
               </div>
-              <p className="tiny muted">Needs {g.minPlayers}+ players.</p>
+              <p className="tiny muted">{w.needs(g.minPlayers)}</p>
             </>
           )}
 
@@ -113,8 +111,8 @@ export function GamesScreen({ account }: { account: Account }) {
             disabled={busy || players.length < g.minPlayers}
             onClick={() => start(g)}>
             {players.length < g.minPlayers
-              ? `Needs ${g.minPlayers} in your crew — you have ${players.length}`
-              : "Start a round"}
+              ? w.needsCrew(g.minPlayers, players.length)
+              : w.start}
           </button>
         </section>
       ))}

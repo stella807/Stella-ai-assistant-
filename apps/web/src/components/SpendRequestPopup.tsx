@@ -1,5 +1,7 @@
 import type { SpendRequest } from "@safehubby/core";
 import { money } from "../money.ts";
+import { useLanguage } from "../i18n.tsx";
+import { taskWords } from "../app/task-copy.ts";
 
 /**
  * A card that pops up over the conversation when the assistant asks "is this
@@ -20,11 +22,12 @@ export function SpendRequestPopup({ request, position, total, busy, onDecide }: 
   busy: boolean;
   onDecide: (approve: boolean) => void;
 }) {
+  const w = taskWords(useLanguage().language).ask;
   return (
-    <div className="popup-event" role="alertdialog" aria-label="Your assistant is asking about a purchase">
+    <div className="popup-event" role="alertdialog" aria-label={w.label}>
       <div className="popup-event-top">
-        <span className="pill">Your assistant is asking</span>
-        {total > 1 && <span className="tiny muted">{position} of {total}</span>}
+        <span className="pill">{w.asking}</span>
+        {total > 1 && <span className="tiny muted">{w.of(position, total)}</span>}
       </div>
       <div className="row" style={{ gap: 12, alignItems: "center" }}>
         <img className="popup-event-photo" alt={request.note}
@@ -35,15 +38,13 @@ export function SpendRequestPopup({ request, position, total, busy, onDecide }: 
         </div>
       </div>
       {request.change && (
-        <p className="tiny muted" style={{ margin: 0 }}>They let you know: {request.change.note}</p>
+        <p className="tiny muted" style={{ margin: 0 }}>{w.change} {request.change.note}</p>
       )}
       <div className="row">
-        <button className="btn grow" disabled={busy} onClick={() => onDecide(false)}>Not that</button>
-        <button className="btn btn-primary grow" disabled={busy} onClick={() => onDecide(true)}>Looks right</button>
+        <button className="btn grow" disabled={busy} onClick={() => onDecide(false)}>{w.not}</button>
+        <button className="btn btn-primary grow" disabled={busy} onClick={() => onDecide(true)}>{w.right}</button>
       </div>
-      <p className="tiny muted" style={{ margin: 0 }}>
-        You don't have to answer — your spend cap already limits what can be spent. "Not that" locks the card.
-      </p>
+      <p className="tiny muted" style={{ margin: 0 }}>{w.note}</p>
     </div>
   );
 }

@@ -15,6 +15,8 @@ import { PharmacyPanel } from "./PharmacyPanel.tsx";
 import { EmergencyPanel } from "./EmergencyPanel.tsx";
 import { currentFix, requestPermission, watchLocation, type StopWatching } from "../native/location.ts";
 import { cancelCheckInReminder, requestNotifications, scheduleCheckInReminder } from "../native/notify.ts";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 /** Only used when the device refuses a fix, and the UI says so when it is. */
 const FALLBACK_POINT = { lat: 40.714, lng: -74.003 };
@@ -27,8 +29,9 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
   onOpenHow: () => void;
   onOpenGames: () => void;
 }) {
+  const w = nightWords(useLanguage().language);
   const TRAVELER_ID = account.id;
-  const HOME_LABEL = account.homeLabel || "Home";
+  const HOME_LABEL = account.homeLabel || w.home;
 
   const [summary, setSummary] = useState<NightSummary | null>(null);
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -54,9 +57,9 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
   const run = useCallback(async (fn: () => Promise<void>) => {
     setBusy(true);
     setError(null);
-    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong"); }
+    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : w.failed); }
     finally { setBusy(false); }
-  }, []);
+  }, [w]);
 
   /**
    * Venues come from where the phone actually is. Searching a hardcoded
@@ -147,23 +150,21 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
         {/* The night out is still here — it is just no longer the first thing
             somebody who came for help has to scroll past. */}
         <details className="night-out">
-          <summary>Out for the night? Crews and check-ins</summary>
+          <summary>{w.nightOut}</summary>
           <div className="stack" style={{ marginTop: 12 }}>
         <CrewPanel travelerId={TRAVELER_ID} />
         <section className="card stack">
-          <h2>Heading out tonight?</h2>
-          <p className="small muted">
-            Start a night and Safehubby will check in on you, keep a log, and make getting home the easy option.
-          </p>
+          <h2>{w.headingOut}</h2>
+          <p className="small muted">{w.headingOutBody}</p>
 
           <div className="field">
-            <label htmlFor="weight">Your weight (kg)</label>
+            <label htmlFor="weight">{w.weight}</label>
             <input id="weight" type="number" inputMode="numeric" value={weightKg}
               onChange={(e) => setWeightKg(Number(e.target.value))} />
           </div>
 
           <div className="field">
-            <label htmlFor="limit">Drink limit you both agreed on</label>
+            <label htmlFor="limit">{w.limit}</label>
             <input id="limit" type="number" inputMode="numeric" value={drinkLimit}
               onChange={(e) => setDrinkLimit(Number(e.target.value))} />
           </div>
@@ -172,13 +173,11 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
             onClick={() => run(async () => {
               setSummary(await api.startNight({ weightKg, drinkLimit, homeAddressLabel: HOME_LABEL }));
             })}>
-            Start the night
+            {w.start}
           </button>
 
           {error && <div className="banner banner-danger">{error}</div>}
-          <p className="tiny muted">
-            Weight is used for a rough alcohol estimate. It stays on your account and is never sold or shared with advertisers.
-          </p>
+          <p className="tiny muted">{w.weightNote}</p>
         </section>
           </div>
         </details>
@@ -193,19 +192,14 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
     <div className="stack">
       <div className="row-between">
         <div>
-          <h2>{ended ? "Home safe" : "Out tonight"}</h2>
-          <p className="tiny muted">
-            {stats.alcoholicDrinks} drinks · {stats.standardDrinks} standard · {stats.calories} cal · {points} pts
-          </p>
+          <h2>{ended ? w.homeSafe : w.outTonight}</h2>
+          <p className="tiny muted">{w.stats(stats.alcoholicDrinks, stats.standardDrinks, stats.calories, points)}</p>
         </div>
-        <span className={ended ? "pill pill-safe" : "pill"}>{night.status}</span>
+        <span className={ended ? "pill pill-safe" : "pill"}>{w.status[night.status] ?? night.status}</span>
       </div>
 
       {locationState === "denied" && (
-        <div className="banner">
-          Location is off, so nobody can see where you are — check-ins and SOS still work, but an alert
-          will not carry a place. Turn it on in Settings if you want that.
-        </div>
+        <div className="banner">{w.locationOff}</div>
       )}
 
       {alerts.filter((a) => a.severity !== "info").slice(-3).map((a) => (
@@ -250,12 +244,11 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
 
       {!ended && <SosButton onSend={(silent) => run(async () => {
         await api.sos(night.id, silent);
-        setSos(silent ? "Silent SOS sent with your location." : "SOS sent with your location.");
+        setSos(silent ? w.silentSent : w.sosSent);
       })} />}
       {offline && (
         <div className="banner banner-danger" role="alert">
-          <strong>Not reaching Safehubby.</strong> Drinks and check-ins you log now may not be saved, and
-          nobody watching you is being updated. Check your connection.
+          <strong>{w.offline}</strong> {w.offlineBody}
         </div>
       )}
 
@@ -274,7 +267,7 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
         })} />
 
       <section className="card stack">
-        <h3>Take care of yourself</h3>
+        <h3>{w.takeCare}</h3>
         {recovery ? (
           <>
             <p className="small">{recovery.soberEstimate}</p>
@@ -288,7 +281,7 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
                 </li>
               ))}
             </ul>
-            <h3>Things that do not work</h3>
+            <h3>{w.myths}</h3>
             <ul className="timeline">
               {recovery.myths.map((m) => <li key={m}><span className="tiny muted">{m}</span></li>)}
             </ul>
@@ -296,7 +289,7 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
         ) : (
           <button className="btn btn-block" disabled={busy}
             onClick={() => run(async () => setRecovery(await api.recovery(night.id)))}>
-            Show my plan
+            {w.showPlan}
           </button>
         )}
       </section>
@@ -305,14 +298,14 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
         <div className="row">
           <button className="btn grow" disabled={busy}
             onClick={() => run(async () => setSummary(await api.setStatus(night.id, "heading-home")))}>
-            Heading home
+            {w.headingHome}
           </button>
           <button className="btn btn-safe grow" disabled={busy}
             onClick={() => run(async () => {
               setSummary(await api.setStatus(night.id, "home-safe"));
               await refreshTraveler();
             })}>
-            I'm home
+            {w.imHome}
           </button>
         </div>
       )}

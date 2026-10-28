@@ -12,8 +12,7 @@ import { SeniorIdForm } from "./SeniorIdForm.tsx";
 import { money } from "../money.ts";
 import { PlanName } from "../app/plan-name.tsx";
 
-const dayOf = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+import { dayOf } from "../app/dates.ts";
 
 /**
  * One place for everything Safehubby charges.
@@ -28,7 +27,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
   currentPlanId: string;
   onPlanChanged: (planId: string) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [billing, setBilling] = useState<Billing | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -194,7 +193,7 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
                   <div>
                     <strong className="small">{c.description}</strong>
                     <div className="tiny muted">
-                      {c.kindLabel} · {dayOf(c.createdAt)}
+                      {c.kindLabel} · {dayOf(c.createdAt, language)}
                       {c.status === "pending" && ` · ${t("billing.heldNotYetTaken")}`}
                       {c.status === "failed" && ` · ${t("billing.didNotGoThrough")}${c.failureReason ? `: ${c.failureReason}` : ""}`}
                       {c.status === "refunded" && ` · ${t("billing.refunded")}`}

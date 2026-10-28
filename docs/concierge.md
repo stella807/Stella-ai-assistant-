@@ -92,7 +92,7 @@ all.
 `CONCIERGE_ASSISTANT_PAYOUT_CENTS` in `concierge.ts` is a published rate per
 category. It is what the **assistant** earns, and `payroll.ts` pays it out in
 full. The **customer** pays that grossed up by Safehubby's margin
-(`CONCIERGE_FEE_MARGIN`, 20%) — `serviceFeeFor` — held and charged on top of
+(`CONCIERGE_FEE_MARGIN`, 10%) — `serviceFeeFor` — held and charged on top of
 the spend cap:
 
 | Category | Assistant earns | Customer pays | Safehubby keeps | Why |
@@ -147,7 +147,7 @@ mostly the same errand. `HOUSEHOLD_INCREMENT` is the one number to change if
 real assistants report that big households are harder than this assumes.
 
 The customer's fee follows automatically, since `serviceFeeFor` grosses up
-whatever the scaled payout is — so the margin stays at 20% of the fee at
+whatever the scaled payout is — so the margin stays at 10% of the fee at
 every household size (within a rounding cent; both amounts are whole cents,
 so a multiplier like 1.75 cannot land the ratio exactly on 0.2).
 
@@ -786,6 +786,20 @@ assistant can see their own payout history and what they've earned but not
 yet been paid at `GET /api/assistant/payouts`; `POST /api/admin/payroll/run`
 (gated by `requireAdmin`) triggers a run immediately rather than waiting for
 the next hourly sweep, mainly for verifying the pipeline end to end.
+
+### The owner's payout sheet
+
+`/master` → **Who to pay** (money scope) shows who is owed what, job by job:
+what the client asked for, who did it, what they earned, any dispute taken
+back, the Hacienda hold, and the amount to send. **Ready to pay** is the last
+closed period, exactly what the next run sends; **Building up** is the open
+one. It is `GET /api/master/payout-sheet?period=previous|current`, computed by
+`payoutSheet` in `payroll.ts` with the same rules as `runPayroll`, and it only
+looks: nothing is paid or tagged as paid. A worker with no bank account on
+file is flagged. The sheet carries only the account holder's name and the last
+four digits; the full numbers stay sealed. **Download CSV** gives one row per
+job for the bank or an accountant (text that could run as a spreadsheet
+formula is neutralised).
 
 ## Disputes: a refund for the customer, a clawback from the assistant
 

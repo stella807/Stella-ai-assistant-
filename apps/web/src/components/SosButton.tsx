@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import type React from "react";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 const HOLD_MS = 1200;
 
@@ -15,6 +17,7 @@ const HOLD_MS = 1200;
  * all, which is the worst possible place for that gap.
  */
 export function SosButton({ onSend }: { onSend: (silent: boolean) => void }) {
+  const w = nightWords(useLanguage().language).sos;
   const [progress, setProgress] = useState(0);
   const [silent, setSilent] = useState(false);
   const timer = useRef<number | null>(null);
@@ -55,7 +58,7 @@ export function SosButton({ onSend }: { onSend: (silent: boolean) => void }) {
   };
 
   return (
-    <section className="stack" aria-label="Emergency">
+    <section className="stack" aria-label={w.label}>
       <button
         className="sos"
         onPointerDown={start}
@@ -66,7 +69,7 @@ export function SosButton({ onSend }: { onSend: (silent: boolean) => void }) {
         onKeyUp={keyUp}
         onBlur={stop}
         aria-describedby="sos-how"
-        aria-label={silent ? "Hold to send a silent SOS" : "Hold to send an SOS"}
+        aria-label={silent ? w.holdSilent : w.hold}
         /* The fill tracks the hold. Both stops are tokens, so the button stays
            a real red in dark mode — --danger is tuned for red *type* on black
            and turns the largest control in the app pink when used as a fill. */
@@ -74,21 +77,17 @@ export function SosButton({ onSend }: { onSend: (silent: boolean) => void }) {
           background: `linear-gradient(90deg, var(--danger-deep) ${progress * 100}%, var(--danger-solid) ${progress * 100}%)`,
         }}
       >
-        {progress > 0 ? "Keep holding…" : silent ? "HOLD FOR SILENT SOS" : "HOLD FOR SOS"}
+        {progress > 0 ? w.keep : silent ? w.buttonSilent : w.button}
       </button>
 
-      <p id="sos-how" className="tiny muted">
-        Hold the button — or hold Space or Enter — for a second and a half.
-      </p>
+      <p id="sos-how" className="tiny muted">{w.how}</p>
 
       <label className="row small muted" style={{ gap: 8 }}>
         <input type="checkbox" checked={silent} onChange={(e) => setSilent(e.target.checked)} />
-        Silent — send location without a call, in case being on the phone isn't safe
+        {w.silent}
       </label>
 
-      <p className="tiny muted">
-        For a medical emergency, call 911. Safehubby alerts the people watching you; it does not contact emergency services.
-      </p>
+      <p className="tiny muted">{w.medical}</p>
     </section>
   );
 }

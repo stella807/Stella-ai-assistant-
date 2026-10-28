@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 import { api, type PendingOrder } from "../api.ts";
 
 import { money } from "../money.ts";
@@ -12,6 +14,7 @@ import { money } from "../money.ts";
  * is not consent, it is a formality with a charge attached.
  */
 export function PendingOrderPrompt() {
+  const w = nightWords(useLanguage().language).orders;
   const [askNow, setAskNow] = useState<PendingOrder[]>([]);
   const [waiting, setWaiting] = useState<PendingOrder[]>([]);
   const [busy, setBusy] = useState(false);
@@ -36,10 +39,7 @@ export function PendingOrderPrompt() {
   if (askNow.length === 0) {
     if (waiting.length === 0) return null;
     return (
-      <div className="banner">
-        {waiting.length} order{waiting.length > 1 ? "s" : ""} waiting. Safehubby will ask you about
-        {waiting.length > 1 ? " them" : " it"} once you have sobered up — nothing has been charged.
-      </div>
+      <div className="banner">{w.waiting(waiting.length)}</div>
     );
   }
 
@@ -47,7 +47,7 @@ export function PendingOrderPrompt() {
     <>
       {askNow.map((o) => (
         <section key={o.id} className="card ask">
-          <h3>Still want this?</h3>
+          <h3>{w.still}</h3>
           <p className="small">{o.queuedBecause}</p>
 
           <ul className="timeline">
@@ -66,14 +66,14 @@ export function PendingOrderPrompt() {
 
           <div className="row">
             <button className="btn grow" disabled={busy} onClick={() => act(() => api.declineOrder(o.id))}>
-              No thanks
+              {w.no}
             </button>
             <button className="btn btn-primary grow" disabled={busy} onClick={() => act(() => api.confirmOrder(o.id))}>
-              Order it
+              {w.order}
             </button>
           </div>
 
-          <p className="tiny muted">Queued last night and held until now. Nothing was charged while you were out.</p>
+          <p className="tiny muted">{w.held}</p>
         </section>
       ))}
     </>

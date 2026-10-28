@@ -40,6 +40,7 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 |---|---|---|
 | `DATABASE_URL` | yes | Set by the Postgres plugin. |
 | `SAFEHUBBY_ENCRYPTION_KEY` | yes | 64 hex chars. Encrypts location history, and required before any assistant payout destination (bank account) can be stored at all — see `docs/concierge.md`. |
+| `SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS` | only while rotating | The key being replaced. Read, never written with; remove it after one healthy deploy. See "Rotating secrets" below. |
 | `NODE_ENV` | yes | `production` — turns on `Secure` cookies and the boot checks. |
 | `SAFEHUBBY_ADMIN_KEY` | yes, to use the owner screen | A long random secret. It is how you sign in as owner to review applications and download résumés. Generate it like the encryption key and keep it in a password manager. |
 | `SAFEHUBBY_PUBLIC_URL` | recommended | Your app's address, e.g. `https://app.yourdomain.com`. Used to build invite links; without it they point at a placeholder. |
@@ -66,6 +67,28 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 **Losing `SAFEHUBBY_ENCRYPTION_KEY` means losing every stored location trace.**
 That is the intended failure — the alternative is a key the platform can read.
 Store it in a password manager, not only in Railway.
+
+## Rotating secrets
+
+When a host reports that environment variables may have been read (Railway's
+October 21, 2026 incident is one), treat every variable as exposed and replace
+each at its source; the old value stays valid until you revoke it there.
+
+**The encryption key.** Never just replace it: everything sealed under the old
+key would be unreadable, and the next save would write it back empty.
+
+1. Generate a new key the same way as the first one.
+2. Set `SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS` to the current key, and
+   `SAFEHUBBY_ENCRYPTION_KEY` to the new one, in one change.
+3. Deploy, and look for `Encryption key rotated: writing everything back under
+   the new key` in the log. If the previous key is wrong, the server refuses to
+   start rather than erase what it cannot read; the old deploy keeps running.
+4. Delete `SAFEHUBBY_ENCRYPTION_KEY_PREVIOUS` and deploy again.
+
+**Everything else** has no stored data behind it, so rotate it at its source and
+update the variable: the Postgres password (`DATABASE_URL`), Stripe (roll the
+secret key, then make a new webhook signing secret), `SAFEHUBBY_ADMIN_KEY`,
+and each provider key in the table above that this service has set.
 
 ## Email through Brevo (free)
 

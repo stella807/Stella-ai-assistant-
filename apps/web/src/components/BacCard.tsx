@@ -1,12 +1,6 @@
 import type { BacEstimate } from "@safehubby/core";
-
-const BAND_LABEL: Record<BacEstimate["band"], string> = {
-  none: "Nothing logged",
-  low: "Alcohol in system",
-  moderate: "Impaired",
-  high: "Significantly impaired",
-  severe: "Danger zone",
-};
+import { useLanguage } from "../i18n.tsx";
+import { nightWords } from "../app/night-copy.ts";
 
 const BAND_PILL: Record<BacEstimate["band"], string> = {
   none: "pill", low: "pill pill-warn", moderate: "pill pill-warn",
@@ -19,14 +13,15 @@ const BAND_PILL: Record<BacEstimate["band"], string> = {
  * which is the only honest way to present a Widmark estimate from a typed log.
  */
 export function BacCard({ bac }: { bac: BacEstimate }) {
+  const w = nightWords(useLanguage().language).bac;
   const scaleMax = Math.max(0.12, bac.high * 1.15);
   const pct = (v: number) => `${Math.min(100, (v / scaleMax) * 100)}%`;
 
   return (
-    <section className="card card-hero stack" aria-label="Estimated intoxication">
+    <section className="card card-hero stack" aria-label={w.label}>
       <div className="row-between">
-        <h3>Estimated level</h3>
-        <span className={BAND_PILL[bac.band]}>{BAND_LABEL[bac.band]}</span>
+        <h3>{w.title}</h3>
+        <span className={BAND_PILL[bac.band]}>{w.band[bac.band]}</span>
       </div>
 
       <div>
@@ -34,12 +29,10 @@ export function BacCard({ bac }: { bac: BacEstimate }) {
           {bac.low.toFixed(3)}–{bac.high.toFixed(3)}
           <span className="muted" style={{ fontSize: 15, fontWeight: 550, letterSpacing: "-0.01em" }}> %BAC</span>
         </div>
-        <p className="tiny muted" style={{ marginTop: 4 }}>
-          Rough estimate from what was logged — not a measurement.
-        </p>
+        <p className="tiny muted" style={{ marginTop: 4 }}>{w.rough}</p>
       </div>
 
-      <div className="meter" role="img" aria-label={`Estimated between ${bac.low} and ${bac.high} percent BAC`}>
+      <div className="meter" role="img" aria-label={w.meter(bac.low, bac.high)}>
         <div className="meter-range" style={{ left: pct(bac.low), width: pct(bac.high - bac.low) }} />
         <div className="meter-point" style={{ left: pct(bac.estimate) }} />
       </div>
@@ -47,14 +40,11 @@ export function BacCard({ bac }: { bac: BacEstimate }) {
       <p className="small">{bac.guidance}</p>
 
       {bac.estimate > 0 && (
-        <p className="tiny muted">
-          Likely back near zero in about {bac.hoursUntilLikelySober.toFixed(1)}h. Only time does this.
-        </p>
+        <p className="tiny muted">{w.sober(bac.hoursUntilLikelySober.toFixed(1))}</p>
       )}
 
       <div className="banner banner-danger">
-        <strong>Never drive on this number.</strong> Safehubby cannot tell you that you are fit to drive,
-        at any reading. If you have had anything at all, get a ride.
+        <strong>{w.never}</strong> {w.neverBody}
       </div>
     </section>
   );

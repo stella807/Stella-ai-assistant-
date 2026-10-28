@@ -6,12 +6,10 @@ import { CategoryIcon } from "./CategoryIcons.tsx";
 import { FlightCard } from "./FlightCard.tsx";
 import { LiveMap } from "./LiveMap.tsx";
 import { money } from "../money.ts";
-
-const STATUS_LABEL: Record<string, string> = {
-  "in-progress": "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
+import { useLanguage } from "../i18n.tsx";
+import { taskWords } from "../app/task-copy.ts";
+import { choiceLabel } from "../app/ask-copy.ts";
+import { dayOf } from "../app/dates.ts";
 
 const MAX_DISPUTE_REASON = 280;
 
@@ -35,6 +33,8 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
   onDispute?: (reason: string) => Promise<unknown>;
   busy: boolean;
 }) {
+  const { language } = useLanguage();
+  const w = taskWords(language);
   const [disputing, setDisputing] = useState(false);
   const [reason, setReason] = useState("");
   const [disputeBusy, setDisputeBusy] = useState(false);
@@ -55,7 +55,7 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
       const res = await api.flightLookup(task.flightNumber, task.flightDate);
       setFlight(res.flight);
     } catch (e) {
-      setFlightError(e instanceof Error ? e.message : "Could not refresh that flight");
+      setFlightError(e instanceof Error ? e.message : w.errors.flight);
     } finally {
       setFlightBusy(false);
     }
@@ -70,7 +70,7 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
       setDisputing(false);
       setReason("");
     } catch (e) {
-      setDisputeError(e instanceof Error ? e.message : "Could not send that.");
+      setDisputeError(e instanceof Error ? e.message : w.errors.sendShort);
     } finally {
       setDisputeBusy(false);
     }
@@ -79,7 +79,7 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
   return (
     <div className="stack">
       <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>
-        ← All requests
+        {w.all}
       </button>
 
       <section className="card stack">
@@ -87,19 +87,19 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
           <div className="row" style={{ gap: 10 }}>
             <span className="category-tile-icon"><CategoryIcon id={task.category} /></span>
             <div className="stack" style={{ gap: 2 }}>
-              <h3 style={{ margin: 0 }}>{conciergeCategoryLabel(task.category)}</h3>
+              <h3 style={{ margin: 0 }}>{choiceLabel(task.category, conciergeCategoryLabel(task.category), language)}</h3>
               <span className="tiny muted">
-                {new Date(task.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                {task.peopleCount > 1 ? ` · ${task.peopleCount} people` : ""}
+                {dayOf(task.createdAt, language)}
+                {task.peopleCount > 1 ? ` · ${w.people(task.peopleCount)}` : ""}
               </span>
             </div>
           </div>
           <div className="row" style={{ gap: 6 }}>
             {/* Elite's "priority everything" — see the `priority` field's
                 own doc comment in concierge.ts for what it actually does. */}
-            {task.priority && <span className="pill pill-safe">Priority</span>}
+            {task.priority && <span className="pill pill-safe">{w.priority}</span>}
             <span className={`pill${task.status === "in-progress" ? " pill-safe" : ""}`}>
-              {STATUS_LABEL[task.status] ?? task.status}
+              {w.status[task.status] ?? task.status}
             </span>
           </div>
         </div>
@@ -112,12 +112,10 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
             {flight ? (
               <FlightCard flight={flight} />
             ) : (
-              <p className="small muted" style={{ margin: 0 }}>
-                Meeting flight {task.flightNumber} — no status preview yet.
-              </p>
+              <p className="small muted" style={{ margin: 0 }}>{w.meeting(task.flightNumber)}</p>
             )}
             <button className="btn btn-sm btn-ghost" disabled={flightBusy} onClick={refreshFlight}>
-              {flightBusy ? "Refreshing…" : "Refresh flight status"}
+              {flightBusy ? w.refreshing : w.refresh}
             </button>
             {flightError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{flightError}</p>}
           </div>
@@ -128,30 +126,30 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
             nothing. The words are the destination. */}
         {task.onBehalfOf ? (
           <div className="card card-quiet stack" style={{ gap: 2 }}>
-            <span className="tiny muted">Going to</span>
+            <span className="tiny muted">{w.goingTo}</span>
             <strong className="small">{task.onBehalfOf.recipientName}</strong>
             <span className="small">{task.location.label}</span>
           </div>
         ) : (
-          <LiveMap points={[{ lat: task.location.lat, lng: task.location.lng, label: task.location.label ?? "Task location" }]} />
+          <LiveMap points={[{ lat: task.location.lat, lng: task.location.lng, label: task.location.label ?? w.taskLocation }]} />
         )}
 
         <ul className="timeline">
           <li className="row-between">
-            <span className="tiny muted">Location</span>
-            <span className="small">{task.location.label ?? "Wherever you are"}</span>
+            <span className="tiny muted">{w.location}</span>
+            <span className="small">{task.location.label ?? w.wherever}</span>
           </li>
           <li className="row-between">
-            <span className="tiny muted">Assistant</span>
+            <span className="tiny muted">{w.assistant}</span>
             <span className="small">{task.assistantName ?? task.provider}</span>
           </li>
         </ul>
 
 
 
-        <button className="btn btn-block" disabled={busy} onClick={onMessage}>Open the full chat</button>
-        {onComplete && <button className="btn btn-block" disabled={busy} onClick={onComplete}>Mark done</button>}
-        {onCancel && <button className="btn btn-block btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>}
+        <button className="btn btn-block" disabled={busy} onClick={onMessage}>{w.openChat}</button>
+        {onComplete && <button className="btn btn-block" disabled={busy} onClick={onComplete}>{w.markDone}</button>}
+        {onCancel && <button className="btn btn-block btn-ghost" disabled={busy} onClick={onCancel}>{w.cancel}</button>}
       </section>
 
       {/* The help for when the assistant, not the app, is what went wrong —
@@ -160,34 +158,34 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
           instead, which already stops the money. */}
       {task.disputed ? (
         <section className="card stack">
-          <h3>Reported</h3>
+          <h3>{w.reported}</h3>
           <p className="small muted">{task.disputeReason}</p>
           {typeof task.refundedCents === "number" && (
-            <p className="small">{money(task.refundedCents)} refunded to your card.</p>
+            <p className="small">{w.refunded(money(task.refundedCents))}</p>
           )}
         </section>
       ) : onDispute && (
         <section className="card stack">
-          <h3>Something wrong with this one?</h3>
+          <h3>{w.somethingWrong}</h3>
           {!disputing ? (
             <button className="btn btn-block btn-ghost" onClick={() => setDisputing(true)}>
-              Report a problem
+              {w.report}
             </button>
           ) : (
             <>
               <div className="field">
-                <label htmlFor="dispute-reason">What happened</label>
+                <label htmlFor="dispute-reason">{w.whatHappened}</label>
                 <textarea id="dispute-reason" rows={3} maxLength={MAX_DISPUTE_REASON} value={reason}
-                  placeholder="Never showed up, and I was still charged the service fee"
+                  placeholder={w.disputePlaceholder}
                   onChange={(e) => setReason(e.target.value)} />
               </div>
               <div className="row">
                 <button className="btn grow" disabled={disputeBusy}
                   onClick={() => { setDisputing(false); setReason(""); setDisputeError(null); }}>
-                  Cancel
+                  {w.cancel}
                 </button>
                 <button className="btn btn-primary grow" disabled={disputeBusy || !reason.trim()} onClick={sendDispute}>
-                  Send report
+                  {w.sendReport}
                 </button>
               </div>
               {disputeError && <div className="banner banner-danger">{disputeError}</div>}
@@ -202,20 +200,21 @@ export function RequestDetail({ task, onBack, onMessage, onComplete, onCancel, o
 /** Right under the request: write to your assistant and send, without
  *  opening anything else. What it costs comes by email, not here. */
 function QuickReply({ taskId }: { taskId: string }) {
+  const w = taskWords(useLanguage().language);
   const [text, setText] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const send = async () => {
     setError(null);
     try { await api.sendTaskMessage(taskId, text.trim()); setText(""); setSent(true); }
-    catch (e) { setError(e instanceof Error ? e.message : "Could not send that"); }
+    catch (e) { setError(e instanceof Error ? e.message : w.errors.send); }
   };
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <textarea aria-label="Message your assistant" rows={2} value={text} placeholder="Message your assistant…"
+      <textarea aria-label={w.messageAssistant} rows={2} value={text} placeholder={w.messagePlaceholder}
         onChange={(e) => { setText(e.target.value); setSent(false); }} />
-      <button className="btn btn-primary btn-block" disabled={!text.trim()} onClick={send}>Send</button>
-      {sent && <p className="tiny" style={{ margin: 0 }}>Sent.</p>}
+      <button className="btn btn-primary btn-block" disabled={!text.trim()} onClick={send}>{w.send}</button>
+      {sent && <p className="tiny" style={{ margin: 0 }}>{w.sent}</p>}
       {error && <p className="tiny" role="alert" style={{ margin: 0 }}>{error}</p>}
     </div>
   );

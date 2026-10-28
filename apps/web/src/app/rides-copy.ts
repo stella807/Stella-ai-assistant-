@@ -1,0 +1,106 @@
+import { money } from "../money.ts";
+
+/**
+ * The words on Rides (getting home), the trip map and the live map, in
+ * English and Spanish. Spanish is typed against English, so a string added to
+ * one and not the other fails the build.
+ */
+export type Lang = "en" | "es";
+
+const EN = {
+  title: "Get home",
+  home: "Home",
+  pickup: "Pickup",
+  pinLabel: "Pickup — drag or tap to move",
+  pinHelp: "Drag the pin, or tap the map, to set exactly where the driver should pick you up. Tap My location to jump to where you are, and Expand for a full-screen map.",
+  arrangeFor: "We arrange it for",
+  driverNote: "Anything the driver should know? (optional)",
+  driverNotePlaceholder: "Side entrance, silver door",
+  arrange: "Arrange my ride",
+  arrangeHow: (fee: number | null) => `Someone on our end books the ride for you and texts you who's coming. You pay the fare, whatever it comes to — we tell you the price before booking, because by then we're looking at it — plus ${fee !== null ? `the ${money(fee)} for arranging it.` : "a small fee for arranging it."}`,
+  arranging: "Arranging your ride.",
+  arrangingBody: (fee: number) => `We're booking it now and will text you the price and who's coming. Arranging fee ${money(fee)}; the fare is whatever the ride costs.`,
+  cancelRequest: "Cancel request",
+  coming: (name: string) => `${name} is coming to get you.`,
+  call: (phone: string) => `Call ${phone}`,
+  text: "Text",
+  fareLater: (fee: number) => `Arranging fee ${money(fee)}. We'll confirm the fare once it's booked.`,
+  fareTotal: (fare: number, on: string | undefined, fee: number) => `${money(fare)} fare${on ? ` on ${on}` : ""} + ${money(fee)} arranging = ${money(fare + fee)}.`,
+  showMap: "Show map",
+  cancel: "Cancel",
+  yourDriver: "Your driver",
+  driverComing: (name: string) => `${name} is coming`,
+  onTheWay: "On the way",
+  to: (place: string) => `To ${place}.`,
+  callShort: "Call",
+  protectedRide: (provider: string) => `${provider} — protected ride`,
+  hideDetails: "Hide the details",
+  whatThisMeans: "What this means",
+  bookSecure: (fare: string, eta: number) => `I understand — book it (~$${fare}, ${eta} min)`,
+  saveAddressLabel: "Save a delivery address so an errand runner can bring you things later",
+  saveAddress: "Save this pin as my address",
+  deliveringTo: (place: string) => `Delivering to ${place}.`,
+  suppliesNote: "Water, Liquid I.V. or Pedialyte, and a snack",
+  suppliesOnWay: (who: string | undefined, place: string) => `On the way from ${who ?? "an errand runner"} to ${place}.`,
+  suppliesFailed: "Could not send that right now",
+  bringSupplies: "Have an errand runner bring water & a snack",
+  failed: "Something went wrong",
+  trip: {
+    ride: "Your ride", flight: "Your flight", close: "Close", closeMap: "Close map",
+  },
+  map: {
+    finding: "Finding you…", myLocation: "◎ My location",
+    expand: "Open full-screen map", collapse: "Close full-screen map", locate: "Go to my location",
+    label: "Map", done: "✕ Done", expandShort: "⤢ Expand",
+  },
+};
+
+const ES: typeof EN = {
+  title: "Llega a casa",
+  home: "Casa",
+  pickup: "Recogido",
+  pinLabel: "Recogido: arrastra o toca para mover",
+  pinHelp: "Arrastra el pin o toca el mapa para marcar exactamente dónde te debe recoger el chofer. Toca Mi ubicación para ir a donde estás, y Ampliar para ver el mapa en pantalla completa.",
+  arrangeFor: "Te lo coordinamos por",
+  driverNote: "¿Algo que el chofer deba saber? (opcional)",
+  driverNotePlaceholder: "Entrada lateral, puerta plateada",
+  arrange: "Coordinar mi viaje",
+  arrangeHow: (fee: number | null) => `Alguien de nuestro equipo te reserva el viaje y te escribe quién va. Tú pagas la tarifa, sea cual sea —te decimos el precio antes de reservar, porque en ese momento lo estamos viendo— más ${fee !== null ? `los ${money(fee)} por coordinarlo.` : "un cargo pequeño por coordinarlo."}`,
+  arranging: "Coordinando tu viaje.",
+  arrangingBody: (fee: number) => `Lo estamos reservando ahora y te escribimos el precio y quién va. Cargo por coordinar: ${money(fee)}; la tarifa es lo que cueste el viaje.`,
+  cancelRequest: "Cancelar el pedido",
+  coming: (name: string) => `${name} va a buscarte.`,
+  call: (phone: string) => `Llamar al ${phone}`,
+  text: "Escribir",
+  fareLater: (fee: number) => `Cargo por coordinar: ${money(fee)}. Confirmamos la tarifa cuando esté reservado.`,
+  fareTotal: (fare: number, on: string | undefined, fee: number) => `Tarifa de ${money(fare)}${on ? ` en ${on}` : ""} + ${money(fee)} por coordinar = ${money(fare + fee)}.`,
+  showMap: "Ver el mapa",
+  cancel: "Cancelar",
+  yourDriver: "Tu chofer",
+  driverComing: (name: string) => `${name} va de camino`,
+  onTheWay: "En camino",
+  to: (place: string) => `Hacia ${place}.`,
+  callShort: "Llamar",
+  protectedRide: (provider: string) => `${provider}: viaje protegido`,
+  hideDetails: "Ocultar los detalles",
+  whatThisMeans: "Qué significa esto",
+  bookSecure: (fare: string, eta: number) => `Entiendo, resérvalo (~$${fare}, ${eta} min)`,
+  saveAddressLabel: "Guarda una dirección de entrega para que un mensajero te pueda llevar cosas más tarde",
+  saveAddress: "Guardar este pin como mi dirección",
+  deliveringTo: (place: string) => `Se entrega en ${place}.`,
+  suppliesNote: "Agua, Liquid I.V. o Pedialyte, y una merienda",
+  suppliesOnWay: (who: string | undefined, place: string) => `${who ?? "Un mensajero"} va de camino a ${place}.`,
+  suppliesFailed: "No pudimos enviarlo ahora mismo",
+  bringSupplies: "Que un mensajero me traiga agua y una merienda",
+  failed: "Algo salió mal",
+  trip: {
+    ride: "Tu viaje", flight: "Tu vuelo", close: "Cerrar", closeMap: "Cerrar el mapa",
+  },
+  map: {
+    finding: "Buscándote…", myLocation: "◎ Mi ubicación",
+    expand: "Abrir el mapa en pantalla completa", collapse: "Cerrar el mapa en pantalla completa", locate: "Ir a mi ubicación",
+    label: "Mapa", done: "✕ Listo", expandShort: "⤢ Ampliar",
+  },
+};
+
+export const rideWords = (lang: Lang) => (lang === "es" ? ES : EN);

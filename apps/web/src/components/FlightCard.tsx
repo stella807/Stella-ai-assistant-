@@ -2,6 +2,10 @@ import { bestTimeFor, describeFlightStatus, type FlightInfo } from "@safehubby/c
 import { useEffect, useState } from "react";
 import { LiveMap } from "./LiveMap.tsx";
 import { TripMapPopup } from "./TripMapPopup.tsx";
+import { useLanguage } from "../i18n.tsx";
+import { taskWords } from "../app/task-copy.ts";
+import { localized } from "../app/server-es.ts";
+import { timeOf } from "../app/dates.ts";
 
 const STATUS_CLASS: Record<FlightInfo["status"], string> = {
   scheduled: "",
@@ -25,6 +29,8 @@ const STATUS_CLASS: Record<FlightInfo["status"], string> = {
  * ride pickup pin follows for a car.
  */
 export function FlightCard({ flight, showMap = true }: { flight: FlightInfo; showMap?: boolean }) {
+  const { language } = useLanguage();
+  const w = taskWords(language).flight;
   const now = new Date();
   const inAir = flight.status === "active" && Boolean(flight.position)
     && flight.arrival.lat !== undefined && flight.arrival.lng !== undefined;
@@ -48,31 +54,31 @@ export function FlightCard({ flight, showMap = true }: { flight: FlightInfo; sho
             <span className="tiny muted">{flight.departure.iata} → {flight.arrival.iata}</span>
           </div>
         </div>
-        <span className={`pill ${STATUS_CLASS[flight.status]}`}>{flight.status}</span>
+        <span className={`pill ${STATUS_CLASS[flight.status]}`}>{w.status[flight.status] ?? flight.status}</span>
       </div>
 
-      <p className="small" style={{ margin: 0 }}>{describeFlightStatus(flight, now)}</p>
+      <p className="small" style={{ margin: 0 }}>{localized(describeFlightStatus(flight, now), language)}</p>
 
       <ul className="timeline">
         <li className="row-between">
-          <span className="tiny muted">Departs — {departureLabel}</span>
+          <span className="tiny muted">{w.departs(departureLabel)}</span>
           <span className="small">
-            {new Date(bestTimeFor(flight.departure)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            {timeOf(bestTimeFor(flight.departure), language)}
             {flight.departure.terminal ? ` · T${flight.departure.terminal}` : ""}
-            {flight.departure.gate ? ` gate ${flight.departure.gate}` : ""}
+            {flight.departure.gate ? w.gate(flight.departure.gate) : ""}
           </span>
         </li>
         <li className="row-between">
-          <span className="tiny muted">Arrives — {arrivalLabel}</span>
+          <span className="tiny muted">{w.arrives(arrivalLabel)}</span>
           <span className="small">
-            {new Date(bestTimeFor(flight.arrival)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            {timeOf(bestTimeFor(flight.arrival), language)}
             {flight.arrival.terminal ? ` · T${flight.arrival.terminal}` : ""}
-            {flight.arrival.gate ? ` gate ${flight.arrival.gate}` : ""}
+            {flight.arrival.gate ? w.gate(flight.arrival.gate) : ""}
           </span>
         </li>
         {flight.aircraftTailNumber && (
           <li className="row-between">
-            <span className="tiny muted">Aircraft</span>
+            <span className="tiny muted">{w.aircraft}</span>
             <span className="small">{flight.aircraftTailNumber}{flight.aircraftType ? ` · ${flight.aircraftType}` : ""}</span>
           </li>
         )}
@@ -82,27 +88,27 @@ export function FlightCard({ flight, showMap = true }: { flight: FlightInfo; sho
         <TripMapPopup
           kind="flight"
           title={`${flight.airlineName} ${flight.flightNumber}`}
-          status={describeFlightStatus(flight, now)}
+          status={localized(describeFlightStatus(flight, now), language)}
           points={[
-            { lat: flight.position.lat, lng: flight.position.lng, label: `${flight.flightNumber} — in the air` },
+            { lat: flight.position.lat, lng: flight.position.lng, label: w.inAir(flight.flightNumber) },
             { lat: flight.arrival.lat!, lng: flight.arrival.lng!, label: arrivalLabel },
           ]}
-          lines={[`Lands at ${arrivalLabel} around ${new Date(bestTimeFor(flight.arrival)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`]}
+          lines={[w.lands(arrivalLabel, timeOf(bestTimeFor(flight.arrival), language))]}
           onClose={() => setPopup(false)}
         />
       )}
       {showMap && inAir && !popup && (
-        <button className="btn btn-sm" onClick={() => setPopup(true)}>Open the map</button>
+        <button className="btn btn-sm" onClick={() => setPopup(true)}>{w.openMap}</button>
       )}
 
       {showMap && flight.position && flight.arrival.lat !== undefined && flight.arrival.lng !== undefined && (
         <>
           <LiveMap points={[
-            { lat: flight.position.lat, lng: flight.position.lng, label: `${flight.flightNumber} — in the air` },
+            { lat: flight.position.lat, lng: flight.position.lng, label: w.inAir(flight.flightNumber) },
             { lat: flight.arrival.lat, lng: flight.arrival.lng, label: arrivalLabel },
           ]} />
           <p className="tiny muted" style={{ margin: 0 }}>
-            Position as of {new Date(flight.position.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            {w.positionAt(timeOf(flight.position.updatedAt, language))}
             {flight.position.groundSpeedKts ? ` · ${Math.round(flight.position.groundSpeedKts)} kt` : ""}
             {flight.position.altitudeFt ? ` · ${Math.round(flight.position.altitudeFt).toLocaleString()} ft` : ""}
           </p>

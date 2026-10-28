@@ -19,7 +19,8 @@ import { BourbonGlassArt, ParachuteArt } from "./art/Art.tsx";
  * count this screen shows honestly; it does not move any money.
  */
 export function WingmanClub() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const es = language === "es";
   const [status, setStatus] = useState<Awaited<ReturnType<typeof api.clubStatus>> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,13 +56,13 @@ export function WingmanClub() {
       <p className="wm-tagline">{t("wingman.tagline")}</p>
 
       <div className="wm-photo">
-        <img src="/img/wingman-bourbon-cigar.jpg" alt="A glass of bourbon over ice and a cigar resting on an oak barrel" width={1100} height={864} />
+        <img src="/img/wingman-bourbon-cigar.jpg" alt={es ? "Un vaso de bourbon con hielo y un puro sobre un barril de roble" : "A glass of bourbon over ice and a cigar resting on an oak barrel"} width={1100} height={864} />
         <div className="wm-photo-haze" aria-hidden="true" />
       </div>
       <div className="wm-trio" aria-hidden="true">
         <div className="wm-pic"><BourbonGlassArt /><span>Bourbon</span></div>
-        <div className="wm-pic wm-pic-sky"><ParachuteArt /><span>The sky</span></div>
-        <div className="wm-pic"><FlagArt /><span>Events</span></div>
+        <div className="wm-pic wm-pic-sky"><ParachuteArt /><span>{es ? "El cielo" : "The sky"}</span></div>
+        <div className="wm-pic"><FlagArt /><span>{es ? "Eventos" : "Events"}</span></div>
       </div>
 
       <div className="wm-month">
@@ -122,6 +123,10 @@ export function WingmanClub() {
 
 /** A member asks the club assistant for anything; the answer comes back here. */
 function ClubAsk() {
+  const es = useLanguage().language === "es";
+  const STATUS: Record<string, string> = es
+    ? { open: "pendiente", arranged: "organizado", declined: "no se pudo" }
+    : { open: "open", arranged: "arranged", declined: "declined" };
   const [rows, setRows] = useState<Awaited<ReturnType<typeof api.clubRequests>>["requests"]>([]);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -130,18 +135,19 @@ function ClubAsk() {
   const send = async () => {
     setError(null);
     try { await api.askClub(note); setNote(""); await load(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Could not send that"); }
+    catch (e) { setError(e instanceof Error ? e.message : es ? "No se pudo enviar" : "Could not send that"); }
   };
   return (
     <div className="stack" style={{ marginTop: 16 }}>
-      <div className="wm-rot-title">Your club assistant</div>
-      <textarea aria-label="Ask your club assistant" rows={2} value={note} placeholder="A table for six, a car to the event…"
+      <div className="wm-rot-title">{es ? "Tu asistente del club" : "Your club assistant"}</div>
+      <textarea aria-label={es ? "Pídele a tu asistente del club" : "Ask your club assistant"} rows={2} value={note}
+        placeholder={es ? "Una mesa para seis, un carro al evento…" : "A table for six, a car to the event…"}
         onChange={(e) => setNote(e.target.value)} />
-      <button className="wm-cta" disabled={!note.trim()} onClick={send}>Ask</button>
+      <button className="wm-cta" disabled={!note.trim()} onClick={send}>{es ? "Pedir" : "Ask"}</button>
       {error && <div className="banner banner-danger">{error}</div>}
       {rows.map((r) => (
         <div key={r.id} className="small">
-          {r.note} <span className="tiny muted">· {r.status}</span>
+          {r.note} <span className="tiny muted">· {STATUS[r.status] ?? r.status}</span>
           {r.reply && <div className="tiny muted">{r.reply}</div>}
         </div>
       ))}

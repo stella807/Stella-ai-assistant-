@@ -1,9 +1,12 @@
 import { apiBase, platform } from "./native/platform.ts";
+import { currentLanguage } from "./i18n.tsx";
+import { localized, localizeDeep } from "./app/server-es.ts";
+import { setMonthlyFreebies } from "@safehubby/core";
 import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
-  RecoveryPlan, ShareGrant, SpendRequest,
+  MonthlyFreebies, PayoutSheet, RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
@@ -232,8 +235,14 @@ async function request<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, (json as any)?.error ?? `Request failed (${res.status})`);
-  return json as T;
+  // The API writes in English; its sentences are put in the reader's language here, once.
+  const lang = currentLanguage();
+  if (!res.ok) {
+    const error = (json as any)?.error;
+    throw new ApiError(res.status, typeof error === "string" ? localized(error, lang)
+      : lang === "es" ? `La solicitud falló (${res.status})` : `Request failed (${res.status})`);
+  }
+  return localizeDeep(json as T, lang);
 }
 
 /** The launch-party window, as the API reports it. Carried on the public
@@ -314,13 +323,16 @@ export interface SeniorIdView {
 }
 
 export const api = {
+  // What is free each month comes with the catalog and is applied at once, so
+  // every screen that works out a price or a plan row uses what the server will.
   catalog: () => request<{
+    freebies: MonthlyFreebies;
     drinks: any[]; plans: any[]; rewards: any[]; launch: LaunchStatus;
     eliteUnlock: {
       thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
       targetClientsLow: number; targetClientsHigh: number; safetyMultiple: number;
     };
-  }>("GET", "/api/catalog"),
+  }>("GET", "/api/catalog").then((c) => { setMonthlyFreebies(c.freebies); return c; }),
 
   me: () => request<{ traveler: Account | null }>("GET", "/api/auth/me"),
   signup: (input: {
@@ -817,6 +829,12 @@ export const api = {
   masterWithholding: () =>
     request<{ year: string; totalWithheldCents: number; workers: { assistantId: string; name: string; paidCents: number; withheldCents: number }[] }>(
       "GET", "/api/master/withholding"),
+  masterFreebies: () =>
+    request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("GET", "/api/master/freebies"),
+  masterSetFreebies: (freebies: MonthlyFreebies) =>
+    request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("POST", "/api/master/freebies", freebies),
+  masterPayoutSheet: (period: "previous" | "current") =>
+    request<PayoutSheet>("GET", `/api/master/payout-sheet?period=${period}`),
   masterAuditLog: () => request<MasterAuditEntry[]>("GET", "/api/master/audit-log"),
 
   /** Move a staff application through review. Owner only — `write` is not a

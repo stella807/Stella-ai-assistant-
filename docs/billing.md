@@ -480,7 +480,7 @@ submission; staff review the ID (`GET /api/admin/senior-ids`, then
 `POST /api/admin/senior-ids/:travelerId/review`), and a rejected ID ends the
 food credit at once. See `packages/core/src/senior.ts`.
 
-**Pharmacy pickups are billed** at a flat $34.99, not by the hour or mile,
+**Pharmacy pickups are billed** at a flat $29.99, not by the hour or mile,
 plus the medication. The credit never pays for them. On a very expensive
 prescription the fee rises just enough to cover the card's cut of the hold.
 
@@ -530,7 +530,7 @@ ladder now — the positioning is deliberately closer to a luxury
 concierge membership's own price than to a safety app's.
 
 **The subscription is still not the whole business.** The other margin is
-the 20% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is
+the 10% on concierge tasks (`CONCIERGE_FEE_MARGIN`), the same way Elite's is
 commission rather than dues.
 
 ### The trade-off, stated
@@ -733,3 +733,20 @@ ATH Business app's settings.
 ATH Móvil cannot be saved and charged later, so it cannot renew a plan
 automatically; it funds the balance, which pays for errands and assistants.
 Evertec has no test environment: the first check is a small real payment.
+
+## Free each month: the owner's switch
+
+What a plan gives free each month (no-fee pickups, and Basic's food credit) is
+not fixed in code. In `/master`, **Free each month** (owner only) has an
+on/off switch and the amounts: pickups per month for Free, Premium, Premium
+Plus and Family, and Basic's credit in dollars. Off removes every free pickup
+and credit and hides the row from the plan table; "Back to standard" restores
+the built-in numbers. Elite stays unlimited, and included assistant hours and
+desk tasks are plan features, not part of this. Limits are 30 pickups and $100
+so a typo cannot give away the margin.
+
+The runner is paid in full whatever is set; Safehubby covers the waived fee.
+Stored in `monthlyFreebies`, loaded before each API request, sent to the app in
+`GET /api/catalog` (`freebies`), and changed at `POST /api/master/freebies`,
+which writes an audit-log entry. The static marketing site bakes its numbers
+at build time, so it shows the standard amounts until it is rebuilt.

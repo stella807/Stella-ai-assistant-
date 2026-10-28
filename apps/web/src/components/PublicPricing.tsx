@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, ELITE_ONLY, PA_HOURLY_RATE_CENTS,
-  QUICK_TASK_CATEGORIES, assistantPayoutFor, defaultHoursFor, driverEarningsCents, featureLabel,
+  CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, ELITE_ONLY, ERRAND_TIERS, PA_HOURLY_RATE_CENTS, errandPayoutCents,
+  QUICK_TASK_CATEGORIES, defaultHoursFor, featureLabel,
   DESK_COVERAGE, includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
   type LaunchOffer, type Plan, type PlanId,
 } from "@safehubby/core";
@@ -11,6 +11,7 @@ import { PlanComparison } from "./PlanComparison.tsx";
 
 import { money } from "../money.ts";
 import { choiceLabel } from "../app/ask-copy.ts";
+import { localized } from "../app/server-es.ts";
 import { PlanName } from "../app/plan-name.tsx";
 
 /**
@@ -287,38 +288,49 @@ function TaskPrices({ categories }: { categories: typeof CONCIERGE_CATEGORIES })
  * The rate was already published — it was just one click too deep. Somebody
  * deciding whether to apply is exactly who the number is for.
  */
-export function PublicWorkerPay() {
+export function PublicWorkerPay({ heading = true }: { heading?: boolean } = {}) {
   const { t, language } = useLanguage();
   const lang = language === "es" ? "es" : "en";
-  const u = UNITS[lang];
   const standard = DRIVER_RATE_CARD.standard;
+  const pays = ERRAND_TIERS.map((tier) => errandPayoutCents(tier.id));
   return (
-    <div className="stack" style={{ gap: 6 }}>
-      <strong className="small">{t("pay.heading")}</strong>
-      <table className="pay-table">
-        <tbody>
-          {CONCIERGE_CATEGORIES.map((c) => (
-            <tr key={c.id}>
-              <td>{choiceLabel(c.id, c.label, lang)}</td>
-              <td className="tiny muted">
-                {isHourlyCategory(c.id) ? `${money(PA_HOURLY_RATE_CENTS)}${u.perHour}` : `${minutesFor(c.id)} min`}
-              </td>
-              <td>{money(assistantPayoutFor(c.id))}</td>
-            </tr>
-          ))}
-          <tr>
-            <td>{t("pay.driverRow")}</td>
-            <td className="tiny muted">5 {u.miles} / 15 min</td>
-            <td>{money(driverEarningsCents("standard", 5, 15))}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="tiny muted" style={{ margin: 0 }}>
-        {t("pay.driverNote")
-          .replace("{base}", money(standard.baseCents))
-          .replace("{mile}", money(standard.perMileCents))
-          .replace("{minute}", money(standard.perMinuteCents))}
-      </p>
+    <div className="stack" style={{ gap: 8 }}>
+      {heading && <strong className="small">{t("pay.heading")}</strong>}
+
+      <div className="card card-quiet stack" style={{ gap: 2 }}>
+        <span className="tiny muted">{t("pay.assistants")}</span>
+        <strong className="plan-price">{money(PA_HOURLY_RATE_CENTS)}<span className="tiny muted">{t("pay.perHour")}</span></strong>
+        <span className="tiny muted">{t("pay.assistantsNote")}</span>
+      </div>
+
+      <div className="card card-quiet stack" style={{ gap: 2 }}>
+        <span className="tiny muted">{t("pay.runners")}</span>
+        <strong className="plan-price">
+          {money(Math.min(...pays))} – {money(Math.max(...pays))}<span className="tiny muted">{t("pay.perErrand")}</span>
+        </strong>
+        <span className="tiny muted">{t("pay.runnersNote")}</span>
+        <table className="pay-table">
+          <tbody>
+            {ERRAND_TIERS.map((tier) => (
+              <tr key={tier.id}>
+                <td>{localized(tier.label, lang)}</td>
+                <td><strong>{money(errandPayoutCents(tier.id))}</strong></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card card-quiet stack" style={{ gap: 2 }}>
+        <span className="tiny muted">{t("pay.drivers")}</span>
+        <strong className="small">
+          {t("pay.driverLine")
+            .replace("{base}", money(standard.baseCents))
+            .replace("{mile}", money(standard.perMileCents))
+            .replace("{minute}", money(standard.perMinuteCents))}
+        </strong>
+      </div>
+
       <p className="tiny muted" style={{ margin: 0 }}>{t("pay.note")}</p>
     </div>
   );

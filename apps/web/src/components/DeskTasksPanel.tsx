@@ -6,6 +6,7 @@ import { api } from "../api.ts";
 import type { Account } from "../api.ts";
 import type { DeskTask } from "@safehubby/core";
 import { CategoryIcon } from "./CategoryIcons.tsx";
+import { extrasWords } from "../app/extras-copy.ts";
 
 /**
  * The assistant's job that does not need feet: appointments, reminders, the
@@ -26,6 +27,7 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
 }) {
   const locked = !hasFeature(account.planId as PlanId, "desk-tasks");
   const { language } = useLanguage();
+  const d = extrasWords(language).desk;
   const [kinds, setKinds] = useState<{ id: string; label: string; description: string }[]>([]);
   const [kind, setKind] = useState("");
   const [note, setNote] = useState("");
@@ -48,10 +50,8 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
   if (locked) {
     return (
       <section className="card stack">
-        <h3>Ask an assistant</h3>
-        <p className="tiny muted">
-          🔒 Appointments, reminders, emails and admin — handled by a person, included on every paid plan.
-        </p>
+        <h3>{d.title}</h3>
+        <p className="tiny muted">{d.locked}</p>
       </section>
     );
   }
@@ -64,7 +64,7 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
       setNote("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that.");
+      setError(e instanceof Error ? e.message : d.failed);
     } finally {
       setBusy(false);
     }
@@ -83,7 +83,7 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
       setNote("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that.");
+      setError(e instanceof Error ? e.message : d.failed);
     } finally {
       setBusy(false);
     }
@@ -103,7 +103,7 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
         {open.map((t) => (
           <div key={t.id} className="row-between">
             <span className="small">{t.note}</span>
-            <button className="btn btn-sm btn-ghost" onClick={() => cancel(t.id)}>Cancel</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => cancel(t.id)}>{d.cancel}</button>
           </div>
         ))}
       </div>
@@ -112,17 +112,14 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
 
   return (
     <section className="card stack">
-      <h3>Ask an assistant</h3>
-      <p className="small muted">
-        The things that eat an afternoon and never needed you personally. No charge, no spend cap — it is
-        part of your plan.
-      </p>
+      <h3>{d.title}</h3>
+      <p className="small muted">{d.intro}</p>
 
       <div className="category-grid">
         {kinds.map((k) => (
           <button key={k.id} className="category-tile" aria-pressed={kind === k.id} onClick={() => setKind(k.id)}>
             <span className="category-tile-icon"><CategoryIcon id={k.id} /></span>
-            <span className="category-tile-label">{k.label}</span>
+            <span className="category-tile-label">{choiceLabel(k.id, k.label, language === "es" ? "es" : "en")}</span>
           </button>
         ))}
       </div>
@@ -131,9 +128,9 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
       )}
 
       <div className="field">
-        <label htmlFor="desk-note">What do you need?</label>
+        <label htmlFor="desk-note">{d.need}</label>
         <textarea id="desk-note" rows={3} value={note} maxLength={500}
-          placeholder="Book the dentist, any afternoon after the 12th"
+          placeholder={d.placeholder}
           onChange={(e) => setNote(e.target.value)} />
       </div>
 
@@ -142,14 +139,11 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
       <p className="tiny muted">{accessRule}</p>
 
       {allowance && (
-        <p className="tiny muted">
-          {allowance.remaining} of {allowance.allowance} left this month
-          {out && " — the count resets on the 1st, and a bigger plan carries more"}.
-        </p>
+        <p className="tiny muted">{d.left(allowance.remaining, allowance.allowance, out)}</p>
       )}
 
       <button className="btn btn-primary btn-block" disabled={busy || !note.trim() || out} onClick={send}>
-        Send it
+        {d.send}
       </button>
 
       {error && <div className="banner banner-danger">{error}</div>}
@@ -160,10 +154,10 @@ export function DeskTasksPanel({ account, chosenKind, embedded = false }: {
             <li key={t.id}>
               <div className="row-between">
                 <span className="small">{t.note}</span>
-                <button className="btn btn-sm btn-ghost" onClick={() => cancel(t.id)}>Cancel</button>
+                <button className="btn btn-sm btn-ghost" onClick={() => cancel(t.id)}>{d.cancel}</button>
               </div>
               <span className="tiny muted">
-                {kinds.find((k) => k.id === t.kind)?.label ?? t.kind} · with an assistant
+                {choiceLabel(t.kind, kinds.find((k) => k.id === t.kind)?.label ?? t.kind, language === "es" ? "es" : "en")} · {d.withAssistant}
               </span>
             </li>
           ))}

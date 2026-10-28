@@ -4,6 +4,7 @@ import { readFileAsBase64 } from "../files.ts";
 import { MAX_RESUME_BYTES, payLabelFor, requiresInsurance, type StaffRole } from "@safehubby/core";
 import { CredentialFields, credentialPayload, emptyCredential, isCredentialFilled } from "./CredentialFields.tsx";
 import { useLanguage } from "../i18n.tsx";
+import { PublicWorkerPay } from "./PublicPricing.tsx";
 import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
 
 /**
@@ -19,7 +20,7 @@ import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
  * it is always shown here, whether or not email is set up to send a copy.
  */
 export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void; initialRole?: string }) {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const lang = language === "es" ? "es" : "en";
   const w = careersWords(lang);
   const [roles, setRoles] = useState<StaffRoleInfo[]>([]);
@@ -119,6 +120,13 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         <h2>{w.title}</h2>
         <p className="small muted" style={{ margin: 0 }}>{w.lead}</p>
       </section>
+
+      {/* The rate, kept out of the way until asked for: somebody deciding
+          whether to apply is who it is for, and they are already here. */}
+      <details className="card stack">
+        <summary className="small"><strong>{t("pay.heading")}</strong></summary>
+        <PublicWorkerPay heading={false} />
+      </details>
 
       {shown.length > 0 && (
         <section className="card stack">

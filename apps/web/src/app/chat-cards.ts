@@ -1,4 +1,5 @@
 import type { AssistantProfile, ConciergeTask, SpendRequest } from "@safehubby/core";
+import { taskWords } from "./task-copy.ts";
 
 /**
  * What the conversation with an assistant needs to put in front of a customer.
@@ -33,8 +34,9 @@ export function assistantFace(assistant: AssistantProfile, task: ConciergeTask |
 }
 
 /** One line for the card header, and whether it is happening right now. */
-export function statusLine(task: ConciergeTask | null): { label: string; live: boolean } {
-  if (!task) return { label: "Review your request", live: false };
-  if (task.status === "in-progress") return { label: "On the job", live: true };
-  return { label: task.status === "completed" ? "Completed" : "Canceled", live: false };
+export function statusLine(task: ConciergeTask | null, lang: "en" | "es" = "en"): { label: string; live: boolean } {
+  const w = taskWords(lang).chatStatus;
+  if (!task) return { label: w.review, live: false };
+  if (task.status === "in-progress") return { label: w.onIt, live: true };
+  return { label: task.status === "completed" ? w.completed : w.canceled, live: false };
 }

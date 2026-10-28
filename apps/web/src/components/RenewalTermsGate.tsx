@@ -28,7 +28,7 @@ export function RenewalTermsGate({ planId, cadence, onAgree, onCancel, busy }: {
   onCancel: () => void;
   busy: boolean;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [terms, setTerms] = useState<RenewalTermsView | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export function RenewalTermsGate({ planId, cadence, onAgree, onCancel, busy }: {
         if (!next.required) onAgree();
         else setTerms(next);
       })
-      .catch(() => { if (live) setError("Those terms could not be loaded. Try again."); });
+      .catch(() => { if (live) setError(language === "es" ? "No pudimos cargar esos términos. Inténtalo otra vez." : "Those terms could not be loaded. Try again."); });
     return () => { live = false; };
     // onAgree is a fresh closure each render; re-running on it would re-fetch
     // forever. The offer is what this effect actually depends on.
@@ -57,7 +57,7 @@ export function RenewalTermsGate({ planId, cadence, onAgree, onCancel, busy }: {
   if (!terms) return <p className="small muted">…</p>;
 
   const period = t(cadence === "annual" ? "renewal.annual" : "renewal.monthly");
-  const date = new Date(terms.firstChargeAt).toLocaleDateString(undefined, {
+  const date = new Date(terms.firstChargeAt).toLocaleDateString(language === "es" ? "es-PR" : "en-US", {
     year: "numeric", month: "long", day: "numeric",
   });
 

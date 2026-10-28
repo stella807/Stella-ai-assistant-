@@ -18,6 +18,7 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
   account: Account; onDeleted: () => void; onManagePlan: () => void;
 }) {
   const { language } = useLanguage();
+  const es = language === "es";
   const plan = findPlan(account.planId as PlanId);
   const initials = account.displayName
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
@@ -40,9 +41,11 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
       a.download = `safehubby-${account.displayName.toLowerCase().replace(/\s+/g, "-")}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setExported("Downloaded. It includes your full location history in the clear — keep it somewhere safe.");
+      setExported(es
+        ? "Descargado. Incluye todo tu historial de ubicación sin cifrar: guárdalo en un lugar seguro."
+        : "Downloaded. It includes your full location history in the clear — keep it somewhere safe.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not export");
+      setError(e instanceof Error ? e.message : es ? "No se pudo exportar" : "Could not export");
     } finally {
       setBusy(false);
     }
@@ -55,7 +58,7 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
       await api.deleteAccount(password, confirm);
       onDeleted();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not delete the account");
+      setError(e instanceof Error ? e.message : es ? "No se pudo borrar la cuenta" : "Could not delete the account");
     } finally {
       setBusy(false);
     }
@@ -81,10 +84,12 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
         <p className="mission-eyebrow" style={{ margin: 0 }}>{language === "es" ? `Plan ${planNameFor(plan.id, plan.name, language)}` : `${plan.name} plan`}</p>
         <p className="small" style={{ margin: 0 }}>
           {isElitePlan(account.planId as PlanId)
-            ? "Priority booking, the luxury desk, and everything on every plan below it."
-            : "See what a bigger plan unlocks — more concierge hours, more seats, the Elite desk."}
+            ? es ? "Reservas con prioridad, el servicio de lujo y todo lo de los planes más bajos."
+              : "Priority booking, the luxury desk, and everything on every plan below it."
+            : es ? "Mira lo que trae un plan más grande: más horas de concierge, más personas, el servicio Elite."
+              : "See what a bigger plan unlocks — more concierge hours, more seats, the Elite desk."}
         </p>
-        <button className="btn btn-primary btn-block" onClick={onManagePlan}>Manage plan</button>
+        <button className="btn btn-primary btn-block" onClick={onManagePlan}>{es ? "Administrar el plan" : "Manage plan"}</button>
       </section>
 
       <TextAlertsCard scope="account" language={language === "es" ? "es" : "en"} />
@@ -96,49 +101,54 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
       <ShareCard />
 
       <section className="card">
-        <h3>Take your data</h3>
+        <h3>{es ? "Llévate tus datos" : "Take your data"}</h3>
         <p className="small muted">
-          Everything Safehubby holds about you, as a file: nights, drink logs, check-ins, sharing,
-          crews, games, points and your full location history.
+          {es
+            ? "Todo lo que Safehubby tiene de ti, en un archivo: noches, registro de bebidas, chequeos, lo compartido, grupos, juegos, puntos y todo tu historial de ubicación."
+            : "Everything Safehubby holds about you, as a file: nights, drink logs, check-ins, sharing, crews, games, points and your full location history."}
         </p>
-        <button className="btn btn-block" disabled={busy} onClick={doExport}>Download my data</button>
+        <button className="btn btn-block" disabled={busy} onClick={doExport}>{es ? "Descargar mis datos" : "Download my data"}</button>
         {exported && <div className="banner banner-safe">{exported}</div>}
       </section>
 
       <section className="card">
-        <h3>Delete my account</h3>
+        <h3>{es ? "Borrar mi cuenta" : "Delete my account"}</h3>
         <p className="small">
-          This deletes your account and everything on it — permanently, not hidden. Anyone watching you
-          loses access immediately. <strong>Your location history cannot be recovered.</strong>
+          {es
+            ? "Esto borra tu cuenta y todo lo que tiene, para siempre; no se esconde. Quien te vigile pierde el acceso enseguida. "
+            : "This deletes your account and everything on it — permanently, not hidden. Anyone watching you loses access immediately. "}
+          <strong>{es ? "Tu historial de ubicación no se puede recuperar." : "Your location history cannot be recovered."}</strong>
         </p>
         <p className="tiny muted">
-          Crews and games you shared with other people stay standing for them, with you removed.
+          {es
+            ? "Los grupos y juegos que compartiste con otras personas siguen para ellos, sin ti."
+            : "Crews and games you shared with other people stay standing for them, with you removed."}
         </p>
 
         {!armed ? (
           <button className="btn btn-block btn-ghost" onClick={() => setArmed(true)}>
-            I want to delete my account
+            {es ? "Quiero borrar mi cuenta" : "I want to delete my account"}
           </button>
         ) : (
           <>
             <div className="field">
-              <label htmlFor="pw-del">Your password</label>
+              <label htmlFor="pw-del">{es ? "Tu contraseña" : "Your password"}</label>
               <input id="pw-del" type="password" autoComplete="current-password"
                 value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <div className="field">
-              <label htmlFor="confirm-del">Type DELETE to confirm</label>
+              <label htmlFor="confirm-del">{es ? "Escribe DELETE para confirmar" : "Type DELETE to confirm"}</label>
               <input id="confirm-del" value={confirm} autoCapitalize="characters"
                 onChange={(e) => setConfirm(e.target.value)} />
             </div>
             <div className="row">
               <button className="btn grow" disabled={busy} onClick={() => { setArmed(false); setPassword(""); setConfirm(""); }}>
-                Keep my account
+                {es ? "Quedarme con mi cuenta" : "Keep my account"}
               </button>
               <button className="btn btn-danger grow"
                 disabled={busy || !password || confirm.trim().toUpperCase() !== "DELETE"}
                 onClick={doDelete}>
-                Delete permanently
+                {es ? "Borrar para siempre" : "Delete permanently"}
               </button>
             </div>
           </>

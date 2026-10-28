@@ -6,8 +6,8 @@ import { LiveMap } from "./LiveMap.tsx";
 import { currentFix } from "../native/location.ts";
 import { TripMapPopup } from "./TripMapPopup.tsx";
 import { money } from "../money.ts";
-
-const FALLBACK_HOME_LABEL = "Home";
+import { useLanguage } from "../i18n.tsx";
+import { rideWords } from "../app/rides-copy.ts";
 
 /**
  * Getting home — Safehubby arranges the ride on a rideshare, and a person
@@ -36,8 +36,10 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
    *  far below the standard default. See `defaultCapFor` in concierge.ts. */
   planId: PlanId;
 }) {
+  const { language } = useLanguage();
+  const w = rideWords(language);
   const [homeAddress, setHomeAddress] = useState<{ lat: number; lng: number; label: string } | null>(null);
-  const [addressLabel, setAddressLabel] = useState(FALLBACK_HOME_LABEL);
+  const [addressLabel, setAddressLabel] = useState(w.home);
   const [request, setRequest] = useState<PickupRequest | null>(null);
   const [secure, setSecure] = useState<SecureQuote | null>(null);
   // What Safehubby charges to arrange the ride. The fare itself is not
@@ -90,12 +92,12 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError(null);
-    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong"); }
+    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : w.failed); }
     finally { setBusy(false); }
   };
 
   const saveAddress = () => run(async () => {
-    const saved = await api.saveHomeAddress(at.lat, at.lng, addressLabel.trim() || FALLBACK_HOME_LABEL);
+    const saved = await api.saveHomeAddress(at.lat, at.lng, addressLabel.trim() || w.home);
     setHomeAddress(saved.address);
   });
 
@@ -112,7 +114,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
 
   const coordinatePickup = () => run(async () => {
     const res = await api.coordinatePickup(
-      { lat: at.lat, lng: at.lng, label: "Pickup" },
+      { lat: at.lat, lng: at.lng, label: w.pickup },
       { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label },
       note || undefined,
     );
@@ -126,12 +128,12 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   });
 
   return (
-    <section className="card" aria-label="Get home">
-      <h3>Get home</h3>
+    <section className="card" aria-label={w.title}>
+      <h3>{w.title}</h3>
 
       <LiveMap
         points={[
-          { lat: at.lat, lng: at.lng, label: "Pickup — drag or tap to move" },
+          { lat: at.lat, lng: at.lng, label: w.pinLabel },
           { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel },
         ]}
         onPick={!request ? setPin : undefined}
@@ -139,64 +141,56 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
         height={!request ? 340 : 200}
       />
       {!request && (
-        <p className="tiny muted" style={{ margin: 0 }}>
-          Drag the pin, or tap the map, to set exactly where the driver should pick you up. Tap My location to jump to
-          where you are, and Expand for a full-screen map.
-        </p>
+        <p className="tiny muted" style={{ margin: 0 }}>{w.pinHelp}</p>
       )}
 
       {!request && (
         <>
           {arrangeFeeCents !== null && (
             <div className="row-between">
-              <span className="tiny muted">We arrange it for</span>
+              <span className="tiny muted">{w.arrangeFor}</span>
               <strong className="small charge-amount">{money(arrangeFeeCents)}</strong>
             </div>
           )}
           <div className="field">
-            <label htmlFor="pickup-note" className="tiny muted">Anything the driver should know? (optional)</label>
+            <label htmlFor="pickup-note" className="tiny muted">{w.driverNote}</label>
             <input id="pickup-note" type="text" value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="Side entrance, silver door" />
+              placeholder={w.driverNotePlaceholder} />
           </div>
           <button className="btn btn-primary btn-block" disabled={busy} onClick={coordinatePickup}>
-            Arrange my ride
+            {w.arrange}
           </button>
-          <p className="tiny muted" style={{ margin: 0 }}>
-            Someone on our end books the ride for you and texts you who's coming. You pay the fare, whatever it
-            comes to — we tell you the price before booking, because by then we're looking at it — plus
-            {arrangeFeeCents !== null ? ` the ${money(arrangeFeeCents)} for arranging it.` : " a small fee for arranging it."}
-          </p>
+          <p className="tiny muted" style={{ margin: 0 }}>{w.arrangeHow(arrangeFeeCents)}</p>
         </>
       )}
 
       {request && request.status === "requested" && (
         <div className="banner">
-          <strong>Arranging your ride.</strong> We're booking it now and will text you the price and who's coming.
-          Arranging fee {money(request.arrangeFeeCents)}; the fare is whatever the ride costs.
+          <strong>{w.arranging}</strong> {w.arrangingBody(request.arrangeFeeCents)}
           <div style={{ marginTop: 8 }}>
-            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel request</button>
+            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>{w.cancelRequest}</button>
           </div>
         </div>
       )}
 
       {request && request.status === "coordinated" && (
         <div className="banner banner-safe">
-          <strong>{request.driverName} is coming to get you.</strong>{" "}
+          <strong>{w.coming(request.driverName ?? w.yourDriver)}</strong>{" "}
           {request.driverPhone && (
             <>
-              <a href={`tel:${request.driverPhone}`} className="inline-link">Call {request.driverPhone}</a>
+              <a href={`tel:${request.driverPhone}`} className="inline-link">{w.call(request.driverPhone)}</a>
               {" · "}
-              <a href={`sms:${request.driverPhone}`} className="inline-link">Text</a>
+              <a href={`sms:${request.driverPhone}`} className="inline-link">{w.text}</a>
             </>
           )}
           <div className="tiny muted" style={{ marginTop: 4 }}>
             {request.rideCostCents === undefined
-              ? `Arranging fee ${money(request.arrangeFeeCents)}. We'll confirm the fare once it's booked.`
-              : `${money(request.rideCostCents)} fare${request.bookedOn ? ` on ${request.bookedOn}` : ""} + ${money(request.arrangeFeeCents)} arranging = ${money(request.rideCostCents + request.arrangeFeeCents)}.`}
+              ? w.fareLater(request.arrangeFeeCents)
+              : w.fareTotal(request.rideCostCents, request.bookedOn, request.arrangeFeeCents)}
           </div>
           <div style={{ marginTop: 8 }}>
-            <button className="btn btn-sm" onClick={() => setMapOpen(true)}>Show map</button>{" "}
-            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>Cancel</button>
+            <button className="btn btn-sm" onClick={() => setMapOpen(true)}>{w.showMap}</button>{" "}
+            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={cancelPickup}>{w.cancel}</button>
           </div>
         </div>
       )}
@@ -204,17 +198,17 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
       {mapOpen && request?.status === "coordinated" && (
         <TripMapPopup
           kind="ride"
-          title={`${request.driverName ?? "Your driver"} is coming`}
-          status="On the way"
+          title={w.driverComing(request.driverName ?? w.yourDriver)}
+          status={w.onTheWay}
           points={[
-            { lat: at.lat, lng: at.lng, label: "Pickup" },
+            { lat: at.lat, lng: at.lng, label: w.pickup },
             { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel },
           ]}
-          lines={[`To ${dropoff.label ?? homeLabel}.`]}
+          lines={[w.to(dropoff.label ?? homeLabel)]}
           actions={request.driverPhone ? (
             <>
-              <a className="btn btn-primary" href={`tel:${request.driverPhone}`}>Call</a>
-              <a className="btn" href={`sms:${request.driverPhone}`}>Text</a>
+              <a className="btn btn-primary" href={`tel:${request.driverPhone}`}>{w.callShort}</a>
+              <a className="btn" href={`sms:${request.driverPhone}`}>{w.text}</a>
             </>
           ) : undefined}
           onClose={() => setMapOpen(false)}
@@ -225,14 +219,14 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
         <section className="secure">
           <div className="row-between">
             <div>
-              <strong className="small">{secure.provider} — protected ride</strong>
+              <strong className="small">{w.protectedRide(secure.provider)}</strong>
               <div className="tiny muted">{secure.description}</div>
             </div>
             <strong>${(secure.fareEstimateCents / 100).toFixed(0)}</strong>
           </div>
 
           <button className="btn btn-sm btn-ghost btn-block" onClick={() => setSecureOpen((o) => !o)}>
-            {secureOpen ? "Hide the details" : "What this means"}
+            {secureOpen ? w.hideDetails : w.whatThisMeans}
           </button>
 
           {secureOpen && (
@@ -244,7 +238,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
                 onClick={() => run(async () => {
                   await api.bookSecureRide(at, dropoff);
                 })}>
-                I understand — book it (~${(secure.fareEstimateCents / 100).toFixed(0)}, {secure.etaMinutes} min)
+                {w.bookSecure((secure.fareEstimateCents / 100).toFixed(0), secure.etaMinutes)}
               </button>
             </>
           )}
@@ -253,35 +247,33 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
 
       {!homeAddress ? (
         <div className="field">
-          <label htmlFor="address-label" className="tiny muted">
-            Save a delivery address so an errand runner can bring you things later
-          </label>
+          <label htmlFor="address-label" className="tiny muted">{w.saveAddressLabel}</label>
           <div className="row" style={{ gap: 6 }}>
             <input id="address-label" type="text" value={addressLabel}
-              onChange={(e) => setAddressLabel(e.target.value)} placeholder="Home" style={{ flex: 1 }} />
-            <button className="btn btn-sm" disabled={busy} onClick={saveAddress}>Save this pin as my address</button>
+              onChange={(e) => setAddressLabel(e.target.value)} placeholder={w.home} style={{ flex: 1 }} />
+            <button className="btn btn-sm" disabled={busy} onClick={saveAddress}>{w.saveAddress}</button>
           </div>
         </div>
       ) : (
         <>
-          <p className="tiny muted" style={{ margin: 0 }}>Delivering to {homeAddress.label}.</p>
+          <p className="tiny muted" style={{ margin: 0 }}>{w.deliveringTo(homeAddress.label)}</p>
           <button className="btn btn-block" disabled={busy}
             onClick={() => run(async () => {
               setSuppliesError(null);
               try {
                 const { task } = await api.bookConcierge({
                   category: "grab-something",
-                  note: "Water, Liquid I.V. or Pedialyte, and a snack",
+                  note: w.suppliesNote,
                   location: homeAddress,
                   spendCapCents: defaultCapFor("grab-something", planId),
                   quickTask: true,
                 });
-                setSupplies(`On the way from ${task.assistantName ?? "an errand runner"} to ${homeAddress.label}.`);
+                setSupplies(w.suppliesOnWay(task.assistantName, homeAddress.label));
               } catch (e) {
-                setSuppliesError(e instanceof Error ? e.message : "Could not send that right now");
+                setSuppliesError(e instanceof Error ? e.message : w.suppliesFailed);
               }
             })}>
-            Have an errand runner bring water &amp; a snack
+            {w.bringSupplies}
           </button>
         </>
       )}

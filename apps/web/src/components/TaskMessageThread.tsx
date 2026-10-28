@@ -1,5 +1,8 @@
 import type { VoiceMessage } from "@safehubby/core";
 import type { TaskTextMessage } from "../api.ts";
+import { useLanguage } from "../i18n.tsx";
+import { taskWords } from "../app/task-copy.ts";
+import { localeOf } from "../app/dates.ts";
 
 /**
  * One conversation, in the order it happened.
@@ -28,11 +31,11 @@ export function buildThread(texts: TaskTextMessage[], voices: VoiceMessage[]): T
 }
 
 /** "2:41 PM" today, "Mar 3, 2:41 PM" before that. */
-function when(iso: string): string {
+function when(iso: string, lang: "en" | "es"): string {
   const at = new Date(iso);
   const today = new Date();
   const sameDay = at.toDateString() === today.toDateString();
-  return at.toLocaleTimeString(undefined, {
+  return at.toLocaleTimeString(localeOf(lang), {
     hour: "numeric", minute: "2-digit",
     ...(sameDay ? {} : { month: "short", day: "numeric" }),
   });
@@ -43,12 +46,14 @@ export function TaskMessageThread({ texts, voices, assistantName }: {
   voices: VoiceMessage[];
   assistantName: string;
 }) {
+  const { language } = useLanguage();
+  const w = taskWords(language).thread;
   const thread = buildThread(texts, voices);
 
   if (thread.length === 0) {
     return (
       <div className="voice-thread" aria-live="polite">
-        <p className="tiny muted">No messages yet.</p>
+        <p className="tiny muted">{w.none}</p>
       </div>
     );
   }
@@ -60,10 +65,10 @@ export function TaskMessageThread({ texts, voices, assistantName }: {
         return (
           <div key={entry.message.id} className={`voice-bubble${mine ? " voice-bubble-mine" : ""}`}>
             <div className="tiny muted">
-              {mine ? "You" : assistantName}
-              {" · "}{when(entry.at)}
+              {mine ? w.you : assistantName}
+              {" · "}{when(entry.at, language)}
               {entry.kind === "voice" && ` · ${entry.message.durationSeconds}s`}
-              {entry.kind === "text" && mine && entry.message.readAt ? " · Read" : ""}
+              {entry.kind === "text" && mine && entry.message.readAt ? w.read : ""}
             </div>
             {entry.kind === "text" ? (
               <p className="small" style={{ margin: 0 }}>{entry.message.body}</p>

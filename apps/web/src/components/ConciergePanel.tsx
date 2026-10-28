@@ -1,5 +1,8 @@
 import { useLanguage } from "../i18n.tsx";
 import { askWords, choiceLabel, type Lang } from "../app/ask-copy.ts";
+import { conciergeWords } from "../app/concierge-copy.ts";
+import { localized } from "../app/server-es.ts";
+import { dayOf } from "../app/dates.ts";
 import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, CONCIERGE_MIN_CAP_CENTS, QUICK_TASK_CATEGORIES,
@@ -60,21 +63,6 @@ const HOUR_PRESETS = [100, 200, 400, 600, 800, 1200];
  */
 export type HiringKind = "errand" | "concierge";
 
-/** What the panel calls itself, per tab. A card headed "Personal concierge"
- *  sitting under a tab labelled "Small errands" is the two disagreeing about
- *  what you just picked. */
-const COPY_FOR: Record<HiringKind, { heading: string; blurb: string; locked: string }> = {
-  errand: {
-    heading: "Small errand",
-    blurb: "One short, specific job — grab a thing, run an errand — capped at exactly what you set below, never more.",
-    locked: "🔒 Send someone for a quick pickup or errand, at a spend cap you set. Included with every paid plan.",
-  },
-  concierge: {
-    heading: "Personal concierge",
-    blurb: "Send someone for one bounded task, capped at exactly what you set below — never more, whatever it ends up costing.",
-    locked: "🔒 Send a vetted personal assistant to wait with a friend, check on someone, or book and buy something for you. Included on every paid plan.",
-  },
-};
 
 const CATEGORIES_FOR: Record<HiringKind, ConciergeCategory[]> = {
   errand: QUICK_TASK_CATEGORIES,
@@ -83,14 +71,9 @@ const CATEGORIES_FOR: Record<HiringKind, ConciergeCategory[]> = {
     .filter((id) => !QUICK_TASK_CATEGORIES.includes(id)),
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  "in-progress": "In progress",
-  completed: "Completed",
-  canceled: "Cancelled",
-};
-
 /** One row, active or past — tap it to open the full detail screen. */
 function TaskRow({ task, onOpen }: { task: ConciergeTask; onOpen: () => void }) {
+  const status = conciergeWords(useLanguage().language).status;
   return (
     <button className="row-between" style={{
       width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left",
@@ -101,7 +84,7 @@ function TaskRow({ task, onOpen }: { task: ConciergeTask; onOpen: () => void }) 
           <strong className="small">{task.note}</strong>
           <div className="tiny muted">
             {task.assistantName ?? task.provider}
-            {task.status !== "in-progress" && ` · ${STATUS_LABEL[task.status] ?? task.status}`}
+            {task.status !== "in-progress" && ` · ${status[task.status] ?? task.status}`}
           </div>
         </div>
       </div>
@@ -128,6 +111,11 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const { language } = useLanguage();
   const lang: Lang = language === "es" ? "es" : "en";
   const w = askWords(lang);
+  const c = conciergeWords(lang);
+  /** What the panel calls itself, per tab. A card headed "Personal concierge"
+   *  sitting under a tab labelled "Small errands" is the two disagreeing about
+   *  what you just picked. */
+  const COPY_FOR = c.kinds;
   // Small errands (grab-something, run-errand) are gated on `quick-tasks`,
   // which is on every plan including Free — see `FREE_FEATURES` in
   // billing.ts and its own "a free user can send someone to grab a
@@ -323,9 +311,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const creditApplied = tier && !feeIncluded ? errandFeeCents(tier, spendCapCents) - serviceFee : 0;
   const assistantPayout = tier ? errandPayoutCents(tier) : assistantPayoutFor(category, effectiveQuickTask, 1, bookedHours, isHospitalStay, isArmed);
   const totalHeld = spendCapCents + serviceFee;
-  const resetsOn = includedGrabs
-    ? new Date(includedGrabs.resetsAt).toLocaleDateString(undefined, { month: "long", day: "numeric" })
-    : "";
+  const resetsOn = includedGrabs ? dayOf(includedGrabs.resetsAt, lang, "long") : "";
 
   const browse = async () => {
     setBusy(true);
@@ -335,12 +321,12 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       // For somebody else the place is the one typed, not wherever the
       // customer's phone is.
       const at = onBehalfOf ? locationForOnBehalf(onBehalfOf) : await currentFix();
-      if (!at) throw new Error("Turn on location to browse assistants — they need to know where to go.");
+      if (!at) throw new Error(c.errors.locationBrowse);
       if (!onBehalfOf) setFix(at as Fix);
       const res = await api.conciergeAssistants(category, at, effectiveQuickTask, isArmed);
       setRoster(res.assistants);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load the roster right now");
+      setError(e instanceof Error ? e.message : c.errors.roster);
     } finally {
       setBusy(false);
     }
@@ -355,25 +341,25 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
     setError(null);
     try {
       const at = onBehalfOf ? locationForOnBehalf(onBehalfOf) : await currentFix();
-      if (!at) throw new Error("Turn on location to send this — the assistant needs to know where to go.");
+      if (!at) throw new Error(c.errors.locationSend);
       if (!onBehalfOf) setFix(at as Fix);
       const res = await api.conciergeAssistants(category, selectedPlace && !onBehalfOf ? selectedPlace : at, effectiveQuickTask, isArmed);
       const available = res.assistants.find((a) => isAssistantAvailable(a));
-      if (!available) throw new Error("No one is available for this right now — try again shortly.");
+      if (!available) throw new Error(c.errors.nobody);
       setAutoAssistant(available);
       if (simple) { await sendTo(available); return; }
       setConfirming(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that request");
+      setError(e instanceof Error ? e.message : c.errors.send);
     } finally {
       setBusy(false);
     }
   };
 
-  const confirmAndSend = () => (autoAssistant ? sendTo(autoAssistant) : Promise.resolve(setError("Turn on location to send this.")));
+  const confirmAndSend = () => (autoAssistant ? sendTo(autoAssistant) : Promise.resolve(setError(c.errors.locationShort)));
 
   const sendTo = async (assistant: { id: string }) => {
-    if (!taskLocation) { setError("Turn on location to send this."); return; }
+    if (!taskLocation) { setError(c.errors.locationShort); return; }
     setBusy(true);
     setError(null);
     try {
@@ -394,7 +380,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       setPlaceResults(null);
       setPlaceQuery("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that request");
+      setError(e instanceof Error ? e.message : c.errors.send);
     } finally {
       setBusy(false);
     }
@@ -410,7 +396,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       const res = await api.flightLookup(flightNumber.trim(), flightDate);
       setFlightPreview(res.flight);
     } catch (e) {
-      setFlightError(e instanceof Error ? e.message : "Could not look up that flight");
+      setFlightError(e instanceof Error ? e.message : c.errors.flight);
     } finally {
       setFlightBusy(false);
     }
@@ -440,12 +426,12 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
     setError(null);
     try {
       const at = fix ?? (await currentFix());
-      if (!at) throw new Error("Turn on location to search for a place.");
+      if (!at) throw new Error(c.errors.locationSearch);
       if (!fix) setFix(at);
       const res = await api.placeSearch(placeQuery, at);
       setPlaceResults(res.places);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not search for that place");
+      setError(e instanceof Error ? e.message : c.errors.search);
     } finally {
       setPlaceBusy(false);
     }
@@ -466,7 +452,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   // Valid only when everything needed is there; the same check the server makes.
   const onBehalfProblem = (() => {
     if (!onBehalfOf) return null;
-    try { validateOnBehalfOf(onBehalfOf); return null; } catch (e) { return e instanceof Error ? e.message : "Check the details."; }
+    try { validateOnBehalfOf(onBehalfOf); return null; } catch (e) { return e instanceof Error ? localized(e.message, lang) : c.errors.check; }
   })();
   const onBehalfReady = !onBehalfOf || (onBehalfProblem === null && obAgreed);
   const taskLocation = onBehalfOf && onBehalfProblem === null
@@ -477,15 +463,15 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
 
   const cancel = (taskId: string) => api.cancelConcierge(taskId)
     .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
-    .catch((e) => setError(e instanceof Error ? e.message : "Could not cancel"));
+    .catch((e) => setError(e instanceof Error ? e.message : c.errors.cancel));
 
   const dispute = (taskId: string, reason: string) => api.disputeConcierge(taskId, reason)
     .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
-    .catch((e) => { throw new Error(e instanceof Error ? e.message : "Could not send that"); });
+    .catch((e) => { throw new Error(e instanceof Error ? e.message : c.errors.dispute); });
 
   const complete = (taskId: string) => api.completeConcierge(taskId)
     .then((r) => setTasks((ts) => ts.map((t) => (t.id === taskId ? r.task : t))))
-    .catch((e) => setError(e instanceof Error ? e.message : "Could not mark that done"));
+    .catch((e) => setError(e instanceof Error ? e.message : c.errors.complete));
 
   const active = tasks.filter((t) => t.status === "in-progress");
   const past = tasks.filter((t) => t.status !== "in-progress");
@@ -497,7 +483,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
     <AssistantModal
       assistant={{
         id: openTask.assistantId ?? "assistant",
-        name: openTask.assistantName ?? (openTask.assistantId ? "Your assistant" : openTask.provider),
+        name: openTask.assistantName ?? (openTask.assistantId ? c.yourAssistant : openTask.provider),
         categories: [openTask.category],
         maxConcurrentCustomers: 1,
         currentCustomers: 0,
@@ -540,11 +526,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           something the customer did wrong. */}
       {covered === false && (
         <div className="banner">
-          <strong>We are not in your area yet.</strong>
-          <span className="tiny">
-            Assistants work {launchMarketNames()} for now. Everything else on your plan still works
-            wherever you are — this is the one part that needs somebody local.
-          </span>
+          <strong>{c.notCovered}</strong>
+          <span className="tiny">{c.notCoveredBody(c.markets(launchMarketNames()))}</span>
         </div>
       )}
 
@@ -556,7 +539,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
 
       {past.length > 0 && (
         <>
-          <span className="section-label">Past requests</span>
+          <span className="section-label">{c.past}</span>
           <ul className="timeline">
             {past.map((t) => <li key={t.id}><TaskRow task={t} onOpen={() => setSelectedTaskId(t.id)} /></li>)}
           </ul>
@@ -592,11 +575,11 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
                 picker has, just for "what does a simple errand cost"
                 instead of "what does a bigger plan cost". */}
             {!simple && <span className="category-tile-price">
-              from {money(isQuickTaskEligible(c.id)
+              {conciergeWords(lang).from(money(isQuickTaskEligible(c.id)
                 ? customerServiceFeeFor({
                   planId, category: c.id, quickTask: true, errandTier: "in-building", spendCapCents: 1_000, usedThisMonth,
                 })
-                : serviceFeeFor(c.id, false, 1, defaultHoursFor(c.id)))}
+                : serviceFeeFor(c.id, false, 1, defaultHoursFor(c.id))))}
             </span>}
           </button>
         ))}
@@ -605,20 +588,20 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {formHidden ? extra : <>
       {CONCIERGE_CATEGORIES.find((c) => c.id === category) && (
         <p className="tiny muted" style={{ margin: 0 }}>
-          {CONCIERGE_CATEGORIES.find((c) => c.id === category)!.description}
+          {localized(CONCIERGE_CATEGORIES.find((c) => c.id === category)!.description, lang)}
         </p>
       )}
 
       {isAirportPickup && (
         <div className="field">
-          <label htmlFor="concierge-flight-number">Which flight?</label>
+          <label htmlFor="concierge-flight-number">{c.whichFlight}</label>
           <div className="row" style={{ gap: 6 }}>
             <input id="concierge-flight-number" type="text" value={flightNumber}
               onChange={(e) => { setFlightNumber(e.target.value); setFlightPreview(null); }}
               placeholder="DL204" style={{ flex: 1 }} />
             <input id="concierge-flight-date" type="date" value={flightDate}
               onChange={(e) => { setFlightDate(e.target.value); setFlightPreview(null); }}
-              aria-label="Flight date" />
+              aria-label={c.flightDate} />
             {/* Tracking is an enhancement, not a precondition — a flight
                 number and date are all booking actually needs (see
                 validateConciergeRequest); the lookup below only adds a
@@ -626,15 +609,12 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
             {flightTrackingStatus?.mode === "automatic" && (
               <button className="btn btn-sm" disabled={flightBusy || !flightNumber.trim() || !flightDate}
                 onClick={lookupFlight}>
-                {flightBusy ? "Looking up…" : "Look up"}
+                {flightBusy ? c.lookingUp : c.lookUp}
               </button>
             )}
           </div>
           {flightTrackingStatus && flightTrackingStatus.mode !== "automatic" && (
-            <p className="tiny muted" style={{ margin: 0 }}>
-              Flight tracking isn't set up on this server yet — your assistant will still be dispatched to meet
-              this flight, just without a live status preview.
-            </p>
+            <p className="tiny muted" style={{ margin: 0 }}>{c.noTracking}</p>
           )}
           {flightError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{flightError}</p>}
           {flightPreview && <FlightCard flight={flightPreview} />}
@@ -647,44 +627,44 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       <label className={`row${simple ? " simple-hide" : ""}`} style={{ alignItems: "flex-start", gap: 8 }}>
         <input type="checkbox" checked={forSomeoneElse}
           onChange={(e) => { setForSomeoneElse(e.target.checked); setRoster(null); setObAgreed(false); }} />
-        <span className="small"><strong>This is for someone else</strong> — a parent in a hospital, for example.</span>
+        <span className="small"><strong>{c.forSomeoneElse}</strong>{c.forSomeoneElseHint}</span>
       </label>
       {forSomeoneElse && (
         <section className="card card-quiet stack" style={{ gap: 10 }}>
           <div className="field">
-            <label htmlFor="ob-market">Which area?</label>
+            <label htmlFor="ob-market">{c.whichArea}</label>
             <select id="ob-market" value={obMarket} onChange={(e) => { setObMarket(e.target.value as LaunchMarketId); setRoster(null); }}>
-              {LAUNCH_MARKETS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              {LAUNCH_MARKETS.map((m) => <option key={m.id} value={m.id}>{c.markets(m.label)}</option>)}
             </select>
           </div>
           <div className="field">
-            <label htmlFor="ob-name">Who is it for?</label>
+            <label htmlFor="ob-name">{c.whoFor}</label>
             <input id="ob-name" value={obName} maxLength={120} autoComplete="off"
               onChange={(e) => setObName(e.target.value)} placeholder="Ramón Torres" />
           </div>
           <div className="field">
-            <label htmlFor="ob-place">Hospital or address</label>
+            <label htmlFor="ob-place">{c.hospital}</label>
             <input id="ob-place" value={obPlace} maxLength={120} autoComplete="off"
-              onChange={(e) => setObPlace(e.target.value)} placeholder="Auxilio Mutuo Hospital, Hato Rey" />
+              onChange={(e) => setObPlace(e.target.value)} placeholder={c.hospitalPlaceholder} />
           </div>
           <div className="row" style={{ gap: 8 }}>
             <div className="field grow">
-              <label htmlFor="ob-room">Room or unit</label>
+              <label htmlFor="ob-room">{c.room}</label>
               <input id="ob-room" value={obRoom} maxLength={120} autoComplete="off"
                 onChange={(e) => setObRoom(e.target.value)} placeholder="412" />
             </div>
             <div className="field grow">
-              <label htmlFor="ob-phone">Their phone (optional)</label>
+              <label htmlFor="ob-phone">{c.theirPhone}</label>
               <input id="ob-phone" type="tel" value={obPhone} maxLength={20} autoComplete="off"
                 onChange={(e) => setObPhone(e.target.value)} />
             </div>
           </div>
           <ul className="timeline">
-            {ON_BEHALF_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
+            {ON_BEHALF_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{localized(d, lang)}</span></li>)}
           </ul>
           <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
             <input type="checkbox" checked={obAgreed} onChange={(e) => setObAgreed(e.target.checked)} />
-            <span className="small">I understand, and I will let them know someone is coming.</span>
+            <span className="small">{c.agree}</span>
           </label>
         </section>
       )}
@@ -693,18 +673,18 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         <label htmlFor="concierge-note">{w.need}</label>
         <textarea id="concierge-note" maxLength={280} rows={2} value={note}
           onChange={(e) => { setNote(e.target.value); setRoster(null); setConfirming(false); setAutoAssistant(null); }}
-          placeholder={simple ? w.placeholder : "Grab a burger and fries from The Anchor Tavern"} />
+          placeholder={simple ? w.placeholder : c.notePlaceholder} />
       </div>
 
       <div className="field">
-        {!simple && !(placeSearchStatus && placeSearchStatus.mode !== "automatic") && <label htmlFor="concierge-place">Name a specific place (optional)</label>}
+        {!simple && !(placeSearchStatus && placeSearchStatus.mode !== "automatic") && <label htmlFor="concierge-place">{c.namePlace}</label>}
         {simple ? null : selectedPlace ? (
           <div className="row-between card card-quiet" style={{ padding: 8 }}>
             <div className="stack" style={{ gap: 2 }}>
               <strong className="small">{selectedPlace.name}</strong>
               <span className="tiny muted">{selectedPlace.address}</span>
             </div>
-            <button className="btn btn-sm btn-ghost" onClick={() => setSelectedPlace(null)}>Change</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setSelectedPlace(null)}>{c.change}</button>
           </div>
         ) : placeSearchStatus && placeSearchStatus.mode !== "automatic" ? (
           null
@@ -714,13 +694,13 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
               <input id="concierge-place" type="text" value={placeQuery}
                 onChange={(e) => setPlaceQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchPlaces(); } }}
-                placeholder="A pharmacy, a wine store, a restaurant by name…" />
+                placeholder={c.placePlaceholder} />
               <button className="btn btn-sm" disabled={placeBusy || !placeQuery.trim()} onClick={searchPlaces}>
-                Search
+                {c.search}
               </button>
             </div>
             {placeResults !== null && placeResults.length === 0 && (
-              <p className="tiny muted">No matches nearby — try a different search, or just describe it in the note.</p>
+              <p className="tiny muted">{c.noMatches}</p>
             )}
             {placeResults !== null && placeResults.length > 0 && (
               <ul className="timeline">
@@ -748,7 +728,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           chosen below, so nobody finds out at the confirm step. */}
       {quickEligible && (
         <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 8 }}>
-          <legend className="small"><strong>How big an errand is it?</strong></legend>
+          <legend className="small"><strong>{c.howBig}</strong></legend>
           {ERRAND_TIERS.map((t) => {
             const fee = customerServiceFeeFor({
               planId, category, quickTask: true, errandTier: t.id, spendCapCents, usedThisMonth,
@@ -762,20 +742,18 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
                       if (!capTouched) setCapCents(t.suggestedCapCents);
                     }} />
                   <span>
-                    <strong className="small">{t.label}</strong>
+                    <strong className="small">{localized(t.label, lang)}</strong>
                     <span className="tiny muted" style={{ display: "block" }}>
-                      {t.example} · about {t.minutes} min
+                      {localized(t.example, lang)} · {c.aboutMinutes(t.minutes)}
                     </span>
                   </span>
                 </span>
-                <span className="small charge-amount">{fee === 0 ? "No fee" : money(fee)}</span>
+                <span className="small charge-amount">{fee === 0 ? c.noFee : money(fee)}</span>
               </label>
             );
           })}
           {planId === "free" && hasCapCeiling(category) && (
-            <p className="tiny muted" style={{ margin: 0 }}>
-              Capped at {dollars(base.maxCents)} of spending on your plan.
-            </p>
+            <p className="tiny muted" style={{ margin: 0 }}>{c.freeCap(dollars(base.maxCents))}</p>
           )}
         </fieldset>
       )}
@@ -786,29 +764,25 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {ARMED_CATEGORIES.includes(category) && !isHospitalStay && !simple && (
         <label className="row small" style={{ gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={armedJob} onChange={(e) => { setArmedJob(e.target.checked); setRoster(null); }} />
-          <span>
-            Armed assistant — somewhere with no security. A licensed, armed assistant at {money(ARMED_CUSTOMER_HOURLY_CENTS)}/hr.
-          </span>
+          <span>{c.armed(money(ARMED_CUSTOMER_HOURLY_CENTS))}</span>
         </label>
       )}
 
       {category === HOSPITAL_STAY_CATEGORY && !simple && !isArmed && (
         <label className="row small" style={{ gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={hospitalStay} onChange={(e) => { setHospitalStay(e.target.checked); setRoster(null); }} />
-          <span>
-            This is a hospital stay — sitting with a patient. Day rate: never more than {money(HOSPITAL_DAY_PRICE_CENTS)} for up to {MAX_BOOKED_HOURS} hours.
-          </span>
+          <span>{c.hospitalStay(money(HOSPITAL_DAY_PRICE_CENTS), MAX_BOOKED_HOURS)}</span>
         </label>
       )}
 
       {hourly && !simple && (
         <AmountStepper
           id="concierge-hours"
-          label="How long do you need them?"
+          label={c.howLong}
           unit="hours"
           hint={isHospitalStay
-            ? `${money(PA_CUSTOMER_HOURLY_CENTS)}/hr, and never more than ${money(HOSPITAL_DAY_PRICE_CENTS)} for the day.`
-            : `Billed at ${money(isArmed ? ARMED_CUSTOMER_HOURLY_CENTS : PA_CUSTOMER_HOURLY_CENTS)}/hr. Book more or less any time before they start.`}
+            ? c.hospitalHint(money(PA_CUSTOMER_HOURLY_CENTS), money(HOSPITAL_DAY_PRICE_CENTS))
+            : c.hourlyHint(money(isArmed ? ARMED_CUSTOMER_HOURLY_CENTS : PA_CUSTOMER_HOURLY_CENTS))}
           valueCents={Math.round(clampHours(hours) * 100)}
           scale={{
             minCents: MIN_BOOKED_HOURS * 100,
@@ -823,13 +797,13 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
       {!simple && <details className={quickEligible ? "cap-change" : "cap-change cap-open"} open={!quickEligible}>
       {quickEligible && (
         <summary className="small">
-          Up to {money(spendCapCents)} for what is bought · <span className="linklike">Change</span>
+          {c.capSummary(money(spendCapCents))}<span className="linklike">{c.change}</span>
         </summary>
       )}
       <AmountStepper
         id="concierge-cap"
-        label="Loaded on their card to spend"
-        hint={`Goes onto a card that works for this task only — the hotel, the tickets, whatever it takes. A ceiling, not a price: you pay what is actually spent. Nudge it ${dollars(capScale.stepCents)} at a time.`}
+        label={c.capLabel}
+        hint={c.capHint(dollars(capScale.stepCents))}
         valueCents={spendCapCents}
         scale={capScale}
         presetsCents={capPresetsFor(category, planId)}
@@ -842,7 +816,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           rather than nudged, so an amount this size is always deliberate. */}
       {!hasCapCeiling(category) && (
         <div className="field">
-          <label htmlFor="concierge-cap-exact">Or load an exact amount</label>
+          <label htmlFor="concierge-cap-exact">{c.exactLabel}</label>
           <input
             id="concierge-cap-exact"
             inputMode="decimal"
@@ -859,10 +833,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
               }
             }}
           />
-          <p className="tiny muted" style={{ margin: 0 }}>
-            Whatever you fund it with. Safehubby sets no upper limit here — the card carries what you put on
-            it, declines a cent over, and dies when the task ends.
-          </p>
+          <p className="tiny muted" style={{ margin: 0 }}>{c.exactHint}</p>
         </div>
       )}
       </details>}
@@ -874,20 +845,20 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           meant picking a cap and finding out afterwards. */}
       <div className={`price-breakdown${simple ? " simple-hide" : ""}`}>
         <div className="row-between">
-          <span className="small">Service fee</span>
-          <span className="small charge-amount">{feeIncluded ? "Included" : money(serviceFee)}</span>
+          <span className="small">{c.serviceFee}</span>
+          <span className="small charge-amount">{feeIncluded ? c.included : money(serviceFee)}</span>
         </div>
         {creditApplied > 0 && (
           <p className="tiny muted" style={{ margin: 0 }}>
-            Your plan's errand credit pays {money(creditApplied)} of it; {money(Math.max(0, creditLeft - creditApplied))} left this month, back on {resetsOn}. It covers food: a snack, a restaurant order or groceries.
+            {c.creditPays(money(creditApplied), money(Math.max(0, creditLeft - creditApplied)), resetsOn)}
           </p>
         )}
         <p className="tiny muted" style={{ margin: 0 }}>
           {hourly
             ? isHospitalStay && serviceFee >= HOSPITAL_DAY_PRICE_CENTS
-              ? `A hospital day: ${clampHours(hours)} hours at the day rate.`
-              : `${clampHours(hours)} ${clampHours(hours) === 1 ? "hour" : "hours"} of their time at ${money(isArmed ? ARMED_CUSTOMER_HOURLY_CENTS : PA_CUSTOMER_HOURLY_CENTS)}/hr.`
-            : `Pays your assistant for about ${tier ? findErrandTier(tier).minutes : minutesFor(category, effectiveQuickTask)} minutes of their time.`}
+              ? c.hospitalDay(clampHours(hours))
+              : c.hoursOfTime(clampHours(hours), money(isArmed ? ARMED_CUSTOMER_HOURLY_CENTS : PA_CUSTOMER_HOURLY_CENTS))
+            : c.minutesOfTime(tier ? findErrandTier(tier).minutes : minutesFor(category, effectiveQuickTask))}
         </p>
         {/* What the person doing the work actually takes home, said plainly to
             the customer paying for it. It is their money, and "service fee" on
@@ -895,28 +866,26 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
             here is the same `assistantPayoutFor` payroll pays out, not a
             share of the fee estimated for display. */}
         <div className="row-between" style={{ marginTop: 6 }}>
-          <span className="small">Your assistant is paid</span>
+          <span className="small">{c.paid}</span>
           <span className="small charge-amount">{money(assistantPayout)}</span>
         </div>
         <p className="tiny muted" style={{ margin: 0 }}>
           {feeIncluded
             ? <>
-                Included in your plan, so Safehubby pays them instead of you — the same {money(assistantPayout)},
-                {" "}nothing taken off.{" "}
+                {c.includedPaid(money(assistantPayout))}
                 {includedGrabs?.remaining === null
-                  ? "No monthly limit on your plan."
-                  : `${includedGrabs?.remaining} of ${includedGrabs?.allowance} left this month; they come back on ${resetsOn}.`}
+                  ? c.noLimit
+                  : c.leftThisMonth(includedGrabs?.remaining ?? 0, includedGrabs?.allowance ?? 0, resetsOn)}
               </>
             : <>
                 {tier
-                  ? `${findErrandTier(tier).minutes} minutes at ${money(ERRAND_RATE_PER_HOUR_CENTS)}/hr${findErrandTier(tier).miles ? ` plus ${findErrandTier(tier).miles} miles at ${money(ERRAND_MILEAGE_CENTS)}` : ""}. `
-                  : `${money(hourlyRateCentsFor(category, effectiveQuickTask))}/hr${hourly ? "" : " for this kind of task"}. `}
-                They keep all of it — the rest of the fee ({money(serviceFee - assistantPayout)}) is added on top
-                {" "}of their pay{tier ? ", and covers card processing and a few cents for us" : ""}.
+                  ? c.tierPay(findErrandTier(tier).minutes, money(ERRAND_RATE_PER_HOUR_CENTS), findErrandTier(tier).miles, money(ERRAND_MILEAGE_CENTS))
+                  : c.hourlyPay(money(hourlyRateCentsFor(category, effectiveQuickTask)), !hourly)}
+                {c.keepAll(money(serviceFee - assistantPayout), Boolean(tier))}
               </>}
         </p>
         <div className="row-between" style={{ marginTop: 6 }}>
-          <span className="small"><strong>Held now</strong></span>
+          <span className="small"><strong>{c.heldNow}</strong></span>
           <span className="small charge-amount"><strong>{money(totalHeld)}</strong></span>
         </div>
         {/* Which number is which. The two are easy to read as one total, and
@@ -924,11 +893,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
             card a stranger carries, the other pays for their time and never
             touches that card. */}
         <p className="tiny muted" style={{ margin: 0 }}>
-          {feeIncluded
-            ? `${money(spendCapCents)} onto their card for the purchase, and nothing for their time. `
-            : `${money(spendCapCents)} onto their card for the purchase, ${money(serviceFee)} for their time. `}
-          The card money is a ceiling, not a price — you are charged for what is actually spent, and never a cent
-          over it.{feeIncluded ? "" : " The fee is never on the card."}
+          {c.heldSplit(money(spendCapCents), feeIncluded ? null : money(serviceFee))}
+          {c.ceiling(feeIncluded)}
         </p>
       </div>
 
@@ -938,22 +904,21 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           the customer is already looking at the screen that would send it. */}
       {useConfirmFlow && !confirming && (
         <button className="btn btn-block" disabled={busy || !note.trim() || covered === false || !onBehalfReady} onClick={startConfirm}>
-          {simple ? w.send : "Send request"}
+          {simple ? w.send : c.sendRequest}
         </button>
       )}
 
       {useConfirmFlow && confirming && (
         <div className="card card-quiet stack" style={{ gap: 8 }}>
-          <strong className="small">Confirm this request?</strong>
+          <strong className="small">{c.confirmTitle}</strong>
           <p className="small" style={{ margin: 0 }}>
-            {conciergeCategoryLabel(category)}: "{note}" — up to {money(spendCapCents)} loaded on their card,
-            {" "}{money(totalHeld)} held on yours now{feeIncluded ? ", with no service fee" : ""}.
+            {c.confirmBody(choiceLabel(category, conciergeCategoryLabel(category), lang), note, money(spendCapCents), money(totalHeld), feeIncluded)}
           </p>
           <div className="row">
             <button className="btn grow" disabled={busy} onClick={() => { setConfirming(false); setAutoAssistant(null); }}>
-              No, edit it
+              {c.edit}
             </button>
-            <button className="btn btn-primary grow" disabled={busy} onClick={confirmAndSend}>Yes, send it</button>
+            <button className="btn btn-primary grow" disabled={busy} onClick={confirmAndSend}>{c.yesSend}</button>
           </div>
         </div>
       )}
@@ -962,14 +927,12 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         <button className="btn btn-block"
           disabled={busy || !note.trim() || covered === false || !onBehalfReady || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
           onClick={browse}>
-          Browse assistants
+          {c.browse}
         </button>
       )}
 
       {!useConfirmFlow && roster !== null && roster.length === 0 && (
-        <p className="small muted">
-          No assistants to show right now. Try a different task type, or check back shortly.
-        </p>
+        <p className="small muted">{c.noRoster}</p>
       )}
 
       {roster !== null && roster.length > 0 && (
@@ -990,11 +953,9 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           {roster.map((a) => {
             const available = isAssistantAvailable(a);
             const facts = [
-              a.yearsExperience !== undefined
-                ? `${a.yearsExperience} ${a.yearsExperience === 1 ? "yr" : "yrs"} as a PA`
-                : null,
+              a.yearsExperience !== undefined ? c.years(a.yearsExperience) : null,
               a.gender,
-              a.age !== undefined ? `age ${a.age}` : null,
+              a.age !== undefined ? c.age(a.age) : null,
             ].filter(Boolean);
             return (
               <button key={a.id} role="listitem" className="assistant-tile" disabled={!available}
@@ -1009,7 +970,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
                     subscriber picking who comes to them should see which
                     one this is, not just a name and a photo. Absent for a
                     partner-network professional, who carries no StaffRole. */}
-                {a.role && <span className="pill">{findRole(a.role).label}</span>}
+                {a.role && <span className="pill">{localized(findRole(a.role).label, lang)}</span>}
                 {facts.length > 0 && (
                   <span className="assistant-facts">{facts.map((f) => <span key={String(f)} className="assistant-fact">{f}</span>)}</span>
                 )}
@@ -1019,7 +980,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
                     rest once one is picked. */}
                 {a.bio && <span className="tiny muted assistant-bio">{a.bio}</span>}
                 <span className={`tiny ${available ? "muted" : "assistant-full"}`}>
-                  {available ? `Up to ${a.maxConcurrentCustomers} at once` : "At capacity"}
+                  {available ? c.upTo(a.maxConcurrentCustomers) : c.atCapacity}
                 </span>
               </button>
             );

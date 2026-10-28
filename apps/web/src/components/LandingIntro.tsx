@@ -4,7 +4,7 @@ import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
-import { PublicPricing, PublicWorkerPay } from "./PublicPricing.tsx";
+import { PublicPricing } from "./PublicPricing.tsx";
 import { Footer } from "./Footer.tsx";
 import { LuxuryHero } from "./LuxuryHero.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
@@ -176,10 +176,6 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
               <button className="btn btn-block btn-ghost" onClick={onWorkWithUs}>{t("work.staffCta")}</button>
             </div>
 
-            {/* The rate, here, rather than one click deeper inside whichever
-                application form you happen to open. Somebody deciding whether
-                to apply is exactly who the number is for. */}
-            <PublicWorkerPay />
           </section>
         </section>
       </Carousel>

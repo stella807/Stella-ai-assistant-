@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type CartLine, type CartSummary, type PartyCategory, type PartyItem } from "../api.ts";
 
 import { money } from "../money.ts";
+import { useLanguage } from "../i18n.tsx";
+import { gamesWords } from "../app/games-copy.ts";
 
 /**
  * Party supply — the daytime half of the product. Safehubby already knows a
@@ -9,6 +11,7 @@ import { money } from "../money.ts";
  * planning the thing is the same problem one step earlier.
  */
 export function PartyScreen() {
+  const w = gamesWords(useLanguage().language).party;
   const [categories, setCategories] = useState<PartyCategory[]>([]);
   const [items, setItems] = useState<PartyItem[]>([]);
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -32,7 +35,7 @@ export function PartyScreen() {
     try {
       setSummary((await api.savePartyCart(next.filter((l) => l.qty > 0))).summary);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save the cart");
+      setError(e instanceof Error ? e.message : w.failed);
     } finally {
       setBusy(false);
     }
@@ -48,17 +51,15 @@ export function PartyScreen() {
   return (
     <div className="stack">
       <div>
-        <h2>Throw the party</h2>
-        <p className="small muted">
-          Chairs, food, decorations, entertainment, and the boring things everyone forgets.
-        </p>
+        <h2>{w.title}</h2>
+        <p className="small muted">{w.lead}</p>
       </div>
 
       <section className="card">
-        <h3>Start from a headcount</h3>
+        <h3>{w.headcount}</h3>
         <div className="row">
           <div className="field grow">
-            <label htmlFor="guests">People coming</label>
+            <label htmlFor="guests">{w.coming}</label>
             <input id="guests" type="number" inputMode="numeric" min={1} value={guests}
               onChange={(e) => setGuests(Number(e.target.value))} />
           </div>
@@ -68,9 +69,9 @@ export function PartyScreen() {
             const s = await api.partySuggest(guests);
             save(s.lines);
           }}>
-          Build me a cart for {guests}
+          {w.build(guests)}
         </button>
-        <p className="tiny muted">A starting point you can edit — nothing is ordered.</p>
+        <p className="tiny muted">{w.starting}</p>
       </section>
 
       {categories.map((c) => {
@@ -96,15 +97,15 @@ export function PartyScreen() {
                     <div className="grow">
                       <strong className="small">{i.name}</strong>
                       <div className="tiny muted">
-                        {money(i.priceCents)} {i.unit} · {i.vendor}{i.rental ? " · rental" : ""}
+                        {money(i.priceCents)} {i.unit} · {i.vendor}{i.rental ? w.rental : ""}
                       </div>
                     </div>
                     <div className="stepper">
                       <button className="btn btn-sm" disabled={busy || !(qty[i.sku] ?? 0)}
-                        onClick={() => bump(i.sku, -1)} aria-label={`Remove one ${i.name}`}>−</button>
+                        onClick={() => bump(i.sku, -1)} aria-label={w.remove(i.name)}>−</button>
                       <span>{qty[i.sku] ?? 0}</span>
                       <button className="btn btn-sm" disabled={busy}
-                        onClick={() => bump(i.sku, 1)} aria-label={`Add one ${i.name}`}>+</button>
+                        onClick={() => bump(i.sku, 1)} aria-label={w.add(i.name)}>+</button>
                     </div>
                   </li>
                 ))}
@@ -116,7 +117,7 @@ export function PartyScreen() {
 
       {summary && summary.subtotalCents > 0 && (
         <section className="card">
-          <h3>Your cart</h3>
+          <h3>{w.cart}</h3>
           <ul className="timeline">
             {summary.lines.map((l) => (
               <li key={l.item.sku}>
@@ -129,21 +130,16 @@ export function PartyScreen() {
             ))}
           </ul>
 
-          <div className="row-between"><span className="small muted">To buy</span><span>{money(summary.purchaseCents)}</span></div>
-          <div className="row-between"><span className="small muted">Rentals (come back)</span><span>{money(summary.rentalCents)}</span></div>
-          <div className="row-between total"><strong>Total</strong><strong>{money(summary.subtotalCents)}</strong></div>
+          <div className="row-between"><span className="small muted">{w.toBuy}</span><span>{money(summary.purchaseCents)}</span></div>
+          <div className="row-between"><span className="small muted">{w.rentals}</span><span>{money(summary.rentalCents)}</span></div>
+          <div className="row-between total"><strong>{w.total}</strong><strong>{money(summary.subtotalCents)}</strong></div>
 
           {summary.coversGuests !== null && (
-            <p className="tiny muted">
-              Comfortably covers about {summary.coversGuests} people — set by whichever category is thinnest,
-              so twelve chairs and food for forty still seats twelve.
-            </p>
+            <p className="tiny muted">{w.covers(summary.coversGuests)}</p>
           )}
 
-          <button className="btn btn-block" disabled>Checkout — not connected yet</button>
-          <p className="tiny muted">
-            Vendors are catalogue entries in this build. Nothing here places a real order or takes payment.
-          </p>
+          <button className="btn btn-block" disabled>{w.checkout}</button>
+          <p className="tiny muted">{w.catalogue}</p>
         </section>
       )}
 

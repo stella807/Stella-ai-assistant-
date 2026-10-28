@@ -1,4 +1,7 @@
 import type { ShareGrant } from "@safehubby/core";
+import { useLanguage } from "../i18n.tsx";
+import { watchWords } from "../app/watch-copy.ts";
+import { timeOf } from "../app/dates.ts";
 
 /**
  * The "who can see me" screen. It is always reachable and always current —
@@ -11,47 +14,45 @@ export function SharingPanel({ grants, onShare, onRevoke, busy }: {
   onRevoke: (grantId: string) => void;
   busy: boolean;
 }) {
+  const { language } = useLanguage();
+  const w = watchWords(language).sharing;
   return (
-    <section className="card stack" aria-label="Who can see me">
+    <section className="card stack" aria-label={w.title}>
       <div className="row-between">
-        <h3>Who can see me</h3>
+        <h3>{w.title}</h3>
         <span className={grants.length ? "pill pill-safe" : "pill"}>
-          {grants.length ? `${grants.length} sharing` : "Not sharing"}
+          {grants.length ? w.count(grants.length) : w.none}
         </span>
       </div>
 
       {grants.length === 0 ? (
-        <p className="small muted">Nobody can see your location right now.</p>
+        <p className="small muted">{w.nobody}</p>
       ) : (
         <ul className="timeline">
           {grants.map((g) => (
             <li key={g.id}>
               <div className="grow">
                 <strong className="small">
-                  {g.guardianId ? `Watched by ${g.guardianId}` : "Waiting to be claimed"}
+                  {g.guardianId ? w.watchedBy(g.guardianId) : w.waiting}
                 </strong>
                 <div className="tiny muted">
-                  {g.scopes.join(", ")} · until {new Date(g.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  {g.scopes.map((s) => w.scopes[s] ?? s).join(", ")} · {w.until(timeOf(g.expiresAt, language))}
                 </div>
                 {!g.guardianId && (
                   <div className="tiny" style={{ userSelect: "all", letterSpacing: ".08em", fontWeight: 700 }}>
-                    Code: {g.inviteCode}
+                    {w.code} {g.inviteCode}
                   </div>
                 )}
               </div>
-              <button className="btn btn-sm" disabled={busy} onClick={() => onRevoke(g.id)}>Stop</button>
+              <button className="btn btn-sm" disabled={busy} onClick={() => onRevoke(g.id)}>{w.stop}</button>
             </li>
           ))}
         </ul>
       )}
 
-      <button className="btn btn-block" disabled={busy} onClick={onShare}>Share with someone</button>
+      <button className="btn btn-block" disabled={busy} onClick={onShare}>{w.share}</button>
 
-      <p className="tiny muted">
-        Read the code out to one person — it works once, and only for the account that claims it.
-        Sharing always expires on its own, ends when you get home, and you can stop it at any moment.
-        There is no hidden mode.
-      </p>
+      <p className="tiny muted">{w.note}</p>
     </section>
   );
 }

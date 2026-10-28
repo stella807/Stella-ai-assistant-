@@ -20,6 +20,9 @@ import { assistantFace, pendingSpendRequests, statusLine } from "../app/chat-car
  *  so it follows the same rule ConciergePanel's own pricing card does: a fee
  *  of $87.50 shown as $88 is a number the customer did not actually accept. */
 import { money } from "../money.ts";
+import { useLanguage } from "../i18n.tsx";
+import { taskWords } from "../app/task-copy.ts";
+import { localized } from "../app/server-es.ts";
 
 /** How often an open, still-running thread re-reads its messages. Ten
  *  seconds is fast enough that "I'm outside" lands while it still means
@@ -59,6 +62,9 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   onBooked: (task: ConciergeTask) => void;
   onClose: () => void;
 }) {
+  const { language } = useLanguage();
+  const t = taskWords(language);
+  const w = t.modal;
   const [task, setTask] = useState<ConciergeTask | null>(existingTask ?? null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -181,7 +187,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       setTask(res.task);
       onBooked(res.task);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send the request");
+      setError(e instanceof Error ? e.message : t.errors.request);
     } finally {
       setBusy(false);
     }
@@ -196,12 +202,12 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       setBusy(true);
       try {
         const clip = await active.stop();
-        if (!task) throw new Error("No request to attach this message to yet.");
+        if (!task) throw new Error(t.errors.noRequest);
         await api.sendVoiceMessage(task.id, clip);
         const fresh = await api.voiceMessages(task.id);
         setMessages(fresh.messages);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not send that message");
+        setError(e instanceof Error ? e.message : t.errors.message);
       } finally {
         setBusy(false);
       }
@@ -216,7 +222,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       setError(`${permissionCopy("microphone").recovery} ${settingsPath("microphone")}`);
       return;
     }
-    if (started === "unavailable") { setError("Voice messages aren't available in this browser."); return; }
+    if (started === "unavailable") { setError(t.errors.noVoice); return; }
     activeRecording.current = started;
     setIsRecording(true);
     setElapsed(0);
@@ -232,7 +238,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       setTexts((t) => [...t, res.message]);
       setDraft("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that message");
+      setError(e instanceof Error ? e.message : t.errors.message);
     } finally {
       setBusy(false);
     }
@@ -247,7 +253,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       const res = await api.sendSelfie(task.id, photo);
       setTask((t) => (t ? { ...t, identityPhotos: { ...t.identityPhotos, traveler: res.photo } } : t));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save that photo");
+      setError(e instanceof Error ? e.message : t.errors.photo);
     } finally {
       setBusy(false);
     }
@@ -264,7 +270,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         spendRequests: (task.spendRequests ?? []).map((r) => (r.id === requestId ? res.request : r)),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send that");
+      setError(e instanceof Error ? e.message : t.errors.send);
     } finally {
       setBusy(false);
     }
@@ -280,7 +286,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       setTask(res.task);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not file that report");
+      setError(e instanceof Error ? e.message : t.errors.report);
       return false;
     } finally {
       setBusy(false);
@@ -288,7 +294,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   };
 
   const face = assistantFace(assistant, task);
-  const status = statusLine(task);
+  const status = statusLine(task, language);
   const pending = pendingSpendRequests(task);
   const payout = errandTier ? errandPayoutCents(errandTier) : assistantPayoutFor(category, quickTask, peopleCount, hours);
 
@@ -300,17 +306,17 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
       <div className="popup-who">
         <strong>{assistant.name}</strong>
         <span className="tiny muted">
-          {assistant.role ? `${findRole(assistant.role).label} · ` : ""}
+          {assistant.role ? `${localized(findRole(assistant.role).label, language)} · ` : ""}
           <span className={`popup-status${status.live ? " popup-status-live" : ""}`}>{status.label}</span>
         </span>
       </div>
       {task && (
         <button className="btn btn-sm btn-ghost" onClick={() => setShowDetails((v) => !v)}
-          aria-pressed={showDetails} aria-label={showDetails ? "Back to the conversation" : "Task details"}>
-          {showDetails ? "Chat" : "Details"}
+          aria-pressed={showDetails} aria-label={showDetails ? w.back : w.details}>
+          {showDetails ? w.chat : w.detailsShort}
         </button>
       )}
-      <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
+      <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label={w.close}>✕</button>
     </>
   );
 
@@ -324,60 +330,57 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
           {error && <div className="banner banner-danger">{error}</div>}
           <label className="row" style={{ alignItems: "flex-start", gap: 8 }}>
             <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />
-            <span className="small">I understand what this means and want to send this request.</span>
+            <span className="small">{w.agree}</span>
           </label>
           <button className="btn btn-primary btn-block" disabled={busy || !acknowledged || totalCents === null} onClick={send}>
-            Send request
+            {w.sendRequest}
           </button>
         </>
       }>
         {assistant.bio && <p className="small muted" style={{ margin: 0 }}>{assistant.bio}</p>}
-        <p className="tiny muted" style={{ margin: 0 }}>{describeAssistantCapacity(assistant)}</p>
+        <p className="tiny muted" style={{ margin: 0 }}>{localized(describeAssistantCapacity(assistant), language)}</p>
         {onBehalfOf && (
           <p className="small" style={{ margin: 0 }}>
-            <strong>For:</strong> {onBehalfOf.recipientName} — {onBehalfOf.place}{onBehalfOf.room ? `, ${onBehalfOf.room}` : ""}
+            <strong>{w.forLabel}</strong> {onBehalfOf.recipientName} — {onBehalfOf.place}{onBehalfOf.room ? `, ${onBehalfOf.room}` : ""}
           </p>
         )}
-        <p className="small" style={{ margin: 0 }}><strong>Request:</strong> {note}</p>
+        <p className="small" style={{ margin: 0 }}><strong>{w.requestLabel}</strong> {note}</p>
 
         {maxPeopleCount > 1 && (
           <div className="field">
-            <label htmlFor="people-count">How many people is this for?</label>
+            <label htmlFor="people-count">{w.howMany}</label>
             <select id="people-count" value={peopleCount} onChange={(e) => setPeopleCount(Number(e.target.value))}>
               {Array.from({ length: maxPeopleCount }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>{n === 1 ? "Just me" : `${n} people`}</option>
+                <option key={n} value={n}>{n === 1 ? w.justMe : t.people(n)}</option>
               ))}
             </select>
-            <span className="tiny muted">
-              Looking after more people is more work, so the assistant is paid more for it. Your plan
-              covers up to {maxPeopleCount}.
-            </span>
+            <span className="tiny muted">{w.morePeople(maxPeopleCount)}</span>
           </div>
         )}
 
         <div className="card card-quiet stack" style={{ gap: 6 }}>
           <div className="row-between tiny muted">
-            <span>Spend cap (reimbursed purchase)</span>
+            <span>{w.spendCap}</span>
             <span className="charge-amount">{money(spendCapCents)}</span>
           </div>
           <div className="row-between tiny muted">
-            <span>Service fee{peopleCount > 1 && ` — for ${peopleCount} people`}</span>
-            <span className="charge-amount">{serviceFeeCents === null ? "…" : serviceFeeCents === 0 ? "Included" : money(serviceFeeCents)}</span>
+            <span>{w.serviceFee(peopleCount)}</span>
+            <span className="charge-amount">{serviceFeeCents === null ? "…" : serviceFeeCents === 0 ? w.included : money(serviceFeeCents)}</span>
           </div>
           {/* Not the fee: the fee is what the assistant is paid plus Safehubby's
               margin. This is the line that adds up for somebody doing the
               hourly arithmetic themselves. */}
           <div className="row-between tiny muted">
-            <span>Your assistant is paid</span>
+            <span>{w.paid}</span>
             <span className="charge-amount">{money(payout)}</span>
           </div>
           <div className="row-between small">
-            <strong>Held on your card now</strong>
+            <strong>{w.held}</strong>
             <strong className="charge-amount">{totalCents === null ? "…" : money(totalCents)}</strong>
           </div>
         </div>
         <ul className="timeline">
-          {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{d}</span></li>)}
+          {CONCIERGE_DISCLOSURES.map((d) => <li key={d}><span className="tiny muted">{localized(d, language)}</span></li>)}
         </ul>
       </PopupCard>
     );
@@ -396,14 +399,14 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
         {error && <div className="banner banner-danger">{error}</div>}
         <div className="popup-composer">
           <input
-            aria-label="Message your assistant"
-            placeholder={`Message ${assistant.name}`}
+            aria-label={t.messageAssistant}
+            placeholder={t.messageName(assistant.name)}
             value={draft}
             maxLength={MAX_TEXT_MESSAGE_LENGTH}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) sendText(); }}
           />
-          <button className="btn btn-primary" disabled={busy || !draft.trim()} onClick={sendText}>Send</button>
+          <button className="btn btn-primary" disabled={busy || !draft.trim()} onClick={sendText}>{t.send}</button>
           {/* Explains itself before the OS dialog appears. On a native build a
               refused microphone prompt is never shown again, so the one chance
               to ask has to land on someone who knows why. */}
@@ -411,22 +414,20 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
             <PermissionGate name="microphone" compact>
               <button className={`record-button popup-mic${isRecording ? " recording" : ""}`}
                 disabled={busy && !isRecording} onClick={record}
-                aria-label={isRecording ? "Stop and send" : "Record a voice message"}>
+                aria-label={isRecording ? w.stopSend : w.record}>
                 {isRecording ? `${elapsed}s` : "●"}
               </button>
             </PermissionGate>
           </div>
         </div>
-        {isRecording && <p className="tiny muted" style={{ margin: 0, textAlign: "center" }}>Recording — tap to send (up to {MAX_VOICE_MESSAGE_SECONDS}s)</p>}
+        {isRecording && <p className="tiny muted" style={{ margin: 0, textAlign: "center" }}>{w.recording(MAX_VOICE_MESSAGE_SECONDS)}</p>}
       </>
     }>
       {showDetails ? (
         <TaskDetails task={task} busy={busy} onSelfie={captureSelfie} onDispute={submitDispute} />
       ) : (
         <>
-          <p className="tiny muted" style={{ margin: 0 }}>
-            Sent — {money(task.spendCapCents + task.serviceFeeCents)} held. Type or leave a voice message if there's more to say.
-          </p>
+          <p className="tiny muted" style={{ margin: 0 }}>{w.sentHeld(money(task.spendCapCents + task.serviceFeeCents))}</p>
           {/* Typed and spoken messages in one timeline — see TaskMessageThread. */}
           <TaskMessageThread texts={texts} voices={messages} assistantName={assistant.name} />
         </>

@@ -71,7 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
-  withholdingFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
+  currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
 import type {
@@ -2131,6 +2131,8 @@ export const routes: Record<string, Handler> = {
   "GET /api/catalog": (ctx) => {
     const eliteUnlock = eliteUnlockStatus(ctx);
     return {
+      // What is free each month, so the app shows what the server will charge.
+      freebies: currentMonthlyFreebies(),
       drinks: DRINK_CATALOG,
       // Only what has actually shipped: the Elite tier is built and held
       // behind `elite-tier` (see features.ts), so it is absent here rather
@@ -4411,6 +4413,27 @@ export const routes: Record<string, Handler> = {
 
   /* What was held back from each worker in a year — the figures behind the
      year-end return and the payment to Hacienda. Money scope only. */
+  /* Who is owed what for a payroll period, task by task: a preview of what a
+     payroll run would send. Read-only; money scope only. `period=current` is
+     the one still open, anything else the last closed one a run would pay. */
+  "GET /api/master/payout-sheet": (ctx, p) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "money", now)) throw unauthorized();
+    const db = ctx.store.data;
+    return payoutSheet({
+      tasks: db.conciergeTasks,
+      period: p.period === "current" ? payoutPeriodFor(now) : previousPayoutPeriod(now),
+      adjustments: db.assistantAdjustments,
+      payouts: db.payouts,
+      workers: Object.fromEntries(db.assistants.map((a) => [
+        a.id, { name: a.name, market: a.market, exempt: Boolean(a.withholdingExemptionCertificate) },
+      ])),
+      destinations: db.assistantPayoutDestinations,
+      clientName: (travelerId) => nameOf(ctx, travelerId),
+    });
+  },
+
   "GET /api/master/withholding": (ctx, p) => {
     const account = masterAccountOf(ctx);
     const now = ctx.now();
@@ -5957,6 +5980,31 @@ export const routes: Record<string, Handler> = {
       delivery: email.status,
       subscribers: all,
     };
+  },
+
+  /** Master: what is free each month, and the owner's switch and amounts for it. */
+  "GET /api/master/freebies": (ctx) => {
+    requireAdmin(ctx, "operations");
+    return { freebies: currentMonthlyFreebies(), defaults: defaultMonthlyFreebies() };
+  },
+
+  /** Master: switch the monthly freebies on or off and set how much each plan gets. */
+  "POST /api/master/freebies": (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    const account = masterAccountOf(ctx);
+    // Sanitised against the ceilings in core, so a typo cannot hand out a hundred pickups.
+    const freebies = sanitizeMonthlyFreebies(body);
+    ctx.store.update((db) => {
+      db.monthlyFreebies = freebies;
+      if (account) {
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "operations",
+          subject: freebies.enabled ? "monthly freebies changed" : "monthly freebies switched off", at: ctx.now().toISOString(),
+        });
+      }
+    });
+    setMonthlyFreebies(freebies);
+    return { freebies, defaults: defaultMonthlyFreebies() };
   },
 
   /** Master: get current pricing including any overrides. */

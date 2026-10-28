@@ -1,4 +1,6 @@
-import type { ConciergeTask } from "./concierge.ts";
+import { conciergeCategoryLabel, type ConciergeTask } from "./concierge.ts";
+import type { LaunchMarketId } from "./service-area.ts";
+import { withholdingFor } from "./withholding.ts";
 
 /**
  * Paying assistants biweekly.
@@ -200,4 +202,140 @@ export function applyAdjustments(
  *  next time they check their pay. */
 export function outstandingClawbackCents(adjustments: AssistantAdjustment[]): number {
   return adjustments.reduce((sum, a) => sum + a.remainingCents, 0);
+}
+
+/** One finished task on a worker's line of the payout sheet. */
+export interface PayoutSheetTask {
+  taskId: string;
+  completedAt: string;
+  category: string;
+  /** What the client asked for, as they wrote it. */
+  note: string;
+  clientName: string;
+  payoutCents: number;
+}
+
+/** One worker's line: what they did, what they earned, what comes off, what to send. */
+export interface PayoutSheetLine {
+  assistantId: string;
+  name: string;
+  market?: string;
+  tasks: PayoutSheetTask[];
+  earnedCents: number;
+  /** Owed back from upheld customer disputes, taken before anything is sent. */
+  clawbackCents: number;
+  /** Held back for Hacienda, recorded but not sent to the worker. */
+  withheldCents: number;
+  exempt: boolean;
+  /** What to actually transfer. */
+  netCents: number;
+  /** Only the holder's name and last four digits: the full numbers stay sealed. */
+  destination: { holderName: string; last4: string } | null;
+  /** Why this line can't be sent yet, if it can't. */
+  blocker?: string;
+}
+
+export interface PayoutSheet {
+  period: { start: string; end: string };
+  lines: PayoutSheetLine[];
+  totals: { earnedCents: number; clawbackCents: number; withheldCents: number; netCents: number };
+  /** Payouts already recorded for this period, so a sent one is not paid twice. */
+  sent: { payoutId: string; assistantId: string; name: string; totalCents: number; status: PayoutStatus; paidAt?: string; failureReason?: string }[];
+}
+
+/**
+ * Who is owed what for a period, task by task: a preview of exactly what
+ * `runPayroll` would send, built from the same rules (unpaid completed work,
+ * clawbacks first, then Puerto Rico withholding). Pure, so the owner can look
+ * at it before any money moves, and it never moves any.
+ */
+export function payoutSheet(input: {
+  tasks: ConciergeTask[];
+  period: PayoutPeriod;
+  adjustments: AssistantAdjustment[];
+  payouts: AssistantPayout[];
+  workers: Record<string, { name: string; market?: string; exempt: boolean }>;
+  destinations: Record<string, { accountHolderName: string; accountNumberLast4: string }>;
+  clientName: (travelerId: string) => string;
+}): PayoutSheet {
+  const { tasks, period, adjustments, payouts, workers, destinations } = input;
+  const ids = new Set(tasks.flatMap((t) => [t.assistantId, t.runnerId]).filter((id): id is string => Boolean(id)));
+  const lines: PayoutSheetLine[] = [];
+
+  for (const assistantId of [...ids].sort()) {
+    const earnings = earningsFor(tasks, assistantId, period);
+    if (earnings.length === 0) continue;
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    const earnedCents = totalEarningsCents(earnings);
+    const open = adjustments.filter((a) => a.assistantId === assistantId && a.remainingCents > 0);
+    const { payableCents, consumed } = applyAdjustments(earnedCents, open);
+    const worker = workers[assistantId];
+    const { withheldCents, netCents } = withholdingFor({
+      market: worker?.market as LaunchMarketId | undefined, payableCents, exempt: worker?.exempt ?? false,
+    });
+    const dest = destinations[assistantId];
+    lines.push({
+      assistantId,
+      name: worker?.name ?? assistantId,
+      market: worker?.market,
+      tasks: earnings.map((e) => {
+        const t = byId.get(e.taskId)!;
+        return {
+          taskId: e.taskId, completedAt: e.completedAt, category: conciergeCategoryLabel(t.category), note: t.note,
+          clientName: input.clientName(t.travelerId), payoutCents: e.payoutCents,
+        };
+      }).sort((a, b) => a.completedAt.localeCompare(b.completedAt)),
+      earnedCents,
+      clawbackCents: consumed.reduce((s, c) => s + c.amountCents, 0),
+      withheldCents,
+      exempt: worker?.exempt ?? false,
+      netCents,
+      destination: dest ? { holderName: dest.accountHolderName, last4: dest.accountNumberLast4 } : null,
+      blocker: netCents > 0 && !dest ? "No bank account on file: ask them to add one in the portal." : undefined,
+    });
+  }
+
+  const sum = (pick: (l: PayoutSheetLine) => number) => lines.reduce((s, l) => s + pick(l), 0);
+  const startIso = period.start.toISOString();
+  return {
+    period: { start: startIso, end: period.end.toISOString() },
+    lines,
+    totals: {
+      earnedCents: sum((l) => l.earnedCents), clawbackCents: sum((l) => l.clawbackCents),
+      withheldCents: sum((l) => l.withheldCents), netCents: sum((l) => l.netCents),
+    },
+    sent: payouts.filter((p) => p.periodStart === startIso).map((p) => ({
+      payoutId: p.id, assistantId: p.assistantId, name: workers[p.assistantId]?.name ?? p.assistantId,
+      totalCents: p.totalCents, status: p.status, paidAt: p.paidAt, failureReason: p.failureReason,
+    })),
+  };
+}
+
+const csvCell = (v: string | number): string => {
+  const s = String(v);
+  // A leading = + - @ would run as a formula when the file opens in a spreadsheet.
+  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+};
+
+/** The sheet as a CSV: one row per task, with each worker's totals on their first row. */
+export function payoutSheetCsv(sheet: PayoutSheet): string {
+  const usd = (c: number) => (c / 100).toFixed(2);
+  const rows: (string | number)[][] = [[
+    "Worker", "Task completed", "Client", "Task", "What the client asked for", "Task pay (USD)",
+    "Worker earned (USD)", "Owed back (USD)", "Held for Hacienda (USD)", "Send (USD)", "Bank account", "Note",
+  ]];
+  for (const l of sheet.lines) {
+    l.tasks.forEach((t, i) => rows.push([
+      l.name, t.completedAt.slice(0, 10), t.clientName, t.category, t.note, usd(t.payoutCents),
+      ...(i === 0
+        ? [usd(l.earnedCents), usd(l.clawbackCents), usd(l.withheldCents), usd(l.netCents),
+          l.destination ? `${l.destination.holderName} ending ${l.destination.last4}` : "none on file", l.blocker ?? ""]
+        : ["", "", "", "", "", ""]),
+    ]));
+  }
+  rows.push([]);
+  rows.push(["Total", "", "", "", "", "", usd(sheet.totals.earnedCents), usd(sheet.totals.clawbackCents),
+    usd(sheet.totals.withheldCents), usd(sheet.totals.netCents), "", ""]);
+  return rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
