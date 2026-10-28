@@ -6,7 +6,7 @@ import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
-  MonthlyFreebies, PayoutSheet, RecoveryPlan, ShareGrant, SpendRequest,
+  MonthlyFreebies, PayoutSheet, Vendor, VendorCategory, VendorStatus, RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
@@ -831,6 +831,13 @@ export const api = {
   masterWithholding: () =>
     request<{ year: string; totalWithheldCents: number; workers: { assistantId: string; name: string; paidCents: number; withheldCents: number }[] }>(
       "GET", "/api/master/withholding"),
+  masterVendors: () =>
+    request<{ vendors: Vendor[]; categories: { id: VendorCategory; label: string }[]; statuses: VendorStatus[] }>("GET", "/api/master/vendors"),
+  masterUpdateVendor: (id: string, patch: Partial<Pick<Vendor, "status" | "contactName" | "phone" | "email" | "ownerNotes">>) =>
+    request<{ vendor: Vendor }>("POST", `/api/master/vendors/${id}`, patch),
+  masterAddVendor: (v: { name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
+    request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
+  masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
   masterFreebies: () =>
     request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("GET", "/api/master/freebies"),
   masterSetFreebies: (freebies: MonthlyFreebies) =>

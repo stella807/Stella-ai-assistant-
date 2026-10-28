@@ -2567,6 +2567,47 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("the owner's vendor list", () => {
+    useAdminKey();
+
+    it("loads the researched vendors for the owner and keeps them away from everyone else", async () => {
+      expect((await call("GET", "/api/master/vendors")).status).toBe(401);
+      expect((await call("GET", "/api/master/vendors", undefined, jordan)).status).toBe(401);
+      const res = await callAdmin("GET", "/api/master/vendors");
+      expect(res.status).toBe(200);
+      expect(res.json.vendors.length).toBeGreaterThan(20);
+      expect(res.json.vendors.every((v: { status: string }) => v.status === "lead")).toBe(true);
+      // Loaded once: asking again does not duplicate them.
+      expect((await callAdmin("GET", "/api/master/vendors")).json.vendors.length).toBe(res.json.vendors.length);
+    });
+
+    it("lets the owner work a vendor: status, contact and notes, and refuses nonsense", async () => {
+      const first = (await callAdmin("GET", "/api/master/vendors")).json.vendors[0];
+      const bad = await callAdmin("POST", `/api/master/vendors/${first.id}`, { status: "maybe" });
+      expect(bad.status).toBe(400);
+      const ok = await callAdmin("POST", `/api/master/vendors/${first.id}`, {
+        status: "quoted", contactName: "Marisol", phone: "787 555 0100", ownerNotes: "Quoted $4,200 for 20 people.",
+      });
+      expect(ok.json.vendor).toMatchObject({ status: "quoted", contactName: "Marisol", ownerNotes: "Quoted $4,200 for 20 people." });
+      expect((await callAdmin("POST", "/api/master/vendors/nope", { status: "booked" })).status).toBe(404);
+    });
+
+    it("adds a vendor with a plain https link only, and removes one", async () => {
+      const added = await callAdmin("POST", "/api/master/vendors", {
+        name: "Test Charters", category: "boats", area: "Fajardo", sourceUrl: "javascript:alert(1)",
+      });
+      expect(added.status).toBe(200);
+      expect(added.json.vendor.sourceUrl).toBeUndefined();
+      const withLink = await callAdmin("POST", "/api/master/vendors", { name: "Linked", category: "boats", sourceUrl: "https://example.com/x" });
+      expect(withLink.json.vendor.sourceUrl).toBe("https://example.com/x");
+      expect((await callAdmin("POST", "/api/master/vendors", { name: "", category: "boats" })).status).toBe(400);
+      expect((await callAdmin("POST", "/api/master/vendors", { name: "X", category: "nope" })).status).toBe(400);
+      await callAdmin("POST", `/api/master/vendors/${added.json.vendor.id}/delete`, {});
+      const left = (await callAdmin("GET", "/api/master/vendors")).json.vendors;
+      expect(left.some((v: { id: string }) => v.id === added.json.vendor.id)).toBe(false);
+    });
+  });
+
   describe("the owner's switch for what is free each month", () => {
     useAdminKey();
 

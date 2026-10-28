@@ -5,7 +5,7 @@ import type {
   DeskTask, DriverApplication, GameRound, MasterAccount, MasterAuditEntry, NewsletterSubscriber, NightOut,
   PaymentMethodOnFile, PendingOrder,
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
-  ShareGrant, Subscription, VoiceMessage, PriceOverride,
+  ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor,
 } from "@safehubby/core";
 import type { MonthlyFreebies, SeniorIdCheck } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
@@ -247,6 +247,8 @@ export interface Db {
   /** Dynamic price overrides for all roles, allowing owner to adjust rates
    *  and maintain audit trail of pricing changes. */
   priceOverrides: PriceOverride[];
+  /** The businesses that could help put on the club's events, worked through by the owner; seeded on first use. */
+  vendors?: Vendor[];
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */
   monthlyFreebies?: MonthlyFreebies;
   /** Prepaid balance loads and refunds — see balance.ts. The balance itself
