@@ -2191,7 +2191,10 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(429, "The assistant is busy. Please try again in a little while, or email " + SITE_CONTACT_EMAIL + ".");
     }
     try {
-      return { reply: await siteChatReply(siteChatSystemPrompt(SITE_CONTACT_EMAIL, ctx.now()), messages) };
+      // Told what can actually be joined today, so it never sells a tier that is coming soon or payments that are not live.
+      const lockedPlans = eliteUnlockStatus(ctx).unlocked ? [] : PLANS.filter((p) => isElitePlan(p.id)).map((p) => p.id);
+      const system = siteChatSystemPrompt(SITE_CONTACT_EMAIL, ctx.now(), { lockedPlans, paidPlansOpen: paidPlansOpen() });
+      return { reply: await siteChatReply(system, messages) };
     } catch {
       throw new HttpError(502, "The assistant could not answer just now. Email " + SITE_CONTACT_EMAIL + " and a person will.");
     }

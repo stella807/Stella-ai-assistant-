@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { cleanSiteChatMessages, siteChatFacts, siteChatSystemPrompt, releasedPlans, setMonthlyFreebies, defaultMonthlyFreebies, CLUB_MONTHLY_DUES_CENTS } from "../src/index.ts";
+import { PLANS, isElitePlan, cleanSiteChatMessages, siteChatFacts, siteChatSystemPrompt, releasedPlans, setMonthlyFreebies, defaultMonthlyFreebies, CLUB_MONTHLY_DUES_CENTS } from "../src/index.ts";
 
 describe("the website assistant's facts", () => {
   it("name every released plan with its price", () => {
     const facts = siteChatFacts();
     for (const p of releasedPlans()) {
       expect(facts).toContain(p.name);
-      if (p.monthlyCents > 0) expect(facts).toContain(`$${(p.monthlyCents / 100).toFixed(p.monthlyCents % 100 === 0 ? 0 : 2)} a month`);
+      if (p.monthlyCents > 0) {
+        const d = (p.monthlyCents / 100).toLocaleString("en-US", { minimumFractionDigits: p.monthlyCents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 });
+        expect(facts).toContain(`${p.name}: $${d} a month`);
+      }
     }
     expect(facts).toContain(`$${CLUB_MONTHLY_DUES_CENTS / 100} a month`);
     expect(facts).toContain("$45 an hour");
@@ -24,6 +27,39 @@ describe("the website assistant's facts", () => {
     expect(prompt).toContain("911");
     expect(prompt).toContain("2026-11-02");
     expect(prompt).toMatch(/card numbers/);
+  });
+});
+
+describe("the facts about joining today", () => {
+  it("price every plan, monthly and annual, with thousands separated", () => {
+    const facts = siteChatFacts();
+    expect(facts).toContain("$93.99 a month, or $");
+    expect(facts).toMatch(/\$62,175 a month/);
+  });
+
+  it("mark a tier that is not open yet, so it is never sold as available", () => {
+    const elite = PLANS.filter((p) => isElitePlan(p.id)).map((p) => p.id);
+    const facts = siteChatFacts({ lockedPlans: elite });
+    expect(facts.match(/NOT OPEN YET/g)?.length).toBeGreaterThan(0);
+    expect(siteChatFacts()).not.toContain("NOT OPEN YET");
+  });
+
+  it("say so when card payments are not live", () => {
+    expect(siteChatFacts({ paidPlansOpen: false })).toContain("not open yet. Card payments are not live");
+    expect(siteChatFacts({ paidPlansOpen: true })).not.toContain("Card payments are not live");
+  });
+
+  it("promise the launch discount only inside its window, with its end date", () => {
+    const inside = siteChatFacts({ now: new Date("2026-10-29T12:00:00Z") });
+    expect(inside).toContain("LAUNCH OFFER (running now): 3% off");
+    expect(inside).toContain("December 1, 2026");
+    const after = siteChatFacts({ now: new Date("2027-02-01T12:00:00Z") });
+    expect(after).toContain("not running right now");
+    expect(after).not.toContain("running now)");
+  });
+
+  it("mention the free trial", () => {
+    expect(siteChatFacts()).toContain("FREE TRIAL: 14 days");
   });
 });
 
