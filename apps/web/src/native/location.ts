@@ -47,6 +47,8 @@ export async function requestPermission(): Promise<"granted" | LocationDenied> {
 export async function currentFix(): Promise<Fix | null> {
   try {
     if (isNative()) {
+      // Android will not hand out a fix until permission has been asked for; a refusal is a null, not a throw.
+      if ((await requestPermission()) !== "granted") return null;
       return toFix(await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10_000 }));
     }
     return await new Promise<Fix | null>((resolve) => {
