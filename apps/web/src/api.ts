@@ -239,8 +239,12 @@ async function request<T>(
   const lang = currentLanguage();
   if (!res.ok) {
     const error = (json as any)?.error;
+    // A 429 with no message of ours came from something in front of the server (a proxy or the host),
+    // so say what it means instead of a bare number.
     throw new ApiError(res.status, typeof error === "string" ? localized(error, lang)
-      : lang === "es" ? `La solicitud falló (${res.status})` : `Request failed (${res.status})`);
+      : res.status === 429
+        ? (lang === "es" ? "Demasiados intentos seguidos. Espera un minuto e inténtalo de nuevo." : "Too many requests in a row. Wait a minute and try again.")
+        : lang === "es" ? `La solicitud falló (${res.status})` : `Request failed (${res.status})`);
   }
   return localizeDeep(json as T, lang);
 }
