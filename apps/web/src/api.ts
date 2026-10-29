@@ -224,16 +224,39 @@ export interface DriverApplicationInput {
   backgroundCheckConsent: boolean;
 }
 
+/** How many times a read is retried when something in front of the server answers 429. */
+const EDGE_RETRIES = 2;
+
 async function request<T>(
   method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>,
 ): Promise<T> {
-  const res = await fetch(apiBase() + path, {
-    method,
-    // The session is an HttpOnly cookie, so it must ride along explicitly.
-    credentials: "include",
-    headers: { ...(body ? { "content-type": "application/json" } : {}), ...extraHeaders },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let attempt = 0;
+  for (;;) {
+    const res = await fetch(apiBase() + path, {
+      method,
+      // The session is an HttpOnly cookie, so it must ride along explicitly.
+      credentials: "include",
+      headers: { ...(body ? { "content-type": "application/json" } : {}), ...extraHeaders },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    // A 429 with no message of ours came from something in front of the server (a proxy or the host),
+    // which is asking for a moment's quiet. Reads are safe to repeat, so wait as told and try again
+    // rather than putting an error on screen for something that clears itself. Writes are never repeated.
+    if (res.status === 429 && method === "GET" && attempt < EDGE_RETRIES) {
+      const peek = await res.clone().json().catch(() => null);
+      if (typeof peek?.error !== "string") {
+        attempt += 1;
+        const asked = Number(res.headers.get("retry-after"));
+        const waitMs = Number.isFinite(asked) && asked >= 0 ? Math.min(asked, 5) * 1000 : 1000 * attempt;
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+    }
+    return await finish<T>(res);
+  }
+}
+
+async function finish<T>(res: Response): Promise<T> {
   const json = await res.json().catch(() => ({}));
   // The API writes in English; its sentences are put in the reader's language here, once.
   const lang = currentLanguage();
