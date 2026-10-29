@@ -79,6 +79,21 @@ export async function locationBlocked(): Promise<boolean> {
   }
 }
 
+/**
+ * True when a fix can be read without showing a prompt. Asking cold on page
+ * load, before the rider has tapped anything, is the easiest way to get a
+ * reflex "Don't Allow" that Safari then remembers for the site.
+ */
+export async function locationAlreadyAllowed(): Promise<boolean> {
+  try {
+    if (isNative()) return true; // the native app asks in its own flow
+    if (!navigator.permissions?.query) return false;
+    return (await navigator.permissions.query({ name: "geolocation" })).state === "granted";
+  } catch {
+    return false;
+  }
+}
+
 export type StopWatching = () => void;
 
 /**

@@ -3,7 +3,7 @@ import { defaultCapFor } from "@safehubby/core";
 import type { PickupRequest, PlanId } from "@safehubby/core";
 import { api, type SecureQuote } from "../api.ts";
 import { LiveMap } from "./LiveMap.tsx";
-import { currentFix } from "../native/location.ts";
+import { currentFix, locationAlreadyAllowed } from "../native/location.ts";
 import { TripMapPopup } from "./TripMapPopup.tsx";
 import { money } from "../money.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -64,7 +64,10 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   // device once so the map opens where the rider actually is.
   useEffect(() => {
     if (pickup) return;
-    currentFix().then((f) => { if (f) setPin({ lat: f.lat, lng: f.lng }); }).catch(() => {});
+    locationAlreadyAllowed()
+      .then((ok) => (ok ? currentFix() : null))
+      .then((f) => { if (f) setPin({ lat: f.lat, lng: f.lng }); })
+      .catch(() => {});
   }, [Boolean(pickup)]);
   const at = pin;
 
