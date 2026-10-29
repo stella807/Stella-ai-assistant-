@@ -1,4 +1,4 @@
-import { TRIAL_DAYS, deskTaskAllowanceFor, includedConciergeHours, releasedPlans, type PlanId } from "./billing.ts";
+import { deskTaskAllowanceFor, includedConciergeHours, releasedPlans, type PlanId } from "./billing.ts";
 import { PA_CUSTOMER_HOURLY_CENTS, MIN_BOOKED_HOURS } from "./concierge.ts";
 import { ERRAND_TIERS, errandFeeCents } from "./errand-tiers.ts";
 import { errandCreditFor, includedGrabAllowanceFor } from "./included-grabs.ts";
@@ -55,7 +55,7 @@ export function siteChatFacts(avail: SiteChatAvailability = {}): string {
     ...ERRAND_TIERS.map((t) => `- ${t.label} (${t.example}): ${dollars(errandFeeCents(t.id, t.suggestedCapCents))} fee at a ${dollars(t.suggestedCapCents)} spending limit`),
     "",
     `WINGMAN CLUB: ${dollars(CLUB_MONTHLY_DUES_CENTS)} a month. Each month's regular outing is included when it costs up to ${dollars(CLUB_INCLUDED_EVENT_MAX_CENTS)} a person. Bigger days (such as a track day or skydiving) cost the venue's price plus a ${Math.round(CLUB_PREMIUM_MARKUP * 100)}% service charge, less a credit the dues carry, and members choose whether to go.`,
-    `FREE TRIAL: ${TRIAL_DAYS} days before the first charge on a paid plan.`,
+    "FREE TRIAL: there is none. Do not mention or promise a trial; the Free plan is the way to try it without paying.",
     ...(avail.paidPlansOpen === false ? ["JOINING A PAID PLAN: not open yet. Card payments are not live, so paid plans can be viewed but not bought today; say so if asked."] : []),
     launchOfferFor(10_000, now).discounted
       ? `LAUNCH OFFER (running now): ${Math.round(LAUNCH_DISCOUNT_RATE * 100)}% off paid plans for the first ${LAUNCH_DISCOUNT_YEARS === 1 ? "year" : `${LAUNCH_DISCOUNT_YEARS} years`} for anyone who joins before ${new Date(LAUNCH_WINDOW_END).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}.`

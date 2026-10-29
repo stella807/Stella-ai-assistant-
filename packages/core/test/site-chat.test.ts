@@ -58,8 +58,9 @@ describe("the facts about joining today", () => {
     expect(after).not.toContain("running now)");
   });
 
-  it("mention the free trial", () => {
-    expect(siteChatFacts()).toContain("FREE TRIAL: 14 days");
+  it("never offer a free trial", () => {
+    expect(siteChatFacts()).toContain("there is none");
+    expect(siteChatFacts()).not.toMatch(/14 days/);
   });
 });
 
