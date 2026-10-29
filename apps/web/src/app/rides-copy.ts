@@ -51,7 +51,7 @@ const EN = {
   map: {
     finding: "Finding you…", myLocation: "◎ My location",
     expand: "Open full-screen map", collapse: "Close full-screen map", locate: "Go to my location",
-    locateBlocked: "Location is blocked for this site. On iPhone: tap aA in the address bar > Website Settings > Location > Allow, then reload. (Also check Settings > Privacy & Security > Location Services > Safari Websites.) Or tap the map to place the pin.",
+    locateBlocked: "Location is blocked for this site. On iPhone: Settings > Privacy & Security > Location Services > your browser (Safari Websites, Opera, Chrome...) > While Using the App. Then allow location for this site in the browser's own site settings and reload. Or tap the map to place the pin.",
     locateFailed: "Could not find you. Allow location for this app in your device settings, then try again, or tap the map to set the pin.",
     label: "Map", done: "✕ Done", expandShort: "⤢ Expand",
   },
@@ -101,7 +101,7 @@ const ES: typeof EN = {
   map: {
     finding: "Buscándote…", myLocation: "◎ Mi ubicación",
     expand: "Abrir el mapa en pantalla completa", collapse: "Cerrar el mapa en pantalla completa", locate: "Ir a mi ubicación",
-    locateBlocked: "La ubicación está bloqueada para este sitio. En iPhone: toca aA en la barra de direcciones > Ajustes del sitio web > Localización > Permitir, y recarga. (Revisa también Ajustes > Privacidad y seguridad > Localización > Sitios web de Safari.) O toca el mapa para colocar el pin.",
+    locateBlocked: "La ubicación está bloqueada para este sitio. En iPhone: Ajustes > Privacidad y seguridad > Localización > tu navegador (Sitios web de Safari, Opera, Chrome...) > Al usar la app. Luego permite la ubicación para este sitio en los ajustes del navegador y recarga. O toca el mapa para colocar el pin.",
     locateFailed: "No pudimos ubicarte. Permite la ubicación para esta app en los ajustes de tu dispositivo e inténtalo de nuevo, o toca el mapa para colocar el pin.",
     label: "Mapa", done: "✕ Listo", expandShort: "⤢ Ampliar",
   },
