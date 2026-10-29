@@ -2,7 +2,7 @@
 
 A chat and voice assistant on the marketing site that answers questions about pricing and how Safehubby works.
 
-- **Facts, not a script.** `packages/core/src/site-chat.ts` renders the answer sheet from the live prices (plans only when `SITE_CHAT_SHOW_PLANS=on`), allowances, errand fees, Wingman Club dues and the owner's free-each-month switch, so a price change shows in the assistant with no one editing a prompt. It can only answer from those facts, otherwise it points to the contact email.
+- **Facts, not a script.** `packages/core/src/site-chat.ts` renders the answer sheet from the live prices (plans unless `SITE_CHAT_SHOW_PLANS=off`), allowances, errand fees, Wingman Club dues and the owner's free-each-month switch, so a price change shows in the assistant with no one editing a prompt. It can only answer from those facts, otherwise it points to the contact email.
 - **Server.** `POST /api/site-chat` (public) sends the last 12 turns to an OpenAI-compatible chat endpoint and returns `{ reply }`. It holds no account data, takes no payment and can change nothing. Limits: 30 questions per visitor per hour and `SITE_CHAT_DAILY_LIMIT` (default 3000) for the whole site per day, so abuse cannot run up the bill. Replies are capped at 350 tokens.
 - **In the app.** `apps/web/src/components/SiteChatBubble.tsx` puts the bubble on every customer screen, signed in or out. It talks to the app's own server, so there is no cross-origin setup and the marketing site does not need rebuilding for it to work.
 - **On the marketing site (optional).** `apps/site/src/chat/chat.js` is the same bubble as a small deferred script for the static site. It only appears after that site is rebuilt and deployed.
@@ -16,7 +16,7 @@ On the API (Railway), the one variable that matters is a Claude key. It also swi
 | --- | --- |
 | `ANTHROPIC_API_KEY` | Your key from console.anthropic.com. Claude is called directly through Anthropic's Messages API. |
 | `SITE_CHAT_MODEL` / `AI_ASSIST_MODEL` | Optional model override per feature. Default `claude-haiku-5-5`. |
-| `SITE_CHAT_SHOW_PLANS` | Leave unset and the assistant does not state or describe any membership plan, price, allowance or feature; it sends those questions to the contact email and still explains how Safehubby works, errands and the Wingman Club. Set to `on` to let it quote the plans. |
+| `SITE_CHAT_SHOW_PLANS` | The assistant quotes the plans (prices, allowances, features) and points people to the Choose your plan button. Set to `off` and it stops: it sends plan questions to the Plans screen and the contact email, and still explains how Safehubby works. |
 | `SITE_CHAT_DAILY_LIMIT` | Questions per day for the whole site (default 3000) |
 | `SITE_CONTACT_EMAIL` | Where it sends what it cannot answer (default `contact@safehubby.com`) |
 

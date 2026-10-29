@@ -85,6 +85,7 @@ describe("keeping plan details out of the assistant", () => {
     const shown = siteChatSystemPrompt("help@example.com", new Date("2026-11-02T00:00:00Z"), { sharePlans: true });
     expect(shown).not.toMatch(/Do not state, describe or compare membership plans/);
     expect(shown).toContain("PLANS (monthly price");
+    expect(shown).toContain("Choose your plan");
   });
 });
 

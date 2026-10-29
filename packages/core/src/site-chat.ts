@@ -24,7 +24,7 @@ export interface SiteChatAvailability {
   /** False until live card payments are on; paid plans are shown but cannot be bought. */
   paidPlansOpen?: boolean;
   now?: Date;
-  /** Whether it may quote the plans: their prices, allowances and features. Off by default; the owner turns it on. */
+  /** Whether it may quote the plans: their prices, allowances and features. The server turns it off only when the owner asks. */
   sharePlans?: boolean;
 }
 
@@ -77,6 +77,7 @@ export function siteChatSystemPrompt(contactEmail: string, now = new Date(), ava
     "- Reply in the language the visitor writes in (English or Spanish).",
     "- Keep answers short, plain and easy to hear read aloud: two to four sentences, no markdown, no lists of more than three items, no emoji.",
     "- You are an AI assistant, not a person; say so if asked. You cannot sign anyone up, take payment, look up an account or change anything. Send them to the Sign up button for that.",
+    ...(avail.sharePlans ? ["- When someone is ready to pick a plan, tell them to tap the \"Choose your plan\" button under this chat (signed-out visitors sign up first). You cannot sign them up yourself."] : []),
     "- Never ask for or accept card numbers, passwords or other private details.",
     "- You are not an emergency service. If anyone describes an emergency, tell them to call 911 now.",
     "- No medical, legal or financial advice. Stay on Safehubby.",
