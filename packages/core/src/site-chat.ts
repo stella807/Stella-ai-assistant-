@@ -24,6 +24,8 @@ export interface SiteChatAvailability {
   /** False until live card payments are on; paid plans are shown but cannot be bought. */
   paidPlansOpen?: boolean;
   now?: Date;
+  /** Whether it may quote the plans: their prices, allowances and features. Off by default; the owner turns it on. */
+  sharePlans?: boolean;
 }
 
 export const SITE_CHAT_LIMITS = { messages: 12, charsPerMessage: 800 } as const;
@@ -31,8 +33,9 @@ export const SITE_CHAT_LIMITS = { messages: 12, charsPerMessage: 800 } as const;
 export function siteChatFacts(avail: SiteChatAvailability = {}): string {
   const now = avail.now ?? new Date();
   const locked = new Set(avail.lockedPlans ?? []);
-  const lines: string[] = ["PLANS (monthly price; what each includes):"];
-  for (const plan of releasedPlans()) {
+  const lines: string[] = [];
+  if (avail.sharePlans) lines.push("PLANS (monthly price; what each includes):");
+  for (const plan of avail.sharePlans ? releasedPlans() : []) {
     const hours = includedConciergeHours(plan.id);
     const grabs = includedGrabAllowanceFor(plan.id);
     const credit = errandCreditFor(plan.id);
@@ -55,10 +58,10 @@ export function siteChatFacts(avail: SiteChatAvailability = {}): string {
     ...ERRAND_TIERS.map((t) => `- ${t.label} (${t.example}): ${dollars(errandFeeCents(t.id, t.suggestedCapCents))} fee at a ${dollars(t.suggestedCapCents)} spending limit`),
     "",
     `WINGMAN CLUB: ${dollars(CLUB_MONTHLY_DUES_CENTS)} a month. Each month's regular outing is included when it costs up to ${dollars(CLUB_INCLUDED_EVENT_MAX_CENTS)} a person. Bigger days (such as a track day or skydiving) cost the venue's price plus a ${Math.round(CLUB_PREMIUM_MARKUP * 100)}% service charge, less a credit the dues carry, and members choose whether to go.`,
-    "FREE TRIAL: there is none. Do not mention or promise a trial; the Free plan is the way to try it without paying.",
-    ...(avail.paidPlansOpen === false ? ["JOINING A PAID PLAN: not open yet. Card payments are not live, so paid plans can be viewed but not bought today; say so if asked."] : []),
+    "FREE TRIAL: there is none. Do not mention or promise a trial.",
+    ...(avail.sharePlans && avail.paidPlansOpen === false ? ["JOINING A PAID PLAN: not open yet. Card payments are not live, so paid plans can be viewed but not bought today; say so if asked."] : []),
     launchOfferFor(10_000, now).discounted
-      ? `LAUNCH OFFER (running now): ${Math.round(LAUNCH_DISCOUNT_RATE * 100)}% off paid plans for the first ${LAUNCH_DISCOUNT_YEARS === 1 ? "year" : `${LAUNCH_DISCOUNT_YEARS} years`} for anyone who joins before ${new Date(LAUNCH_WINDOW_END).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}.`
+      ? `LAUNCH OFFER (running now): ${Math.round(LAUNCH_DISCOUNT_RATE * 100)}% off membership for the first ${LAUNCH_DISCOUNT_YEARS === 1 ? "year" : `${LAUNCH_DISCOUNT_YEARS} years`} for anyone who joins before ${new Date(LAUNCH_WINDOW_END).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}.`
       : "LAUNCH OFFER: not running right now. Do not promise a discount.",
   );
   return lines.join("\n");
@@ -69,6 +72,7 @@ export function siteChatSystemPrompt(contactEmail: string, now = new Date(), ava
     "You are the Safehubby website assistant. Safehubby is a personal-assistant, errand and safety membership service in Puerto Rico. Visitors ask you about pricing and how it works, often by voice.",
     "",
     "RULES",
+    ...(avail.sharePlans ? [] : ["- Do not state, describe or compare membership plans or tiers: no plan names, prices, allowances or features, even if asked directly or pressed. Say plan details are shared by the team, and send them to " + contactEmail + ". You may still explain how Safehubby works and the prices in the facts below."]),
     "- Use only the facts below. If something is not covered there, say you are not sure and send them to " + contactEmail + ". Never guess a price, a date, a feature or a promise.",
     "- Reply in the language the visitor writes in (English or Spanish).",
     "- Keep answers short, plain and easy to hear read aloud: two to four sentences, no markdown, no lists of more than three items, no emoji.",

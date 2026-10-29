@@ -6333,7 +6333,7 @@ describe("the website's chat assistant", () => {
   };
   afterEach(() => {
     globalThis.fetch = realFetch;
-    delete process.env.SITE_CHAT_API_BASE; delete process.env.SITE_CHAT_API_KEY;
+    delete process.env.SITE_CHAT_API_BASE; delete process.env.SITE_CHAT_API_KEY; delete process.env.SITE_CHAT_SHOW_PLANS;
     sent = [];
   });
 
@@ -6350,6 +6350,7 @@ describe("the website's chat assistant", () => {
 
   it("is handed exactly the prices the catalog shows, so the two can never disagree", async () => {
     configure();
+    process.env.SITE_CHAT_SHOW_PLANS = "on";
     await call("POST", "/api/site-chat", { messages: [{ role: "user", content: "What does everything cost?" }] });
     const system = sent[0].messages[0].content as string;
     const { plans } = (await call("GET", "/api/catalog")).json;
@@ -6362,6 +6363,7 @@ describe("the website's chat assistant", () => {
 
   it("tells the model which tiers cannot be joined yet", async () => {
     configure();
+    process.env.SITE_CHAT_SHOW_PLANS = "on";
     await call("POST", "/api/site-chat", { messages: [{ role: "user", content: "Can I get Elite?" }] });
     const system = sent[0].messages[0].content as string;
     const { plans } = (await call("GET", "/api/catalog")).json;
@@ -6386,6 +6388,16 @@ describe("the website's chat assistant", () => {
     } finally {
       delete process.env.ANTHROPIC_API_KEY;
     }
+  });
+
+  it("keeps the plans out of what the model is told unless the owner turns them on", async () => {
+    configure();
+    await call("POST", "/api/site-chat", { messages: [{ role: "user", content: "What plans do you have?" }] });
+    const hidden = sent[0].messages[0].content as string;
+    const { plans } = (await call("GET", "/api/catalog")).json;
+    for (const p of plans) expect(hidden, p.id).not.toContain(`- ${p.name}:`);
+    expect(hidden).toContain("Do not state, describe or compare membership plans");
+    expect(hidden).toContain("WINGMAN CLUB");
   });
 
   it("never lets a visitor write the system prompt", async () => {

@@ -21,7 +21,7 @@ const WORDS = {
     hello: "Hi! I can answer questions about Safehubby's prices and how it works. What would you like to know?",
     offline: "I could not reach the assistant. You can email contact@safehubby.com and a person will answer.",
     denied: "The microphone is blocked for this site. Allow it in your browser settings, or type your question.",
-    ideas: ["How much does it cost?", "What is included in Premium?", "How does the Wingman Club work?", "How does an errand work?"],
+    ideas: ["How much does it cost?", "How does Safehubby work?", "How does the Wingman Club work?", "How does an errand work?"],
     speech: "en-US",
   },
   es: {
@@ -32,7 +32,7 @@ const WORDS = {
     hello: "¡Hola! Puedo responder preguntas sobre los precios de Safehubby y cómo funciona. ¿Qué quieres saber?",
     offline: "No pude comunicarme con el asistente. Escribe a contact@safehubby.com y una persona te contestará.",
     denied: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del navegador o escribe tu pregunta.",
-    ideas: ["¿Cuánto cuesta?", "¿Qué incluye Premium?", "¿Cómo funciona el Wingman Club?", "¿Cómo funciona un mandado?"],
+    ideas: ["¿Cuánto cuesta?", "¿Cómo funciona Safehubby?", "¿Cómo funciona el Wingman Club?", "¿Cómo funciona un mandado?"],
     speech: "es-PR",
   },
 } as const;

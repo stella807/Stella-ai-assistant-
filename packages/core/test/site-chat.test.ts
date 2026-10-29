@@ -3,7 +3,7 @@ import { PLANS, isElitePlan, cleanSiteChatMessages, siteChatFacts, siteChatSyste
 
 describe("the website assistant's facts", () => {
   it("name every released plan with its price", () => {
-    const facts = siteChatFacts();
+    const facts = siteChatFacts({ sharePlans: true });
     for (const p of releasedPlans()) {
       expect(facts).toContain(p.name);
       if (p.monthlyCents > 0) {
@@ -16,9 +16,9 @@ describe("the website assistant's facts", () => {
   });
 
   it("follow the free-each-month switch", () => {
-    const on = siteChatFacts();
+    const on = siteChatFacts({ sharePlans: true });
     setMonthlyFreebies({ ...defaultMonthlyFreebies(), enabled: false });
-    try { expect(siteChatFacts()).not.toBe(on); } finally { setMonthlyFreebies(null); }
+    try { expect(siteChatFacts({ sharePlans: true })).not.toBe(on); } finally { setMonthlyFreebies(null); }
   });
 
   it("carry the safety rules: facts only, no emergencies, no private details", () => {
@@ -32,21 +32,21 @@ describe("the website assistant's facts", () => {
 
 describe("the facts about joining today", () => {
   it("price every plan, monthly and annual, with thousands separated", () => {
-    const facts = siteChatFacts();
+    const facts = siteChatFacts({ sharePlans: true });
     expect(facts).toContain("$93.99 a month, or $");
     expect(facts).toMatch(/\$62,175 a month/);
   });
 
   it("mark a tier that is not open yet, so it is never sold as available", () => {
     const elite = PLANS.filter((p) => isElitePlan(p.id)).map((p) => p.id);
-    const facts = siteChatFacts({ lockedPlans: elite });
+    const facts = siteChatFacts({ sharePlans: true, lockedPlans: elite });
     expect(facts.match(/NOT OPEN YET/g)?.length).toBeGreaterThan(0);
-    expect(siteChatFacts()).not.toContain("NOT OPEN YET");
+    expect(siteChatFacts({ sharePlans: true })).not.toContain("NOT OPEN YET");
   });
 
   it("say so when card payments are not live", () => {
-    expect(siteChatFacts({ paidPlansOpen: false })).toContain("not open yet. Card payments are not live");
-    expect(siteChatFacts({ paidPlansOpen: true })).not.toContain("Card payments are not live");
+    expect(siteChatFacts({ sharePlans: true, paidPlansOpen: false })).toContain("not open yet. Card payments are not live");
+    expect(siteChatFacts({ sharePlans: true, paidPlansOpen: true })).not.toContain("Card payments are not live");
   });
 
   it("promise the launch discount only inside its window, with its end date", () => {
@@ -59,8 +59,31 @@ describe("the facts about joining today", () => {
   });
 
   it("never offer a free trial", () => {
-    expect(siteChatFacts()).toContain("there is none");
-    expect(siteChatFacts()).not.toMatch(/14 days/);
+    expect(siteChatFacts({ sharePlans: true })).toContain("there is none");
+    expect(siteChatFacts({ sharePlans: true })).not.toMatch(/14 days/);
+  });
+});
+
+describe("keeping plan details out of the assistant", () => {
+  it("leaves every plan, price, allowance and feature out by default, but keeps how it works", () => {
+    const facts = siteChatFacts();
+    for (const p of releasedPlans()) {
+      expect(facts).not.toContain(p.name);
+      expect(facts).not.toContain(p.blurb);
+    }
+    expect(facts).not.toContain("PLANS");
+    expect(facts).not.toMatch(/\$93\.99|desk task|assistant hours? included/);
+    expect(facts).toContain("ERRANDS");
+    expect(facts).toContain("WINGMAN CLUB");
+  });
+
+  it("tells it to refuse plan questions and send them to a person", () => {
+    const hidden = siteChatSystemPrompt("help@example.com", new Date("2026-11-02T00:00:00Z"));
+    expect(hidden).toMatch(/Do not state, describe or compare membership plans/);
+    expect(hidden).toContain("help@example.com");
+    const shown = siteChatSystemPrompt("help@example.com", new Date("2026-11-02T00:00:00Z"), { sharePlans: true });
+    expect(shown).not.toMatch(/Do not state, describe or compare membership plans/);
+    expect(shown).toContain("PLANS (monthly price");
   });
 });
 

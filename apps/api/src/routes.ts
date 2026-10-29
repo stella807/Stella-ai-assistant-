@@ -2193,7 +2193,7 @@ export const routes: Record<string, Handler> = {
     try {
       // Told what can actually be joined today, so it never sells a tier that is coming soon or payments that are not live.
       const lockedPlans = eliteUnlockStatus(ctx).unlocked ? [] : PLANS.filter((p) => isElitePlan(p.id)).map((p) => p.id);
-      const system = siteChatSystemPrompt(SITE_CONTACT_EMAIL, ctx.now(), { lockedPlans, paidPlansOpen: paidPlansOpen() });
+      const system = siteChatSystemPrompt(SITE_CONTACT_EMAIL, ctx.now(), { lockedPlans, paidPlansOpen: paidPlansOpen(), sharePlans: process.env.SITE_CHAT_SHOW_PLANS === "on" });
       return { reply: await siteChatReply(system, messages) };
     } catch {
       throw new HttpError(502, "The assistant could not answer just now. Email " + SITE_CONTACT_EMAIL + " and a person will.");
