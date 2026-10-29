@@ -54,7 +54,7 @@ export function siteChatHowItWorks(sharePlans = true): string[] {
     `- Safety: check-ins, location sharing and SOS are on every plan${sharePlans ? ", including Free" : ""}. A guardian is alerted the moment a check-in is missed. Safehubby never tells anyone they are safe to drive.`,
     "- The people: assistants and errand runners are vetted and carry their own liability insurance.",
     "- Cancelling: every paid plan cancels in one tap from the app.",
-    "- Paying: cards are accepted. Where they are available, other ways to pay such as ATH Móvil and PayPal appear at checkout in the app.",
+    "- Paying: credit and debit cards are accepted, including Apple Pay and Google Pay on devices that support them. PayPal is not accepted.",
     "- Your data: in Account settings you can download everything Safehubby holds about you, or delete your account permanently.",
     "- Privacy: your location and check-in history are yours. They are never sold and never used for ad targeting.",
     ...(sharePlans ? ["- Basic is for members 65 and over, with an ID on file."] : []),

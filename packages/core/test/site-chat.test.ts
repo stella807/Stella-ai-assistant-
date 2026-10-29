@@ -82,8 +82,14 @@ describe("explaining how it works", () => {
 describe("the rest of what a visitor asks", () => {
   it("covers paying, owning your data and working for Safehubby, with the real pay", () => {
     const facts = siteChatFacts();
-    for (const must of ["Paying:", "ATH Móvil", "download everything", "delete your account", "Working with Safehubby", "$35 an hour", "$150", "$55 an hour", "$0.70 a mile", "Hacienda", "Careers"]) {
+    for (const must of ["Paying:", "Apple Pay", "PayPal is not accepted", "download everything", "delete your account", "Working with Safehubby", "$35 an hour", "$150", "$55 an hour", "$0.70 a mile", "Hacienda", "Careers"]) {
       expect(facts, must).toContain(must);
+    }
+  });
+
+  it("never offers PayPal as a way to pay", () => {
+    for (const facts of [siteChatFacts(), siteChatFacts({ sharePlans: true })]) {
+      expect(facts.replace("PayPal is not accepted", "")).not.toMatch(/paypal/i);
     }
   });
 
