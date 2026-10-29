@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   HOLD_BUFFER, HOLD_TTL_HOURS,
   attachPaymentMethod, authorizeExactHold, authorizeHold,
-  canBookAutomatically, captureHold, isHoldExpired, isMethodExpired, releaseHold, sweepExpiredHolds,
+  canBookAutomatically, captureHold, cardMayBeIssued, isHoldExpired, isMethodExpired, releaseHold, sweepExpiredHolds,
 } from "../src/payment.ts";
 
 const T0 = new Date("2026-06-15T12:00:00Z");
@@ -207,5 +207,16 @@ describe("a PayPal account has no card digits", () => {
   });
   it("still needs something to recognise it by", () => {
     expect(() => paypal({ accountLabel: undefined })).toThrow(/card number/i);
+  });
+});
+
+describe("when a task's virtual card may be issued", () => {
+  it("waits for money that is actually secured once a processor is connected", () => {
+    expect(cardMayBeIssued({ fundedBy: "balance" }, true)).toBe(true);
+    expect(cardMayBeIssued({ processorRef: "pi_123" }, true)).toBe(true);
+    expect(cardMayBeIssued({}, true)).toBe(false);
+  });
+  it("changes nothing on a server with no processor connected", () => {
+    expect(cardMayBeIssued({}, false)).toBe(true);
   });
 });

@@ -220,3 +220,18 @@ export function sweepExpiredHolds(holds: PreAuthorization[], now: Date): PreAuth
 export function canBookAutomatically(hasPaymentMethod: boolean, method: PaymentMethodOnFile | null, now: Date): boolean {
   return hasPaymentMethod && method !== null && !isMethodExpired(method, now);
 }
+
+/**
+ * Whether a task's virtual card may be issued yet.
+ *
+ * The card spends Safehubby's own Issuing balance the moment the assistant
+ * pays, so it must not exist before the customer's money is secured: either
+ * the prepaid balance (already collected) or a hold the card processor has
+ * confirmed. A hold that exists only in our ledger (a method saved before a
+ * processor was connected) secures nothing. With no processor connected at
+ * all there is no money to secure, and a development server behaves as before.
+ */
+export function cardMayBeIssued(hold: Pick<PreAuthorization, "fundedBy" | "processorRef">, processorConnected: boolean): boolean {
+  if (!processorConnected) return true;
+  return hold.fundedBy === "balance" || Boolean(hold.processorRef);
+}

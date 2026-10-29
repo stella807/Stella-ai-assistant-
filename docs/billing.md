@@ -346,6 +346,13 @@ charges plans.
 Each task gets its own virtual card capped at the task's spend limit and
 closed when the task ends.
 
+**A card is issued only once the customer's money is secured** (Stripe or
+Lithic alike): their prepaid balance, or a hold the card processor has
+confirmed. With a processor connected, a hold that exists only in our ledger
+unlocks no card; the assistant is told the customer pays them back directly.
+The card still spends your own Issuing balance when the assistant pays, so keep
+that balance funded for the tasks in progress; nothing here tops it up.
+
 - **Set:** `LITHIC_API_KEY`, and `LITHIC_ENV=production` once live (the sandbox
   otherwise, so a key pasted in for testing can never move real money). Cards
   are `VIRTUAL` with a `FOREVER` spend limit equal to the task's cap, and

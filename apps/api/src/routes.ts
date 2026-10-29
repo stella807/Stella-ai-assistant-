@@ -38,7 +38,7 @@ import {
   validateBody, validateDrinkLimit,
   canDelegateTo, whoDoesTheWork, validateProfilePhotoUrl, canText, composeText, normalizePhone, optOut, registerTextContact, type SmsMessage,
   BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS, balanceSummary, validateLoad,
-  attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, releaseHold,
+  attachPaymentMethod, authorizeExactHold, authorizeHold, canBookAutomatically, captureHold, cardMayBeIssued, releaseHold,
   canMarkByHand, launchProgress,
   CONCIERGE_CATEGORIES, CONCIERGE_DISCLOSURES, conciergeCategoryLabel, validateConciergeRequest,
   isAssistantAvailable, recordVoiceMessage, voiceMessagesFor, assistantPayoutFor,
@@ -3363,7 +3363,11 @@ export const routes: Record<string, Handler> = {
       // `/api/fulfillment/status`, the same "each capability reports for
       // itself" rule as every other adapter here.
       let issuedCard: Awaited<ReturnType<typeof taskCards.issueCard>> | null = null;
-      if (isAutomatic(taskCards.status)) {
+      // Only once the customer's money is secured: the card spends our own Issuing balance the moment the
+      // assistant pays, so a hold that exists only in the ledger must not unlock it.
+      const secured = cardMayBeIssued(
+        ctx.store.data.holds.find((h) => h.id === hold.id) ?? hold, chargingReady());
+      if (secured && isAutomatic(taskCards.status)) {
         try {
           issuedCard = await taskCards.issueCard({
             capCents: input.spendCapCents,

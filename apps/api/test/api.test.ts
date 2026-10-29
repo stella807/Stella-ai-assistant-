@@ -5184,6 +5184,38 @@ describe("hiring somebody and actually sending them to a job", () => {
       }
     });
 
+    it("issues the task's card only once the customer's money is secured", async () => {
+      /**
+       * The card spends Safehubby's own Issuing balance the moment the assistant pays.
+       * With a processor connected, a hold that exists only in our ledger (a card saved
+       * before the processor was connected) secures nothing, so no card is issued.
+       */
+      const kit = await runner();
+      await withCard(jordan);
+      let issued = 0;
+      const cards = taskCards as { status: CardIssuingPort["status"]; issueCard: CardIssuingPort["issueCard"] };
+      const real = { status: cards.status, issueCard: cards.issueCard };
+      cards.status = { ...real.status, mode: "automatic" };
+      cards.issueCard = async () => {
+        issued += 1;
+        return { id: "card_1", last4: "4242", network: "visa", expMonth: 12, expYear: 2030, revealUrl: null };
+      };
+      try {
+        const open = await bookGrab(jordan, kit);
+        expect(open.status, JSON.stringify(open.json)).toBe(200);
+        expect(issued).toBe(1); // nothing connected: unchanged
+        process.env.STRIPE_SECRET_KEY = "sk_test_unsecured";
+        const held = await bookGrab(jordan, kit);
+        expect(held.status, JSON.stringify(held.json)).toBe(200);
+        expect(issued).toBe(1); // processor connected but nothing secured: no card
+        expect(held.json.task.card).toBeUndefined();
+      } finally {
+        delete process.env.STRIPE_SECRET_KEY;
+        cards.status = real.status;
+        cards.issueCard = real.issueCard;
+      }
+    });
+
     it("leaves an errand at its rate", async () => {
       const kit = await runner();
       await withCard(jordan);
