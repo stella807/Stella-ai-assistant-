@@ -849,6 +849,9 @@ export const api = {
   masterAddVendor: (v: { name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
+  /** The assistant's answer to a conversation that ends with the visitor's question. Public; no account needed. */
+  siteChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
+    request<{ reply: string }>("POST", "/api/site-chat", { messages }),
   masterFreebies: () =>
     request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("GET", "/api/master/freebies"),
   masterSetFreebies: (freebies: MonthlyFreebies) =>

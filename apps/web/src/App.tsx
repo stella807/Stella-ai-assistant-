@@ -20,6 +20,7 @@ import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage } from "./i18n.tsx";
 import { LanguageToggle } from "./components/LanguageToggle.tsx";
 import { ScreenGuard } from "./components/ScreenGuard.tsx";
+import { SiteChatBubble } from "./components/SiteChatBubble.tsx";
 import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
@@ -184,6 +185,8 @@ export function App() {
           </Fragment>
         </>
       )}
+
+      <SiteChatBubble />
 
       <footer className="tiny muted" style={{ paddingTop: 8 }}>
         {t("app.footer")}

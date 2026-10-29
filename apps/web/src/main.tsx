@@ -14,6 +14,7 @@ import "./styles/wingman.css";
 import "./styles/art.css";
 import "./styles/luxury.css";
 import "./styles/luxe.css";
+import "./styles/chat.css";
 // Last, so its wide-screen overrides win; it changes nothing below 1024px.
 import "./styles/desktop.css";
 
