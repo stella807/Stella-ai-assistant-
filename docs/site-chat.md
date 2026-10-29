@@ -10,15 +10,17 @@ A chat and voice assistant on the marketing site that answers questions about pr
 
 ## Turning it on
 
-On the API (Railway), set the model endpoint. `AI_ASSIST_*` is shared with the assistants' drafting helper; `SITE_CHAT_*` overrides it for the website only:
+On the API (Railway), the one variable that matters is a Claude key. It also switches on the assistants' drafting helper, which uses the same model setup.
 
 | Variable | Meaning |
 | --- | --- |
-| `SITE_CHAT_API_BASE` / `AI_ASSIST_API_BASE` | OpenAI-compatible base URL, ending in `/v1` |
-| `SITE_CHAT_API_KEY` / `AI_ASSIST_API_KEY` | The provider key |
-| `SITE_CHAT_MODEL` / `AI_ASSIST_MODEL` | Model name (default `gpt-4o-mini`) |
+| `ANTHROPIC_API_KEY` | Your key from console.anthropic.com. Claude is called directly through Anthropic's Messages API. |
+| `SITE_CHAT_MODEL` / `AI_ASSIST_MODEL` | Optional model override per feature. Default `claude-haiku-5-5`. |
 | `SITE_CHAT_DAILY_LIMIT` | Questions per day for the whole site (default 3000) |
 | `SITE_CONTACT_EMAIL` | Where it sends what it cannot answer (default `contact@safehubby.com`) |
-| `ALLOWED_ORIGINS` | Only for the marketing-site version: must include that site's origin, or the browser will block the request |
 
-For the marketing-site version, at site build time: `CHAT_API_URL` overrides the endpoint (default `${APP_URL}/api/site-chat`), and `SITE_CHAT=off` leaves the assistant out. The site's `_headers` then allows the script, the connection to that server and the microphone, and nothing else. With no key set, the assistant says it is unavailable and gives the email.
+Another provider is still possible: set `SITE_CHAT_API_BASE` and `SITE_CHAT_API_KEY` (or `AI_ASSIST_API_BASE` and `AI_ASSIST_API_KEY` for the drafting helper) to any OpenAI-compatible endpoint and that feature uses it instead of Claude. An explicit endpoint always wins over `ANTHROPIC_API_KEY`; an earlier `AI_ASSIST_API_*` setup keeps working for the website. Environment is read on every request, so a change needs a redeploy only because Railway restarts on variable changes.
+
+For the marketing-site version only, `ALLOWED_ORIGINS` must include that site's origin, or the browser will block the request.
+
+For the marketing-site version, at its build time: `CHAT_API_URL` overrides the endpoint (default `${APP_URL}/api/site-chat`), and `SITE_CHAT=off` leaves the assistant out. The site's `_headers` then allows the script, the connection to that server and the microphone, and nothing else. With no key set, the assistant says it is unavailable and gives the email.
