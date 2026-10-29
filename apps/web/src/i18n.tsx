@@ -136,6 +136,11 @@ const EN = {
   "work.staffCta": "See open roles →",
 
   "slide.pricing": "What it costs",
+  "slide.ask": "Ask us anything",
+  "ask.heading": "Ask us anything",
+  "ask.body": "Our assistant explains how Safehubby works and what it costs, by typing or by voice. Ask it anything, then get started whenever you are ready.",
+  "ask.open": "Ask Safehubby",
+  "lux.ask": "Ask us anything",
   "pricing.heading": "What it costs",
   "pricing.subtitle": "Every price, before you make an account. The safety basics are free and always will be.",
   "pricing.plan": "Plan",
@@ -449,6 +454,11 @@ const ES: Record<TranslationKey, string> = {
   "work.staffCta": "Ver puestos disponibles →",
 
   "slide.pricing": "Cuánto cuesta",
+  "slide.ask": "Pregúntanos",
+  "ask.heading": "Pregúntanos lo que quieras",
+  "ask.body": "Nuestro asistente te explica cómo funciona Safehubby y cuánto cuesta, por escrito o por voz. Pregúntale lo que quieras y empieza cuando estés listo.",
+  "ask.open": "Pregunta a Safehubby",
+  "lux.ask": "Pregúntanos",
   "pricing.heading": "Cuánto cuesta",
   "pricing.subtitle": "Todos los precios, antes de crear una cuenta. Lo básico de seguridad es gratis y siempre lo será.",
   "pricing.plan": "Plan",

@@ -39,6 +39,9 @@ const WORDS = {
   },
 } as const;
 
+/** Anything on the page can open the assistant by dispatching this event (the landing's "Ask us anything"). */
+export const OPEN_CHAT_EVENT = "sh:open-chat";
+
 const TEASER_KEY = "sh_chat_teaser";
 const safeStore = {
   get: () => { try { return sessionStorage.getItem(TEASER_KEY) === "1"; } catch { return false; } },
@@ -68,6 +71,11 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true }: { onChoosePlan
   const recRef = useRef<Recognizer | null>(null);
   const Recognition = recognitionCtor();
 
+  useEffect(() => {
+    const onOpen = () => { setOpen(true); setTeaser(false); safeStore.set(); };
+    window.addEventListener(OPEN_CHAT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, onOpen);
+  }, []);
   useEffect(() => {
     if (safeStore.get()) return;
     const t = setTimeout(() => setTeaser(true), 4000);

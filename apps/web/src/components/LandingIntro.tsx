@@ -4,15 +4,14 @@ import { Carousel, type CarouselHandle } from "./Carousel.tsx";
 import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScreen.tsx";
 import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
-import { PublicPricing } from "./PublicPricing.tsx";
 import { Footer } from "./Footer.tsx";
+import { OPEN_CHAT_EVENT } from "./SiteChatBubble.tsx";
 import { LuxuryHero } from "./LuxuryHero.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
 import type { Account, LaunchStatus } from "../api.ts";
 
-const HOW_IT_WORKS: TranslationKey[] = ["how.step1", "how.step2", "how.step3", "how.step4"];
 
 /** How long each slide holds before the carousel advances itself. Long
  *  enough to actually read a slide, not a slideshow on a timer. */
@@ -58,10 +57,12 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
   // form on purpose — asking someone to make an account to find out the
   // price is the one thing the rest of this app never does.
   const labels: TranslationKey[] = [
-    "slide.about", "slide.leadership", "slide.pricing", "slide.signup", "slide.work",
+    "slide.about", "slide.leadership", "slide.ask", "slide.signup", "slide.work",
   ];
   const SIGNUP_SLIDE = 3;
   const invitedBy = incomingReferralCode();
+  // The assistant explains the service and the prices, so the page sends questions to it rather than carrying them.
+  const openChat = () => window.dispatchEvent(new CustomEvent(OPEN_CHAT_EVENT));
 
   return (
     // `landing` lets the desktop layout give this page the full width while
@@ -69,7 +70,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
     <div className="stack landing">
       <LuxuryHero
         onStart={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}
-        onPrices={() => carousel.current?.goTo(2)}
+        onPrices={openChat}
       />
 
       {/* The launch party, and only while it is actually on: the API owns
@@ -121,26 +122,22 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           </button>
         </section>
 
-        {/* 3 — every price, before any commitment. */}
-        <section className="slide" aria-label={t("slide.pricing")}>
-          {/* The launch banner sits above every slide, so repeating its
-              sentence inside this card said the same thing twice on one
-              screen. */}
-          <PublicPricing onGetStarted={() => setStartInSignup(true)} />
+        {/* 3 — questions go to the assistant, which explains how it works and what it costs by text or voice. */}
+        <section className="slide" aria-label={t("slide.ask")}>
+          <section className="card card-lead stack">
+            <h2>{t("ask.heading")}</h2>
+            <p className="small muted" style={{ margin: 0 }}>{t("ask.body")}</p>
+            <button className="btn btn-primary btn-block" onClick={openChat}>{t("ask.open")}</button>
+            <button className="btn btn-block btn-ghost" onClick={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}>
+              {t("landing.getStarted")}
+            </button>
+          </section>
         </section>
 
         {/* 4 — sign up, with how it works right beside the form so nobody has
             to guess what they are signing up to. */}
         <section className="slide" aria-label={t("slide.signup")}>
           <AuthScreen onSignedIn={onSignedIn} startInSignup={startInSignup} />
-          <section className="card stack">
-            <h2>{t("how.heading")}</h2>
-            <ol className="timeline">
-              {HOW_IT_WORKS.map((key) => (
-                <li key={key}><span className="small">{t(key)}</span></li>
-              ))}
-            </ol>
-          </section>
 
           {/* Only before go-live. Once the service is running, "tell me when
               it starts" is a worse offer than the signup form above it, and
