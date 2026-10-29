@@ -1,7 +1,7 @@
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CHAT_ENABLED, LANGS, ORIGIN } from "./content.ts";
+import { LANGS, ORIGIN } from "./content.ts";
 import { HEADERS, STYLESHEET, pathFor, renderPage, renderWorkPage, workPathFor } from "./render.ts";
 
 /**
@@ -33,9 +33,7 @@ for (const lang of LANGS) {
 // uses them, and the woff2 files ride along next to the stylesheet.
 const fontDir = join(here, "fonts");
 const faces = readFileSync(join(fontDir, "fonts.css"), "utf8");
-const chatDir = join(here, "chat");
-write("site.css", `${faces}\n${STYLESHEET}${CHAT_ENABLED ? readFileSync(join(chatDir, "chat.css"), "utf8") : ""}`);
-if (CHAT_ENABLED) write("chat.js", readFileSync(join(chatDir, "chat.js"), "utf8"));
+write("site.css", `${faces}\n${STYLESHEET}`);
 for (const file of readdirSync(fontDir).filter((f) => f.endsWith(".woff2"))) {
   mkdirSync(join(dist, "fonts"), { recursive: true });
   copyFileSync(join(fontDir, file), join(dist, "fonts", file));

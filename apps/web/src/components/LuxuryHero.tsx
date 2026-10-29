@@ -36,7 +36,7 @@ export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrice
           <p className="lux-sub">{t("lux.sub")}</p>
           <div className="lux-cta">
             <button className="lux-btn" onClick={onStart}>{t("lux.cta")} <span aria-hidden="true">→</span></button>
-            <button className="lux-link" onClick={onPrices}>{t("lux.ask")}</button>
+            <button className="lux-link" onClick={onPrices}>{t("lux.prices")}</button>
           </div>
         </div>
       </div>

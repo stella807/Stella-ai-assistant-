@@ -31,12 +31,6 @@ export const ORIGIN = process.env.SITE_ORIGIN ?? "https://safehubby.com";
  *  address is not baked in, because it changes when the domain arrives. */
 export const APP_URL = process.env.APP_URL ?? "https://safehubby.com";
 
-/** Where the website assistant's questions go: the app's server, which holds the
- *  model key. Build-time like APP_URL, since the address moves with the domain.
- *  `SITE_CHAT=off` leaves the assistant out of the pages entirely. */
-export const CHAT_ENABLED = process.env.SITE_CHAT !== "off";
-export const CHAT_ENDPOINT = process.env.CHAT_API_URL ?? `${APP_URL.replace(/\/$/, "")}/api/site-chat`;
-
 /** The job application, in the app — no account needed. A hash link, which
  *  the app reads on load (apps/web/src/app/entry-route.ts), so a person lands
  *  on the form rather than on a landing page built for customers. */

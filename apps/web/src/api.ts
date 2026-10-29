@@ -229,8 +229,6 @@ const EDGE_RETRIES = 2;
 
 async function request<T>(
   method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>,
-  /** Reads are always safe to repeat; a write opts in only when repeating cannot do harm. */
-  repeatable = method === "GET",
 ): Promise<T> {
   let attempt = 0;
   for (;;) {
@@ -244,7 +242,7 @@ async function request<T>(
     // A 429 with no message of ours came from something in front of the server (a proxy or the host),
     // which is asking for a moment's quiet. Reads are safe to repeat, so wait as told and try again
     // rather than putting an error on screen for something that clears itself. Writes are never repeated.
-    if (res.status === 429 && repeatable && attempt < EDGE_RETRIES) {
+    if (res.status === 429 && method === "GET" && attempt < EDGE_RETRIES) {
       const peek = await res.clone().json().catch(() => null);
       if (typeof peek?.error !== "string") {
         attempt += 1;
@@ -878,13 +876,6 @@ export const api = {
   masterAddVendor: (v: { name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
-  /** The assistant's answer to a conversation that ends with the visitor's question. Public; no account needed. */
-  siteChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
-    // Asking the assistant changes nothing, so a refusal from the host is safe to try again.
-    request<{ reply: string }>("POST", "/api/site-chat", { messages }, undefined, true),
-  /** Emails the visitor their conversation, and the team a copy to follow up on. */
-  siteChatEmail: (email: string, messages: { role: "user" | "assistant"; content: string }[], lang: "en" | "es") =>
-    request<{ sent: boolean }>("POST", "/api/site-chat/email", { email, messages, lang }),
   masterFreebies: () =>
     request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("GET", "/api/master/freebies"),
   masterSetFreebies: (freebies: MonthlyFreebies) =>

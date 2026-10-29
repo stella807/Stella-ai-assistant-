@@ -1,6 +1,6 @@
 import { launchOfferFor } from "@safehubby/core";
 import {
-  APP_URL, CAREERS_URL, CHAT_ENABLED, CHAT_ENDPOINT, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, errandTierRows,
+  APP_URL, CAREERS_URL, CONTACT_EMAIL, COPY, ERRAND_RUNNERS_HIRING, ORIGIN, WHATSAPP, WORK_COPY, errandTierRows,
   featuredPlans, mailtoHref, money, planNameIn, startingPriceCents, whatsappHref,
   whatsappLabel, type Lang,
 } from "./content.ts";
@@ -67,13 +67,6 @@ function head(meta: PageMeta): string {
 <meta property="og:url" content="${canonical}">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="${upTo(meta.path)}site.css">`;
-}
-
-/** The assistant's script, loaded last and deferred so the page is complete without it. */
-function chatTag(lang: Lang, path: string): string {
-  return CHAT_ENABLED
-    ? `<script src="${upTo(path)}chat.js" defer data-endpoint="${esc(CHAT_ENDPOINT)}" data-lang="${lang}"></script>\n`
-    : "";
 }
 
 /**
@@ -242,7 +235,7 @@ ${WHATSAPP
 </main>
 
 ${footer(lang, `<a href="${c.workHref}">${esc(c.workLink)}</a>`)}
-${chatTag(lang, pathFor(lang))}</body>
+</body>
 </html>
 `;
 }
@@ -282,7 +275,7 @@ ${header(lang, home, w.otherLang.href, w.otherLang.label)}
 </main>
 
 ${footer(lang, `<a href="${home}">&larr; ${esc(w.back)}</a>`)}
-${chatTag(lang, workPathFor(lang))}</body>
+</body>
 </html>
 `;
 }
@@ -644,11 +637,9 @@ h2::after {
  * Response headers for Cloudflare's static hosting (`_headers` is read by
  * both Pages and Workers static assets).
  *
- * The page ships no inline script and no inline style, so the policy can be as
+ * The page ships no script and no inline style, so the policy can be as
  * tight as it looks: nothing loads from anywhere but this origin, and
- * nothing can be framed, submitted or based elsewhere. The one exception is
- * the assistant: its own deferred script, and permission to send a question to
- * the app's server and to use the microphone when the visitor taps it. A policy this strict
+ * nothing can be framed, submitted or based elsewhere. A policy this strict
  * is only honest because the tests elsewhere in this package already hold
  * the page to it — see "needs no JavaScript" and "asks no third party for
  * anything". Add a third-party asset and those fail before this one does.
@@ -658,22 +649,16 @@ h2::after {
  * visitor. The HTML revalidates every time, which is what lets a price change
  * reach the page on the next deploy rather than the next cache expiry.
  */
-const chatOrigin = (() => { try { return new URL(CHAT_ENDPOINT).origin; } catch { return null; } })();
-const CHAT_CSP = CHAT_ENABLED && chatOrigin ? `; script-src 'self'; connect-src ${chatOrigin}` : "";
-
 export const HEADERS = `/*
-  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'${CHAT_CSP}
+  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: geolocation=(), microphone=${CHAT_ENABLED ? "(self)" : "()"}, camera=()
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
   Cache-Control: public, max-age=0, must-revalidate
 
 /fonts/*
   Cache-Control: public, max-age=31536000
 
 /site.css
-  Cache-Control: public, max-age=3600
-
-/chat.js
   Cache-Control: public, max-age=3600
 `;
