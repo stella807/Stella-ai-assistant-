@@ -31,6 +31,12 @@ describe("a read that the host answers with 429", () => {
     expect(calls()).toBe(1);
   });
 
+  it("is repeated for the chat assistant, which changes nothing", async () => {
+    const calls = queue(edge429(), new Response(JSON.stringify({ reply: "hi" }), { status: 200 }));
+    await expect(api.siteChat([{ role: "user", content: "hello" }])).resolves.toEqual({ reply: "hi" });
+    expect(calls()).toBe(2);
+  });
+
   it("is never repeated for a write, which could charge or send twice", async () => {
     const calls = queue(edge429());
     await expect(api.claimGrant("ABC-234")).rejects.toThrow(/Too many requests in a row/);
