@@ -74,6 +74,7 @@ import {
   SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
+  cleanSiteChatMessages, siteChatSystemPrompt,
 } from "@safehubby/core";
 import type {
   PreAuthorization,
@@ -101,6 +102,7 @@ import { startCryptoLoad } from "./crypto-loads.ts";
 import { athReady, athRequires, normalizeAthPhone } from "./adapters/ath-movil.ts";
 import { cancelAthLoad, checkAthLoad, findAthLoad, startAthLoad } from "./ath-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
+import { siteChatConfigured, siteChatReply } from "./adapters/site-chat.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { cancelStripeSubscription, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
@@ -175,6 +177,7 @@ export interface Ctx {
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
     applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter;
+    siteChat: RateLimiter; siteChatDaily: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1055,6 +1058,9 @@ async function refundClubRsvp(ctx: Ctx, rsvp: ClubRsvp): Promise<void> {
 }
 
 /** Suggested vendors added after the list first shipped: a list loaded before then never had them. */
+/** Where the website assistant sends anything it cannot answer. */
+const SITE_CONTACT_EMAIL = process.env.SITE_CONTACT_EMAIL ?? "contact@safehubby.com";
+
 const SUGGESTED_LATER = new Set(["vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway"]);
 
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
@@ -1283,6 +1289,11 @@ export function makeLimiters() {
     /** Flight lookups bill per call the same way places do. Generous enough
      *  to check a delayed flight every few minutes while waiting on it. */
     flights: new RateLimiter(30, 60 * 60_000),
+    /** The website assistant is open to anyone and every answer costs money, so a
+     *  visitor gets a generous but finite hour, and the whole site has a daily
+     *  ceiling no matter how many visitors there are. */
+    siteChat: new RateLimiter(30, 60 * 60_000),
+    siteChatDaily: new RateLimiter(Number(process.env.SITE_CHAT_DAILY_LIMIT ?? 3000), 24 * 60 * 60_000),
   };
 }
 
@@ -2165,6 +2176,25 @@ export const routes: Record<string, Handler> = {
     if (!ctx.actorId) return { traveler: null };
     const t = ctx.store.data.travelers.find((x) => x.id === ctx.actorId);
     return { traveler: t ? publicTraveler(t) : null };
+  },
+
+  /**
+   * The website's chat assistant. Public, so it carries no account data in or
+   * out: the model sees the published prices (rendered live from core) and the
+   * visitor's last few turns, and can do nothing but answer.
+   */
+  "POST /api/site-chat": async (ctx, _p, body) => {
+    if (!siteChatConfigured()) throw new HttpError(503, "The assistant is not available right now. Email " + SITE_CONTACT_EMAIL + " and a person will answer.");
+    const messages = cleanSiteChatMessages(body?.messages);
+    if (!messages) throw new HttpError(400, "Send the conversation so far, ending with a question.");
+    if (ctx.limiters.siteChat.hit(ctx.clientKey) || ctx.limiters.siteChatDaily.hit("all")) {
+      throw new HttpError(429, "The assistant is busy. Please try again in a little while, or email " + SITE_CONTACT_EMAIL + ".");
+    }
+    try {
+      return { reply: await siteChatReply(siteChatSystemPrompt(SITE_CONTACT_EMAIL, ctx.now()), messages) };
+    } catch {
+      throw new HttpError(502, "The assistant could not answer just now. Email " + SITE_CONTACT_EMAIL + " and a person will.");
+    }
   },
 
   "GET /api/catalog": (ctx) => {

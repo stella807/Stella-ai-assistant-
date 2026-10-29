@@ -191,7 +191,17 @@ describe("the marketing site", () => {
     // The point of building this separately from apps/web. If a <script> ever
     // appears here, the page has stopped being readable before a bundle loads
     // — and stopped being indexable.
-    for (const [name, body] of Object.entries(every)) expect(body, name).not.toContain("<script");
+    // The one script is the assistant: same-origin, deferred, and nothing the
+    // page's content depends on. No inline script, ever.
+    for (const [name, body] of Object.entries(every)) {
+      const tags = body.match(/<script[^>]*>/g) ?? [];
+      expect(tags.length, name).toBeLessThanOrEqual(1);
+      for (const t of tags) {
+        expect(t, name).toMatch(/src="(?:\.\.\/)*chat\.js"/);
+        expect(t, name).toContain(" defer");
+      }
+      expect(body, name).not.toMatch(/<script(?![^>]*\ssrc=)[^>]*>/);
+    }
   });
 });
 
@@ -230,7 +240,6 @@ describe("reaching a person", () => {
     // `details` and `summary` are focusable and operable without JavaScript.
     for (const [name, body] of Object.entries(every)) {
       expect(body, name).toMatch(/<details[^>]*>\s*<summary>/);
-      expect(body, name).not.toContain("<script");
     }
   });
 
@@ -370,7 +379,9 @@ describe("serving it from Cloudflare", () => {
     expect(csp).toContain("default-src 'none'");
     expect(csp).not.toContain("unsafe-inline");
     expect(csp).not.toContain("unsafe-eval");
-    expect(csp).not.toMatch(/https?:\/\//);
+    // The only other origin it may name is the one the assistant's questions go to.
+    expect(csp.replace(/connect-src [^;]+/, "")).not.toMatch(/https?:\/\//);
+    expect(csp).toMatch(/script-src 'self'/);
     expect(csp).toContain("frame-ancestors 'none'");
   });
 
@@ -516,5 +527,21 @@ describe("the look", () => {
     // Gradients only. No image, no remote font, no url() to another origin.
     expect(STYLESHEET).not.toMatch(/url\(\s*["']?https?:/);
     expect(STYLESHEET).not.toContain("@import");
+  });
+});
+
+describe("the Ask Safehubby assistant", () => {
+  it("loads from every page in the page's language, pointing at the app's server", () => {
+    expect(pages.en).toMatch(/<script src="chat\.js" defer data-endpoint="[^"]*\/api\/site-chat" data-lang="en">/);
+    expect(pages.es).toMatch(/<script src="\.\.\/chat\.js" defer data-endpoint="[^"]*\/api\/site-chat" data-lang="es">/);
+    expect(work.en).toMatch(/src="\.\.\/chat\.js"/);
+    expect(work.es).toMatch(/src="\.\.\/\.\.\/chat\.js"/);
+  });
+
+  it("is allowed exactly what it needs and no more: its own script, its server, and the microphone", () => {
+    expect(HEADERS).toMatch(/connect-src https?:\/\/[^;\s]+(?:\n|$)/);
+    expect(HEADERS).toContain("microphone=(self)");
+    expect(HEADERS).toContain("geolocation=()");
+    expect(HEADERS).toContain("camera=()");
   });
 });
