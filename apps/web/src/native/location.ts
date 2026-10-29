@@ -51,14 +51,22 @@ export async function currentFix(): Promise<Fix | null> {
       if ((await requestPermission()) !== "granted") return null;
       return toFix(await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10_000 }));
     }
-    return await new Promise<Fix | null>((resolve) => {
-      if (!("geolocation" in navigator)) return resolve(null);
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve(toFix(p)),
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: 10_000 },
-      );
-    });
+    // High accuracy first; if the GPS cannot settle (indoors, or iOS answering "position unavailable"),
+    // fall back to the coarse Wi-Fi/cell fix rather than giving up. A refusal is final, so it is not retried.
+    const read = (opts: PositionOptions) =>
+      new Promise<Fix | "denied" | null>((resolve) => {
+        if (!("geolocation" in navigator)) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve(toFix(p)),
+          (e) => resolve(e.code === e.PERMISSION_DENIED ? "denied" : null),
+          opts,
+        );
+      });
+    const precise = await read({ enableHighAccuracy: true, timeout: 8_000, maximumAge: 30_000 });
+    if (precise === "denied") return null;
+    if (precise) return precise;
+    const coarse = await read({ enableHighAccuracy: false, timeout: 15_000, maximumAge: 5 * 60_000 });
+    return coarse === "denied" ? null : coarse;
   } catch {
     return null;
   }
