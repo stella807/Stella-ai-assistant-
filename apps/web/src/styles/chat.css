@@ -48,3 +48,8 @@
 .chat-plan-row { padding: 0 16px 10px; }
 .chat-plan { width: 100%; font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 12px; padding: 11px 14px; color: #10172e; background: linear-gradient(#f6d58a, #d9a441); }
 .chat-plan:focus-visible { outline: 3px solid #f0c36a; outline-offset: 2px; }
+
+/* With the bottom tab bar showing, everything floats above it so no tab is ever covered. */
+.chat-above-tabs.chat-launcher { bottom: calc(96px + env(safe-area-inset-bottom)); }
+.chat-above-tabs.chat-teaser { bottom: calc(108px + env(safe-area-inset-bottom)); }
+.chat-above-tabs.chat-panel { bottom: calc(92px + env(safe-area-inset-bottom)); max-height: min(640px, calc(100dvh - 92px - 24px)); }

@@ -57,7 +57,7 @@ const recognitionCtor = (): (new () => Recognizer) | null =>
   typeof window === "undefined" ? null : ((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition ?? null);
 const canSpeak = () => typeof window !== "undefined" && "speechSynthesis" in window && typeof (window as any).SpeechSynthesisUtterance === "function";
 
-export function SiteChatBubble({ onChoosePlan, signedIn = true }: { onChoosePlan?: () => void; signedIn?: boolean }) {
+export function SiteChatBubble({ onChoosePlan, signedIn = true, signedInNav = false }: { onChoosePlan?: () => void; signedIn?: boolean; signedInNav?: boolean }) {
   const { language } = useLanguage();
   const w = WORDS[language === "es" ? "es" : "en"];
   const [open, setOpen] = useState(false);
@@ -70,6 +70,8 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true }: { onChoosePlan
   const logRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<Recognizer | null>(null);
   const Recognition = recognitionCtor();
+  // Signed in, the bottom tab bar (Payments among them) sits where the bubble would; stay above it.
+  const lift = signedInNav ? " chat-above-tabs" : "";
 
   useEffect(() => {
     const onOpen = () => { setOpen(true); setTeaser(false); safeStore.set(); };
@@ -146,8 +148,8 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true }: { onChoosePlan
   if (!open) {
     return (
       <>
-        {teaser && <button type="button" className="chat-teaser" onClick={openIt}>{w.teaser}</button>}
-        <button type="button" className="chat-launcher" aria-haspopup="dialog" aria-label={w.open} onClick={openIt}>
+        {teaser && <button type="button" className={`chat-teaser${lift}`} onClick={openIt}>{w.teaser}</button>}
+        <button type="button" className={`chat-launcher${lift}`} aria-haspopup="dialog" aria-label={w.open} onClick={openIt}>
           <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
             <path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="currentColor" />
           </svg>
@@ -157,7 +159,7 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true }: { onChoosePlan
   }
 
   return (
-    <section className="chat-panel" role="dialog" aria-label={w.title} onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
+    <section className={`chat-panel${lift}`} role="dialog" aria-label={w.title} onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
       <div className="chat-head">
         <strong>{w.title}</strong>
         <button type="button" className="chat-close" aria-label={w.close} onClick={close}>×</button>

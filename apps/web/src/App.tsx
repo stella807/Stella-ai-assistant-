@@ -188,7 +188,7 @@ export function App() {
         </>
       )}
 
-      <SiteChatBubble signedIn={Boolean(account)} onChoosePlan={() => {
+      <SiteChatBubble signedIn={Boolean(account)} signedInNav={Boolean(account) && role !== "drive" && role !== "work"} onChoosePlan={() => {
         if (account) { setPickerRequest((n) => n + 1); setRole("plans"); return; }
         // Not signed in: a plan belongs to an account, so send them to the sign-up at the top.
         window.scrollTo({ top: 0, behavior: "smooth" });
