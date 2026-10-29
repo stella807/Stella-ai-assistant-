@@ -5,6 +5,8 @@ import {
 import { chargeSaved, chargingReady } from "./adapters/charging.ts";
 import { createApp, makeCtx } from "./server.ts";
 import { createCryptoRoutes } from "./adapters/openreceive.ts";
+import { resolveLlm } from "./adapters/llm.ts";
+import { emailMode } from "./adapters/email.ts";
 import { ensureStripeCardholder } from "./adapters/stripe-cards.ts";
 import { describeStripeAccount } from "./adapters/stripe.ts";
 import { runFlightSweep, runPayroll } from "./routes.ts";
@@ -80,6 +82,12 @@ async function main(): Promise<void> {
       timer.unref();
     });
   }
+  // The website's chat assistant, so "why does it say unavailable?" is answered in the first lines of the log.
+  const chat = resolveLlm("SITE_CHAT");
+  console.log(`[safehubby] Website chat: ${chat
+    ? `ready (${chat.kind === "anthropic" ? "Claude" : "OpenAI-compatible endpoint"}, model ${chat.model})`
+    : "NOT ready (set ANTHROPIC_API_KEY on this service). Visitors are told it is unavailable"}.`);
+  console.log(`[safehubby] Email (chat transcripts, alerts): ${emailMode() ?? "NOT ready (set BREVO_API_KEY)"}.`);
   console.log(`[safehubby] ATH Móvil: ${process.env.ATH_MOVIL_PUBLIC_TOKEN?.trim() ? "connected" : "not connected (ATH_MOVIL_PUBLIC_TOKEN missing)"}${process.env.ATH_MOVIL_PRIVATE_TOKEN?.trim() ? "" : ", refunds need ATH_MOVIL_PRIVATE_TOKEN"}.`);
   console.log(`[safehubby] PayPal: ${!isEnabled("paypal-payments") ? "paused (paypal-payments is off)"
     : process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim() ? "connected" : "not connected"}.`);
