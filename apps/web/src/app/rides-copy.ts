@@ -51,6 +51,7 @@ const EN = {
   map: {
     finding: "Finding you…", myLocation: "◎ My location",
     expand: "Open full-screen map", collapse: "Close full-screen map", locate: "Go to my location",
+    locateBlocked: "Location is blocked for this site. On iPhone: Settings > Privacy & Security > Location Services > Safari Websites > While Using the App, then reload. Or tap the map to place the pin.",
     locateFailed: "Could not find you. Allow location for this app in your device settings, then try again, or tap the map to set the pin.",
     label: "Map", done: "✕ Done", expandShort: "⤢ Expand",
   },
@@ -100,6 +101,7 @@ const ES: typeof EN = {
   map: {
     finding: "Buscándote…", myLocation: "◎ Mi ubicación",
     expand: "Abrir el mapa en pantalla completa", collapse: "Cerrar el mapa en pantalla completa", locate: "Ir a mi ubicación",
+    locateBlocked: "La ubicación está bloqueada para este sitio. En iPhone: Ajustes > Privacidad y seguridad > Localización > Sitios web de Safari > Al usar la app, y recarga. O toca el mapa para colocar el pin.",
     locateFailed: "No pudimos ubicarte. Permite la ubicación para esta app en los ajustes de tu dispositivo e inténtalo de nuevo, o toca el mapa para colocar el pin.",
     label: "Mapa", done: "✕ Listo", expandShort: "⤢ Ampliar",
   },

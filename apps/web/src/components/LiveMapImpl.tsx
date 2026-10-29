@@ -1,3 +1,4 @@
+import { locationBlocked } from "../native/location.ts";
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -63,7 +64,7 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: 
   const markersRef = useRef<L.Marker[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [locateFailed, setLocateFailed] = useState(false);
+  const [locateFailed, setLocateFailed] = useState<null | "blocked" | "failed">(null);
   // Read inside the effect via a ref rather than retriggering the whole map
   // setup on every render — the callback identity is not what should decide
   // whether Leaflet gets torn down and rebuilt.
@@ -150,10 +151,10 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: 
   const locate = async () => {
     if (!onLocate) return;
     setLocating(true);
-    setLocateFailed(false);
+    setLocateFailed(null);
     try {
       const fix = await onLocate();
-      if (!fix) { setLocateFailed(true); return; } // say so: a silent button reads as broken
+      if (!fix) { setLocateFailed((await locationBlocked()) ? "blocked" : "failed"); return; } // say so: a silent button reads as broken
       mapRef.current?.setView([fix.lat, fix.lng], 17);
       markersRef.current[0]?.setLatLng([fix.lat, fix.lng]);
       onPickRef.current?.(fix);
@@ -179,7 +180,7 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: 
           {expanded ? w.done : w.expandShort}
         </button>
       </div>
-      {locateFailed && <p className="live-map-note tiny" role="alert">{w.locateFailed}</p>}
+      {locateFailed && <p className="live-map-note tiny" role="alert">{locateFailed === "blocked" ? w.locateBlocked : w.locateFailed}</p>}
     </div>
   );
 }

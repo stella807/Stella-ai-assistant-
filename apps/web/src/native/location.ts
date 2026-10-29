@@ -64,6 +64,21 @@ export async function currentFix(): Promise<Fix | null> {
   }
 }
 
+/**
+ * True when the browser has been told never to share location for this site.
+ * In that state getCurrentPosition fails at once and never shows a prompt,
+ * which looks to the rider like a dead button. Safari before 16 has no
+ * Permissions API for this, so "unknown" is reported as not blocked.
+ */
+export async function locationBlocked(): Promise<boolean> {
+  try {
+    if (isNative() || !navigator.permissions?.query) return false;
+    return (await navigator.permissions.query({ name: "geolocation" })).state === "denied";
+  } catch {
+    return false;
+  }
+}
+
 export type StopWatching = () => void;
 
 /**
