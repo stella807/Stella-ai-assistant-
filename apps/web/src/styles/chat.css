@@ -44,3 +44,7 @@
 .chat-note { margin: 0; }
 @keyframes chat-pulse { 50% { opacity: 0.6; } }
 .chat-teaser:focus-visible, .chat-launcher:focus-visible, .chat-idea:focus-visible, .chat-input:focus-visible, .chat-mic:focus-visible, .chat-send:focus-visible, .chat-close:focus-visible { outline: 3px solid #f0c36a; outline-offset: 2px; }
+
+.chat-plan-row { padding: 0 16px 10px; }
+.chat-plan { width: 100%; font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 12px; padding: 11px 14px; color: #10172e; background: linear-gradient(#f6d58a, #d9a441); }
+.chat-plan:focus-visible { outline: 3px solid #f0c36a; outline-offset: 2px; }

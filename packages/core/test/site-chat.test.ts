@@ -80,6 +80,7 @@ describe("keeping plan details out of the assistant", () => {
   it("tells it to refuse plan questions and send them to a person", () => {
     const hidden = siteChatSystemPrompt("help@example.com", new Date("2026-11-02T00:00:00Z"));
     expect(hidden).toMatch(/Do not state, describe or compare membership plans/);
+    expect(hidden).toContain("Choose your plan");
     expect(hidden).toContain("help@example.com");
     const shown = siteChatSystemPrompt("help@example.com", new Date("2026-11-02T00:00:00Z"), { sharePlans: true });
     expect(shown).not.toMatch(/Do not state, describe or compare membership plans/);

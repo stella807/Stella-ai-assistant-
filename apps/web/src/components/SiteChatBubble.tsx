@@ -22,6 +22,7 @@ const WORDS = {
     offline: "I could not reach the assistant. You can email contact@safehubby.com and a person will answer.",
     denied: "The microphone is blocked for this site. Allow it in your browser settings, or type your question.",
     ideas: ["How much does it cost?", "How does Safehubby work?", "How does the Wingman Club work?", "How does an errand work?"],
+    choosePlan: "Choose your plan", choosePlanOut: "Sign up to choose a plan",
     speech: "en-US",
   },
   es: {
@@ -33,6 +34,7 @@ const WORDS = {
     offline: "No pude comunicarme con el asistente. Escribe a contact@safehubby.com y una persona te contestará.",
     denied: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del navegador o escribe tu pregunta.",
     ideas: ["¿Cuánto cuesta?", "¿Cómo funciona Safehubby?", "¿Cómo funciona el Wingman Club?", "¿Cómo funciona un mandado?"],
+    choosePlan: "Elegir mi plan", choosePlanOut: "Crea tu cuenta para elegir un plan",
     speech: "es-PR",
   },
 } as const;
@@ -52,7 +54,7 @@ const recognitionCtor = (): (new () => Recognizer) | null =>
   typeof window === "undefined" ? null : ((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition ?? null);
 const canSpeak = () => typeof window !== "undefined" && "speechSynthesis" in window && typeof (window as any).SpeechSynthesisUtterance === "function";
 
-export function SiteChatBubble() {
+export function SiteChatBubble({ onChoosePlan, signedIn = true }: { onChoosePlan?: () => void; signedIn?: boolean }) {
   const { language } = useLanguage();
   const w = WORDS[language === "es" ? "es" : "en"];
   const [open, setOpen] = useState(false);
@@ -159,6 +161,11 @@ export function SiteChatBubble() {
         ))}
         {busy && <p className="chat-msg chat-bot chat-wait">{w.thinking}</p>}
       </div>
+      {onChoosePlan && (
+        <div className="chat-plan-row">
+          <button type="button" className="chat-plan" onClick={() => { close(); onChoosePlan(); }}>{signedIn ? w.choosePlan : w.choosePlanOut}</button>
+        </div>
+      )}
       {turns.length === 0 && (
         <div className="chat-ideas">
           {w.ideas.map((q) => <button key={q} type="button" className="chat-idea" onClick={() => void ask(q, false)}>{q}</button>)}

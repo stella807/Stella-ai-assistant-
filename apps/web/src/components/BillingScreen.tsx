@@ -23,16 +23,20 @@ import { dayOf } from "../app/dates.ts";
  * requires it for the subscription and forbids it for a delivery — is a
  * footnote under the line, not a second screen and not a second product.
  */
-export function BillingScreen({ currentPlanId, onPlanChanged }: {
+export function BillingScreen({ currentPlanId, onPlanChanged, pickerRequest = 0 }: {
   currentPlanId: string;
   onPlanChanged: (planId: string) => void;
+  /** Bumped by whatever sent the person here to choose a plan (the chat's button), so the choices are already open. */
+  pickerRequest?: number;
 }) {
   const { t, language } = useLanguage();
   const [billing, setBilling] = useState<Billing | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showPlans, setShowPlans] = useState(false);
+  // Someone with no paid plan came here to choose one, so the choices are the first thing they see.
+  const [showPlans, setShowPlans] = useState(currentPlanId === "free" || pickerRequest > 0);
+  useEffect(() => { if (pickerRequest > 0) setShowPlans(true); }, [pickerRequest]);
   /** The offer waiting on its renewal-terms agreement, if any. */
   const [pending, setPending] = useState<{ planId: string; cadence: "monthly" | "annual" } | null>(null);
   const [stripeCheckout, setStripeCheckout] = useState(false);

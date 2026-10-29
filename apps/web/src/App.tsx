@@ -30,6 +30,7 @@ type Role =
 
 export function App() {
   // A link can open the job application directly — see entry-route.ts.
+  const [pickerRequest, setPickerRequest] = useState(0);
   const [role, setRoleState] = useState<Role>(() => entryRouteFromUrl(window.location));
   // Read once, at load: which role an ad asked the form to start on.
   const [initialRole] = useState(() => entryRoleFromUrl(window.location));
@@ -174,6 +175,7 @@ export function App() {
           )}
           {role === "plans" && (
             <BillingScreen
+              pickerRequest={pickerRequest}
               currentPlanId={account.planId}
               onPlanChanged={(planId) => setAccount((a) => (a && a.planId !== planId ? { ...a, planId } : a))}
             />
@@ -186,7 +188,11 @@ export function App() {
         </>
       )}
 
-      <SiteChatBubble />
+      <SiteChatBubble signedIn={Boolean(account)} onChoosePlan={() => {
+        if (account) { setPickerRequest((n) => n + 1); setRole("plans"); return; }
+        // Not signed in: a plan belongs to an account, so send them to the sign-up at the top.
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }} />
 
       <footer className="tiny muted" style={{ paddingTop: 8 }}>
         {t("app.footer")}
