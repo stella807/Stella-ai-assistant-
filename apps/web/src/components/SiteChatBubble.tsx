@@ -23,6 +23,9 @@ const WORDS = {
     denied: "The microphone is blocked for this site. Allow it in your browser settings, or type your question.",
     ideas: ["How much does it cost?", "What is included in Premium?", "How does the Wingman Club work?", "How does an errand work?"],
     choosePlan: "Choose your plan", choosePlanOut: "Sign up to choose a plan",
+    emailBtn: "Email me the answers", emailLabel: "Your email address", emailSend: "Send", emailSending: "Sending…",
+    emailConsent: "We will email you this conversation. Our team gets a copy so a person can follow up on anything the assistant could not answer.",
+    emailSent: "Sent. Check your inbox.", emailFailed: "That email could not be sent. Write to contact@safehubby.com instead.", emailBad: "Enter a valid email address.",
     speech: "en-US",
   },
   es: {
@@ -35,6 +38,9 @@ const WORDS = {
     denied: "El micrófono está bloqueado para este sitio. Permítelo en los ajustes del navegador o escribe tu pregunta.",
     ideas: ["¿Cuánto cuesta?", "¿Qué incluye Premium?", "¿Cómo funciona el Wingman Club?", "¿Cómo funciona un mandado?"],
     choosePlan: "Elegir mi plan", choosePlanOut: "Crea tu cuenta para elegir un plan",
+    emailBtn: "Envíame las respuestas", emailLabel: "Tu correo electrónico", emailSend: "Enviar", emailSending: "Enviando…",
+    emailConsent: "Te enviaremos esta conversación por correo. Nuestro equipo recibe una copia para que una persona dé seguimiento a lo que el asistente no pudo contestar.",
+    emailSent: "Enviado. Revisa tu bandeja de entrada.", emailFailed: "No se pudo enviar el correo. Escribe a contact@safehubby.com.", emailBad: "Escribe un correo válido.",
     speech: "es-PR",
   },
 } as const;
@@ -67,6 +73,10 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true, signedInNav = fa
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [readAloud, setReadAloud] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailAddr, setEmailAddr] = useState("");
+  const [emailState, setEmailState] = useState<"idle" | "sending" | "sent" | "error" | "bad">("idle");
+  const [emailNote, setEmailNote] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<Recognizer | null>(null);
   const Recognition = recognitionCtor();
@@ -117,6 +127,20 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true, signedInNav = fa
       setTurns((t) => [...t, { role: "assistant", content: known, error: true }]);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const sendEmail = async () => {
+    const addr = emailAddr.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) { setEmailState("bad"); return; }
+    setEmailState("sending"); setEmailNote(null);
+    try {
+      await api.siteChatEmail(addr, turns.filter((t) => !t.error).map(({ role, content }) => ({ role, content })), language === "es" ? "es" : "en");
+      setEmailState("sent");
+    } catch (e) {
+      // The server's own sentence names the contact address when email is not set up or the limit is reached.
+      setEmailNote(e instanceof ApiError && [429, 502, 503].includes(e.status) ? e.message : null);
+      setEmailState("error");
     }
   };
 
@@ -171,7 +195,7 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true, signedInNav = fa
         ))}
         {busy && <p className="chat-msg chat-bot chat-wait">{w.thinking}</p>}
       </div>
-      {onChoosePlan && (
+      {onChoosePlan && !emailOpen && (
         <div className="chat-plan-row">
           <button type="button" className="chat-plan" onClick={() => { close(); onChoosePlan(); }}>{signedIn ? w.choosePlan : w.choosePlanOut}</button>
         </div>
@@ -179,6 +203,27 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true, signedInNav = fa
       {turns.length === 0 && (
         <div className="chat-ideas">
           {w.ideas.map((q) => <button key={q} type="button" className="chat-idea" onClick={() => void ask(q, false)}>{q}</button>)}
+        </div>
+      )}
+      {turns.some((t) => t.role === "assistant" && !t.error) && (
+        <div className="chat-email">
+          {!emailOpen ? (
+            <button type="button" className="chat-email-btn" onClick={() => setEmailOpen(true)}>{w.emailBtn}</button>
+          ) : emailState === "sent" ? (
+            <p className="chat-note">{w.emailSent}</p>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); void sendEmail(); }}>
+              <label className="chat-note" htmlFor="chat-email-addr">{w.emailLabel}</label>
+              <div className="chat-form chat-email-row">
+                <input id="chat-email-addr" className="chat-input" type="email" autoComplete="email" maxLength={254} value={emailAddr}
+                  onChange={(e) => { setEmailAddr(e.target.value); if (emailState !== "sending") setEmailState("idle"); }} />
+                <button type="submit" className="chat-send" disabled={emailState === "sending"}>{emailState === "sending" ? w.emailSending : w.emailSend}</button>
+              </div>
+              <p className="chat-note">{w.emailConsent}</p>
+              {emailState === "bad" && <p className="chat-note chat-error-text" role="alert">{w.emailBad}</p>}
+              {emailState === "error" && <p className="chat-note chat-error-text" role="alert">{emailNote ?? w.emailFailed}</p>}
+            </form>
+          )}
         </div>
       )}
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); void ask(text, false); }}>
@@ -189,14 +234,14 @@ export function SiteChatBubble({ onChoosePlan, signedIn = true, signedInNav = fa
         )}
         <button type="submit" className="chat-send" disabled={busy}>{w.send}</button>
       </form>
-      <div className="chat-foot">
+      {!emailOpen && <div className="chat-foot">
         {canSpeak() && (
           <label className="chat-read">
             <input type="checkbox" checked={readAloud} onChange={(e) => { setReadAloud(e.target.checked); if (!e.target.checked) stopSpeaking(); }} /> {w.read}
           </label>
         )}
         <p className="chat-note">{w.note}{Recognition ? ` ${w.voiceNote}` : ""}</p>
-      </div>
+      </div>}
     </section>
   );
 }

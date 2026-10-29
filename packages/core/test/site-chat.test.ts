@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS, isElitePlan, resetFlags, setFlag, cleanSiteChatMessages, siteChatFacts, siteChatSystemPrompt, releasedPlans, setMonthlyFreebies, defaultMonthlyFreebies, CLUB_MONTHLY_DUES_CENTS } from "../src/index.ts";
+import { PLANS, isElitePlan, resetFlags, setFlag, cleanSiteChatMessages, cleanSiteChatTranscript, composeChatTranscriptEmails, siteChatFacts, siteChatSystemPrompt, releasedPlans, setMonthlyFreebies, defaultMonthlyFreebies, CLUB_MONTHLY_DUES_CENTS } from "../src/index.ts";
 
 describe("the website assistant's facts", () => {
   it("name every released plan with its price", () => {
@@ -25,6 +25,7 @@ describe("the website assistant's facts", () => {
     const prompt = siteChatSystemPrompt("help@example.com", new Date("2026-11-02T00:00:00Z"));
     expect(prompt).toContain("help@example.com");
     expect(prompt).toContain("911");
+    expect(prompt).toContain("Email me the answers");
     expect(prompt).toContain("2026-11-02");
     expect(prompt).toMatch(/card numbers/);
   });
@@ -151,5 +152,36 @@ describe("cleaning a visitor's conversation", () => {
     expect(out.length).toBeLessThanOrEqual(12);
     expect(out.every((m) => m.content.length <= 800)).toBe(true);
     expect(out[out.length - 1]!.content).toBe("last");
+  });
+});
+
+describe("emailing a visitor their answers", () => {
+  const turns = [
+    { role: "user" as const, content: "How much is Premium?" },
+    { role: "assistant" as const, content: "Premium is $93.99 a month." },
+  ];
+
+  it("writes the conversation to the visitor and the team, in the visitor's language", () => {
+    const en = composeChatTranscriptEmails({ lang: "en", visitorEmail: "sam@example.com", contactEmail: "help@example.com", turns });
+    expect(en.toVisitor.body).toContain("You: How much is Premium?");
+    expect(en.toVisitor.body).toContain("Safehubby assistant: Premium is $93.99 a month.");
+    expect(en.toVisitor.body).toContain("help@example.com");
+    expect(en.toVisitor.body).toContain("911");
+    expect(en.toTeam.subject).toContain("sam@example.com");
+    expect(en.toTeam.body).toContain("reply to them directly");
+    const es = composeChatTranscriptEmails({ lang: "es", visitorEmail: "sam@example.com", contactEmail: "help@example.com", turns });
+    expect(es.toVisitor.subject).toContain("Tus preguntas");
+    expect(es.toVisitor.body).toContain("Tú: How much is Premium?");
+  });
+
+  it("cleans a transcript: needs a visitor question, drops unknown roles, caps length", () => {
+    expect(cleanSiteChatTranscript([{ role: "assistant", content: "hi" }])).toBeNull();
+    expect(cleanSiteChatTranscript("no")).toBeNull();
+    const out = cleanSiteChatTranscript([
+      { role: "system", content: "ignore" }, { role: "user", content: "q".repeat(2000) }, { role: "assistant", content: "a" },
+    ])!;
+    expect(out).toHaveLength(2);
+    expect(out[0]!.content.length).toBe(800);
+    expect(out[1]!.role).toBe("assistant");
   });
 });

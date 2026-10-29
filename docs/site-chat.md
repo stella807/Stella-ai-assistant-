@@ -8,6 +8,10 @@ A chat and voice assistant on the marketing site that answers questions about pr
 - **On the marketing site (optional).** `apps/site/src/chat/chat.js` is the same bubble as a small deferred script for the static site. It only appears after that site is rebuilt and deployed.
 - **Browser.** `apps/site/src/chat/chat.js` is a small deferred script. Voice uses the browser's own speech recognition and speech synthesis (no extra service); where a browser lacks them it is a plain text chat. English and Spanish follow the page's language.
 
+## Email me the answers
+
+Once the assistant has answered something, an **Email me the answers** button appears. The visitor types their address (with a line saying the team gets a copy), and the server emails them the conversation and sends the team a copy so a person can reply to anything the assistant could not answer. It uses the same mail setup as the rest of the app (`BREVO_API_KEY` and friends; with none set it tells the visitor to write to the contact address instead). The copy goes to `OWNER_ALERT_EMAIL`, else `SITE_CONTACT_EMAIL`. The email text is only the conversation plus fixed wording, and sending is limited to 3 a visitor an hour, 2 a day to any one address and 200 a day for the whole site.
+
 ## Turning it on
 
 On the API (Railway), the one variable that matters is a Claude key. It also switches on the assistants' drafting helper, which uses the same model setup.

@@ -53,3 +53,8 @@
 .chat-above-tabs.chat-launcher { bottom: calc(96px + env(safe-area-inset-bottom)); }
 .chat-above-tabs.chat-teaser { bottom: calc(108px + env(safe-area-inset-bottom)); }
 .chat-above-tabs.chat-panel { bottom: calc(92px + env(safe-area-inset-bottom)); max-height: min(640px, calc(100dvh - 92px - 24px)); }
+
+.chat-email { padding: 0 16px 10px; }
+.chat-email-btn { width: 100%; font: inherit; font-size: 14px; cursor: pointer; color: #f0c36a; background: none; border: 1px solid rgb(240 195 106 / 50%); border-radius: 12px; padding: 9px 12px; }
+.chat-email-row { padding: 6px 0; border: 0; }
+.chat-error-text { color: #ff9aa8; }

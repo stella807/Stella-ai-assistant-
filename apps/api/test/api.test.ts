@@ -6468,3 +6468,69 @@ describe("the website's chat assistant", () => {
     expect(JSON.stringify(r.json)).not.toContain("secret-key");
   });
 });
+
+describe("emailing a website visitor their answers", () => {
+  const realFetch = globalThis.fetch;
+  let mails: { to: string; subject: string; text: string }[] = [];
+  const talk = [{ role: "user", content: "How much is Premium?" }, { role: "assistant", content: "Premium is $93.99 a month." }];
+  const useMail = (status = 201) => {
+    process.env.BREVO_API_KEY = "xkeysib-test";
+    globalThis.fetch = (async (url: any, init?: any) => {
+      if (String(url).startsWith("https://api.brevo.com")) {
+        const b = JSON.parse(init.body);
+        mails.push({ to: b.to[0].email, subject: b.subject, text: b.textContent });
+        return new Response("{}", { status });
+      }
+      return realFetch(url, init);
+    }) as typeof fetch;
+  };
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env.BREVO_API_KEY; delete process.env.OWNER_ALERT_EMAIL;
+    mails = [];
+  });
+
+  it("emails the conversation to the visitor and a copy to the team", async () => {
+    useMail();
+    process.env.OWNER_ALERT_EMAIL = "owner@safehubby.com";
+    const r = await call("POST", "/api/site-chat/email", { email: "Sam@Example.com", messages: talk, lang: "en" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.sent).toBe(true);
+    const visitor = mails.find((m) => m.to === "sam@example.com")!;
+    expect(visitor.text).toContain("You: How much is Premium?");
+    expect(visitor.text).toContain("Premium is $93.99 a month.");
+    const team = mails.find((m) => m.to === "owner@safehubby.com")!;
+    expect(team.subject).toContain("sam@example.com");
+    expect(mails).toHaveLength(2);
+  });
+
+  it("says plainly when email is not set up, and sends nothing", async () => {
+    const r = await call("POST", "/api/site-chat/email", { email: "sam@example.com", messages: talk });
+    expect(r.status).toBe(503);
+    expect(r.json.error).toContain("@");
+  });
+
+  it("refuses a bad address or a conversation with no question", async () => {
+    useMail();
+    expect((await call("POST", "/api/site-chat/email", { email: "not-an-email", messages: talk })).status).toBe(400);
+    expect((await call("POST", "/api/site-chat/email", { email: "sam@example.com", messages: [] })).status).toBe(400);
+    expect((await call("POST", "/api/site-chat/email", { email: "sam@example.com", messages: [{ role: "assistant", content: "hi" }] })).status).toBe(400);
+    expect(mails).toHaveLength(0);
+  });
+
+  it("will not mail one address more than twice a day, whoever asks", async () => {
+    useMail();
+    const send = () => call("POST", "/api/site-chat/email", { email: "target@example.com", messages: talk });
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(429);
+    expect(mails.filter((m) => m.to === "target@example.com")).toHaveLength(2);
+  });
+
+  it("hides a mail-provider failure behind a friendly answer", async () => {
+    useMail(500);
+    const r = await call("POST", "/api/site-chat/email", { email: "sam@example.com", messages: talk });
+    expect(r.status).toBe(502);
+    expect(JSON.stringify(r.json)).not.toContain("xkeysib");
+  });
+});

@@ -113,6 +113,7 @@ export function siteChatSystemPrompt(contactEmail: string, now = new Date(), ava
     "",
     "RULES",
     ...(avail.sharePlans ? [] : ["- Do not state, describe or compare membership plans or tiers: no plan names, prices, allowances or features, even if asked directly or pressed. Say the plans are on the Plans screen, where they can choose one: tell them to tap the \"Choose your plan\" button under this chat (signed-out visitors: sign up first). For anything else send them to " + contactEmail + ". You may still explain how Safehubby works and the prices in the facts below."]),
+    "- If you cannot answer something, or the visitor wants a person to confirm it, tell them to tap the \"Email me the answers\" button under this chat: they get the conversation by email and the team gets a copy and can reply.",
     "- Use only the facts below. If something is not covered there, say you are not sure and send them to " + contactEmail + ". Never guess a price, a date, a feature or a promise.",
     "- Reply in the language the visitor writes in (English or Spanish).",
     "- Keep answers short, plain and easy to hear read aloud: two to four sentences, no markdown, no lists of more than three items, no emoji.",
@@ -139,4 +140,54 @@ export function cleanSiteChatMessages(raw: unknown): { role: "user" | "assistant
     .filter((m): m is { role: "user" | "assistant"; content: string } => m.role !== null && m.content.length > 0)
     .slice(-SITE_CHAT_LIMITS.messages);
   return turns.length > 0 && turns[turns.length - 1]!.role === "user" ? turns : null;
+}
+
+/** A finished stretch of conversation, cleaned for emailing: either side may speak last, but the visitor must have asked something. */
+export function cleanSiteChatTranscript(raw: unknown): { role: "user" | "assistant"; content: string }[] | null {
+  if (!Array.isArray(raw)) return null;
+  const turns = raw
+    .filter((m): m is { role: unknown; content: unknown } => Boolean(m) && typeof m === "object")
+    .map((m) => ({ role: m.role === "assistant" ? ("assistant" as const) : m.role === "user" ? ("user" as const) : null, content: typeof m.content === "string" ? m.content.trim().slice(0, SITE_CHAT_LIMITS.charsPerMessage) : "" }))
+    .filter((m): m is { role: "user" | "assistant"; content: string } => m.role !== null && m.content.length > 0)
+    .slice(-SITE_CHAT_LIMITS.messages);
+  return turns.some((t) => t.role === "user") ? turns : null;
+}
+
+const MAIL_WORDS = {
+  en: {
+    you: "You", us: "Safehubby assistant",
+    visitorSubject: "Your questions and answers from Safehubby",
+    visitorIntro: "Here is the conversation you had with the Safehubby assistant.",
+    visitorOutro: (contact: string) =>
+      `The assistant is an AI and can be wrong. If anything here needs a person to confirm it, reply to this email or write to ${contact} and a person will answer. In an emergency, call 911.`,
+    teamSubject: (who: string) => `Website chat: questions from ${who}`,
+    teamIntro: (who: string) => `${who} asked for the answers by email. Their conversation is below; reply to them directly to follow up on anything the assistant could not answer.`,
+  },
+  es: {
+    you: "Tú", us: "Asistente de Safehubby",
+    visitorSubject: "Tus preguntas y respuestas de Safehubby",
+    visitorIntro: "Esta es la conversación que tuviste con el asistente de Safehubby.",
+    visitorOutro: (contact: string) =>
+      `El asistente es una IA y puede equivocarse. Si algo necesita que una persona lo confirme, responde a este correo o escribe a ${contact} y una persona te contestará. En una emergencia, llama al 911.`,
+    teamSubject: (who: string) => `Chat del sitio: preguntas de ${who}`,
+    teamIntro: (who: string) => `${who} pidió las respuestas por correo. Su conversación está abajo; respóndele directamente para dar seguimiento a lo que el asistente no pudo contestar.`,
+  },
+} as const;
+
+/**
+ * The two emails that go out when a visitor asks for their answers: the
+ * conversation to them, and the same conversation to the team so a person can
+ * follow up on whatever the assistant could not answer. Plain text, and built
+ * only from the conversation plus fixed wording, so the endpoint cannot be used
+ * to send anyone arbitrary text under Safehubby's name.
+ */
+export function composeChatTranscriptEmails(input: {
+  lang: "en" | "es"; visitorEmail: string; contactEmail: string; turns: { role: "user" | "assistant"; content: string }[];
+}): { toVisitor: { subject: string; body: string }; toTeam: { subject: string; body: string } } {
+  const w = MAIL_WORDS[input.lang];
+  const transcript = input.turns.map((t) => `${t.role === "user" ? w.you : w.us}: ${t.content}`).join("\n\n");
+  return {
+    toVisitor: { subject: w.visitorSubject, body: `${w.visitorIntro}\n\n${transcript}\n\n${w.visitorOutro(input.contactEmail)}\n` },
+    toTeam: { subject: w.teamSubject(input.visitorEmail), body: `${w.teamIntro(input.visitorEmail)}\n\n${transcript}\n` },
+  };
 }

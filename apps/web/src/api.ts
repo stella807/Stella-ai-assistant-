@@ -882,6 +882,9 @@ export const api = {
   siteChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
     // Asking the assistant changes nothing, so a refusal from the host is safe to try again.
     request<{ reply: string }>("POST", "/api/site-chat", { messages }, undefined, true),
+  /** Emails the visitor their conversation, and the team a copy to follow up on. */
+  siteChatEmail: (email: string, messages: { role: "user" | "assistant"; content: string }[], lang: "en" | "es") =>
+    request<{ sent: boolean }>("POST", "/api/site-chat/email", { email, messages, lang }),
   masterFreebies: () =>
     request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("GET", "/api/master/freebies"),
   masterSetFreebies: (freebies: MonthlyFreebies) =>

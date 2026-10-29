@@ -74,7 +74,7 @@ import {
   SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
-  cleanSiteChatMessages, siteChatSystemPrompt,
+  cleanSiteChatMessages, cleanSiteChatTranscript, composeChatTranscriptEmails, siteChatSystemPrompt,
 } from "@safehubby/core";
 import type {
   PreAuthorization,
@@ -177,7 +177,7 @@ export interface Ctx {
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
     applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter;
-    siteChat: RateLimiter; siteChatDaily: RateLimiter;
+    siteChat: RateLimiter; siteChatDaily: RateLimiter; siteChatEmail: RateLimiter; siteChatEmailTo: RateLimiter; siteChatEmailDaily: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1294,6 +1294,11 @@ export function makeLimiters() {
      *  ceiling no matter how many visitors there are. */
     siteChat: new RateLimiter(30, 60 * 60_000),
     siteChatDaily: new RateLimiter(Number(process.env.SITE_CHAT_DAILY_LIMIT ?? 3000), 24 * 60 * 60_000),
+    /** Emailing a transcript sends mail to an address the visitor typed, so it is held much tighter than
+     *  chatting: a few per visitor an hour, two a day to any one address, and a ceiling for the whole site. */
+    siteChatEmail: new RateLimiter(3, 60 * 60_000),
+    siteChatEmailTo: new RateLimiter(2, 24 * 60 * 60_000),
+    siteChatEmailDaily: new RateLimiter(200, 24 * 60 * 60_000),
   };
 }
 
@@ -2198,6 +2203,37 @@ export const routes: Record<string, Handler> = {
     } catch {
       throw new HttpError(502, "The assistant could not answer just now. Email " + SITE_CONTACT_EMAIL + " and a person will.");
     }
+  },
+
+  /**
+   * "Email me the answers": the visitor's conversation goes to the address they typed, and a copy to the team
+   * (`OWNER_ALERT_EMAIL`, else the contact address) so a person can follow up on anything the assistant could not
+   * answer. The text is the conversation plus fixed wording, never anything else a caller supplies.
+   */
+  "POST /api/site-chat/email": async (ctx, _p, body) => {
+    if (!isAutomatic(email.status)) {
+      throw new HttpError(503, "Email is not set up yet. Write to " + SITE_CONTACT_EMAIL + " and a person will answer.");
+    }
+    const to = String(body?.email ?? "").trim().toLowerCase();
+    if (!isValidNewsletterEmail(to)) throw new HttpError(400, "Enter a valid email address.");
+    const turns = cleanSiteChatTranscript(body?.messages);
+    if (!turns) throw new HttpError(400, "Ask a question first, then ask for the answers by email.");
+    if (
+      ctx.limiters.siteChatEmail.hit(ctx.clientKey) || ctx.limiters.siteChatEmailTo.hit(to)
+      || ctx.limiters.siteChatEmailDaily.hit("all")
+    ) {
+      throw new HttpError(429, "That address has had its emails for now. Write to " + SITE_CONTACT_EMAIL + " if you need more.");
+    }
+    const lang = body?.lang === "es" ? "es" : "en";
+    const mail = composeChatTranscriptEmails({ lang, visitorEmail: to, contactEmail: SITE_CONTACT_EMAIL, turns });
+    const team = String(process.env.OWNER_ALERT_EMAIL ?? "").trim();
+    const messages: OutboundEmail[] = [
+      { to, ...mail.toVisitor },
+      { to: isValidNewsletterEmail(team) ? team : SITE_CONTACT_EMAIL, ...mail.toTeam },
+    ];
+    try { await email.send(messages); }
+    catch { throw new HttpError(502, "The email could not be sent just now. Write to " + SITE_CONTACT_EMAIL + " and a person will answer."); }
+    return { sent: true };
   },
 
   "GET /api/catalog": (ctx) => {
