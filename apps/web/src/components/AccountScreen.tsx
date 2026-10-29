@@ -5,6 +5,7 @@ import { TextAlertsCard } from "./TextAlertsCard.tsx";
 import { EmailAlertsCard } from "./EmailAlertsCard.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { ShareCard } from "./ShareCard.tsx";
+import { HomeAddressCard } from "./HomeAddressCard.tsx";
 import { planNameFor } from "../app/plan-name.tsx";
 
 /**
@@ -91,6 +92,8 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
         </p>
         <button className="btn btn-primary btn-block" onClick={onManagePlan}>{es ? "Administrar el plan" : "Manage plan"}</button>
       </section>
+
+      <HomeAddressCard />
 
       <TextAlertsCard scope="account" language={language === "es" ? "es" : "en"} />
       <EmailAlertsCard scope="account" language={language === "es" ? "es" : "en"} defaultEmail={account.email} />

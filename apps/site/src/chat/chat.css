@@ -2,10 +2,18 @@
 /* ---------- Ask Safehubby (chat.js) ---------- */
 .chat-launcher {
   position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 50;
-  font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px;
-  padding: 14px 20px; color: #10172e; background: linear-gradient(#f6d58a, #d9a441);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 40%);
+  width: 60px; height: 60px; padding: 0; display: grid; place-items: center;
+  cursor: pointer; border: 0; border-radius: 50%; color: #10172e; background: linear-gradient(#f6d58a, #d9a441);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 45%); transition: transform 0.15s;
 }
+.chat-launcher:hover { transform: scale(1.06); }
+.chat-teaser {
+  position: fixed; right: 84px; bottom: calc(28px + env(safe-area-inset-bottom)); z-index: 50;
+  font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; background: #18233f;
+  border: 1px solid rgb(255 255 255 / 18%); border-radius: 16px 16px 4px 16px; padding: 10px 14px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+}
+.chat-teaser[hidden] { display: none; }
 .chat-panel {
   position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 60;
   width: min(400px, calc(100vw - 24px)); max-height: min(640px, calc(100dvh - 24px));
@@ -35,4 +43,4 @@
 .chat-read { display: block; margin-bottom: 6px; cursor: pointer; }
 .chat-note { margin: 0; }
 @keyframes chat-pulse { 50% { opacity: 0.6; } }
-.chat-launcher:focus-visible, .chat-idea:focus-visible, .chat-input:focus-visible, .chat-mic:focus-visible, .chat-send:focus-visible, .chat-close:focus-visible { outline: 3px solid #f0c36a; outline-offset: 2px; }
+.chat-teaser:focus-visible, .chat-launcher:focus-visible, .chat-idea:focus-visible, .chat-input:focus-visible, .chat-mic:focus-visible, .chat-send:focus-visible, .chat-close:focus-visible { outline: 3px solid #f0c36a; outline-offset: 2px; }

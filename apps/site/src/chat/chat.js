@@ -15,7 +15,7 @@
 
   var T = {
     en: {
-      open: "Ask Safehubby", title: "Ask Safehubby", close: "Close", placeholder: "Ask about pricing or how it works",
+      open: "Ask Safehubby", teaser: "Questions? Ask me", title: "Ask Safehubby", close: "Close", placeholder: "Ask about pricing or how it works",
       send: "Send", mic: "Speak your question", micStop: "Stop listening", listening: "Listening…", thinking: "Thinking…",
       read: "Read answers aloud", note: "AI assistant. It can be wrong, and it is not for emergencies: call 911.",
       voiceNote: "Voice uses your browser's speech service.",
@@ -26,7 +26,7 @@
       speech: "en-US"
     },
     es: {
-      open: "Pregunta a Safehubby", title: "Pregunta a Safehubby", close: "Cerrar", placeholder: "Pregunta por los precios o cómo funciona",
+      open: "Pregunta a Safehubby", teaser: "¿Dudas? Pregúntame", title: "Pregunta a Safehubby", close: "Cerrar", placeholder: "Pregunta por los precios o cómo funciona",
       send: "Enviar", mic: "Di tu pregunta", micStop: "Dejar de escuchar", listening: "Escuchando…", thinking: "Pensando…",
       read: "Leer las respuestas en voz alta", note: "Asistente de IA. Puede equivocarse y no es para emergencias: llama al 911.",
       voiceNote: "La voz usa el servicio de voz de tu navegador.",
@@ -53,9 +53,34 @@
     return n;
   }
 
-  var launcher = el("button", "chat-launcher", T.open);
+  // A round speech-bubble button, drawn with DOM calls so the page's policy (no inline anything) is untouched.
+  var launcher = el("button", "chat-launcher");
   launcher.type = "button";
   launcher.setAttribute("aria-haspopup", "dialog");
+  launcher.setAttribute("aria-label", T.open);
+  var NS = "http://www.w3.org/2000/svg";
+  var icon = document.createElementNS(NS, "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("width", "28");
+  icon.setAttribute("height", "28");
+  icon.setAttribute("aria-hidden", "true");
+  var bubble = document.createElementNS(NS, "path");
+  bubble.setAttribute("d", "M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z");
+  bubble.setAttribute("fill", "currentColor");
+  icon.appendChild(bubble);
+  launcher.appendChild(icon);
+
+  // A small nudge beside the bubble, once, so people know what it is. Dismissed for the visit once seen.
+  var teaser = el("button", "chat-teaser", T.teaser);
+  teaser.type = "button";
+  teaser.hidden = true;
+  var seen = false;
+  try { seen = sessionStorage.getItem("sh_chat_teaser") === "1"; } catch { /* storage blocked: show it once per load */ }
+  function hideTeaser() {
+    teaser.hidden = true;
+    try { sessionStorage.setItem("sh_chat_teaser", "1"); } catch { /* ignore */ }
+  }
+  if (!seen) setTimeout(function () { if (panel.hidden) teaser.hidden = false; }, 4000);
 
   var panel = el("section", "chat-panel");
   panel.hidden = true;
@@ -117,6 +142,7 @@
   panel.appendChild(ideas);
   panel.appendChild(form);
   panel.appendChild(foot);
+  document.body.appendChild(teaser);
   document.body.appendChild(launcher);
   document.body.appendChild(panel);
 
@@ -220,6 +246,7 @@
   function open() {
     panel.hidden = false;
     launcher.hidden = true;
+    hideTeaser();
     if (!log.childNodes.length) add("bot", T.hello);
     input.focus();
   }
@@ -231,6 +258,7 @@
     launcher.focus();
   }
   launcher.addEventListener("click", open);
+  teaser.addEventListener("click", open);
   closeBtn.addEventListener("click", close);
   panel.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
 })();
