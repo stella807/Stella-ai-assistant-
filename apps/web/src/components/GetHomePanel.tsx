@@ -52,7 +52,8 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const gpsFix = pickup ?? { lat: 40.714, lng: -74.003 };
+  // Only a starting view until a real fix arrives: San Juan, where the service runs.
+  const gpsFix = pickup ?? { lat: 18.4655, lng: -66.1057 };
   // The exact spot a driver is sent to, not just wherever the phone's GPS
   // says it is. A fix is routinely off by a building's width in a crowded
   // venue or a parking structure, and until now there was no way to correct
@@ -71,7 +72,9 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   }, [Boolean(pickup)]);
   const at = pin;
 
-  const dropoff = homeAddress ?? { lat: 40.7488, lng: -73.9857, label: homeLabel };
+  // No saved address means no drop-off. This used to fall back to a fixed spot in
+  // New York, which put the pin in another country and priced a ride to it.
+  const dropoff = homeAddress;
 
   useEffect(() => {
     api.homeAddress().then((r) => setHomeAddress(r.address)).catch(() => {});
@@ -86,11 +89,12 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   // it (see POST /api/rides/quote in routes.ts), so this reads only that
   // one field off it and ignores the handoffs/estimates it also returns.
   useEffect(() => {
+    if (!dropoff) { setSecure(null); setArrangeFeeCents(null); return; }
     api.rideQuotes(at, dropoff).then((r) => {
       setSecure(r.secure ?? null);
       setArrangeFeeCents(r.standard.arrangeFeeCents);
     }).catch(() => { setSecure(null); setArrangeFeeCents(null); });
-  }, [at.lat, at.lng, dropoff.lat, dropoff.lng]);
+  }, [at.lat, at.lng, dropoff?.lat, dropoff?.lng]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -116,6 +120,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
   }, [request?.status, request?.id]);
 
   const coordinatePickup = () => run(async () => {
+    if (!dropoff) return;
     const res = await api.coordinatePickup(
       { lat: at.lat, lng: at.lng, label: w.pickup },
       { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label },
@@ -137,7 +142,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
       <LiveMap
         points={[
           { lat: at.lat, lng: at.lng, label: w.pinLabel },
-          { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel },
+          ...(dropoff ? [{ lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label ?? homeLabel }] : []),
         ]}
         onPick={!request ? setPin : undefined}
         onLocate={!request ? currentFix : undefined}
@@ -160,9 +165,10 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
             <input id="pickup-note" type="text" value={note} onChange={(e) => setNote(e.target.value)}
               placeholder={w.driverNotePlaceholder} />
           </div>
-          <button className="btn btn-primary btn-block" disabled={busy} onClick={coordinatePickup}>
+          <button className="btn btn-primary btn-block" disabled={busy || !dropoff} onClick={coordinatePickup}>
             {w.arrange}
           </button>
+          {!dropoff && <p className="tiny muted" style={{ margin: 0 }}>{w.needHome}</p>}
           <p className="tiny muted" style={{ margin: 0 }}>{w.arrangeHow(arrangeFeeCents)}</p>
         </>
       )}
@@ -198,7 +204,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
         </div>
       )}
 
-      {mapOpen && request?.status === "coordinated" && (
+      {mapOpen && request?.status === "coordinated" && dropoff && (
         <TripMapPopup
           kind="ride"
           title={w.driverComing(request.driverName ?? w.yourDriver)}
@@ -218,7 +224,7 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
         />
       )}
 
-      {secure && (
+      {secure && dropoff && (
         <section className="secure">
           <div className="row-between">
             <div>
