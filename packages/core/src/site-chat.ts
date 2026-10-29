@@ -3,7 +3,8 @@ import { PA_CUSTOMER_HOURLY_CENTS, MIN_BOOKED_HOURS } from "./concierge.ts";
 import { ERRAND_TIERS, errandFeeCents } from "./errand-tiers.ts";
 import { errandCreditFor, includedGrabAllowanceFor } from "./included-grabs.ts";
 import { LAUNCH_DISCOUNT_RATE, LAUNCH_DISCOUNT_YEARS, LAUNCH_WINDOW_END, launchOfferFor } from "./promotions.ts";
-import { CLUB_INCLUDED_EVENT_MAX_CENTS, CLUB_MONTHLY_DUES_CENTS, CLUB_PREMIUM_MARKUP } from "./wingman-club.ts";
+import { LAUNCH_MARKETS } from "./service-area.ts";
+import { CLUB_EXPERIENCES, CLUB_INCLUDED_EVENT_MAX_CENTS, CLUB_PERKS, CLUB_PREMIUM_MONTHS, CLUB_MONTHLY_DUES_CENTS, CLUB_PREMIUM_MARKUP } from "./wingman-club.ts";
 
 /**
  * What the website's chat assistant is allowed to say, and how it must say it.
@@ -30,6 +31,35 @@ export interface SiteChatAvailability {
 
 export const SITE_CHAT_LIMITS = { messages: 12, charsPerMessage: 800 } as const;
 
+/**
+ * How Safehubby works, in plain sentences, for the questions that are not about a price.
+ * Taken from what the website and the app already tell people, so the assistant explains
+ * the service the way the rest of the product does and invents nothing.
+ */
+export function siteChatHowItWorks(sharePlans = true): string[] {
+  const markets = LAUNCH_MARKETS.map((m) => m.label).join(", ");
+  const club = CLUB_EXPERIENCES.map((e) => e.label.toLowerCase()).join(", ");
+  return [
+    "HOW IT WORKS:",
+    "- What Safehubby is: a real person comes and helps, from one errand to a full concierge desk. The idea began with someone alone in a hospital bed at nine at night, thirsty, with nobody to ask.",
+    `- Where: ${markets}.`,
+    sharePlans
+      ? "- Getting started: create an account in the app. The Free plan costs nothing and stays free. Tap the Choose your plan button under this chat to pick a paid plan. You set a spending cap on what a person may buy for you."
+      : "- Getting started: create an account in the app, then tap the Choose your plan button under this chat. You set a spending cap on what a person may buy for you.",
+    "- Grab something: a juice, a phone charger, a blanket, bought and brought to your room or your door. You pay for the item at cost plus the errand fee below; some plans include a number of no-fee pickups each month.",
+    "- Run an errand: groceries, the bank or the pharmacy, one trip at a spending cap you set. The fee covers the runner's time and travel and rises slightly with a bigger purchase because the card charges more.",
+    "- Wait with someone: a vetted assistant who comes and stays, for a hospital wait or a bad night. Check on someone: a person goes and looks, then tells you.",
+    "- Rides: Safehubby books and follows the ride at the ride provider's own rate, with no markup on the fare. A person arranges it for you and tells you who is coming.",
+    `- Safety: check-ins, location sharing and SOS are on every plan${sharePlans ? ", including Free" : ""}. A guardian is alerted the moment a check-in is missed. Safehubby never tells anyone they are safe to drive.`,
+    "- The people: assistants and errand runners are vetted and carry their own liability insurance.",
+    "- Cancelling: every paid plan cancels in one tap from the app.",
+    "- Privacy: your location and check-in history are yours. They are never sold and never used for ad targeting.",
+    ...(sharePlans ? ["- Basic is for members 65 and over, with an ID on file."] : []),
+    "- Safehubby is not an emergency service. In an emergency, call 911 first. Safehubby LLC is in formation.",
+    `- Wingman Club: an add-on on top of any plan. One membership; once a month the club's pick is revealed, the same outing for everyone that month, booked as a group (at ten or more members the group rate applies). Three months in four it is a lighter outing included in the dues. In months ${CLUB_PREMIUM_MONTHS.join(", ")} it is a bigger day: the dues carry a credit toward it and members pay the rest only if they go. ${CLUB_PERKS[0]} Outings in the rotation include: ${club}.`,
+  ];
+}
+
 export function siteChatFacts(avail: SiteChatAvailability = {}): string {
   const now = avail.now ?? new Date();
   const locked = new Set(avail.lockedPlans ?? []);
@@ -52,6 +82,8 @@ export function siteChatFacts(avail: SiteChatAvailability = {}): string {
     lines.push(`- ${plan.name}: ${parts.join("; ")}. ${plan.blurb}`);
   }
   lines.push(
+    ...(lines.length ? [""] : []),
+    ...siteChatHowItWorks(Boolean(avail.sharePlans)),
     "",
     `ASSISTANT HOURS beyond what a plan includes: ${dollars(PA_CUSTOMER_HOURLY_CENTS)} an hour, ${MIN_BOOKED_HOURS}-hour minimum booking.`,
     "ERRANDS (a person fetches something; you pay for the item itself as well):",

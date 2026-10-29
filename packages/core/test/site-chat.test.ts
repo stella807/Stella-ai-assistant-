@@ -64,6 +64,21 @@ describe("the facts about joining today", () => {
   });
 });
 
+describe("explaining how it works", () => {
+  it("covers the questions a visitor asks that are not about price, and is there whether or not plans are shared", () => {
+    for (const facts of [siteChatFacts(), siteChatFacts({ sharePlans: true })]) {
+      for (const must of ["HOW IT WORKS", "Puerto Rico", "Texas", "Los Angeles", "Choose your plan", "SOS", "cancels in one tap", "never sold", "911", "Wingman Club", "no markup"]) {
+        expect(facts, must).toContain(must);
+      }
+    }
+  });
+  it("names the club's real outings and which months are the bigger days", () => {
+    const facts = siteChatFacts();
+    expect(facts).toContain("skydiving");
+    expect(facts).toContain("months 3, 6, 9, 12");
+  });
+});
+
 describe("keeping plan details out of the assistant", () => {
   it("leaves every plan, price, allowance and feature out by default, but keeps how it works", () => {
     const facts = siteChatFacts();
