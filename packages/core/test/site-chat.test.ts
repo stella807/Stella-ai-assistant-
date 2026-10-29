@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS, isElitePlan, cleanSiteChatMessages, siteChatFacts, siteChatSystemPrompt, releasedPlans, setMonthlyFreebies, defaultMonthlyFreebies, CLUB_MONTHLY_DUES_CENTS } from "../src/index.ts";
+import { PLANS, isElitePlan, resetFlags, setFlag, cleanSiteChatMessages, siteChatFacts, siteChatSystemPrompt, releasedPlans, setMonthlyFreebies, defaultMonthlyFreebies, CLUB_MONTHLY_DUES_CENTS } from "../src/index.ts";
 
 describe("the website assistant's facts", () => {
   it("name every released plan with its price", () => {
@@ -76,6 +76,30 @@ describe("explaining how it works", () => {
     const facts = siteChatFacts();
     expect(facts).toContain("skydiving");
     expect(facts).toContain("months 3, 6, 9, 12");
+  });
+});
+
+describe("the rest of what a visitor asks", () => {
+  it("covers paying, owning your data and working for Safehubby, with the real pay", () => {
+    const facts = siteChatFacts();
+    for (const must of ["Paying:", "ATH Móvil", "download everything", "delete your account", "Working with Safehubby", "$35 an hour", "$150", "$55 an hour", "$0.70 a mile", "Hacienda", "Careers"]) {
+      expect(facts, must).toContain(must);
+    }
+  });
+
+  it("says plainly what it does not know, so it sends those questions to a person", () => {
+    expect(siteChatFacts()).toMatch(/Not known to this assistant[^\n]*hours of operation[^\n]*refunds/);
+  });
+
+  it("does not promise Free members errands while the owner has them paused", () => {
+    const free = (f: string) => f.split("\n").find((l) => l.startsWith("- Free:")) ?? "";
+    setFlag("free-errands", false);
+    try {
+      expect(free(siteChatFacts({ sharePlans: true }))).not.toMatch(/no-fee pickup/);
+      expect(free(siteChatFacts({ sharePlans: true }))).toContain("errands are paused");
+    } finally {
+      resetFlags();
+    }
   });
 });
 

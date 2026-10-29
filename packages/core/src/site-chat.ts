@@ -1,6 +1,7 @@
-import { deskTaskAllowanceFor, includedConciergeHours, releasedPlans, type PlanId } from "./billing.ts";
-import { PA_CUSTOMER_HOURLY_CENTS, MIN_BOOKED_HOURS } from "./concierge.ts";
-import { ERRAND_TIERS, errandFeeCents } from "./errand-tiers.ts";
+import { deskTaskAllowanceFor, hasFeature, includedConciergeHours, releasedPlans, type PlanId } from "./billing.ts";
+import { ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS, MIN_BOOKED_HOURS, PA_CUSTOMER_HOURLY_CENTS, PA_HOURLY_RATE_CENTS } from "./concierge.ts";
+import { ERRAND_MILEAGE_CENTS, ERRAND_TIERS, errandFeeCents, errandPayoutCents } from "./errand-tiers.ts";
+import { STAFF_ROLES } from "./staffing.ts";
 import { errandCreditFor, includedGrabAllowanceFor } from "./included-grabs.ts";
 import { LAUNCH_DISCOUNT_RATE, LAUNCH_DISCOUNT_YEARS, LAUNCH_WINDOW_END, launchOfferFor } from "./promotions.ts";
 import { LAUNCH_MARKETS } from "./service-area.ts";
@@ -53,8 +54,12 @@ export function siteChatHowItWorks(sharePlans = true): string[] {
     `- Safety: check-ins, location sharing and SOS are on every plan${sharePlans ? ", including Free" : ""}. A guardian is alerted the moment a check-in is missed. Safehubby never tells anyone they are safe to drive.`,
     "- The people: assistants and errand runners are vetted and carry their own liability insurance.",
     "- Cancelling: every paid plan cancels in one tap from the app.",
+    "- Paying: cards are accepted. Where they are available, other ways to pay such as ATH Móvil and PayPal appear at checkout in the app.",
+    "- Your data: in Account settings you can download everything Safehubby holds about you, or delete your account permanently.",
     "- Privacy: your location and check-in history are yours. They are never sold and never used for ad targeting.",
     ...(sharePlans ? ["- Basic is for members 65 and over, with an ID on file."] : []),
+    `- Working with Safehubby: people can apply to work as ${STAFF_ROLES.map((r) => r.label.toLowerCase()).join(", ")} through Careers, the link at the bottom of the app, no account needed. Personal assistants are paid ${dollars(PA_HOURLY_RATE_CENTS)} an hour in every market, a hospital day ${dollars(HOSPITAL_DAY_PAYOUT_CENTS)}, and licensed armed jobs ${dollars(ARMED_HOURLY_PAYOUT_CENTS)} an hour. Errand runners are paid ${dollars(Math.min(...ERRAND_TIERS.map((t) => errandPayoutCents(t.id))))} to ${dollars(Math.max(...ERRAND_TIERS.map((t) => errandPayoutCents(t.id))))} per errand by size, plus ${dollars(ERRAND_MILEAGE_CENTS)} a mile. They bring their own liability insurance, and in Puerto Rico 10% of pay is withheld for Hacienda unless they have an exemption certificate. Which roles are open right now is listed under Careers.`,
+    "- Not known to this assistant, so send people to the contact email instead of guessing: hours of operation, how fast someone arrives, refunds, and a phone number or street address.",
     "- Safehubby is not an emergency service. In an emergency, call 911 first. Safehubby LLC is in formation.",
     `- Wingman Club: an add-on on top of any plan. One membership; once a month the club's pick is revealed, the same outing for everyone that month, booked as a group (at ten or more members the group rate applies). Three months in four it is a lighter outing included in the dues. In months ${CLUB_PREMIUM_MONTHS.join(", ")} it is a bigger day: the dues carry a credit toward it and members pay the rest only if they go. ${CLUB_PERKS[0]} Outings in the rotation include: ${club}.`,
   ];
@@ -67,7 +72,9 @@ export function siteChatFacts(avail: SiteChatAvailability = {}): string {
   if (avail.sharePlans) lines.push("PLANS (monthly price; what each includes):");
   for (const plan of avail.sharePlans ? releasedPlans() : []) {
     const hours = includedConciergeHours(plan.id);
-    const grabs = includedGrabAllowanceFor(plan.id);
+    // Free's errands can be switched off; then there is nothing to count or to list.
+    const errandsOn = hasFeature(plan.id, "quick-tasks");
+    const grabs = errandsOn ? includedGrabAllowanceFor(plan.id) : 0;
     const credit = errandCreditFor(plan.id);
     const desk = deskTaskAllowanceFor(plan.id);
     const parts = [
@@ -77,7 +84,8 @@ export function siteChatFacts(avail: SiteChatAvailability = {}): string {
       grabs === null ? "unlimited no-fee pickups" : grabs > 0 ? `${grabs} no-fee pickup${grabs === 1 ? "" : "s"} each month` : null,
       credit > 0 ? `${dollars(credit)} errand credit each month` : null,
       desk > 0 ? `${desk} desk task${desk === 1 ? "" : "s"} each month` : null,
-      plan.features.length ? `features: ${plan.features.map((f) => f.replace(/-/g, " ")).join(", ")}` : null,
+      plan.features.length ? `features: ${plan.features.filter((f) => hasFeature(plan.id, f)).map((f) => f.replace(/-/g, " ")).join(", ")}` : null,
+      errandsOn ? null : "errands are paused on this plan for now",
     ].filter(Boolean);
     lines.push(`- ${plan.name}: ${parts.join("; ")}. ${plan.blurb}`);
   }
