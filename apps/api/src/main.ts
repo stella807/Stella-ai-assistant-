@@ -30,7 +30,8 @@ function assertProductionConfig(): void {
   if (!databaseUrl) problems.push("DATABASE_URL is not set — the file store does not survive a redeploy.");
   if (!cipher) problems.push("SAFEHUBBY_ENCRYPTION_KEY is not set — location history would be stored in the clear.");
   if (problems.length) {
-    console.error("[safehubby] Refusing to start in production:\n  - " + problems.join("\n  - "));
+    // One line, because a platform log shows each line as its own entry and the reason must sit with the headline.
+    console.error("[safehubby] Refusing to start in production: " + problems.join(" | "));
     process.exit(1);
   }
 }
