@@ -52,6 +52,23 @@ describe.skipIf(!reachable)("PostgresStore", () => {
     expect(store.data.travelers).toEqual([]);
   });
 
+  it("survives the database dropping its connections, and keeps saving afterwards", async () => {
+    // A restart or a proxy timeout kills idle connections. Without an error listener on the pool Node treats
+    // that as uncaught and the whole server dies, which on a platform shows as "active, then crashed".
+    const store = await open();
+    store.update((db) => { db.travelers.push(traveler("before")); });
+    await store.flushed();
+    const admin = new Client({ connectionString: URL });
+    await admin.connect();
+    await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()");
+    await admin.end();
+    await new Promise((r) => setTimeout(r, 300)); // an unhandled pool error would surface here and fail the run
+    store.update((db) => { db.travelers.push(traveler("after")); });
+    await store.flushed();
+    const again = await open();
+    expect(again.data.travelers.map((t) => t.id)).toEqual(["before", "after"]);
+  });
+
   it("persists across a reconnect — the point of the whole exercise", async () => {
     const first = await open();
     first.update((db) => { db.travelers.push(traveler("sam")); });

@@ -105,6 +105,10 @@ export class PostgresStore implements StoreLike {
       ssl: sslConfigFor(connectionString),
       max: 4,
     });
+    // An idle connection the database or the network drops (a restart, a proxy timeout) emits 'error' on the
+    // pool, and with no listener Node treats that as uncaught and kills the whole server. The pool replaces
+    // the dead connection by itself on the next query, so all that is needed here is to say so and carry on.
+    pool.on("error", (err) => console.error("[safehubby] Database connection dropped; it will reconnect:", err.message));
     await pool.query(SCHEMA);
 
     const { rows } = await pool.query<{ version: string; document: Db }>(
