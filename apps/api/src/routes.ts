@@ -1055,6 +1055,35 @@ async function refundClubRsvp(ctx: Ctx, rsvp: ClubRsvp): Promise<void> {
 }
 
 /** Suggested vendors added after the list first shipped: a list loaded before then never had them. */
+/** What to share, and the code that makes it count — see the two routes that return it. */
+const shareInvite = (ctx: Ctx) => {
+    const me = actor(ctx);
+    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
+    if (!traveler) throw notFound("Account");
+
+    // Minted lazily for accounts that predate referral codes, so an older
+    // account gets one the first time it opens the share sheet rather than
+    // having nothing to share.
+    let code = traveler.referralCode;
+    if (!code) {
+      code = newReferralCode();
+      ctx.store.update((db) => {
+        const t = db.travelers.find((x) => x.id === me);
+        if (t) t.referralCode = code;
+      });
+    }
+
+    const url = `${process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com"}/?ref=${encodeURIComponent(code)}`;
+    const joined = ctx.store.data.referrals.filter((r) => r.referrerId === me);
+    return {
+      code,
+      url,
+      message: shareMessage(code, url),
+      joined: joined.length,
+      launch: launchStatus(ctx.now()),
+    };
+  };
+
 const SUGGESTED_LATER = new Set(["vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway"]);
 
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
@@ -2133,33 +2162,10 @@ export const routes: Record<string, Handler> = {
    * sent from, and the code is minted at signup rather than on demand so the
    * same person always shares the same one.
    */
-  "GET /api/share": (ctx) => {
-    const me = actor(ctx);
-    const traveler = ctx.store.data.travelers.find((t) => t.id === me);
-    if (!traveler) throw notFound("Account");
-
-    // Minted lazily for accounts that predate referral codes, so an older
-    // account gets one the first time it opens the share sheet rather than
-    // having nothing to share.
-    let code = traveler.referralCode;
-    if (!code) {
-      code = newReferralCode();
-      ctx.store.update((db) => {
-        const t = db.travelers.find((x) => x.id === me);
-        if (t) t.referralCode = code;
-      });
-    }
-
-    const url = `${process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com"}/?ref=${encodeURIComponent(code)}`;
-    const joined = ctx.store.data.referrals.filter((r) => r.referrerId === me);
-    return {
-      code,
-      url,
-      message: shareMessage(code, url),
-      joined: joined.length,
-      launch: launchStatus(ctx.now()),
-    };
-  },
+  "GET /api/share": (ctx) => shareInvite(ctx),
+  // The same answer on a second path. A path that a proxy in front of the server treats differently can be
+  // reached by another name; the app asks this one, and the old one stays for anything already using it.
+  "GET /api/account/invite": (ctx) => shareInvite(ctx),
 
   "GET /api/auth/me": (ctx) => {
     if (!ctx.actorId) return { traveler: null };

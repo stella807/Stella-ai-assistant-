@@ -49,7 +49,9 @@ export function ShareCard() {
     }
   };
 
-  if (error) return <div className="banner banner-danger">{error}</div>;
+  // Nothing here is worth a red banner: the card is an invitation, and not being able to load it should
+  // not look like the screen is broken. It simply is not shown.
+  if (error) return null;
   if (!invite) return null;
 
   return (

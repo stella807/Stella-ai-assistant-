@@ -3781,6 +3781,14 @@ describe("the launch party and the share loop", () => {
     expect(second).toBe(first);
   });
 
+  it("answers the same on its second path, which the app now asks", async () => {
+    const a = (await call("GET", "/api/share", undefined, sam)).json;
+    const b = await call("GET", "/api/account/invite", undefined, sam);
+    expect(b.status).toBe(200);
+    expect(b.json).toEqual(a);
+    expect((await call("GET", "/api/account/invite")).status).toBe(401);
+  });
+
   it("mints a code for an account that predates referrals rather than returning nothing", async () => {
     store.update((db) => { delete db.travelers.find((t) => t.id === samId)!.referralCode; });
     const share = (await call("GET", "/api/share", undefined, sam)).json;

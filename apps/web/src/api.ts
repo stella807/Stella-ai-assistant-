@@ -369,7 +369,7 @@ export const api = {
     referralCode?: string;
   }) =>
     request<{ traveler: Account }>("POST", "/api/auth/signup", input),
-  share: () => request<ShareInvite>("GET", "/api/share"),
+  share: () => request<ShareInvite>("GET", "/api/account/invite"),
 
   /** Public: no account, because the person this is for cannot use the app
    *  yet. `delivered` is false while no mail provider is configured. */
