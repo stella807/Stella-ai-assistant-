@@ -44,7 +44,8 @@ export type StaffRole =
   | "web-developer"
   | "physician"
   | "nurse"
-  | "wingman-club-coordinator";
+  | "wingman-club-coordinator"
+  | "bodyguard";
 
 export interface RoleInfo {
   id: StaffRole;
@@ -214,6 +215,20 @@ export const STAFF_ROLES: RoleInfo[] = [
     prelaunchHoursPerWeek: 20,
     hourlyCents: 4000,
   },
+  {
+    id: "bodyguard",
+    label: "Bodyguard",
+    description: "Protect a client in person: close protection at events, on the road and at home. Armed work needs your own firearms and security-guard licences (Ley 108).",
+    drives: false,
+    // Puerto Rico reference: armed security guards earn roughly $12-16/hr
+    // there and executive-protection work $20-30/hr, well under the mainland
+    // band. $25/hr sits at the upper-middle of the island's close-protection
+    // range, so it is a premium without chasing mainland pay. Paid per job,
+    // so nothing is carried on the pre-launch plan. [TO CONFIRM against live
+    // quotes from island security firms before the first hire.]
+    prelaunchHoursPerWeek: 0,
+    hourlyCents: 2500,
+  },
 ];
 
 export function findRole(id: StaffRole): RoleInfo {
@@ -377,6 +392,7 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   physician: 1,
   nurse: 1,
   "wingman-club-coordinator": 1,
+  bodyguard: 0,
 };
 
 export interface RoleBudgetLine {

@@ -33,11 +33,12 @@ export const OPEN_POSITIONS: Record<StaffRole, number> = {
   physician: 3,
   nurse: 3,
   "wingman-club-coordinator": 3,
+  bodyguard: 2,
 };
 
 /** How many openings remain once some are filled. Never negative. */
-export function openingsFor(role: StaffRole, hired: number): number {
-  return Math.max(0, OPEN_POSITIONS[role] - hired);
+export function openingsFor(role: StaffRole, hired: number, targets: Partial<Record<StaffRole, number>> = {}): number {
+  return Math.max(0, (targets[role] ?? OPEN_POSITIONS[role]) - hired);
 }
 
 const usd = (cents: number): string => `$${(cents / 100).toFixed(2)}`;

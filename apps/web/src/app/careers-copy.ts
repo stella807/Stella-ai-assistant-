@@ -50,6 +50,10 @@ export const ROLE_ES: Record<string, { label: string; description: string }> = {
     label: "Coordinador/a del Wingman Club",
     description: "Asistente personal del dueño dedicado al Wingman Club: elegir y negociar la experiencia de cada mes, la relación con los lugares y la revelación.",
   },
+  bodyguard: {
+    label: "Guardaespaldas",
+    description: "Protege a un cliente en persona: protección cercana en eventos, en la carretera y en casa. El trabajo armado requiere tus propias licencias de armas y de guardia de seguridad (Ley 108).",
+  },
 };
 
 export const BENEFIT_ES: Record<string, { label: string; detail: string }> = {

@@ -906,6 +906,8 @@ export const api = {
    *  server refuses an observed step outright — see launch-plan.ts. */
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
+  masterGetHiring: () => request<{ jobs: HiringRow[] }>("GET", "/api/master/hiring"),
+  masterSetHiring: (role: string, target: number) => request<{ jobs: HiringRow[] }>("POST", "/api/master/hiring", { role, target }),
   masterGetPricing: () => request<any>("GET", "/api/master/pricing"),
   masterSetDriverRate: (tier: "standard" | "secure-transport", rate: { baseCents: number; perMileCents: number; perMinuteCents: number }, reason?: string) =>
     request<any>("POST", "/api/master/pricing/override", { roleOrService: `driver-${tier}`, ...rate, reason }),
@@ -918,6 +920,8 @@ export const api = {
   masterProcessPayroll: (period: string) =>
     request<any>("POST", "/api/master/payroll/process", { period }),
 };
+
+export interface HiringRow { id: string; label: string; target: number; defaultTarget: number; hired: number; openings: number }
 
 export interface ClubRequestRow {
   id: string; travelerId: string; note: string; status: "open" | "arranged" | "declined";

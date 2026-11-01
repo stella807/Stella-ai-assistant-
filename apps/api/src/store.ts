@@ -7,7 +7,7 @@ import type {
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor, ClubSubscription, ClubRsvp, ClubMonthState,
 } from "@safehubby/core";
-import type { MonthlyFreebies, SeniorIdCheck } from "@safehubby/core";
+import type { MonthlyFreebies, SeniorIdCheck, StaffRole } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
@@ -259,6 +259,8 @@ export interface Db {
   vendorSeedsOffered?: string[];
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */
   monthlyFreebies?: MonthlyFreebies;
+  /** The owner's count of people wanted per job; a job with no entry uses the built-in number. */
+  hiringTargets?: Partial<Record<StaffRole, number>>;
   /** Prepaid balance loads and refunds — see balance.ts. The balance itself
    *  is derived from these and from the holds, never stored. */
   balanceEntries: BalanceEntry[];

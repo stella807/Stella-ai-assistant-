@@ -3873,7 +3873,7 @@ describe("hiring for the roles that do not drive", () => {
     expect(res.status).toBe(200);
     expect(res.json.roles.map((r: { id: string }) => r.id).sort())
       .toEqual([
-        "caretaker", "errand-runner", "lawyer", "nurse", "personal-assistant", "physician",
+        "bodyguard", "caretaker", "errand-runner", "lawyer", "nurse", "personal-assistant", "physician",
         "secretary", "social-media-manager", "web-developer", "wingman-club-coordinator",
       ]);
     // Drivers apply through their own form, which asks about a vehicle.
@@ -5948,6 +5948,27 @@ describe("master access — a per-account role instead of one shared secret", ()
     }
     const bad = await call("POST", "/api/master/pricing/override", { roleOrService: "job-nonsense", priceCents: 100 }, null, owner);
     expect(bad.status).toBe(400);
+  });
+
+  it("lets the owner change how many people each job is hiring, and lists the bodyguard job", async () => {
+    const owner = (await masterLogin("owner", "Hire Boss", "hireboss@example.com")).cookie;
+    const sec = (await masterLogin("secretary", "Hire Sec", "hiresec@example.com")).cookie;
+    const roles = (await call("GET", "/api/staff/roles")).json.roles;
+    const guard = roles.find((r: any) => r.id === "bodyguard");
+    expect(guard.pay).toContain("$25.00");
+    expect(guard.openings).toBe(2);
+    const set = await call("POST", "/api/master/hiring", { role: "bodyguard", target: 6 }, null, owner);
+    expect(set.status).toBe(200);
+    expect(set.json.jobs.find((j: any) => j.id === "bodyguard").target).toBe(6);
+    const after = (await call("GET", "/api/staff/roles")).json.roles.find((r: any) => r.id === "bodyguard");
+    expect(after.openings).toBe(6);
+    await call("POST", "/api/master/hiring", { role: "bodyguard", target: 0 }, null, owner);
+    const none = (await call("GET", "/api/staff/roles")).json.roles.find((r: any) => r.id === "bodyguard");
+    expect(none.hiring).toBe(false);
+    expect((await call("POST", "/api/master/hiring", { role: "bodyguard", target: -1 }, null, owner)).status).toBe(400);
+    expect((await call("POST", "/api/master/hiring", { role: "bodyguard", target: 1.5 }, null, owner)).status).toBe(400);
+    expect((await call("POST", "/api/master/hiring", { role: "nonsense", target: 1 }, null, owner)).status).toBe(400);
+    expect((await call("POST", "/api/master/hiring", { role: "bodyguard", target: 3 }, null, sec)).status).toBe(401);
   });
 
   it("counts the real customer roster, not a hypothetical one", async () => {

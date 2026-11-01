@@ -4,7 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
-import { api, type MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type HiringRow, MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
@@ -326,6 +326,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.account.role === "owner" && <ProfitCalculatorSection />}
       {overview.account.role === "owner" && <VendorsSection />}
 
+      {overview.account.role === "owner" && <HiringSection />}
       {overview.account.role === "owner" && <PricingSection />}
 
       <section className="card stack">
@@ -893,6 +894,46 @@ function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promi
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
       {note && <div className="banner banner-safe">{note}</div>}
     </div>
+  );
+}
+
+function HiringSection() {
+  const [jobs, setJobs] = useState<HiringRow[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { api.masterGetHiring().then((r) => setJobs(r.jobs)).catch(() => setError("Could not load hiring.")); }, []);
+  const set = async (j: HiringRow, target: number) => {
+    if (target < 0 || target > 100) return;
+    setBusy(j.id); setError(null); setNote(null);
+    try {
+      const r = await api.masterSetHiring(j.id, target);
+      setJobs(r.jobs);
+      setNote(target === 0 ? `${j.label}: not hiring.` : `${j.label}: hiring ${target}.`);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? `Could not save: ${err.message}` : "Could not save.");
+    } finally { setBusy(null); }
+  };
+  return (
+    <section className="card stack" style={{ gap: 8 }}>
+      <h3 style={{ margin: 0 }}>How many we're hiring</h3>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Set the number of people wanted for each job on the careers page. Zero shows "not hiring yet" and still takes applications.
+      </p>
+      {!jobs && !error && <p className="tiny muted">Loading...</p>}
+      {jobs?.map((j) => (
+        <div key={j.id} className="row-between small" style={{ gap: 8 }}>
+          <span>{j.label} <span className="tiny muted">({j.hired} on the team, {j.openings} open)</span></span>
+          <span className="row" style={{ gap: 6, alignItems: "center" }}>
+            <button className="btn" aria-label={`Hire fewer ${j.label}`} disabled={busy !== null || j.target <= 0} onClick={() => void set(j, j.target - 1)}>−</button>
+            <strong aria-label={`${j.label} wanted`} style={{ minWidth: 24, textAlign: "center" }}>{j.target}</strong>
+            <button className="btn" aria-label={`Hire more ${j.label}`} disabled={busy !== null || j.target >= 100} onClick={() => void set(j, j.target + 1)}>+</button>
+          </span>
+        </div>
+      ))}
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+      {note && <div className="banner banner-safe">{note}</div>}
+    </section>
   );
 }
 

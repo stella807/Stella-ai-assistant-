@@ -61,6 +61,7 @@ export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   physician: [],
   nurse: [],
   "wingman-club-coordinator": [],
+  bodyguard: [],
 };
 
 export function categoriesForRole(role: StaffRole): ConciergeCategory[] {

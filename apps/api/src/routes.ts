@@ -46,7 +46,7 @@ import {
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
   errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
-  errandPayoutCents, errandFeeCents, openingsFor, payLabelFor, locationForOnBehalf, type ErrandTierId,
+  errandPayoutCents, errandFeeCents, openingsFor, OPEN_POSITIONS, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
@@ -1132,6 +1132,15 @@ function masterAccountOf(ctx: Ctx): MasterAccount | null {
  * dashboard now disagrees with itself about a starting rate" cannot
  * happen.
  */
+/** Each job on the job list with how many people it wants, who is on the roster, and what is still open. */
+function hiringRows(ctx: Ctx) {
+  return STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => {
+    const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
+    const target = ctx.store.data.hiringTargets?.[r.id] ?? OPEN_POSITIONS[r.id];
+    return { id: r.id, label: r.label, target, defaultTarget: OPEN_POSITIONS[r.id], hired, openings: Math.max(0, target - hired) };
+  });
+}
+
 function defaultPricing(): CurrentPricing {
   return {
     paHourlyCents: 3500,
@@ -5883,7 +5892,7 @@ export const routes: Record<string, Handler> = {
     // hired and a role that is full says so instead of advertising a job.
     roles: STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => {
       const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
-      const openings = openingsFor(r.id, hired);
+      const openings = openingsFor(r.id, hired, ctx.store.data.hiringTargets);
       const rates = jobPayRates(ctx.store.data.priceOverrides);
       return { ...r, pay: payLabelFor(r.id, "en", rates), payEs: payLabelFor(r.id, "es", rates), openings, hiring: openings > 0 };
     })
@@ -6266,6 +6275,33 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Master: how many people each job is hiring, against who is already on the roster. */
+  "GET /api/master/hiring": (ctx) => {
+    requireAdmin(ctx, "operations");
+    return { jobs: hiringRows(ctx) };
+  },
+
+  /** Master: set how many people a job is hiring. Zero shows "not hiring yet" and still takes applications. */
+  "POST /api/master/hiring": (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "write");
+    const account = masterAccountOf(ctx);
+    const role = String(body?.role ?? "");
+    const target = Number(body?.target);
+    if (!STAFF_ROLES.some((r) => r.id === role && r.id !== "driver")) throw new HttpError(400, "That is not a job on the job list.");
+    if (!Number.isInteger(target) || target < 0 || target > 100) throw new HttpError(400, "Hiring count must be a whole number from 0 to 100.");
+    ctx.store.update((db) => {
+      db.hiringTargets = { ...db.hiringTargets, [role]: target };
+      if (account) {
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "operations",
+          subject: `hiring for ${role} set to ${target}`, at: ctx.now().toISOString(),
+        });
+      }
+    });
+    return { jobs: hiringRows(ctx) };
   },
 
   /** Master: what is free each month, and the owner's switch and amounts for it. */

@@ -45,7 +45,7 @@ export const CREDENTIAL_LABEL: Record<CredentialKind, string> = {
 };
 
 /** Roles that go out to customers, and so must carry their own insurance. */
-export const INSURED_ROLES: StaffRole[] = ["personal-assistant", "caretaker", "errand-runner"];
+export const INSURED_ROLES: StaffRole[] = ["personal-assistant", "caretaker", "errand-runner", "bodyguard"];
 export const requiresInsurance = (role: StaffRole) => INSURED_ROLES.includes(role);
 
 export function validateCredential(c: Credential, now: Date): void {
