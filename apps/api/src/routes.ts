@@ -6315,6 +6315,10 @@ export const routes: Record<string, Handler> = {
     if (!roleOrService || priceCents <= 0) {
       throw new HttpError(400, "Invalid roleOrService or priceCents");
     }
+    // Rates are stored as whole cents; a fraction of a cent or a runaway figure is a typing mistake, not a price.
+    if (!Number.isInteger(priceCents) || priceCents > 10_000_000) {
+      throw new HttpError(400, "The price must be a whole number of cents, up to $100,000.");
+    }
 
     const override = {
       id: newId("ovr"),

@@ -6115,6 +6115,19 @@ describe("master pricing controls", () => {
     expect(later.json.ownerAccrual).toEqual({ accruedCents: 150000, dayOfMonth: 15, daysInMonth: 31 });
   });
 
+  it("takes a rate in whole cents and refuses a fraction of a cent or a runaway figure, saying why", async () => {
+    const { cookie } = await masterLogin("owner");
+    const set = (priceCents: number) => call("POST", "/api/master/pricing/override", { roleOrService: "secretary", priceCents }, null, cookie);
+    const ok = await set(1250);
+    expect(ok.status).toBe(200);
+    expect(ok.json.current.secretaryHourlyCents).toBe(1250);
+    for (const bad of [12.5, 10_000_001, -5, 0]) expect((await set(bad)).status, String(bad)).toBe(400);
+    const fraction = await set(12.5);
+    expect(fraction.json.error).toMatch(/whole number of cents/);
+    // A refused amount leaves the rate where it was.
+    expect((await callAdmin("GET", "/api/master/pricing")).json.current.secretaryHourlyCents).toBe(1250);
+  });
+
   it("accrues the full monthly rate by the last day of the month", async () => {
     const { cookie } = await masterLogin("owner");
     await call("POST", "/api/master/pricing/override", { roleOrService: "owner", priceCents: 310000 }, null, cookie);

@@ -10,6 +10,7 @@ import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
 import { FreebiesSection } from "./FreebiesSection.tsx";
 import { ProfitCalculatorSection } from "./ProfitCalculatorSection.tsx";
+import { dollarsToCents } from "../app/dollars-input.ts";
 import { VendorsSection } from "./VendorsSection.tsx";
 
 /**
@@ -812,20 +813,26 @@ function PricingSection() {
     }
   };
 
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [priceNote, setPriceNote] = useState<string | null>(null);
+  const newCents = dollarsToCents(newPrice);
+
   const handleUpdatePrice = async () => {
-    if (!newPrice || isNaN(Number(newPrice))) {
-      alert("Enter a valid price in cents");
+    setPriceError(null); setPriceNote(null);
+    if (newCents === null) {
+      setPriceError("Enter the price in dollars, like 35 or 12.50 (up to $100,000).");
       return;
     }
     try {
       setLoading(true);
-      await api.masterSetPrice(selectedRole, Number(newPrice), reason);
+      await api.masterSetPrice(selectedRole, newCents, reason);
       setNewPrice("");
       setReason("");
+      setPriceNote(`Saved: $${(newCents / 100).toFixed(2)}.`);
       await loadPricing();
     } catch (err) {
-      console.error("Failed to update price:", err);
-      alert("Failed to update price");
+      // Say what the server said (too many requests, session ended, a bad amount) instead of a bare "failed".
+      setPriceError(err instanceof Error && err.message ? `Could not update the price: ${err.message}` : "Could not update the price.");
     } finally {
       setLoading(false);
     }
@@ -917,13 +924,20 @@ function PricingSection() {
                   ))}
                 </select>
                 <input
-                  type="number"
-                  placeholder="Price in cents (e.g., 3500 for $35)"
+                  type="text"
+                  inputMode="decimal"
+                  aria-label="New price in dollars"
+                  placeholder="New price in dollars (e.g., 35 or 12.50)"
                   value={newPrice}
-                  onChange={(e) => setNewPrice(e.target.value)}
+                  onChange={(e) => { setNewPrice(e.target.value); setPriceError(null); setPriceNote(null); }}
                   style={{ padding: 8, borderRadius: 4 }}
                   disabled={loading}
                 />
+                {newPrice && (
+                  <span className="tiny muted">
+                    {newCents === null ? "Not a valid amount yet." : `Will be saved as $${(newCents / 100).toFixed(2)}.`}
+                  </span>
+                )}
                 <input
                   type="text"
                   placeholder="Reason for change (optional)"
@@ -935,10 +949,12 @@ function PricingSection() {
                 <button
                   className="btn btn-primary"
                   onClick={handleUpdatePrice}
-                  disabled={loading || !newPrice}
+                  disabled={loading || newCents === null}
                 >
                   {loading ? "Updating..." : "Update Price"}
                 </button>
+                {priceError && <div className="banner banner-danger" role="alert">{priceError}</div>}
+                {priceNote && <div className="banner banner-safe">{priceNote}</div>}
               </div>
 
               {pricing.overrides && pricing.overrides.length > 0 && (
