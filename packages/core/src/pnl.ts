@@ -1,5 +1,6 @@
 import { PROCESSOR_FEE_FIXED_CENTS, PROCESSOR_FEE_RATE, deskTaskAllowanceFor, findPlan, includedConciergeHours, type PlanId } from "./billing.ts";
-import { PA_CUSTOMER_HOURLY_CENTS, PA_HOURLY_RATE_CENTS } from "./concierge.ts";
+import { PA_CUSTOMER_HOURLY_CENTS, livePaHourlyPayCents } from "./concierge.ts";
+import { payDeltas } from "./pay-adjustments.ts";
 import { errandPayoutCents } from "./errand-tiers.ts";
 import { errandCreditFor, includedGrabAllowanceFor } from "./included-grabs.ts";
 import {
@@ -100,8 +101,8 @@ function planProfitPerMemberCents(plan: CalculatorPlan, usage: number, deskMinut
   const grabs = includedGrabAllowanceFor(plan) ?? 0; // unlimited (Elite) is not in this calculator
   const credit = errandCreditFor(plan);
   const desk = deskTaskAllowanceFor(plan);
-  const deskCents = Math.round((deskMinutes / 60) * PA_HOURLY_RATE_CENTS);
-  const given = hours * PA_HOURLY_RATE_CENTS + grabs * errandPayoutCents("in-building") + credit + desk * deskCents;
+  const deskCents = Math.round((deskMinutes / 60) * livePaHourlyPayCents());
+  const given = hours * livePaHourlyPayCents() + grabs * errandPayoutCents("in-building") + credit + desk * deskCents;
   const cost = cardFeeCents(revenue) + Math.round(given * usage);
   return { revenue, cost, profit: revenue - cost };
 }
@@ -147,9 +148,9 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
 
   const extraHours = whole(raw.extraAssistantHours);
   if (extraHours > 0) {
-    const perHourFee = Math.round(PA_CUSTOMER_HOURLY_CENTS * PROCESSOR_FEE_RATE + PROCESSOR_FEE_FIXED_CENTS / 2); // an average two-hour booking
-    const revenue = extraHours * PA_CUSTOMER_HOURLY_CENTS;
-    const cost = extraHours * (PA_HOURLY_RATE_CENTS + perHourFee);
+    const perHourFee = Math.round((PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly) * PROCESSOR_FEE_RATE + PROCESSOR_FEE_FIXED_CENTS / 2); // an average two-hour booking
+    const revenue = extraHours * (PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly);
+    const cost = extraHours * (livePaHourlyPayCents() + perHourFee);
     lines.push({
       id: "extra-hours", label: "Assistant hours sold beyond the plans", revenueCents: revenue, costCents: cost, profitCents: revenue - cost,
       note: "Customers pay $45 an hour, the assistant earns $35, and the card fee comes off (an average two-hour booking).",

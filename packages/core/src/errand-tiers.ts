@@ -1,3 +1,4 @@
+import { payDeltas } from "./pay-adjustments.ts";
 import type { ConciergeCategory } from "./concierge.ts";
 
 /**
@@ -111,9 +112,11 @@ export function validateErrandTier(id: string, category: ConciergeCategory): voi
 }
 
 /** What the runner is paid. The same whatever the customer is charged. */
-export function errandPayoutCents(id: ErrandTierId): number {
+export function errandPayoutCents(id: ErrandTierId, adjusted = true): number {
   const t = findErrandTier(id);
-  return Math.max(ERRAND_MIN_PAYOUT_CENTS, Math.round((ERRAND_RATE_PER_HOUR_CENTS * t.minutes) / 60 + ERRAND_MILEAGE_CENTS * t.miles));
+  const base = Math.max(ERRAND_MIN_PAYOUT_CENTS, Math.round((ERRAND_RATE_PER_HOUR_CENTS * t.minutes) / 60 + ERRAND_MILEAGE_CENTS * t.miles));
+  // The owner's raise or cut applies on top of the formula, never below a dollar.
+  return adjusted ? Math.max(100, base + payDeltas().errand) : base;
 }
 
 /** What the card processor takes on a hold of this size, rounded up — against

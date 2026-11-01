@@ -42,6 +42,7 @@
  * pay instead of a silent pay cut for the person doing the work.
  */
 
+import { payDeltas } from "./pay-adjustments.ts";
 import type { AmountScale } from "./amount-steps.ts";
 import { approximateDecodedBytes } from "./voice-messages.ts";
 import type { StaffRole } from "./staffing.ts";
@@ -486,6 +487,9 @@ export function isHourlyCategory(category: ConciergeCategory): category is Hourl
  * hiding the rate inside a block whose length nobody agreed to.
  */
 export const PA_HOURLY_RATE_CENTS = 3500;
+/** The rates in force: the built-in ones moved by whatever the owner has set. */
+export const livePaHourlyPayCents = (): number => PA_HOURLY_RATE_CENTS + payDeltas().paHourly;
+export const liveHospitalDayPayCents = (): number => HOSPITAL_DAY_PAYOUT_CENTS + payDeltas().hospitalDay;
 
 /** What a customer pays per hour of assistant time, set by ownership rather
  *  than grossed up from the pay: $45 against the $35 paid. */
@@ -597,8 +601,8 @@ export function assistantPayoutFor(
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
     if (armedRated(category, armed)) return Math.round(ARMED_HOURLY_PAYOUT_CENTS * booked * householdMultiplier(peopleCount));
-    const hourly = PA_HOURLY_RATE_CENTS * booked;
-    const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PAYOUT_CENTS) : hourly;
+    const hourly = livePaHourlyPayCents() * booked;
+    const capped = dayRated(category, hospitalStay) ? Math.min(hourly, liveHospitalDayPayCents()) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
   }
   const quick = quickTask === true && isQuickTaskEligible(category);
@@ -620,8 +624,8 @@ export function serviceFeeFor(
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
     if (armedRated(category, armed)) return Math.round(ARMED_CUSTOMER_HOURLY_CENTS * booked * householdMultiplier(peopleCount));
-    const hourly = PA_CUSTOMER_HOURLY_CENTS * booked;
-    const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS) : hourly;
+    const hourly = (PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly) * booked;
+    const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS + payDeltas().hospitalDay) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
   }
   return Math.round(assistantPayoutFor(category, quickTask, peopleCount, hours, hospitalStay, armed) / (1 - CONCIERGE_FEE_MARGIN));
@@ -672,7 +676,7 @@ export function hourlyRateCentsFor(category: ConciergeCategory, quickTask?: bool
   // Hourly work has a real hourly rate rather than an implied one, so there
   // is nothing to derive: quoting anything else here would be arithmetic
   // disagreeing with the price the customer was actually shown.
-  if (isHourlyCategory(category)) return PA_HOURLY_RATE_CENTS;
+  if (isHourlyCategory(category)) return livePaHourlyPayCents();
   // `minutesFor`, not CONCIERGE_TASK_MINUTES: a quick task runs shorter, and
   // dividing its reduced pay by the standard task's duration understated the
   // rate on the one screen whose entire job is telling people what they earn.

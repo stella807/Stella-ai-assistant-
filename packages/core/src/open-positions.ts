@@ -1,5 +1,6 @@
 import { ERRAND_MILEAGE_CENTS, ERRAND_TIERS, errandPayoutCents } from "./errand-tiers.ts";
-import { ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS, PA_HOURLY_RATE_CENTS } from "./concierge.ts";
+import { ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS, PA_HOURLY_RATE_CENTS, liveHospitalDayPayCents, livePaHourlyPayCents } from "./concierge.ts";
+import { jobPayRates } from "./pricing-overrides.ts";
 import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
 
 /**
@@ -67,13 +68,13 @@ export function payLabelFor(
       : `${lo} to ${hi} per errand, by size, plus ${mile} a mile. Bring your own liability insurance`;
   }
   if (role === "caretaker") {
-    const [day, hour] = [usd(set ?? HOSPITAL_DAY_PAYOUT_CENTS), usd(PA_HOURLY_RATE_CENTS)];
+    const [day, hour] = [usd(set ?? liveHospitalDayPayCents()), usd(livePaHourlyPayCents())];
     return es
       ? `${day} por un día de hospital (hasta 12 horas); ${hour} la hora en visitas más cortas. Necesitas tu propio seguro de responsabilidad civil`
       : `${day} per hospital day (up to 12 hours); ${hour} an hour for shorter visits. Bring your own liability insurance`;
   }
   if (role === "personal-assistant") {
-    const [hour, day, armed] = [usd(set ?? PA_HOURLY_RATE_CENTS), usd(HOSPITAL_DAY_PAYOUT_CENTS), usd(ARMED_HOURLY_PAYOUT_CENTS)];
+    const [hour, day, armed] = [usd(set ?? livePaHourlyPayCents()), usd(liveHospitalDayPayCents()), usd(ARMED_HOURLY_PAYOUT_CENTS)];
     return es
       ? `${hour} la hora; ${day} por un día de hospital (hasta 12 horas); ${armed} la hora en trabajos armados, con licencia de armas y de guardia. Necesitas tu propio seguro de responsabilidad civil`
       : `${hour} an hour; ${day} for a hospital day (up to 12 hours); ${armed} an hour on armed jobs, with firearms and guard licences. Bring your own liability insurance`;
@@ -100,8 +101,15 @@ export function jobPayUnit(role: StaffRole): string {
 }
 
 export function defaultJobPayCents(role: StaffRole): number {
-  if (role === "errand-runner") return Math.min(...ERRAND_TIERS.map((t) => errandPayoutCents(t.id)));
+  if (role === "errand-runner") return Math.min(...ERRAND_TIERS.map((t) => errandPayoutCents(t.id, false)));
   if (role === "caretaker") return HOSPITAL_DAY_PAYOUT_CENTS;
   if (role === "personal-assistant") return PA_HOURLY_RATE_CENTS;
   return STAFF_ROLES.find((r) => r.id === role)?.hourlyCents ?? 0;
+}
+
+/** The owner's job pay as differences from the built-in rates, for the pricing functions to apply. */
+export function payDeltasFrom(overrides: Parameters<typeof jobPayRates>[0]): { paHourly: number; hospitalDay: number; errand: number } {
+  const r = jobPayRates(overrides);
+  const diff = (role: StaffRole) => (r[role] === undefined ? 0 : r[role]! - defaultJobPayCents(role));
+  return { paHourly: diff("personal-assistant"), hospitalDay: diff("caretaker"), errand: diff("errand-runner") };
 }

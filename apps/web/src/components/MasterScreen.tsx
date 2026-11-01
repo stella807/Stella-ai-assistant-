@@ -877,7 +877,7 @@ function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promi
     <div className="stack" style={{ gap: 8, padding: "12px", background: "rgba(0,0,0,0.02)", borderRadius: 4 }}>
       <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Pay for every job on the site</strong>
       <p className="tiny muted" style={{ margin: 0 }}>
-        Raise or lower any job. The new pay shows on the job list straight away and in the payroll budget.
+        Raise or lower any job. The new pay shows on the job list, in the payroll budget, and is what personal assistants, caretakers and errand runners are paid on new jobs. Customer prices move by the same amount.
       </p>
       {jobs.map((j) => (
         <label key={j.id} className="row-between small" style={{ gap: 8 }}>

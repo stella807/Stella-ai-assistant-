@@ -1,4 +1,4 @@
-import { setMonthlyFreebies } from "@safehubby/core";
+import { setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
@@ -216,6 +216,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       // The owner's monthly-freebies setting, loaded for this request: it is
       // read by the pricing functions, which have no handle on the store.
       setMonthlyFreebies(ctx.store.data.monthlyFreebies ?? null);
+      setPayDeltas(payDeltasFrom(ctx.store.data.priceOverrides));
       const params = { ...Object.fromEntries(url.searchParams), ...found.params };
       send(res, 200, await found.handler(ctx, params, body), method === "HEAD");
     } catch (err) {
