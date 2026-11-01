@@ -5710,6 +5710,26 @@ describe("master pricing controls", () => {
     expect(later.json.ownerAccrual).toEqual({ accruedCents: 150000, dayOfMonth: 15, daysInMonth: 31 });
   });
 
+  it("rejects a fractional or non-positive price in cents with a clear 400, never a 500", async () => {
+    const { cookie } = await masterLogin("owner");
+    // 12.5 is what the dashboard used to send when someone typed "12.50"
+    // into a field that wanted whole cents.
+    for (const priceCents of [12.5, 0, -5, Number.NaN]) {
+      const res = await call(
+        "POST", "/api/master/pricing/override",
+        { roleOrService: "secretary", priceCents }, null, cookie,
+      );
+      expect(res.status, `priceCents=${priceCents}`).toBe(400);
+      expect(res.json.error).toMatch(/whole number of cents/i);
+    }
+    const ok = await call(
+      "POST", "/api/master/pricing/override",
+      { roleOrService: "secretary", priceCents: 1250 }, null, cookie,
+    );
+    expect(ok.status).toBe(200);
+    expect(ok.json.current.secretaryHourlyCents).toBe(1250);
+  });
+
   it("accrues the full monthly rate by the last day of the month", async () => {
     const { cookie } = await masterLogin("owner");
     await call("POST", "/api/master/pricing/override", { roleOrService: "owner", priceCents: 310000 }, null, cookie);

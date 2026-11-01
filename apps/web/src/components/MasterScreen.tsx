@@ -1,6 +1,7 @@
 import { ScreenCover } from "./ScreenCover.tsx";
 import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
+import { dollarsToCents } from "../app/price-input.ts";
 import { useEffect, useState } from "react";
 import type { LaunchProgress, LaunchStepId, MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
@@ -772,30 +773,37 @@ function PricingSection() {
   };
 
   const handleUpdatePrice = async () => {
-    if (!newPrice || isNaN(Number(newPrice))) {
-      alert("Enter a valid price in cents");
+    const cents = dollarsToCents(newPrice);
+    if (cents === null) {
+      alert("Enter a price in dollars, like 12 or 12.50");
       return;
     }
     try {
       setLoading(true);
-      await api.masterSetPrice(selectedRole, Number(newPrice), reason);
+      await api.masterSetPrice(selectedRole, cents, reason);
       setNewPrice("");
       setReason("");
       await loadPricing();
     } catch (err) {
       console.error("Failed to update price:", err);
-      alert("Failed to update price");
+      // The server says why (signed out, wrong access, bad amount); a bare
+      // "failed" left the owner guessing which of those it was.
+      alert(`Failed to update price: ${err instanceof Error ? err.message : "unknown error"}`);
     } finally {
       setLoading(false);
     }
   };
 
+  // Without an explicit width and border-box sizing the fields took their
+  // intrinsic width and ran off the right edge of a phone screen.
+  const fieldStyle = { padding: 8, borderRadius: 4, width: "100%", minWidth: 0, boxSizing: "border-box" } as const;
+
   const roles = [
-    { id: "personal-assistant", label: "Personal Assistant ($/hr)", multiplier: 100 },
-    { id: "errand-runner", label: "Errand Runner ($ per task)", multiplier: 1 },
-    { id: "secretary", label: "Secretary ($/hr)", multiplier: 100 },
-    { id: "social-media-manager", label: "Social Media Manager ($/hr)", multiplier: 100 },
-    { id: "owner", label: "Owner Monthly Salary ($)", multiplier: 100 },
+    { id: "personal-assistant", label: "Personal Assistant ($/hr)" },
+    { id: "errand-runner", label: "Errand Runner ($ per task)" },
+    { id: "secretary", label: "Secretary ($/hr)" },
+    { id: "social-media-manager", label: "Social Media Manager ($/hr)" },
+    { id: "owner", label: "Owner Monthly Salary ($)" },
   ];
 
   return (
@@ -868,7 +876,7 @@ function PricingSection() {
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  style={{ padding: 8, borderRadius: 4 }}
+                  style={fieldStyle}
                   disabled={loading}
                 >
                   {roles.map((role) => (
@@ -876,11 +884,12 @@ function PricingSection() {
                   ))}
                 </select>
                 <input
-                  type="number"
-                  placeholder="Price in cents (e.g., 3500 for $35)"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Price in dollars (e.g., 35 or 12.50)"
                   value={newPrice}
                   onChange={(e) => setNewPrice(e.target.value)}
-                  style={{ padding: 8, borderRadius: 4 }}
+                  style={fieldStyle}
                   disabled={loading}
                 />
                 <input
@@ -888,13 +897,13 @@ function PricingSection() {
                   placeholder="Reason for change (optional)"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  style={{ padding: 8, borderRadius: 4 }}
+                  style={fieldStyle}
                   disabled={loading}
                 />
                 <button
                   className="btn btn-primary"
                   onClick={handleUpdatePrice}
-                  disabled={loading || !newPrice}
+                  disabled={loading || dollarsToCents(newPrice) === null}
                 >
                   {loading ? "Updating..." : "Update Price"}
                 </button>

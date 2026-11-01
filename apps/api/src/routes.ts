@@ -5615,8 +5615,11 @@ export const routes: Record<string, Handler> = {
     const priceCents = Number(body?.priceCents ?? 0);
     const reason = String(body?.reason ?? "");
 
-    if (!roleOrService || priceCents <= 0) {
-      throw new HttpError(400, "Invalid roleOrService or priceCents");
+    if (!roleOrService) throw new HttpError(400, "Missing roleOrService");
+    // A fractional cent would be stored and then shown rounded, so the audit
+    // trail and the rate card would quietly disagree.
+    if (!Number.isSafeInteger(priceCents) || priceCents <= 0) {
+      throw new HttpError(400, "priceCents must be a whole number of cents greater than zero");
     }
 
     const override = {
