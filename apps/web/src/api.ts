@@ -354,6 +354,8 @@ export const api = {
   // every screen that works out a price or a plan row uses what the server will.
   catalog: () => request<{
     freebies: MonthlyFreebies;
+    /** What a driver is paid per trip, per tier, as the owner has set it. */
+    driverRates?: Record<"standard" | "secure-transport", { baseCents: number; perMileCents: number; perMinuteCents: number }>;
     drinks: any[]; plans: any[]; rewards: any[]; launch: LaunchStatus;
     eliteUnlock: {
       thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;
@@ -904,6 +906,8 @@ export const api = {
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
   masterGetPricing: () => request<any>("GET", "/api/master/pricing"),
+  masterSetDriverRate: (tier: "standard" | "secure-transport", rate: { baseCents: number; perMileCents: number; perMinuteCents: number }, reason?: string) =>
+    request<any>("POST", "/api/master/pricing/override", { roleOrService: `driver-${tier}`, ...rate, reason }),
   masterSetPrice: (roleOrService: string, priceCents: number, reason?: string) =>
     request<any>("POST", "/api/master/pricing/override", { roleOrService, priceCents, reason }),
   /** The file an applicant attached, for the review queue. */

@@ -15,6 +15,13 @@ describe("typing a rate in dollars", () => {
     for (const bad of ["", "abc", "-5", "0", "0.00", "12.505", "1e3", "12.5.1", "$", "1 000"]) expect(dollarsToCents(bad), bad).toBeNull();
   });
 
+  it("lets a rate be zero only where that is allowed", () => {
+    expect(dollarsToCents("0")).toBeNull();
+    expect(dollarsToCents("0", { allowZero: true })).toBe(0);
+    expect(dollarsToCents("0.00", { allowZero: true })).toBe(0);
+    expect(dollarsToCents("-1", { allowZero: true })).toBeNull();
+  });
+
   it("stops at the largest rate the server takes", () => {
     expect(dollarsToCents("100000")).toBe(MAX_RATE_CENTS);
     expect(dollarsToCents("100000.01")).toBeNull();

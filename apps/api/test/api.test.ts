@@ -5916,6 +5916,22 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect(res.json.money).toBeUndefined();
   });
 
+  it("keeps pay rates, perks, vendor edits and payroll for the owner", async () => {
+    const owner = (await masterLogin("owner", "Own Er", "own@example.com")).cookie;
+    const sec = (await masterLogin("secretary", "Sec Tary", "sect@example.com")).cookie;
+    const override = { roleOrService: "driver-standard", priceCents: 400, baseCents: 400, perMileCents: 100, perMinuteCents: 20, reason: "test" };
+    const routes: Array<[string, string, any]> = [
+      ["GET", "/api/master/pricing", undefined],
+      ["POST", "/api/master/pricing/override", override],
+      ["GET", "/api/master/freebies", undefined],
+      ["GET", "/api/master/payroll", undefined],
+    ];
+    for (const [method, path, body] of routes) {
+      expect((await call(method, path, body, null, sec)).status).toBe(401);
+      expect((await call(method, path, body, null, owner)).status).toBe(200);
+    }
+  });
+
   it("counts the real customer roster, not a hypothetical one", async () => {
     const { cookie } = await masterLogin("owner");
     const res = await call("GET", "/api/master/overview", undefined, null, cookie);
@@ -6126,6 +6142,31 @@ describe("master pricing controls", () => {
     expect(fraction.json.error).toMatch(/whole number of cents/);
     // A refused amount leaves the rate where it was.
     expect((await callAdmin("GET", "/api/master/pricing")).json.current.secretaryHourlyCents).toBe(1250);
+  });
+
+  it("sets what a driver is paid per trip, shows it to applicants, and refuses nonsense", async () => {
+    const { cookie } = await masterLogin("owner");
+    const start = (await call("GET", "/api/catalog")).json.driverRates;
+    // The dashboard and the application begin from the same published rate card.
+    expect(start.standard).toEqual({ baseCents: 300, perMileCents: 90, perMinuteCents: 18 });
+    expect((await callAdmin("GET", "/api/master/pricing")).json.current.driverSecureTransport).toEqual(start["secure-transport"]);
+
+    const set = (body: object) => call("POST", "/api/master/pricing/override", { roleOrService: "driver-standard", ...body }, null, cookie);
+    const ok = await set({ baseCents: 500, perMileCents: 110, perMinuteCents: 0, reason: "Fuel went up" });
+    expect(ok.status, JSON.stringify(ok.json)).toBe(200);
+    expect(ok.json.current.driverStandard).toEqual({ baseCents: 500, perMileCents: 110, perMinuteCents: 0 });
+    // Applicants are shown the number the owner set; the other tier is untouched.
+    const seen = (await call("GET", "/api/catalog")).json.driverRates;
+    expect(seen.standard).toEqual({ baseCents: 500, perMileCents: 110, perMinuteCents: 0 });
+    expect(seen["secure-transport"]).toEqual(start["secure-transport"]);
+
+    for (const bad of [{ baseCents: 5.5, perMileCents: 90, perMinuteCents: 18 }, { baseCents: -1, perMileCents: 90, perMinuteCents: 18 },
+      { baseCents: 500, perMileCents: 6000, perMinuteCents: 18 }, { baseCents: 0, perMileCents: 0, perMinuteCents: 0 }, { baseCents: 500 }]) {
+      expect((await set(bad)).status, JSON.stringify(bad)).toBe(400);
+    }
+    expect((await call("POST", "/api/master/pricing/override", { roleOrService: "driver-premium", baseCents: 1, perMileCents: 1, perMinuteCents: 1 }, null, cookie)).status).toBe(400);
+    // Refused changes leave the rate where it was.
+    expect((await call("GET", "/api/catalog")).json.driverRates.standard.baseCents).toBe(500);
   });
 
   it("accrues the full monthly rate by the last day of the month", async () => {

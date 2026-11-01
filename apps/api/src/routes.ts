@@ -70,7 +70,7 @@ import {
   requiresHelpDeskToDowngrade,
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
-  compilePricing, ownerAccruedCentsFor, type CurrentPricing, type PriceOverride,
+  compilePricing, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
   SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
@@ -1136,8 +1136,9 @@ function defaultPricing(): CurrentPricing {
   return {
     paHourlyCents: 3500,
     errandRunnerTaskCents: 400,
-    driverStandard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-    driverSecureTransport: { baseCents: 1500, perMileCents: 450, perMinuteCents: 60 },
+    // The same rate card the driver application shows, so the dashboard and the applicant never start from different numbers.
+    driverStandard: { ...DRIVER_RATE_CARD.standard },
+    driverSecureTransport: { ...DRIVER_RATE_CARD["secure-transport"] },
     secretaryHourlyCents: 2200,
     socialMediaManagerHourlyCents: 2200,
     ownerMonthlyCents: 0,
@@ -2178,6 +2179,11 @@ export const routes: Record<string, Handler> = {
     return {
       // What is free each month, so the app shows what the server will charge.
       freebies: currentMonthlyFreebies(),
+      // What a driver is paid per trip, so the application shows the number the owner has set.
+      driverRates: (() => {
+        const c = compilePricing(ctx.store.data.priceOverrides, defaultPricing());
+        return { standard: c.driverStandard, "secure-transport": c.driverSecureTransport };
+      })(),
       drinks: DRINK_CATALOG,
       // Only what has actually shipped: the Elite tier is built and held
       // behind `elite-tier` (see features.ts), so it is absent here rather
@@ -6220,7 +6226,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/master/vendors": (ctx, _p, body) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "write");
     const name = cleanText(body?.name, 120);
     const category = String(body?.category ?? "") as VendorCategory;
     if (!name) throw new HttpError(400, "A vendor needs a name.");
@@ -6236,7 +6242,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/master/vendors/:id": (ctx, p, body) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "write");
     const id = req(p, "id");
     const found = (ctx.store.data.vendors ?? []).find((v) => v.id === id);
     if (!found) throw notFound("Vendor");
@@ -6255,7 +6261,7 @@ export const routes: Record<string, Handler> = {
   },
 
   "POST /api/master/vendors/:id/delete": (ctx, p) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "write");
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
@@ -6263,13 +6269,14 @@ export const routes: Record<string, Handler> = {
 
   /** Master: what is free each month, and the owner's switch and amounts for it. */
   "GET /api/master/freebies": (ctx) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "money");
     return { freebies: currentMonthlyFreebies(), defaults: defaultMonthlyFreebies() };
   },
 
   /** Master: switch the monthly freebies on or off and set how much each plan gets. */
   "POST /api/master/freebies": (ctx, _p, body) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "money");
+    requireAdmin(ctx, "write");
     const account = masterAccountOf(ctx);
     // Sanitised against the ceilings in core, so a typo cannot hand out a hundred pickups.
     const freebies = sanitizeMonthlyFreebies(body);
@@ -6288,7 +6295,7 @@ export const routes: Record<string, Handler> = {
 
   /** Master: get current pricing including any overrides. */
   "GET /api/master/pricing": (ctx) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "money");
     const current = compilePricing(ctx.store.data.priceOverrides, defaultPricing());
     return {
       current,
@@ -6304,13 +6311,47 @@ export const routes: Record<string, Handler> = {
 
   /** Master: create or update a price override. */
   "POST /api/master/pricing/override": (ctx, _p, body) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "money");
+    requireAdmin(ctx, "write");
     const account = masterAccountOf(ctx);
     if (!account) throw new HttpError(401, "Not authenticated as master");
 
     const roleOrService = String(body?.roleOrService ?? "");
-    const priceCents = Number(body?.priceCents ?? 0);
     const reason = String(body?.reason ?? "");
+
+    // A driver's pay per trip is three numbers (base, per mile, per minute), set together.
+    if (roleOrService.startsWith("driver-")) {
+      if (roleOrService !== "driver-standard" && roleOrService !== "driver-secure-transport") {
+        throw new HttpError(400, "Driver rates are set for the standard or secure-transport tier.");
+      }
+      const parts = { baseCents: body?.baseCents, perMileCents: body?.perMileCents, perMinuteCents: body?.perMinuteCents };
+      const limits = { baseCents: 50_000, perMileCents: 5_000, perMinuteCents: 1_000 } as const; // $500, $50 a mile, $10 a minute
+      for (const k of ["baseCents", "perMileCents", "perMinuteCents"] as const) {
+        const v = Number(parts[k]);
+        if (!Number.isInteger(v) || v < 0 || v > limits[k]) {
+          throw new HttpError(400, `${k} must be a whole number of cents from 0 to ${limits[k]}.`);
+        }
+      }
+      if (Number(parts.baseCents) + Number(parts.perMileCents) + Number(parts.perMinuteCents) === 0) {
+        throw new HttpError(400, "A driver rate of zero would pay nothing for a trip.");
+      }
+      const driverOverride = {
+        id: newId("ovr"), roleOrService, priceCents: Number(parts.baseCents),
+        baseCents: Number(parts.baseCents), perMileCents: Number(parts.perMileCents), perMinuteCents: Number(parts.perMinuteCents),
+        changedBy: account.id, changedAt: ctx.now().toISOString(), reason: reason || undefined,
+      } as PriceOverride;
+      ctx.store.update((db) => {
+        db.priceOverrides.push(driverOverride);
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "operations",
+          subject: `price override for ${roleOrService}`, at: ctx.now().toISOString(),
+        });
+      });
+      const nowCurrent = compilePricing(ctx.store.data.priceOverrides, defaultPricing());
+      return { override: driverOverride, current: nowCurrent, ownerAccrual: ownerAccrualFor(nowCurrent.ownerMonthlyCents, ctx.now()) };
+    }
+
+    const priceCents = Number(body?.priceCents ?? 0);
 
     if (!roleOrService || priceCents <= 0) {
       throw new HttpError(400, "Invalid roleOrService or priceCents");
@@ -6348,7 +6389,7 @@ export const routes: Record<string, Handler> = {
 
   /** Master: get payroll summary for assistants and staff. */
   "GET /api/master/payroll": (ctx) => {
-    requireAdmin(ctx, "operations");
+    requireAdmin(ctx, "money");
 
     // Get completed concierge tasks and their payouts
     const completedTasks = ctx.store.data.conciergeTasks.filter((t) => t.status === "completed");

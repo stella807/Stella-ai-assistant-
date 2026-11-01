@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { DRIVER_RATE_CARD, MAX_RESUME_BYTES, benefitsFor, driverEarningsCents } from "@safehubby/core";
+import { useEffect, useState } from "react";
+import { DRIVER_RATE_CARD, MAX_RESUME_BYTES, benefitsFor, type DriverRate } from "@safehubby/core";
 import { api, type DriverApplicationInput } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -23,6 +23,11 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
   const w = DRIVE[lang];
   const shared = CAREERS[lang];
   const [tier, setTier] = useState<DriverApplicationInput["tier"]>("standard");
+  // The rate the owner has set, falling back to the published rate card until it loads (or if it cannot).
+  const [rates, setRates] = useState<Record<string, DriverRate>>(DRIVER_RATE_CARD);
+  useEffect(() => { api.catalog().then((c) => { if (c.driverRates) setRates({ ...DRIVER_RATE_CARD, ...c.driverRates }); }).catch(() => {}); }, []);
+  const rate = rates[tier] ?? DRIVER_RATE_CARD[tier];
+  const exampleCents = Math.round(rate.baseCents + rate.perMileCents * 5 + rate.perMinuteCents * 15);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -147,10 +152,10 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
       <section className="card">
         <h3>{w.pay}</h3>
         <p className="small">
-          {w.payLine(DRIVER_RATE_CARD[tier].baseCents, DRIVER_RATE_CARD[tier].perMileCents, DRIVER_RATE_CARD[tier].perMinuteCents)}
+          {w.payLine(rate.baseCents, rate.perMileCents, rate.perMinuteCents)}
         </p>
         <p className="tiny muted">
-          {w.example(driverEarningsCents(tier, 5, 15))}
+          {w.example(exampleCents)}
           {tier === "secure-transport" ? w.secureWhy : ""}
         </p>
         <p className="tiny muted">{w.notLive}</p>

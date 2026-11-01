@@ -793,6 +793,67 @@ function MoneySection({ money }: { money: NonNullable<MasterOverview["money"]> }
   );
 }
 
+/** What a driver is paid per trip: a base fare plus a rate per mile and per minute, set together for each tier. */
+function DriverRatesEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promise<void> }) {
+  const tiers = [
+    { id: "standard" as const, label: "Standard", current: pricing.current.driverStandard },
+    { id: "secure-transport" as const, label: "Secure transport", current: pricing.current.driverSecureTransport },
+  ];
+  const fmt = (cents: number) => (cents / 100).toFixed(2);
+  const [tier, setTier] = useState<"standard" | "secure-transport">("standard");
+  const cur = tiers.find((t) => t.id === tier)!.current;
+  const [base, setBase] = useState(fmt(cur.baseCents));
+  const [mile, setMile] = useState(fmt(cur.perMileCents));
+  const [minute, setMinute] = useState(fmt(cur.perMinuteCents));
+  const [why, setWhy] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const pick = (id: "standard" | "secure-transport") => {
+    const c = tiers.find((t) => t.id === id)!.current;
+    setTier(id); setBase(fmt(c.baseCents)); setMile(fmt(c.perMileCents)); setMinute(fmt(c.perMinuteCents)); setError(null); setNote(null);
+  };
+  const b = dollarsToCents(base, { allowZero: true }), m = dollarsToCents(mile, { allowZero: true }), n = dollarsToCents(minute, { allowZero: true });
+  const valid = b !== null && m !== null && n !== null;
+  const example = valid ? Math.round(b + m * 5 + n * 15) : null;
+  const save = async () => {
+    if (!valid) { setError("Enter each amount in dollars, like 3 or 0.90."); return; }
+    setBusy(true); setError(null); setNote(null);
+    try {
+      await api.masterSetDriverRate(tier, { baseCents: b, perMileCents: m, perMinuteCents: n }, why);
+      setNote(`Saved. A 5-mile, 15-minute trip now pays $${fmt(example!)}.`); setWhy("");
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? `Could not save: ${err.message}` : "Could not save.");
+    } finally { setBusy(false); }
+  };
+  const field = (label: string, value: string, set: (v: string) => void) => (
+    <label className="row-between small">{label}
+      <input type="text" inputMode="decimal" style={{ width: 110, padding: 8, borderRadius: 4 }} value={value} disabled={busy}
+        onChange={(e) => { set(e.target.value); setError(null); setNote(null); }} />
+    </label>
+  );
+  return (
+    <div className="stack" style={{ gap: 8, padding: "12px", background: "rgba(0,0,0,0.02)", borderRadius: 4 }}>
+      <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Driver pay per trip</strong>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        A base fare, plus an amount per mile and per minute. This is the pay shown to people applying to drive.
+      </p>
+      <select value={tier} onChange={(e) => pick(e.target.value as "standard" | "secure-transport")} style={{ padding: 8, borderRadius: 4 }} disabled={busy} aria-label="Driver tier">
+        {tiers.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+      </select>
+      {field("Base fare per trip ($)", base, setBase)}
+      {field("Per mile ($)", mile, setMile)}
+      {field("Per minute ($)", minute, setMinute)}
+      <span className="tiny muted">{example === null ? "Not valid yet." : `A 5-mile, 15-minute trip would pay $${fmt(example)}.`}</span>
+      <input type="text" placeholder="Reason for change (optional)" value={why} onChange={(e) => setWhy(e.target.value)} style={{ padding: 8, borderRadius: 4 }} disabled={busy} />
+      <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !valid}>{busy ? "Saving..." : "Save driver pay"}</button>
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+      {note && <div className="banner banner-safe">{note}</div>}
+    </div>
+  );
+}
+
 function PricingSection() {
   const [expanded, setExpanded] = useState(false);
   const [pricing, setPricing] = useState<any>(null);
@@ -882,7 +943,7 @@ function PricingSection() {
                   </div>
                   <div className="row-between">
                     <span className="tiny">Driver (Standard)</span>
-                    <span className="tiny">${(pricing.current.driverStandard.baseCents / 100).toFixed(2)} base</span>
+                    <span className="tiny">${(pricing.current.driverStandard.baseCents / 100).toFixed(2)} + ${(pricing.current.driverStandard.perMileCents / 100).toFixed(2)}/mi + ${(pricing.current.driverStandard.perMinuteCents / 100).toFixed(2)}/min</span>
                   </div>
                   {pricing.current.ownerMonthlyCents > 0 && (
                     <div className="row-between">
@@ -957,6 +1018,8 @@ function PricingSection() {
                 {priceNote && <div className="banner banner-safe">{priceNote}</div>}
               </div>
 
+              <DriverRatesEditor key={JSON.stringify([pricing.current.driverStandard, pricing.current.driverSecureTransport])} pricing={pricing} onSaved={loadPricing} />
+
               {pricing.overrides && pricing.overrides.length > 0 && (
                 <div className="stack" style={{ gap: 8 }}>
                   <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Recent Changes</strong>
@@ -964,7 +1027,11 @@ function PricingSection() {
                     {pricing.overrides.slice(0, 10).map((override: any) => (
                       <li key={override.id} className="row-between" style={{ fontSize: "0.8rem" }}>
                         <div className="stack" style={{ gap: 2 }}>
-                          <span className="tiny">{override.roleOrService}: ${(override.priceCents / 100).toFixed(2)}</span>
+                          <span className="tiny">
+                            {override.roleOrService}: {override.perMileCents !== undefined
+                              ? `$${(override.baseCents / 100).toFixed(2)} base + $${(override.perMileCents / 100).toFixed(2)}/mi + $${(override.perMinuteCents / 100).toFixed(2)}/min`
+                              : `$${(override.priceCents / 100).toFixed(2)}`}
+                          </span>
                           {override.reason && <span className="tiny muted">{override.reason}</span>}
                         </div>
                         <span className="tiny muted">{new Date(override.changedAt).toLocaleString()}</span>
