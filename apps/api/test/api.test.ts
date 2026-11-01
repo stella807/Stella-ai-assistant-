@@ -6293,7 +6293,7 @@ describe("the launch plan on the master dashboard", () => {
   });
 
   it("refuses to let an observed step be ticked, so the dashboard cannot lie", async () => {
-    // The whole value of "Connect PayPal" being observed is that saying it is
+    // The whole value of "Connect card payments (Stripe)" being observed is that saying it is
     // done does not make the dashboard say so. Enforced here, not just hidden
     // in the UI.
     const { cookie } = await masterLogin("owner", "Own Lie", "ownlie@example.com");

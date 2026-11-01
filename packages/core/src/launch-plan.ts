@@ -45,8 +45,8 @@ export interface LaunchStep {
 export const LAUNCH_STEPS: LaunchStep[] = [
   {
     id: "payments-configured",
-    label: "Connect PayPal",
-    detail: "Until PayPal's keys are set, no plan can be charged and no hold can be placed. Nothing else earns anything without this.",
+    label: "Connect card payments (Stripe)",
+    detail: "Until the Stripe keys are set, no plan can be charged and no hold can be placed. Nothing else earns anything without this.",
     manual: false,
     derivedFrom: "a payment processor reporting automatic rather than handoff",
   },
@@ -134,7 +134,7 @@ export interface LaunchProgress {
  * ticked by hand.
  *
  * An observed step ignores its manual tick entirely, rather than letting one
- * override the other. Ticking "Connect PayPal" when PayPal is not connected
+ * override the other. Ticking "Connect card payments (Stripe)" when Stripe is not connected
  * should not make a dashboard say it is — the whole value of an observed
  * step is that it cannot be wished true.
  */
