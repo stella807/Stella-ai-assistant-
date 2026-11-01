@@ -11,7 +11,7 @@ export interface PriceOverride {
   /** Unique identifier for this override */
   id: string;
   /** Which role/service this price applies to */
-  roleOrService: StaffRole | "owner" | `driver-${DriverTier}`;
+  roleOrService: StaffRole | `job-${StaffRole}` | "owner" | `driver-${DriverTier}`;
   /** Price in cents. For hourly roles (secretary, social-media-manager), this is cents/hour.
    *  For drivers, this is per-trip base in cents.
    *  For personal-assistant, this is cents/hour.
@@ -135,4 +135,23 @@ export function ownerAccruedCentsFor(ownerMonthlyCents: number, now: Date): numb
   const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
   const daysElapsed = Math.min(now.getUTCDate(), daysInMonth);
   return Math.round((ownerMonthlyCents * daysElapsed) / daysInMonth);
+}
+
+/**
+ * The pay the owner has set for each job on the job list: the newest
+ * `job-<role>` override wins. Kept apart from `compilePricing` because it
+ * covers every listed job, not the handful that function names.
+ */
+export function jobPayRates(overrides: PriceOverride[]): Partial<Record<StaffRole, number>> {
+  const out: Partial<Record<StaffRole, number>> = {};
+  const newest = new Map<string, number>();
+  for (const o of overrides) {
+    if (!o.roleOrService.startsWith("job-")) continue;
+    const at = new Date(o.changedAt).getTime();
+    if (at >= (newest.get(o.roleOrService) ?? -Infinity)) {
+      newest.set(o.roleOrService, at);
+      out[o.roleOrService.slice(4) as StaffRole] = o.priceCents;
+    }
+  }
+  return out;
 }

@@ -46,8 +46,19 @@ const usd = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
  * actually paid with, never typed. An applicant deciding whether to apply is
  * the reader a stale number costs the most.
  */
-export function payLabelFor(role: StaffRole, language: "en" | "es" = "en"): string {
+/** Pay the owner has set per job, in cents; a job with no entry pays its default. */
+export type JobPayRates = Partial<Record<StaffRole, number>>;
+
+export function payLabelFor(
+  role: StaffRole, language: "en" | "es" = "en", rates: JobPayRates = {},
+): string {
   const es = language === "es";
+  const set = rates[role];
+  if (role === "errand-runner" && set) {
+    return es
+      ? `${usd(set)} por encargo, más ${usd(ERRAND_MILEAGE_CENTS)} por milla. Necesitas tu propio seguro de responsabilidad civil`
+      : `${usd(set)} per errand, plus ${usd(ERRAND_MILEAGE_CENTS)} a mile. Bring your own liability insurance`;
+  }
   if (role === "errand-runner") {
     const pays = ERRAND_TIERS.map((t) => errandPayoutCents(t.id));
     const [lo, hi, mile] = [usd(Math.min(...pays)), usd(Math.max(...pays)), usd(ERRAND_MILEAGE_CENTS)];
@@ -56,23 +67,41 @@ export function payLabelFor(role: StaffRole, language: "en" | "es" = "en"): stri
       : `${lo} to ${hi} per errand, by size, plus ${mile} a mile. Bring your own liability insurance`;
   }
   if (role === "caretaker") {
-    const [day, hour] = [usd(HOSPITAL_DAY_PAYOUT_CENTS), usd(PA_HOURLY_RATE_CENTS)];
+    const [day, hour] = [usd(set ?? HOSPITAL_DAY_PAYOUT_CENTS), usd(PA_HOURLY_RATE_CENTS)];
     return es
       ? `${day} por un día de hospital (hasta 12 horas); ${hour} la hora en visitas más cortas. Necesitas tu propio seguro de responsabilidad civil`
       : `${day} per hospital day (up to 12 hours); ${hour} an hour for shorter visits. Bring your own liability insurance`;
   }
   if (role === "personal-assistant") {
-    const [hour, day, armed] = [usd(PA_HOURLY_RATE_CENTS), usd(HOSPITAL_DAY_PAYOUT_CENTS), usd(ARMED_HOURLY_PAYOUT_CENTS)];
+    const [hour, day, armed] = [usd(set ?? PA_HOURLY_RATE_CENTS), usd(HOSPITAL_DAY_PAYOUT_CENTS), usd(ARMED_HOURLY_PAYOUT_CENTS)];
     return es
       ? `${hour} la hora; ${day} por un día de hospital (hasta 12 horas); ${armed} la hora en trabajos armados, con licencia de armas y de guardia. Necesitas tu propio seguro de responsabilidad civil`
       : `${hour} an hour; ${day} for a hospital day (up to 12 hours); ${armed} an hour on armed jobs, with firearms and guard licences. Bring your own liability insurance`;
   }
   const info = STAFF_ROLES.find((r) => r.id === role);
-  if (info && info.hourlyCents > 0) {
+  const hourly = set ?? info?.hourlyCents ?? 0;
+  if (info && hourly > 0) {
     return es
-      ? `${usd(info.hourlyCents)} la hora, unas ${info.prelaunchHoursPerWeek} horas a la semana`
-      : `${usd(info.hourlyCents)} an hour, about ${info.prelaunchHoursPerWeek} hours a week`;
+      ? `${usd(hourly)} la hora, unas ${info.prelaunchHoursPerWeek} horas a la semana`
+      : `${usd(hourly)} an hour, about ${info.prelaunchHoursPerWeek} hours a week`;
   }
   // Paid per trip and not yet live: see driver-pay.ts. Said rather than skipped.
   return es ? "Pago por viaje: las tarifas están en la solicitud para manejar" : "Paid per trip — see the driver application for the rates";
+}
+
+/** Every job on the job list except driving, which has its own per-trip rates. */
+export const JOB_PAY_ROLES = STAFF_ROLES.filter((r) => r.id !== "driver");
+
+/** What the one pay figure for a job means, so the owner edits the right thing. */
+export function jobPayUnit(role: StaffRole): string {
+  if (role === "errand-runner") return "per errand";
+  if (role === "caretaker") return "per hospital day";
+  return "per hour";
+}
+
+export function defaultJobPayCents(role: StaffRole): number {
+  if (role === "errand-runner") return Math.min(...ERRAND_TIERS.map((t) => errandPayoutCents(t.id)));
+  if (role === "caretaker") return HOSPITAL_DAY_PAYOUT_CENTS;
+  if (role === "personal-assistant") return PA_HOURLY_RATE_CENTS;
+  return STAFF_ROLES.find((r) => r.id === role)?.hourlyCents ?? 0;
 }

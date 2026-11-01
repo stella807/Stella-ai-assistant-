@@ -70,7 +70,7 @@ import {
   requiresHelpDeskToDowngrade,
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
-  compilePricing, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
+  compilePricing, jobPayRates, JOB_PAY_ROLES, jobPayUnit, defaultJobPayCents, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
   SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
@@ -5884,7 +5884,8 @@ export const routes: Record<string, Handler> = {
     roles: STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => {
       const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
       const openings = openingsFor(r.id, hired);
-      return { ...r, pay: payLabelFor(r.id), openings, hiring: openings > 0 };
+      const rates = jobPayRates(ctx.store.data.priceOverrides);
+      return { ...r, pay: payLabelFor(r.id, "en", rates), payEs: payLabelFor(r.id, "es", rates), openings, hiring: openings > 0 };
     })
       // The jobs that are open come first. The sort is stable, so within each
       // group the roles keep the order the owner set them in.
@@ -6299,6 +6300,10 @@ export const routes: Record<string, Handler> = {
     const current = compilePricing(ctx.store.data.priceOverrides, defaultPricing());
     return {
       current,
+      jobPay: JOB_PAY_ROLES.map((r) => ({
+        id: r.id, label: r.label, unit: jobPayUnit(r.id),
+        defaultCents: defaultJobPayCents(r.id), cents: jobPayRates(ctx.store.data.priceOverrides)[r.id] ?? defaultJobPayCents(r.id),
+      })),
       // What the owner's own rate adds up to so far this month — a planning
       // number for the dashboard, not a payout. See ownerAccruedCentsFor's
       // own comment for why there is nothing here that moves money.
@@ -6353,6 +6358,9 @@ export const routes: Record<string, Handler> = {
 
     const priceCents = Number(body?.priceCents ?? 0);
 
+    if (roleOrService.startsWith("job-") && !JOB_PAY_ROLES.some((r) => `job-${r.id}` === roleOrService)) {
+      throw new HttpError(400, "That is not a job on the job list.");
+    }
     if (!roleOrService || priceCents <= 0) {
       throw new HttpError(400, "Invalid roleOrService or priceCents");
     }
@@ -6405,9 +6413,9 @@ export const routes: Record<string, Handler> = {
         role: role.id,
         label: role.label,
         headcount: staff.length,
-        hourlyCents: role.hourlyCents,
+        hourlyCents: jobPayRates(ctx.store.data.priceOverrides)[role.id] ?? role.hourlyCents,
         hoursPerWeek: role.prelaunchHoursPerWeek,
-        monthlyCost: Math.round((role.hourlyCents * role.prelaunchHoursPerWeek * 52) / 12),
+        monthlyCost: Math.round(((jobPayRates(ctx.store.data.priceOverrides)[role.id] ?? role.hourlyCents) * role.prelaunchHoursPerWeek * 52) / 12),
       };
     });
 

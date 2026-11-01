@@ -5932,6 +5932,24 @@ describe("master access — a per-account role instead of one shared secret", ()
     }
   });
 
+  it("lets the owner raise or lower the pay of every job on the list", async () => {
+    const owner = (await masterLogin("owner", "Pay Boss", "payboss@example.com")).cookie;
+    const roles = (await call("GET", "/api/staff/roles")).json.roles;
+    const pricing = (await call("GET", "/api/master/pricing", undefined, null, owner)).json;
+    expect(pricing.jobPay.map((j: any) => j.id).sort()).toEqual(roles.map((r: any) => r.id).sort());
+    for (const j of pricing.jobPay) {
+      const res = await call("POST", "/api/master/pricing/override", { roleOrService: `job-${j.id}`, priceCents: 12345 }, null, owner);
+      expect(res.status, j.id).toBe(200);
+    }
+    const after = (await call("GET", "/api/staff/roles")).json.roles;
+    for (const r of after) {
+      expect(r.pay, r.id).toContain("$123.45");
+      expect(r.payEs, r.id).toContain("$123.45");
+    }
+    const bad = await call("POST", "/api/master/pricing/override", { roleOrService: "job-nonsense", priceCents: 100 }, null, owner);
+    expect(bad.status).toBe(400);
+  });
+
   it("counts the real customer roster, not a hypothetical one", async () => {
     const { cookie } = await masterLogin("owner");
     const res = await call("GET", "/api/master/overview", undefined, null, cookie);

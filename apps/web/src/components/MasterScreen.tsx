@@ -854,6 +854,48 @@ function DriverRatesEditor({ pricing, onSaved }: { pricing: any; onSaved: () => 
   );
 }
 
+function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promise<void> }) {
+  const jobs: Array<{ id: string; label: string; unit: string; defaultCents: number; cents: number }> = pricing.jobPay ?? [];
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const save = async (j: (typeof jobs)[number]) => {
+    const cents = dollarsToCents(drafts[j.id] ?? "");
+    if (cents === null) { setError(`Enter ${j.label} pay in dollars, like 25 or 22.50.`); return; }
+    setBusy(j.id); setError(null); setNote(null);
+    try {
+      await api.masterSetPrice(`job-${j.id}`, cents, "Job pay changed");
+      setNote(`${j.label} now pays $${(cents / 100).toFixed(2)} ${j.unit}.`);
+      setDrafts((d) => { const { [j.id]: _gone, ...rest } = d; return rest; });
+      await onSaved();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? `Could not save: ${err.message}` : "Could not save.");
+    } finally { setBusy(null); }
+  };
+  return (
+    <div className="stack" style={{ gap: 8, padding: "12px", background: "rgba(0,0,0,0.02)", borderRadius: 4 }}>
+      <strong className="tiny muted" style={{ textTransform: "uppercase" }}>Pay for every job on the site</strong>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Raise or lower any job. The new pay shows on the job list straight away and in the payroll budget.
+      </p>
+      {jobs.map((j) => (
+        <label key={j.id} className="row-between small" style={{ gap: 8 }}>
+          <span>{j.label} <span className="tiny muted">({j.unit}, now ${(j.cents / 100).toFixed(2)})</span></span>
+          <span className="row" style={{ gap: 6 }}>
+            <input type="text" inputMode="decimal" aria-label={`${j.label} pay`} style={{ width: 90, padding: 8, borderRadius: 4 }}
+              placeholder={(j.cents / 100).toFixed(2)} value={drafts[j.id] ?? ""} disabled={busy !== null}
+              onChange={(e) => { setDrafts({ ...drafts, [j.id]: e.target.value }); setError(null); setNote(null); }} />
+            <button className="btn" onClick={() => void save(j)} disabled={busy !== null || !(drafts[j.id] ?? "").trim()}>{busy === j.id ? "Saving..." : "Save"}</button>
+          </span>
+        </label>
+      ))}
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+      {note && <div className="banner banner-safe">{note}</div>}
+    </div>
+  );
+}
+
 function PricingSection() {
   const [expanded, setExpanded] = useState(false);
   const [pricing, setPricing] = useState<any>(null);
@@ -1019,6 +1061,7 @@ function PricingSection() {
               </div>
 
               <DriverRatesEditor key={JSON.stringify([pricing.current.driverStandard, pricing.current.driverSecureTransport])} pricing={pricing} onSaved={loadPricing} />
+              <JobPayEditor key={JSON.stringify(pricing.jobPay)} pricing={pricing} onSaved={loadPricing} />
 
               {pricing.overrides && pricing.overrides.length > 0 && (
                 <div className="stack" style={{ gap: 8 }}>

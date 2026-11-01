@@ -150,7 +150,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
               {/* What it pays and how many we want, on the card itself: an
                   applicant choosing a role should not have to apply to find
                   out whether the job exists or what it is worth. */}
-              <span className="small"><strong>{lang === "es" ? payLabelFor(r.id as StaffRole, "es") : r.pay}</strong></span>
+              <span className="small"><strong>{lang === "es" ? (r.payEs ?? payLabelFor(r.id as StaffRole, "es")) : r.pay}</strong></span>
               <span className={`tiny ${r.hiring ? "" : "muted"}`}>
                 {r.hiring ? w.hiring(r.openings) : w.notHiring}
               </span>
