@@ -20,7 +20,7 @@ import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
 export const OPEN_POSITIONS: Record<StaffRole, number> = {
   // Every role is open, at ownership's direction. Personal assistants are the
   // hire that opens the service, so they carry the most seats; the rest start
-  // at three. Lower one, or set it to zero, to show "not hiring yet" again.
+  // at three. The careers page never says "not hiring": a job with no seats left just shows no count.
   driver: 3,
   "personal-assistant": 5,
   // Hospital days.

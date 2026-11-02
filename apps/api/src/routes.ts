@@ -6283,7 +6283,7 @@ export const routes: Record<string, Handler> = {
     return { jobs: hiringRows(ctx) };
   },
 
-  /** Master: set how many people a job is hiring. Zero shows "not hiring yet" and still takes applications. */
+  /** Master: set how many people a job is hiring. Every job keeps taking applications. */
   "POST /api/master/hiring": (ctx, _p, body) => {
     requireAdmin(ctx, "operations");
     requireAdmin(ctx, "write");

@@ -151,9 +151,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
                   applicant choosing a role should not have to apply to find
                   out whether the job exists or what it is worth. */}
               <span className="small"><strong>{lang === "es" ? (r.payEs ?? payLabelFor(r.id as StaffRole, "es")) : r.pay}</strong></span>
-              <span className={`tiny ${r.hiring ? "" : "muted"}`}>
-                {r.hiring ? w.hiring(r.openings) : w.notHiring}
-              </span>
+              {/* A full job simply shows no count: the page never says "not hiring". */}
+              {r.hiring && <span className="tiny">{w.hiring(r.openings)}</span>}
             </button>
           ))}
         </div>

@@ -909,7 +909,7 @@ function HiringSection() {
     try {
       const r = await api.masterSetHiring(j.id, target);
       setJobs(r.jobs);
-      setNote(target === 0 ? `${j.label}: not hiring.` : `${j.label}: hiring ${target}.`);
+      setNote(`${j.label}: hiring ${target}.`);
     } catch (err) {
       setError(err instanceof Error && err.message ? `Could not save: ${err.message}` : "Could not save.");
     } finally { setBusy(null); }
@@ -918,7 +918,7 @@ function HiringSection() {
     <section className="card stack" style={{ gap: 8 }}>
       <h3 style={{ margin: 0 }}>How many we're hiring</h3>
       <p className="tiny muted" style={{ margin: 0 }}>
-        Set the number of people wanted for each job on the careers page. Zero shows "not hiring yet" and still takes applications.
+        Set the number of people wanted for each job on the careers page. Every job stays open for applications; the count is how many seats show as open.
       </p>
       {!jobs && !error && <p className="tiny muted">Loading...</p>}
       {jobs?.map((j) => (
