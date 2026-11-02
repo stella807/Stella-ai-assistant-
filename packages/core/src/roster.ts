@@ -3,7 +3,7 @@ import type { Iso8601 } from "./types.ts";
 import type { LaunchMarketId } from "./service-area.ts";
 import type { StaffRole } from "./staffing.ts";
 import {
-  ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, QUICK_TASK_CATEGORIES,
+  ARMED_CATEGORIES, ASSISTANT_MAX_CAPACITY, ASSISTANT_MIN_CAPACITY, QUICK_TASK_CATEGORIES,
   type ConciergeCategory,
 } from "./concierge.ts";
 
@@ -61,7 +61,9 @@ export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   physician: [],
   nurse: [],
   "wingman-club-coordinator": [],
-  bodyguard: [],
+  // Armed close protection, and only this role goes out armed: a personal
+  // assistant is never sent with a firearm. See `isArmedAvailable`.
+  bodyguard: [...ARMED_CATEGORIES],
 };
 
 export function categoriesForRole(role: StaffRole): ConciergeCategory[] {
@@ -123,7 +125,7 @@ export function isOnRoster(assistant: HiredAssistant, now: Date): boolean {
 
 /** Whether this assistant may be sent on an armed job right now. */
 export function isArmedAvailable(assistant: HiredAssistant, now: Date): boolean {
-  return Boolean(assistant.armedUntil) && now.getTime() < Date.parse(assistant.armedUntil!);
+  return assistant.role === "bodyguard" && Boolean(assistant.armedUntil) && now.getTime() < Date.parse(assistant.armedUntil!);
 }
 
 export interface HireInput {
@@ -171,8 +173,13 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
   if (requiresInsurance(app.role) && !isCurrent(insurance, input.now)) {
     throw new Error("Their liability insurance is missing or expired — they need a current policy before they are hired.");
   }
-  const armed = input.armed ? armedUntil(app.credentials, input.now) : undefined;
-  if (input.armed && !armed) {
+  // A bodyguard is always cleared armed, so both licences must be on file; nobody else is.
+  const wantsArmed = app.role === "bodyguard" || input.armed === true;
+  if (input.armed && app.role !== "bodyguard") {
+    throw new Error("Only a bodyguard is cleared for armed work. Hire them as a bodyguard instead.");
+  }
+  const armed = wantsArmed ? armedUntil(app.credentials, input.now) : undefined;
+  if (wantsArmed && !armed) {
     throw new Error("Armed work needs a current firearms licence and security-guard licence on the application.");
   }
 

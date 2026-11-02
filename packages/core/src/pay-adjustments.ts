@@ -16,14 +16,16 @@ export interface PayDeltas {
   hospitalDay: number;
   /** Change to what an errand pays the runner, in cents. */
   errand: number;
+  /** Change to the bodyguard's armed hourly pay, in cents. */
+  armedHourly: number;
 }
 
-const NONE: PayDeltas = { paHourly: 0, hospitalDay: 0, errand: 0 };
+const NONE: PayDeltas = { paHourly: 0, hospitalDay: 0, errand: 0, armedHourly: 0 };
 let live: PayDeltas = NONE;
 
 export const payDeltas = (): PayDeltas => live;
 
 export function setPayDeltas(next: Partial<PayDeltas> | null): void {
   const whole = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0);
-  live = next ? { paHourly: whole(next.paHourly), hospitalDay: whole(next.hospitalDay), errand: whole(next.errand) } : NONE;
+  live = next ? { paHourly: whole(next.paHourly), hospitalDay: whole(next.hospitalDay), errand: whole(next.errand), armedHourly: whole(next.armedHourly) } : NONE;
 }

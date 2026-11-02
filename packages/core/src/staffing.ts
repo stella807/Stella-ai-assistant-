@@ -222,12 +222,13 @@ export const STAFF_ROLES: RoleInfo[] = [
     drives: false,
     // Puerto Rico reference: armed security guards earn roughly $12-16/hr
     // there and executive-protection work $20-30/hr, well under the mainland
-    // band. $25/hr sits at the upper-middle of the island's close-protection
-    // range, so it is a premium without chasing mainland pay. Paid per job,
+    // band. The armed rate is the one the booking flow pays an armed job
+    // (ARMED_HOURLY_PAYOUT_CENTS, $55), set by ownership and above the island's
+    // range on purpose: it is guard work with a firearm. Paid per job,
     // so nothing is carried on the pre-launch plan. [TO CONFIRM against live
     // quotes from island security firms before the first hire.]
     prelaunchHoursPerWeek: 0,
-    hourlyCents: 2500,
+    hourlyCents: 5500,
   },
 ];
 

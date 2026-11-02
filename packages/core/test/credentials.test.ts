@@ -29,15 +29,19 @@ describe("insurance and licences for field work", () => {
     expect(apply([cred("liability-insurance"), cred("firearms-license"), cred("guard-license")]).credentials).toHaveLength(3);
   });
 
-  it("clears for armed work until the earlier licence expires, and only when asked", () => {
+  it("clears only a bodyguard for armed work, until the earlier licence expires", () => {
     const creds = [cred("liability-insurance"), cred("firearms-license", "2027-03-01T00:00:00Z"), cred("guard-license")];
     expect(armedUntil(creds, NOW)).toBe("2027-03-01T00:00:00Z");
     const plain = hireFromApplication({ id: "a1", application: approved(creds), market: "puerto-rico", now: NOW });
     expect(isArmedAvailable(plain, NOW)).toBe(false);
-    const armed = hireFromApplication({ id: "a2", application: approved(creds), market: "puerto-rico", armed: true, now: NOW });
-    expect(isArmedAvailable(armed, NOW)).toBe(true);
-    expect(isArmedAvailable(armed, new Date("2027-04-01T00:00:00Z"))).toBe(false);
-    expect(() => hireFromApplication({ id: "a3", application: approved([cred("liability-insurance")]), market: "puerto-rico", armed: true, now: NOW }))
+    // A personal assistant is never cleared armed, licences or not.
+    expect(() => hireFromApplication({ id: "a2", application: approved(creds), market: "puerto-rico", armed: true, now: NOW }))
+      .toThrow(/only a bodyguard/i);
+    const guard = hireFromApplication({ id: "a3", application: { ...approved(creds), role: "bodyguard" }, market: "puerto-rico", now: NOW });
+    expect(isArmedAvailable(guard, NOW)).toBe(true);
+    expect(isArmedAvailable(guard, new Date("2027-04-01T00:00:00Z"))).toBe(false);
+    // A bodyguard without both licences on file cannot be hired at all.
+    expect(() => hireFromApplication({ id: "a4", application: { ...approved([cred("liability-insurance")]), role: "bodyguard" }, market: "puerto-rico", now: NOW }))
       .toThrow(/firearms licence/i);
   });
 

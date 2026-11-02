@@ -4,7 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
-import { api, type HiringRow, MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type HiringRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";

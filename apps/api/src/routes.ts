@@ -3070,7 +3070,7 @@ export const routes: Record<string, Handler> = {
     const market = payMarketFor(location);
     // An armed job lists only assistants cleared for armed work.
     const ours = rosterFor(ctx.store.data.assistants, { category: category as ConciergeCategory, market, now })
-      .filter((a) => p.armed !== "true" || isArmedAvailable(a, now));
+      .filter((a) => p.armed === "true" ? isArmedAvailable(a, now) : a.role !== "bodyguard");
     const assistants: AssistantProfile[] = ours.map((a) => ({
       id: a.id,
       name: a.name,
@@ -3144,7 +3144,7 @@ export const routes: Record<string, Handler> = {
       category: input.category,
       market: payMarketFor(input.location),
       now: ctx.now(),
-    }).filter((a) => !input.armed || isArmedAvailable(a, ctx.now()));
+    }).filter((a) => input.armed ? isArmedAvailable(a, ctx.now()) : a.role !== "bodyguard");
     // Armed work is ours alone — no partner network is sent armed.
     if (input.armed && ours.length === 0) {
       throw new HttpError(503, "No assistant cleared for armed work is available there right now.");
@@ -3245,7 +3245,10 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(400, `${ourAssistant.name} is not dispatched for that kind of task.`);
     }
     if (input.armed && !(ourAssistant && isArmedAvailable(ourAssistant, ctx.now()))) {
-      throw new HttpError(400, "Choose an assistant cleared for armed work — their firearms and guard licences must be current.");
+      throw new HttpError(400, "Choose a bodyguard cleared for armed work — their firearms and guard licences must be current.");
+    }
+    if (!input.armed && ourAssistant?.role === "bodyguard") {
+      throw new HttpError(400, "A bodyguard is booked for armed protection only.");
     }
     // Whether anyone can do this at all comes before asking for money: a
     // "add a payment method" answer to a task nobody can take just means

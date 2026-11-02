@@ -25,3 +25,14 @@ describe("owner-set job pay reaches the money", () => {
     expect(errandPayoutCents("nearby-store")).toBe(base + 200);
   });
 });
+
+describe("the bodyguard's armed pay", () => {
+  afterEach(() => setPayDeltas(null));
+  it("follows the owner's setting, with the customer price moving by the same amount", () => {
+    const margin = () => serviceFeeFor("wait-with-someone", false, 1, 2, false, true) - assistantPayoutFor("wait-with-someone", false, 1, 2, false, true);
+    const before = margin();
+    setPayDeltas(payDeltasFrom([raise("bodyguard", 6500)]));
+    expect(assistantPayoutFor("wait-with-someone", false, 1, 2, false, true)).toBe(6500 * 2);
+    expect(margin()).toBe(before);
+  });
+});

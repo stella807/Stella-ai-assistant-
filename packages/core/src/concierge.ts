@@ -518,6 +518,7 @@ export const HOSPITAL_STAY_CATEGORY: ConciergeCategory = "wait-with-someone";
 export const ARMED_CATEGORIES: ConciergeCategory[] = ["wait-with-someone", "check-in-person"];
 export const ARMED_HOURLY_PAYOUT_CENTS = 5_500;
 export const ARMED_CUSTOMER_HOURLY_CENTS = 7_500;
+export const liveArmedHourlyPayCents = (): number => ARMED_HOURLY_PAYOUT_CENTS + payDeltas().armedHourly;
 const armedRated = (category: ConciergeCategory, armed?: boolean) => armed === true && ARMED_CATEGORIES.includes(category);
 const dayRated = (category: ConciergeCategory, hospitalStay?: boolean) =>
   hospitalStay === true && category === HOSPITAL_STAY_CATEGORY;
@@ -600,7 +601,7 @@ export function assistantPayoutFor(
   // standard booking costs without inventing a number.
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
-    if (armedRated(category, armed)) return Math.round(ARMED_HOURLY_PAYOUT_CENTS * booked * householdMultiplier(peopleCount));
+    if (armedRated(category, armed)) return Math.round(liveArmedHourlyPayCents() * booked * householdMultiplier(peopleCount));
     const hourly = livePaHourlyPayCents() * booked;
     const capped = dayRated(category, hospitalStay) ? Math.min(hourly, liveHospitalDayPayCents()) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));
@@ -623,7 +624,7 @@ export function serviceFeeFor(
   // everything else is the pay grossed up by the margin.
   if (isHourlyCategory(category)) {
     const booked = clampHours(hours ?? defaultHoursFor(category));
-    if (armedRated(category, armed)) return Math.round(ARMED_CUSTOMER_HOURLY_CENTS * booked * householdMultiplier(peopleCount));
+    if (armedRated(category, armed)) return Math.round((ARMED_CUSTOMER_HOURLY_CENTS + payDeltas().armedHourly) * booked * householdMultiplier(peopleCount));
     const hourly = (PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly) * booked;
     const capped = dayRated(category, hospitalStay) ? Math.min(hourly, HOSPITAL_DAY_PRICE_CENTS + payDeltas().hospitalDay) : hourly;
     return Math.round(capped * householdMultiplier(peopleCount));

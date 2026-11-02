@@ -5955,7 +5955,8 @@ describe("master access — a per-account role instead of one shared secret", ()
     const sec = (await masterLogin("secretary", "Hire Sec", "hiresec@example.com")).cookie;
     const roles = (await call("GET", "/api/staff/roles")).json.roles;
     const guard = roles.find((r: any) => r.id === "bodyguard");
-    expect(guard.pay).toContain("$25.00");
+    expect(guard.pay).toContain("$55.00");
+    expect((await call("GET", "/api/staff/roles")).json.roles.find((r: any) => r.id === "personal-assistant").pay).not.toMatch(/armed jobs|firearms/i);
     expect(guard.openings).toBe(2);
     const set = await call("POST", "/api/master/hiring", { role: "bodyguard", target: 6 }, null, owner);
     expect(set.status).toBe(200);

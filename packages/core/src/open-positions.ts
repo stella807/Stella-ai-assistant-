@@ -1,5 +1,5 @@
 import { ERRAND_MILEAGE_CENTS, ERRAND_TIERS, errandPayoutCents } from "./errand-tiers.ts";
-import { ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS, PA_HOURLY_RATE_CENTS, liveHospitalDayPayCents, livePaHourlyPayCents } from "./concierge.ts";
+import { ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS, PA_HOURLY_RATE_CENTS, liveArmedHourlyPayCents, liveHospitalDayPayCents, livePaHourlyPayCents } from "./concierge.ts";
 import { jobPayRates } from "./pricing-overrides.ts";
 import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
 
@@ -68,6 +68,12 @@ export function payLabelFor(
       ? `De ${lo} a ${hi} por encargo, según el tamaño, más ${mile} por milla. Necesitas tu propio seguro de responsabilidad civil`
       : `${lo} to ${hi} per errand, by size, plus ${mile} a mile. Bring your own liability insurance`;
   }
+  if (role === "bodyguard") {
+    const hour = usd(set ?? liveArmedHourlyPayCents());
+    return es
+      ? `${hour} la hora, armado. Necesitas tus propias licencias de armas y de guardia de seguridad (Ley 108) y tu propio seguro de responsabilidad civil`
+      : `${hour} an hour, armed. Bring your own firearms and security-guard licences (Ley 108) and your own liability insurance`;
+  }
   if (role === "caretaker") {
     const [day, hour] = [usd(set ?? liveHospitalDayPayCents()), usd(livePaHourlyPayCents())];
     return es
@@ -75,10 +81,10 @@ export function payLabelFor(
       : `${day} per hospital day (up to 12 hours); ${hour} an hour for shorter visits. Bring your own liability insurance`;
   }
   if (role === "personal-assistant") {
-    const [hour, day, armed] = [usd(set ?? livePaHourlyPayCents()), usd(liveHospitalDayPayCents()), usd(ARMED_HOURLY_PAYOUT_CENTS)];
+    const [hour, day] = [usd(set ?? livePaHourlyPayCents()), usd(liveHospitalDayPayCents())];
     return es
-      ? `${hour} la hora; ${day} por un día de hospital (hasta 12 horas); ${armed} la hora en trabajos armados, con licencia de armas y de guardia. Necesitas tu propio seguro de responsabilidad civil`
-      : `${hour} an hour; ${day} for a hospital day (up to 12 hours); ${armed} an hour on armed jobs, with firearms and guard licences. Bring your own liability insurance`;
+      ? `${hour} la hora; ${day} por un día de hospital (hasta 12 horas). Sin armas: el trabajo armado es solo para guardaespaldas. Necesitas tu propio seguro de responsabilidad civil`
+      : `${hour} an hour; ${day} for a hospital day (up to 12 hours). Unarmed: armed work is for bodyguards only. Bring your own liability insurance`;
   }
   const info = STAFF_ROLES.find((r) => r.id === role);
   const hourly = set ?? info?.hourlyCents ?? 0;
@@ -104,13 +110,14 @@ export function jobPayUnit(role: StaffRole): string {
 export function defaultJobPayCents(role: StaffRole): number {
   if (role === "errand-runner") return Math.min(...ERRAND_TIERS.map((t) => errandPayoutCents(t.id, false)));
   if (role === "caretaker") return HOSPITAL_DAY_PAYOUT_CENTS;
+  if (role === "bodyguard") return ARMED_HOURLY_PAYOUT_CENTS;
   if (role === "personal-assistant") return PA_HOURLY_RATE_CENTS;
   return STAFF_ROLES.find((r) => r.id === role)?.hourlyCents ?? 0;
 }
 
 /** The owner's job pay as differences from the built-in rates, for the pricing functions to apply. */
-export function payDeltasFrom(overrides: Parameters<typeof jobPayRates>[0]): { paHourly: number; hospitalDay: number; errand: number } {
+export function payDeltasFrom(overrides: Parameters<typeof jobPayRates>[0]): { paHourly: number; hospitalDay: number; errand: number; armedHourly: number } {
   const r = jobPayRates(overrides);
   const diff = (role: StaffRole) => (r[role] === undefined ? 0 : r[role]! - defaultJobPayCents(role));
-  return { paHourly: diff("personal-assistant"), hospitalDay: diff("caretaker"), errand: diff("errand-runner") };
+  return { paHourly: diff("personal-assistant"), hospitalDay: diff("caretaker"), errand: diff("errand-runner"), armedHourly: diff("bodyguard") };
 }
