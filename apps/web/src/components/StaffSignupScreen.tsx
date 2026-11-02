@@ -59,11 +59,13 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     }
   };
 
-  useEffect(() => {
+  const loadRoles = () => {
+    setError(null);
     api.staffRoles()
       .then((r) => { setRoles(r.roles); setBenefits(r.benefits); setRole((cur) => cur || (r.roles.some((x) => x.id === initialRole) ? initialRole! : r.roles[0]?.id) || ""); })
       .catch((e) => setError(e instanceof Error ? e.message : w.loadFailed));
-  }, []);
+  };
+  useEffect(loadRoles, []);
 
   const submit = async () => {
     setBusy(true);
@@ -138,6 +140,13 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
             </div>
           ))}
         </section>
+      )}
+
+      {/* The job list is the point of this page: if it did not load, say so at the top with a retry rather than leaving an empty form. */}
+      {roles.length === 0 && error && (
+        <div className="banner banner-danger" role="alert">
+          {error} <button className="btn btn-sm" onClick={loadRoles}>Try again</button>
+        </div>
       )}
 
       <section className="card stack">
