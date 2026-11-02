@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
-import { MAX_RESUME_BYTES, payLabelFor, requiresInsurance, type StaffRole } from "@safehubby/core";
+import { MAX_RESUME_BYTES, STAFF_ROLES, payLabelFor, publicBenefits, requiresInsurance, type StaffRole } from "@safehubby/core";
 import { CredentialFields, credentialPayload, emptyCredential, isCredentialFilled } from "./CredentialFields.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { PublicWorkerPay } from "./PublicPricing.tsx";
@@ -63,7 +63,18 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     setError(null);
     api.staffRoles()
       .then((r) => { setRoles(r.roles); setBenefits(r.benefits); setRole((cur) => cur || (r.roles.some((x) => x.id === initialRole) ? initialRole! : r.roles[0]?.id) || ""); })
-      .catch((e) => setError(e instanceof Error ? e.message : w.loadFailed));
+      .catch((e) => {
+        // The server could not be reached (it rate-limits under load), but the jobs and their standard pay
+        // are built into the app, so show them rather than an empty page. Seat counts are the server's, so
+        // they are left off here; the application itself still goes to the server when sent.
+        const jobs: StaffRoleInfo[] = STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => ({
+          id: r.id, label: r.label, description: r.description, drives: r.drives,
+          pay: payLabelFor(r.id), payEs: payLabelFor(r.id, "es"), openings: 0, hiring: false,
+        }));
+        setRoles(jobs); setBenefits(publicBenefits());
+        setRole((cur) => cur || (jobs.some((x) => x.id === initialRole) ? initialRole! : jobs[0]?.id) || "");
+        setError(e instanceof Error ? e.message : w.loadFailed);
+      });
   };
   useEffect(loadRoles, []);
 
@@ -143,7 +154,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
       )}
 
       {/* The job list is the point of this page: if it did not load, say so at the top with a retry rather than leaving an empty form. */}
-      {roles.length === 0 && error && (
+      {error && roles.every((r) => !r.hiring) && (
         <div className="banner banner-danger" role="alert">
           {error} <button className="btn btn-sm" onClick={loadRoles}>Try again</button>
         </div>
