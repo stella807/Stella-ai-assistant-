@@ -12,7 +12,7 @@
  */
 
 export type VendorCategory =
-  | "boats" | "bio-bay" | "skydiving" | "motorsport" | "rum-cigars" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "growth";
+  | "boats" | "bio-bay" | "skydiving" | "motorsport" | "rum-cigars" | "wine" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "growth";
 
 export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "event-planner", label: "Event planners and DMCs" },
@@ -24,6 +24,7 @@ export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "motorsport", label: "Drifting and motorsport" },
   { id: "off-road", label: "Off-road and adventure" },
   { id: "rum-cigars", label: "Rum and cigars" },
+  { id: "wine", label: "Wine and tastings" },
   { id: "private-chef", label: "Private chefs and dining" },
   { id: "growth", label: "Growth, business and networking" },
 ];
@@ -153,6 +154,9 @@ export const SUGGESTED_VENDORS: Seed[] = [
     sourceUrl: "https://www.expedia.com.my/ms/things-to-do/dos-mares-and-rainforest-utv-adventure-tour-in-fajardo.a49453202.activity-details", notes: "Ask about a private group day with a cookout." },
 
   // ---- rum and cigars
+  { id: "vnd-uvas-pr", name: "Uvas Puerto Rico", category: "wine", area: "Dorado",
+    offers: "Wine-tasting experience inspired by Napa Valley: curated wines, champagne and events in an intimate setting.",
+    sourceUrl: "https://uvaspuertorico.com", notes: "Self-described on its own site; nothing confirmed with the business. No prices, group sizes or contact were published, so ask about private bookings and a group rate for a Wingman Club evening." },
   { id: "vnd-casa-bacardi", name: "Casa Bacardí", category: "rum-cigars", area: "Cataño (San Juan)",
     offers: "Tours and tastings at the distillery, including the Maestro's Walk and a Founder's Experience; private cocktail classes and tastings with an engraved bottle for groups.",
     sourceUrl: "https://www.bacardi.com/casa-bacardi/tickets/", notes: "Maestro's Walk listed at $80 plus tax. Founder's Experience about $300 on cruise-excursion pages. Ask for the private group options." },
