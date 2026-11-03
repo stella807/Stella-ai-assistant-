@@ -14,6 +14,8 @@ code that pays it, not written fresh for a job post:
 | $150.00/hr physician (Elite advisor), 8 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $45.00/hr nurse (Elite coordination), 15 hrs/week | `STAFF_ROLES`, `staffing.ts` |
 | $40.00/hr Wingman Club coordinator, 20 hrs/week | `STAFF_ROLES`, `staffing.ts` |
+| $55.00/hr bodyguard (armed), paid per job | `ARMED_HOURLY_PAYOUT_CENTS`, `concierge.ts` |
+| $14.50/hr supervisor | `STAFF_ROLES`, `staffing.ts` |
 | Insurance, gas stipend, published rates | `HIRING_BENEFITS`, `staffing.ts` |
 | Puerto Rico, Texas, Los Angeles | `LAUNCH_MARKETS`, `service-area.ts` |
 | Service starts 1 December 2026 | `SERVICE_LIVE_AT`, `promotions.ts` |
@@ -648,6 +650,87 @@ the other desk roles is a better fit.
 
 ---
 
+# 11. Bodyguard
+
+**Location:** Puerto Rico, on site with the client
+**Pay:** $55.00 per hour, armed
+**Hours:** Per booking, no fixed week
+**Type:** [TO CONFIRM: classification]
+**Starts:** When the first armed booking comes in; nothing is paid before there is a client
+
+## What the job is
+
+Close protection for one client at a time: at events, on the road and at
+home. Armed jobs are the only jobs a bodyguard takes, and only a bodyguard is
+ever sent armed — personal assistants are not.
+
+## What you get paid
+
+$55.00 an hour on an armed booking (the customer pays $75.00). The owner can
+change this rate; the customer price moves by the same amount.
+
+## What you need
+
+- A current **firearms licence and a security-guard licence** — in Puerto
+  Rico, being paid to be armed while protecting somebody is regulated guard
+  work (Ley 108), so a personal firearms licence alone is not enough.
+  [TO CONFIRM: the company's own licensing with a lawyer before offering armed work.]
+- Your own liability insurance, current and documented
+- Calm judgement: the job is keeping a client safe, not escalating
+
+## What we provide
+
+- **Published rate** — $55.00 is $55.00, before you apply and after
+- Clear bookings: you are sent to a named client, an address and a time
+
+## The honest part
+
+There is no weekly shift. Work comes as clients book armed protection, so
+income follows demand, and nothing is paid before the first booking.
+
+**Apply:** Careers → Bodyguard, in the app.
+
+---
+
+# 12. Supervisor
+
+**Location:** Puerto Rico, in the office and on the road
+**Pay:** $14.50 per hour
+**Hours:** Set with you; paid by the hour once the field team is working
+**Type:** [TO CONFIRM: classification]
+**Starts:** When the field team begins working
+
+## What the job is
+
+Lead the field team: check in on assistants, drivers and errand runners
+during jobs, step in when something goes wrong, and keep every customer's day
+on track. A supervisor is never sent to a customer's address as the service.
+
+## What you get paid
+
+$14.50 an hour, paid from the day the field team is working. The owner can
+change this rate.
+
+## What you need
+
+- Experience leading or coordinating people, in any setting
+- Calm under pressure, and good judgement about when to step in
+- A phone you can answer during jobs
+
+## What we provide
+
+- **Published rate** — $14.50 is $14.50, before you apply and after
+- Direct access to the owner for decisions the team cannot make on its own
+
+## The honest part
+
+Nothing is carried on the pre-launch plan for this role: it starts when there
+are jobs to oversee, so the hours depend on how busy the team is.
+
+**Apply:** Careers → Supervisor, in the app.
+
+---
+
 ## What every role gets
 
 From `HIRING_BENEFITS` in `staffing.ts`, which is the single source these
@@ -677,8 +760,8 @@ Worth stating, because applicants ask:
   a copy of the certificate; nobody is hired without a current policy, and an
   expired one takes them off the roster until a new one is on file.
 - **Armed jobs need two licences.** A safety wait or check somewhere with no
-  security can be booked with an armed assistant ($75/hr to the customer,
-  $55/hr to the assistant). Only someone with a current **firearms licence and
+  security can be booked with an armed bodyguard ($75/hr to the customer,
+  $55/hr to the bodyguard). Only someone with a current **firearms licence and
   security-guard licence**, checked by the owner and cleared at hiring, is sent.
   Armed work is never offered for a hospital stay. In Puerto Rico paid armed
   protection is regulated guard work (Ley 108): confirm the company's licensing

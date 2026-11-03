@@ -16,6 +16,8 @@ guess, not a quote.
 | Social media manager | $22.00/hr, ~20 hrs/wk | Hourly payroll |
 | Wingman Club coordinator | $40.00/hr, ~20 hrs/wk | Hourly payroll |
 | Nurse (Elite coordination) | $45.00/hr, ~15 hrs/wk | Hourly payroll |
+| Bodyguard (armed) | $55.00/hr | Per booking; the customer pays $75.00/hr |
+| Supervisor | $14.50/hr | Hourly payroll once the field team is working |
 | Web developer | $70.00/hr, ~25 hrs/wk | Hourly payroll |
 | Lawyer | $125.00/hr, ~15 hrs/wk | Hourly payroll |
 | Physician (Elite advisor) | $150.00/hr, ~8 hrs/wk | Hourly payroll |
