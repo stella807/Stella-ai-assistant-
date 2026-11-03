@@ -6,8 +6,8 @@
  * `SUGGESTED_VENDORS` is research, not a relationship. Each entry says what
  * the business does and where it was found. The prices in the notes come from
  * third-party listings and may be out of date, and nothing here was confirmed
- * with the business. There are no phone numbers or email addresses on
- * purpose: none were published in what was found, and the owner adds the real
+ * with the business. Phone numbers and emails appear only where the business
+ * published one itself; otherwise none were found, and the owner adds the real
  * contact once somebody answers.
  */
 
@@ -154,9 +154,10 @@ export const SUGGESTED_VENDORS: Seed[] = [
     sourceUrl: "https://www.expedia.com.my/ms/things-to-do/dos-mares-and-rainforest-utv-adventure-tour-in-fajardo.a49453202.activity-details", notes: "Ask about a private group day with a cookout." },
 
   // ---- rum and cigars
-  { id: "vnd-uvas-pr", name: "Uvas Puerto Rico", category: "wine", area: "Dorado",
-    offers: "Wine-tasting experience inspired by Napa Valley: curated wines, champagne and events in an intimate setting.",
-    sourceUrl: "https://uvaspuertorico.com", notes: "Self-described on its own site; nothing confirmed with the business. No prices, group sizes or contact were published, so ask about private bookings and a group rate for a Wingman Club evening." },
+  { id: "vnd-uvas-pr", name: "Uvas Puerto Rico", category: "wine", area: "Dorado (#877 carr. 693)",
+    offers: "Wine tasting room inspired by Napa Valley: seasonal wine flights, fine wines and grower champagnes, in an intimate setting.",
+    sourceUrl: "https://uvaspuertorico.com", phone: "939-473-3219",
+    notes: "From its own site and Instagram (@uvas.pr, about 4,600 followers). Open Wed-Sun, 2-8pm. Takes WhatsApp messages. No prices or group sizes published, so ask about private bookings and a group rate for a Wingman Club evening." },
   { id: "vnd-casa-bacardi", name: "Casa Bacardí", category: "rum-cigars", area: "Cataño (San Juan)",
     offers: "Tours and tastings at the distillery, including the Maestro's Walk and a Founder's Experience; private cocktail classes and tastings with an engraved bottle for groups.",
     sourceUrl: "https://www.bacardi.com/casa-bacardi/tickets/", notes: "Maestro's Walk listed at $80 plus tax. Founder's Experience about $300 on cruise-excursion pages. Ask for the private group options." },
