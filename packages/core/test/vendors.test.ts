@@ -19,8 +19,10 @@ describe("the suggested vendor list", () => {
   });
 
   it("never carries a phone number or email it did not find", () => {
+    // Uvas published its own number on its Instagram profile, and the owner supplied it.
+    const publishedByTheBusiness: Record<string, string> = { "vnd-uvas-pr": "939-473-3219" };
     for (const v of SUGGESTED_VENDORS as Record<string, unknown>[]) {
-      expect(v.phone, String(v.id)).toBeUndefined();
+      expect(v.phone, String(v.id)).toBe(publishedByTheBusiness[String(v.id)]);
       expect(v.email, String(v.id)).toBeUndefined();
     }
   });
