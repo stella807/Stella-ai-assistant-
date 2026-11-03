@@ -2501,6 +2501,72 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("paying through Stripe Connect", () => {
+    const calls: { path: string; body: string; idem?: string }[] = [];
+    const realFetch = globalThis.fetch;
+    let payoutsEnabled = true;
+    beforeEach(() => {
+      calls.length = 0; payoutsEnabled = true;
+      process.env.STRIPE_SECRET_KEY = "sk_test_connect";
+      process.env.STRIPE_API_BASE = "http://stripe.fake";
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const u = String(url);
+        if (!u.startsWith("http://stripe.fake")) return realFetch(url as never, init);
+        const path = u.replace("http://stripe.fake", "");
+        calls.push({ path, body: String(init?.body ?? ""), idem: (init?.headers as Record<string, string> | undefined)?.["idempotency-key"] });
+        const json = path === "/v1/accounts" ? { id: "acct_new" }
+          : path === "/v1/account_links" ? { url: "https://connect.stripe.fake/onboard" }
+          : path.startsWith("/v1/accounts/") ? { payouts_enabled: payoutsEnabled, details_submitted: payoutsEnabled }
+          : { id: "tr_1" };
+        return new Response(JSON.stringify(json), { status: 200, headers: { "content-type": "application/json" } });
+      }) as typeof fetch;
+    });
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+      delete process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_API_BASE;
+    });
+
+    it("sends a worker to Stripe to set up, then pays them by transfer with no bank number saved here", async () => {
+      const { cookie } = await assistantLogin(assistantId);
+      expect((await call("GET", "/api/assistant/stripe-payouts", undefined, null, cookie)).json.state).toBe("not-started");
+      const start = await call("POST", "/api/assistant/stripe-payouts/start", {}, null, cookie);
+      expect(start.status).toBe(200);
+      expect(start.json.url).toBe("https://connect.stripe.fake/onboard");
+      expect(store.data.assistantStripeAccounts?.[assistantId]?.accountId).toBe("acct_new");
+      expect((await call("GET", "/api/assistant/stripe-payouts", undefined, null, cookie)).json.state).toBe("ready");
+
+      const result = await runPayroll(ctx);
+      expect(result).toEqual({ paid: 1, failed: 0, totalCents: 900 });
+      const transfer = calls.find((c) => c.path === "/v1/transfers")!;
+      expect(transfer.body).toContain("amount=900");
+      expect(transfer.body).toContain("destination=acct_new");
+      const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+      expect(payout.status).toBe("paid");
+      expect(payout.providerReference).toBe("tr_1");
+      expect(transfer.idem).toBe(`transfer_${payout.id}`);
+      expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBe(payout.id);
+    });
+
+    it("does not send money to a Stripe account that is not finished, and says why", async () => {
+      payoutsEnabled = false;
+      store.update((db) => { db.assistantStripeAccounts = { [assistantId]: { accountId: "acct_half", createdAt: clock.toISOString() } }; });
+      const result = await runPayroll(ctx);
+      expect(result.failed).toBe(1);
+      expect(calls.some((c) => c.path === "/v1/transfers")).toBe(false);
+      const [payout] = store.data.payouts.filter((p) => p.assistantId === assistantId);
+      expect(payout.failureReason).toMatch(/not finished/i);
+      expect(store.data.conciergeTasks.find((t) => t.id === taskId)?.payoutId).toBeUndefined();
+    });
+
+    it("requires an assistant session, and is unavailable when Stripe is not configured", async () => {
+      expect((await call("POST", "/api/assistant/stripe-payouts/start")).status).toBe(401);
+      delete process.env.STRIPE_SECRET_KEY;
+      const { cookie } = await assistantLogin(assistantId);
+      expect((await call("GET", "/api/assistant/stripe-payouts", undefined, null, cookie)).json.state).toBe("unavailable");
+      expect((await call("POST", "/api/assistant/stripe-payouts/start", {}, null, cookie)).status).toBe(503);
+    });
+  });
+
   describe("Puerto Rico withholding", () => {
     const worker = (market: string, extra: object = {}) => store.update((db) => {
       db.assistants.push({

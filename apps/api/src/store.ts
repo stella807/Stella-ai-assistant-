@@ -218,6 +218,8 @@ export interface Db {
   /** Bank details an assistant entered for themselves — see
    *  AssistantPayoutDestination above. */
   assistantPayoutDestinations: Record<string, AssistantPayoutDestination>;
+  /** The Stripe Connect account each worker is paid through, by assistant id. */
+  assistantStripeAccounts?: Record<string, { accountId: string; createdAt: string }>;
   /** The record of every biweekly payout actually sent — see payroll.ts and
    *  routes.ts's runPayroll. */
   payouts: AssistantPayout[];

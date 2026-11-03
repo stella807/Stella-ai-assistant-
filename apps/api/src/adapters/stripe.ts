@@ -412,3 +412,52 @@ export async function describeStripeAccount(): Promise<string> {
   const name = a.settings?.dashboard?.display_name ?? a.business_profile?.name ?? "unnamed";
   return `${a.id} "${name}", ${/^(sk|rk)_live_/.test(key()) ? "live" : "test"} mode`;
 }
+
+
+/* -----------------------------------------------------------------------------
+   Paying workers: Stripe Connect.
+
+   Each worker gets an Express connected account and fills in their own bank
+   details on Stripe's page, so no bank number touches this server. A payout is
+   a Transfer from the platform balance to that account, and Stripe then pays
+   the worker's bank on its normal schedule. The payout id is the idempotency
+   key, so a payroll run that repeats can never send the same pay twice.
+   ----------------------------------------------------------------------------- */
+
+/** Whether workers can be paid through Stripe at all on this server. */
+export const connectPayoutsReady = () => Boolean(key());
+
+export async function createConnectAccount(input: { assistantId: string; name?: string }): Promise<{ id: string }> {
+  return stripePost<{ id: string }>("/v1/accounts", {
+    type: "express",
+    country: "US",
+    business_type: "individual",
+    "capabilities[transfers][requested]": true,
+    "metadata[assistantId]": input.assistantId,
+    "business_profile[name]": input.name,
+    "business_profile[product_description]": "Independent work booked through Safehubby",
+  }, `acct_${input.assistantId}`);
+}
+
+/** The page on Stripe where the worker enters their identity and bank details. */
+export async function connectOnboardingLink(accountId: string, returnUrl: string, refreshUrl: string): Promise<{ url: string }> {
+  return stripePost<{ url: string }>("/v1/account_links", {
+    account: accountId, type: "account_onboarding", return_url: returnUrl, refresh_url: refreshUrl,
+  });
+}
+
+/** Read from Stripe every time: whether the worker can actually be paid is Stripe's call, not ours. */
+export async function connectAccountStatus(accountId: string): Promise<{ payoutsEnabled: boolean; detailsSubmitted: boolean }> {
+  if (!key()) throw new Error("Stripe is not configured.");
+  const res = await fetch(`${api()}/v1/accounts/${encodeURIComponent(accountId)}`, { headers: { authorization: `Bearer ${key()}` } });
+  const data = (await res.json().catch(() => null)) as { payouts_enabled?: boolean; details_submitted?: boolean; error?: { message?: string } } | null;
+  if (!res.ok || !data) throw new Error(data?.error?.message ?? `Stripe could not read that account: ${res.status}`);
+  return { payoutsEnabled: data.payouts_enabled === true, detailsSubmitted: data.details_submitted === true };
+}
+
+export async function transferToWorker(input: { accountId: string; amountCents: number; reference: string }): Promise<{ id: string }> {
+  return stripePost<{ id: string }>("/v1/transfers", {
+    amount: input.amountCents, currency: "usd", destination: input.accountId,
+    transfer_group: input.reference, "metadata[payoutId]": input.reference,
+  }, `transfer_${input.reference}`);
+}

@@ -2,7 +2,9 @@ import type { PayoutPort, ProviderStatus } from "@safehubby/core";
 import { statusFor } from "@safehubby/core";
 
 /**
- * Paying assistants. There is no automatic payout provider wired in: payroll
+ * Paying assistants. Workers who set up Stripe Connect are paid by Stripe
+ * transfer, automatically (see `runPayroll`, adapters/stripe.ts). For anyone
+ * else there is no automatic payout provider wired in: payroll
  * still works out every 14 days what each assistant is owed (and holds back
  * the 10% for Hacienda in Puerto Rico), and records the payout with the
  * reason below, so the owner can send it from the business bank account or

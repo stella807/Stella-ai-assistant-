@@ -792,3 +792,22 @@ A member says yes to the month's outing with `POST /api/club/rsvp`.
 ## Monthly profit calculator (owner, /master)
 
 `packages/core/src/pnl.ts` works out a month as a spreadsheet: profit by source (each plan, extra assistant hours, errands with a fee, Wingman Club), less fixed costs (payroll, $75 liability insurance per insured person, other), giving net, how many more Premium members reach break-even, and how long cash lasts. It uses the live prices and the free-each-month switch. Usage and attendance are the owner's guesses. Scenarios are saved in the browser only.
+
+## Paying workers through Stripe Connect
+
+A worker opens **Get paid** in the assistant portal and taps **Set up with
+Stripe**. That creates a Stripe Express account for them and sends them to
+Stripe's own page to enter their identity and bank details; no bank number
+touches this server. Each pay run (every 14 days, `runPayroll`) then sends a
+Stripe **transfer** for what they are owed, after any clawback and the Puerto
+Rico 10% holdback, using the payout id as the idempotency key so a repeated
+run can never pay twice.
+
+- Needs `STRIPE_SECRET_KEY` on a Stripe account with **Connect** enabled.
+- Transfers come out of the **platform's available Stripe balance**. If it is
+  short, the payout is recorded as failed with Stripe's reason and nothing is
+  marked paid; top up the balance and the next run pays it.
+- A worker whose Stripe signup is unfinished is not paid; the failed record
+  says so. Workers without Stripe still use the saved bank account, paid by
+  hand as before.
+- The Hacienda holdback is recorded, not sent; remitting it stays manual.

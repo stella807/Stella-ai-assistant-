@@ -683,6 +683,10 @@ export const api = {
   assistantSetPayoutDestination: (accountHolderName: string, routingNumber: string, accountNumber: string) =>
     request<{ accountHolderName: string; accountNumberLast4: string }>(
       "POST", "/api/assistant/payout-destination", { accountHolderName, routingNumber, accountNumber }),
+  assistantStripePayouts: () =>
+    request<{ available: boolean; state: "unavailable" | "not-started" | "incomplete" | "ready" }>("GET", "/api/assistant/stripe-payouts"),
+  assistantStartStripePayouts: () =>
+    request<{ url: string }>("POST", "/api/assistant/stripe-payouts/start"),
   assistantPayoutDestination: () =>
     request<{ destination: { accountHolderName: string; accountNumberLast4: string } | null }>(
       "GET", "/api/assistant/payout-destination"),

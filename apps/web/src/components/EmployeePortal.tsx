@@ -282,8 +282,22 @@ function PayoutSettings({ onBack }: { onBack: () => void }) {
   const [accountNumber, setAccountNumber] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stripeState, setStripeState] = useState<"unavailable" | "not-started" | "incomplete" | "ready">("unavailable");
+  const [stripeError, setStripeError] = useState<string | null>(null);
+
+  const startStripe = async () => {
+    setBusy(true); setStripeError(null);
+    try {
+      const { url } = await api.assistantStartStripePayouts();
+      window.location.href = url;
+    } catch {
+      setStripeError(w.stripeFailed);
+      setBusy(false);
+    }
+  };
 
   const load = () => {
+    api.assistantStripePayouts().then((r) => setStripeState(r.state)).catch(() => setStripeState("unavailable"));
     api.assistantPayoutDestination().then((r) => setDestination(r.destination)).catch(() => setDestination(null));
     api.assistantPayouts().then((r) => {
       setPayouts(r.payouts);
@@ -328,6 +342,21 @@ function PayoutSettings({ onBack }: { onBack: () => void }) {
         )}
         {owed > 0 && (
           <p className="tiny muted">{w.owedBody}</p>
+        )}
+
+        {stripeState !== "unavailable" && (
+          <div className="stack" style={{ gap: 6 }}>
+            <strong className="small">{w.stripeHeading}</strong>
+            <p className="tiny muted" style={{ margin: 0 }}>
+              {stripeState === "ready" ? w.stripeReady : stripeState === "incomplete" ? w.stripeIncomplete : w.stripeIntro}
+            </p>
+            {stripeState !== "ready" && (
+              <button className="btn btn-block" disabled={busy} onClick={() => void startStripe()}>
+                {stripeState === "incomplete" ? w.stripeContinue : w.stripeStart}
+              </button>
+            )}
+            {stripeError && <div className="banner banner-danger" role="alert">{stripeError}</div>}
+          </div>
         )}
 
         {!editing && destination && (

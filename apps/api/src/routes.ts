@@ -102,7 +102,7 @@ import { athReady, athRequires, normalizeAthPhone } from "./adapters/ath-movil.t
 import { cancelAthLoad, checkAthLoad, findAthLoad, startAthLoad } from "./ath-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
-import { cancelStripeSubscription, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
+import { cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -643,6 +643,29 @@ export async function runPayroll(ctx: Ctx): Promise<{ paid: number; failed: numb
         for (const t of db.conciergeTasks) if (taskIds.includes(t.id)) t.payoutId = payoutId;
       });
       paid += 1;
+      continue;
+    }
+
+    // A worker set up with Stripe is paid through it, automatically. Anyone else
+    // falls through to the saved-bank-account path below.
+    const stripeAccount = ctx.store.data.assistantStripeAccounts?.[assistantId];
+    if (stripeAccount && connectPayoutsReady()) {
+      try {
+        const status = await connectAccountStatus(stripeAccount.accountId);
+        if (!status.payoutsEnabled) throw new Error("Their Stripe account is not finished yet, so it cannot be paid.");
+        const transfer = await transferToWorker({ accountId: stripeAccount.accountId, amountCents: payableCents, reference: payoutId });
+        ctx.store.update((db) => {
+          db.payouts.push({ ...base, status: "paid", paidAt: ctx.now().toISOString(), providerReference: transfer.id });
+          applyConsumed(db);
+          for (const t of db.conciergeTasks) if (taskIds.includes(t.id)) t.payoutId = payoutId;
+        });
+        paid += 1;
+        totalCents += payableCents;
+      } catch (err) {
+        const failureReason = err instanceof Error ? err.message : "Payout failed.";
+        ctx.store.update((db) => void db.payouts.push({ ...base, status: "failed", failureReason }));
+        failed += 1;
+      }
       continue;
     }
 
@@ -4600,6 +4623,42 @@ export const routes: Record<string, Handler> = {
       db.assistantPayoutDestinations[assistantId] = { ...sealed, updatedAt: ctx.now().toISOString() };
     });
     return { accountHolderName: sealed.accountHolderName, accountNumberLast4: sealed.accountNumberLast4 };
+  },
+
+  /** Where the worker stands with Stripe payouts: not started, started, or ready to be paid. */
+  "GET /api/assistant/stripe-payouts": async (ctx) => {
+    const assistantId = assistantActor(ctx);
+    if (!connectPayoutsReady()) return { available: false, state: "unavailable" };
+    const account = ctx.store.data.assistantStripeAccounts?.[assistantId];
+    if (!account) return { available: true, state: "not-started" };
+    try {
+      const s = await connectAccountStatus(account.accountId);
+      return { available: true, state: s.payoutsEnabled ? "ready" : "incomplete" };
+    } catch {
+      return { available: true, state: "incomplete" };
+    }
+  },
+
+  /** Starts (or resumes) the worker's Stripe signup and returns Stripe's own page to finish it on. */
+  "POST /api/assistant/stripe-payouts/start": async (ctx) => {
+    const assistantId = assistantActor(ctx);
+    if (!connectPayoutsReady()) throw new HttpError(503, "Stripe payouts are not set up on this server yet.");
+    const worker = ctx.store.data.assistants.find((a) => a.id === assistantId);
+    let accountId = ctx.store.data.assistantStripeAccounts?.[assistantId]?.accountId;
+    try {
+      if (!accountId) {
+        accountId = (await createConnectAccount({ assistantId, name: worker?.name })).id;
+        const id = accountId;
+        ctx.store.update((db) => {
+          db.assistantStripeAccounts = { ...db.assistantStripeAccounts, [assistantId]: { accountId: id, createdAt: ctx.now().toISOString() } };
+        });
+      }
+      const base = process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com";
+      const link = await connectOnboardingLink(accountId, `${base}/?payouts=done`, `${base}/?payouts=retry`);
+      return { url: link.url };
+    } catch (err) {
+      throw new HttpError(502, err instanceof Error ? `Stripe said: ${err.message}` : "Could not reach Stripe.");
+    }
   },
 
   /** Never returns the encrypted fields, let alone the plaintext account
