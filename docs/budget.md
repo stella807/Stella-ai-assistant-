@@ -42,6 +42,7 @@ At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 | Nurse (Elite tier coordination) | 1 | $150.00 | $0.00 | $2,970.00 | $3,120.00 |
 | Wingman Club coordinator | 1 | $150.00 | $0.00 | $7,200.00 | $7,350.00 |
 | Bodyguard | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
+| Supervisor | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
 | **Total** | **16** | **$600.00** | **$0.00** | **$24,930.00** | **$25,530.00** |
 
 Recurring after launch: **$12,303.33/month** — $300.00 insurance plus

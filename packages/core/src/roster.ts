@@ -64,6 +64,8 @@ export const ROLE_CATEGORIES: Record<StaffRole, ConciergeCategory[]> = {
   // Armed close protection, and only this role goes out armed: a personal
   // assistant is never sent with a firearm. See `isArmedAvailable`.
   bodyguard: [...ARMED_CATEGORIES],
+  // Oversees the field team from the office and the road; never dispatched to a customer.
+  supervisor: [],
 };
 
 export function categoriesForRole(role: StaffRole): ConciergeCategory[] {

@@ -3874,7 +3874,7 @@ describe("hiring for the roles that do not drive", () => {
     expect(res.json.roles.map((r: { id: string }) => r.id).sort())
       .toEqual([
         "bodyguard", "caretaker", "errand-runner", "lawyer", "nurse", "personal-assistant", "physician",
-        "secretary", "social-media-manager", "web-developer", "wingman-club-coordinator",
+        "secretary", "social-media-manager", "supervisor", "web-developer", "wingman-club-coordinator",
       ]);
     // Drivers apply through their own form, which asks about a vehicle.
     expect(res.json.roles.some((r: { id: string }) => r.id === "driver")).toBe(false);
@@ -5948,6 +5948,14 @@ describe("master access — a per-account role instead of one shared secret", ()
     }
     const bad = await call("POST", "/api/master/pricing/override", { roleOrService: "job-nonsense", priceCents: 100 }, null, owner);
     expect(bad.status).toBe(400);
+  });
+
+  it("lists the supervisor job at $14.50 an hour on the careers tab and the owner's job pay", async () => {
+    const owner = (await masterLogin("owner", "Sup Boss", "supboss@example.com")).cookie;
+    const job = (await call("GET", "/api/staff/roles")).json.roles.find((r: any) => r.id === "supervisor");
+    expect(job.pay).toContain("$14.50");
+    const pay = (await call("GET", "/api/master/pricing", undefined, null, owner)).json.jobPay.find((j: any) => j.id === "supervisor");
+    expect(pay.cents).toBe(1450);
   });
 
   it("lets the owner change how many people each job is hiring, and lists the bodyguard job", async () => {

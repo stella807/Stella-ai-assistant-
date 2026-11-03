@@ -34,6 +34,7 @@ export const OPEN_POSITIONS: Record<StaffRole, number> = {
   nurse: 3,
   "wingman-club-coordinator": 3,
   bodyguard: 2,
+  supervisor: 2,
 };
 
 /** How many openings remain once some are filled. Never negative. */

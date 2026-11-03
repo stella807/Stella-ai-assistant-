@@ -45,7 +45,8 @@ export type StaffRole =
   | "physician"
   | "nurse"
   | "wingman-club-coordinator"
-  | "bodyguard";
+  | "bodyguard"
+  | "supervisor";
 
 export interface RoleInfo {
   id: StaffRole;
@@ -230,6 +231,16 @@ export const STAFF_ROLES: RoleInfo[] = [
     prelaunchHoursPerWeek: 0,
     hourlyCents: 5500,
   },
+  {
+    id: "supervisor",
+    label: "Supervisor",
+    description: "Lead the field team: check in on assistants, drivers and errand runners during jobs, step in when something goes wrong, and keep every customer's day on track.",
+    drives: false,
+    // $14.50/hr at ownership's direction. Paid by the hour once the field
+    // team is working, so no pre-launch hours are carried on the plan.
+    prelaunchHoursPerWeek: 0,
+    hourlyCents: 1450,
+  },
 ];
 
 export function findRole(id: StaffRole): RoleInfo {
@@ -394,6 +405,7 @@ export const PRELAUNCH_HEADCOUNT: Record<StaffRole, number> = {
   nurse: 1,
   "wingman-club-coordinator": 1,
   bodyguard: 0,
+  supervisor: 0,
 };
 
 export interface RoleBudgetLine {
