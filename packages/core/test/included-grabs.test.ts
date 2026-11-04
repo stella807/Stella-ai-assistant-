@@ -8,7 +8,7 @@ afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
   customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
-  errandCreditCover, errandCreditFor, errandCreditUsedIn, errandFeeCents,
+  errandCreditCover, errandCreditFor, errandCreditUsedIn, errandFeeCents, includedConciergeHours,
   monthBoundsFor, releasedPlans, netAfterProcessorFeeCents, remainingIncludedGrabs, serviceFeeFor, hourlyServiceFee, includedHoursUsedIn,
   type ConciergeCategory, type ConciergeTask, type PlanId,
 } from "../src/index.ts";
@@ -151,16 +151,19 @@ describe("included assistant hours", () => {
   const base = { category: "wait-with-someone" as const, includedHoursUsedThisMonth: 0 };
 
   it("covers hours up to the plan's monthly allowance, and bills only the rest", () => {
-    const full = serviceFeeFor("wait-with-someone", false, 1, 3);
-    const premium = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 3 });
-    expect(premium.includedHoursUsed).toBe(2);
-    expect(premium.serviceFeeCents).toBe(Math.round(full / 3));
+    // One hour more than Premium includes: the plan covers its own hours and the customer pays for the last one.
+    const included = includedConciergeHours("premium-basic");
+    const booked = included + 1;
+    const full = serviceFeeFor("wait-with-someone", false, 1, booked);
+    const premium = hourlyServiceFee({ ...base, planId: "premium-basic", hours: booked });
+    expect(premium.includedHoursUsed).toBe(included);
+    expect(premium.serviceFeeCents).toBe(Math.round(full / booked));
     const elite = hourlyServiceFee({ ...base, planId: "elite", hours: 3 });
     expect(elite).toEqual({ serviceFeeCents: 0, includedHoursUsed: 3 });
   });
 
   it("stops covering once the month's hours are used", () => {
-    const r = hourlyServiceFee({ ...base, planId: "premium-plus", hours: 2, includedHoursUsedThisMonth: 4 });
+    const r = hourlyServiceFee({ ...base, planId: "premium-plus", hours: 2, includedHoursUsedThisMonth: includedConciergeHours("premium-plus") });
     expect(r).toEqual({ serviceFeeCents: serviceFeeFor("wait-with-someone", false, 1, 2), includedHoursUsed: 0 });
   });
 

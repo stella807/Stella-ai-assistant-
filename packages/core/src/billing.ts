@@ -427,7 +427,7 @@ export const PLANS: Plan[] = [
     // Premium is one seat, so "multiple people, one account" is not a
     // real feature of it. See PREMIUM_FEATURES's own doc comment above.
     features: PREMIUM_FEATURES,
-    includedConciergeHours: 2,
+    includedConciergeHours: 6,
     blurb: "Covers 1 client. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
@@ -442,7 +442,7 @@ export const PLANS: Plan[] = [
     // doesn't get — multi-profile — is exactly the one that makes sense
     // once a plan actually covers more than one person.
     features: PLUS_FEATURES,
-    includedConciergeHours: 4,
+    includedConciergeHours: 8,
     blurb: "The same everything as Premium, covering 2 clients instead of one, plus multiple clients on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
   },
   {
@@ -459,7 +459,7 @@ export const PLANS: Plan[] = [
     // Premium only in multi-profile, the same way Premium Plus does — see
     // PREMIUM_FEATURES's own doc comment above.
     features: PLUS_FEATURES,
-    includedConciergeHours: 8,
+    includedConciergeHours: 12,
     blurb: "The same everything as Premium Plus, covering up to 6 clients instead of two — one household on one bill, at ownership's set price.",
   },
   {

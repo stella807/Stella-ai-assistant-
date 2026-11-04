@@ -20,10 +20,10 @@ describe("the monthly profit calculator", () => {
     expect(cardFeeCents(0)).toBe(0);
   });
 
-  it("makes a Premium member roughly break even when they use every included hour and pickup, and keeps the unused part when they do not", () => {
+  it("shows a Premium member as a loss when they use every included hour (ownership chose 6), and keeps the unused part when they do not", () => {
     const price = findPlan("premium-basic").monthlyCents;
     const full = monthlyProfit(base({ usage: 1, deskMinutes: 0, members: members({ "premium-basic": 1 }) }));
-    expect(Math.abs(full.lines[0]!.profitCents)).toBeLessThan(100); // within a dollar of zero
+    expect(full.lines[0]!.profitCents).toBeLessThan(0);
     const none = monthlyProfit(base({ usage: 0, members: members({ "premium-basic": 1 }) }));
     expect(none.lines[0]!.profitCents).toBe(price - cardFeeCents(price));
   });
@@ -55,12 +55,13 @@ describe("the monthly profit calculator", () => {
   });
 
   it("says how many more Premium members it takes to break even, and how long cash lasts", () => {
-    const r = monthlyProfit(base({ payrollCents: 1_200_000, cashCents: 3_000_000 }));
+    // At light usage: with 6 hours included, Premium only earns when most of them go unused.
+    const r = monthlyProfit(base({ usage: 0.1, payrollCents: 1_200_000, cashCents: 3_000_000 }));
     expect(r.netCents).toBeLessThan(0);
     expect(r.premiumToBreakEven).toBe(Math.ceil(-r.netCents / r.perMemberCents["premium-basic"]));
     expect(r.runwayMonths).toBeCloseTo(3_000_000 / -r.netCents, 1);
     // Once there are enough members, the answer is zero and there is no runway to worry about.
-    const enough = monthlyProfit(base({ members: members({ "premium-basic": r.premiumToBreakEven + 5 }), payrollCents: 1_200_000, cashCents: 3_000_000 }));
+    const enough = monthlyProfit(base({ members: members({ "premium-basic": r.premiumToBreakEven + 5 }), usage: 0.1, payrollCents: 1_200_000, cashCents: 3_000_000 }));
     expect(enough.netCents).toBeGreaterThanOrEqual(0);
     expect(enough.premiumToBreakEven).toBe(0);
     expect(enough.runwayMonths).toBeNull();
