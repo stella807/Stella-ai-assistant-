@@ -88,7 +88,7 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
             ? es ? "Reservas con prioridad, el servicio de lujo y todo lo de los planes más bajos."
               : "Priority booking, the luxury desk, and everything on every plan below it."
             : es ? "Mira lo que trae un plan más grande: más horas de concierge, más personas, el servicio Elite."
-              : "See what a bigger plan unlocks — more concierge hours, more seats, the Elite desk."}
+              : "See what a bigger plan unlocks — more concierge hours, more clients covered, the Elite desk."}
         </p>
         <button className="btn btn-primary btn-block" onClick={onManagePlan}>{es ? "Administrar el plan" : "Manage plan"}</button>
       </section>

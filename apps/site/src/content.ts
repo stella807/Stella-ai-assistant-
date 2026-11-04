@@ -339,8 +339,8 @@ export const COPY: Record<Lang, Copy> = {
     pricingHeading: "What it costs",
     pricingLede: `${PLAN_COUNT_WORDS.en[releasedPlans().length]} plans, from everyday help to a desk that answers 24/7. Swipe across.`,
     perMonth: "/month",
-    seatsOne: "1 person",
-    seatsMany: (n) => `Up to ${n} people`,
+    seatsOne: "1 client covered",
+    seatsMany: (n) => `Up to ${n} clients covered`,
     freeLabel: "Always free",
     planBlurbs: {
       free: "Check-ins, location sharing, SOS and ride booking. The safety basics are never behind a paywall.",
@@ -407,8 +407,8 @@ export const COPY: Record<Lang, Copy> = {
     pricingHeading: "Cuánto cuesta",
     pricingLede: `${PLAN_COUNT_WORDS.es[releasedPlans().length]} planes, desde la ayuda de todos los días hasta un servicio que contesta 24/7. Desliza.`,
     perMonth: "/mes",
-    seatsOne: "1 persona",
-    seatsMany: (n) => `Hasta ${n} personas`,
+    seatsOne: "1 cliente cubierto",
+    seatsMany: (n) => `Hasta ${n} clientes cubiertos`,
     freeLabel: "Siempre gratis",
     planBlurbs: {
       free: "Registros, ubicación compartida, SOS y viajes. Lo básico de seguridad nunca se cobra.",
