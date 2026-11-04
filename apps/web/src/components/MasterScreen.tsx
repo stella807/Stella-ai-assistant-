@@ -4,7 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
-import { api, type HiringRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type HiringRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
@@ -326,6 +326,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.account.role === "owner" && <ProfitCalculatorSection />}
       {overview.account.role === "owner" && <VendorsSection />}
 
+      {overview.account.role === "owner" && <PlansOnOfferSection />}
       {overview.account.role === "owner" && <HiringSection />}
       {overview.account.role === "owner" && <PricingSection />}
 
@@ -894,6 +895,45 @@ function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promi
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
       {note && <div className="banner banner-safe">{note}</div>}
     </div>
+  );
+}
+
+function PlansOnOfferSection() {
+  const [plans, setPlans] = useState<PlanSwitchRow[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { api.masterGetPlans().then((r) => setPlans(r.plans)).catch(() => setError("Could not load plans.")); }, []);
+  const flip = async (p: PlanSwitchRow) => {
+    setBusy(p.id); setError(null); setNote(null);
+    try {
+      const r = await api.masterSetPlan(p.id, !p.on);
+      setPlans(r.plans);
+      setNote(`${p.name} is now ${p.on ? "off: hidden everywhere and closed to new members" : "on: shown again with all its details"}.`);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? `Could not save: ${err.message}` : "Could not save.");
+    } finally { setBusy(null); }
+  };
+  return (
+    <section className="card stack" style={{ gap: 8 }}>
+      <h3 style={{ margin: 0 }}>Free and Basic plans</h3>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Switch a plan off and it disappears from the plan picker, the pricing pages and checkout, and nobody new can join it.
+        Switch it back on and it returns with all its details. Members already on it keep it, and check-ins and SOS keep working for everyone.
+      </p>
+      {!plans && !error && <p className="tiny muted">Loading...</p>}
+      {plans?.map((p) => (
+        <div key={p.id} className="row-between small" style={{ gap: 8 }}>
+          <span>{p.name} <span className="tiny muted">({p.members} {p.members === 1 ? "member" : "members"})</span></span>
+          <button className={`btn ${p.on ? "btn-primary" : ""}`} role="switch" aria-checked={p.on} aria-label={`${p.name} plan`}
+            disabled={busy !== null} onClick={() => void flip(p)}>
+            {busy === p.id ? "Saving..." : p.on ? "On" : "Off"}
+          </button>
+        </div>
+      ))}
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+      {note && <div className="banner banner-safe">{note}</div>}
+    </section>
   );
 }
 

@@ -6016,6 +6016,34 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect(bad.status).toBe(400);
   });
 
+  it("lets the owner switch the Free and Basic plans off and back on", async () => {
+    const owner = (await masterLogin("owner", "Plan Boss", "planboss@example.com")).cookie;
+    const sec = (await masterLogin("secretary", "Plan Sec", "plansec@example.com")).cookie;
+    const ids = async () => (await call("GET", "/api/catalog")).json.plans.map((p: any) => p.id);
+    const before = await ids();
+    expect(before).toContain("basic");
+
+    const off = await call("POST", "/api/master/plans", { plan: "basic", on: false }, null, owner);
+    expect(off.status).toBe(200);
+    expect(off.json.plans.find((p: any) => p.id === "basic").on).toBe(false);
+    expect(await ids()).not.toContain("basic");
+    const free = await call("POST", "/api/master/plans", { plan: "free", on: false }, null, owner);
+    expect(free.json.plans.find((p: any) => p.id === "free").on).toBe(false);
+    expect(await ids()).not.toContain("free");
+
+    const back = await call("POST", "/api/master/plans", { plan: "basic", on: true }, null, owner);
+    expect(back.json.plans.find((p: any) => p.id === "basic").on).toBe(true);
+    await call("POST", "/api/master/plans", { plan: "free", on: true }, null, owner);
+    const after = await call("GET", "/api/catalog");
+    expect(after.json.plans.find((p: any) => p.id === "basic").features.length).toBeGreaterThan(0);
+    expect(await ids()).toEqual(expect.arrayContaining(["free", "basic"]));
+
+    expect((await call("POST", "/api/master/plans", { plan: "elite", on: false }, null, owner)).status).toBe(400);
+    expect((await call("POST", "/api/master/plans", { plan: "basic" }, null, owner)).status).toBe(400);
+    expect((await call("POST", "/api/master/plans", { plan: "basic", on: false }, null, sec)).status).toBe(401);
+    expect((await call("GET", "/api/master/plans", undefined, null, sec)).status).toBe(401);
+  });
+
   it("lists the supervisor job at $14.50 an hour on the careers tab and the owner's job pay", async () => {
     const owner = (await masterLogin("owner", "Sup Boss", "supboss@example.com")).cookie;
     const job = (await call("GET", "/api/staff/roles")).json.roles.find((r: any) => r.id === "supervisor");

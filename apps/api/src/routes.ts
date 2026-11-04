@@ -4,7 +4,7 @@ import {
 } from "@safehubby/core";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
-  isPlanReleased, releasedPlans,
+  isPlanReleased, releasedPlans, setPlanSwitches,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
@@ -1164,6 +1164,14 @@ function hiringRows(ctx: Ctx) {
   });
 }
 
+/** Free and Basic as the owner sees them: on or off, and who is on each. */
+function planSwitchRows(ctx: Ctx) {
+  return (["free", "basic"] as const).map((id) => ({
+    id, name: findPlan(id).name, on: isPlanReleased(id),
+    members: ctx.store.data.travelers.filter((t) => t.planId === id).length,
+  }));
+}
+
 function defaultPricing(): CurrentPricing {
   return {
     paHourlyCents: 3500,
@@ -1918,7 +1926,7 @@ export const routes: Record<string, Handler> = {
     const cadence: Cadence = body?.cadence === "annual" ? "annual" : "monthly";
     const plan = PLANS.find((p) => p.id === body?.planId);
     if (!plan || plan.monthlyCents === 0) throw new HttpError(400, "Choose a paid plan.");
-    if (!isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
+    if (!isPlanReleased(plan.id)) throw new HttpError(404, plan.id === "basic" ? "The Basic plan is not being offered right now." : flagNote("elite-tier"));
     if (isElitePlan(plan.id) && !eliteOpen(ctx)) {
       throw new HttpError(404, "Elite is coming soon — it unlocks once revenue covers the spending allowance for our first members.");
     }
@@ -2684,7 +2692,10 @@ export const routes: Record<string, Handler> = {
     const plan = findPlan(planId);
     // Free is the one plan whose release is decided below, because choosing it
     // is sometimes a cancellation rather than a sign-up.
-    if (plan.id !== "free" && !isPlanReleased(plan.id)) throw new HttpError(404, flagNote("elite-tier"));
+    if (plan.id !== "free" && !isPlanReleased(plan.id)) {
+      // A member already on Basic keeps it; only joining it is closed.
+      throw new HttpError(404, plan.id === "basic" ? "The Basic plan is not being offered right now." : flagNote("elite-tier"));
+    }
     if (isElitePlan(plan.id) && !eliteOpen(ctx)) {
       throw new HttpError(
         404,
@@ -6337,6 +6348,34 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Master: whether the Free and Basic plans are on offer, and how many members each has. */
+  "GET /api/master/plans": (ctx) => {
+    requireAdmin(ctx, "money");
+    return { plans: planSwitchRows(ctx) };
+  },
+
+  /** Master: switch the Free or Basic plan on or off. Off hides it and closes joining; members keep it. */
+  "POST /api/master/plans": (ctx, _p, body) => {
+    requireAdmin(ctx, "money");
+    requireAdmin(ctx, "write");
+    const account = masterAccountOf(ctx);
+    const plan = String(body?.plan ?? "");
+    if (plan !== "free" && plan !== "basic") throw new HttpError(400, "Only the Free and Basic plans can be switched.");
+    if (typeof body?.on !== "boolean") throw new HttpError(400, "Say whether the plan is on or off.");
+    const on = body.on;
+    ctx.store.update((db) => {
+      db.planSwitches = { ...db.planSwitches, [plan]: on };
+      if (account) {
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "operations",
+          subject: `${plan} plan switched ${on ? "on" : "off"}`, at: ctx.now().toISOString(),
+        });
+      }
+    });
+    setPlanSwitches(ctx.store.data.planSwitches);
+    return { plans: planSwitchRows(ctx) };
   },
 
   /** Master: how many people each job is hiring, against who is already on the roster. */

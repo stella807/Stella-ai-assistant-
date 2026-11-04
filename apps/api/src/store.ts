@@ -261,6 +261,8 @@ export interface Db {
   vendorSeedsOffered?: string[];
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */
   monthlyFreebies?: MonthlyFreebies;
+  /** The owner's on/off for the Free and Basic plans; unset means the built-in behaviour. */
+  planSwitches?: { free?: boolean; basic?: boolean };
   /** The owner's count of people wanted per job; a job with no entry uses the built-in number. */
   hiringTargets?: Partial<Record<StaffRole, number>>;
   /** Prepaid balance loads and refunds — see balance.ts. The balance itself

@@ -9,6 +9,7 @@
  * partnerships — all of which the user can see.
  */
 
+import { planSwitchFor } from "./plan-switches.ts";
 import { isEnabled } from "./features.ts";
 
 export type PlanId =
@@ -649,7 +650,8 @@ export function isPlanReleased(id: PlanId): boolean {
   // plan picker. It is not deleted: an account with no paid plan is still on
   // it, which is what keeps check-ins, location and SOS working for somebody
   // who has not subscribed or who has cancelled. See `free-tier`.
-  if (id === "free") return isEnabled("free-tier");
+  if (id === "free") return planSwitchFor("free") ?? isEnabled("free-tier");
+  if (id === "basic") return planSwitchFor("basic") ?? true;
   return isElitePlan(id) ? isEnabled("elite-tier") : true;
 }
 
