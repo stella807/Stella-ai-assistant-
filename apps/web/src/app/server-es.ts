@@ -24,10 +24,10 @@ const EXACT: Record<string, string> = {
   Margarita: "Margarita", "Spirit, neat": "Licor, solo", Water: "Agua", "Soda / mocktail": "Refresco / mocktail",
   Coffee: "Café", "Can't be woken": "No se despierta", "Owners' dinner": "Cena con los dueños", Skydiving: "Paracaídas",
   // The Free plan's description is assembled from pieces, one per flag.
-  "For one person. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.":
-    "Para una persona. Compartir ubicación, chequeos, conteo de bebidas, SOS, reserva de viajes y transporte seguro a la tarifa real del proveedor, y mandados rápidos: traer algo (hasta $20) o hacer un mandado. Siempre gratis: lo básico de seguridad no se cobra.",
-  "For one person. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate. Always free — safety basics are not a paywall.":
-    "Para una persona. Compartir ubicación, chequeos, conteo de bebidas, SOS, reserva de viajes y transporte seguro a la tarifa real del proveedor. Siempre gratis: lo básico de seguridad no se cobra.",
+  "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.":
+    "Cubre a 1 cliente. Compartir ubicación, chequeos, conteo de bebidas, SOS, reserva de viajes y transporte seguro a la tarifa real del proveedor, y mandados rápidos: traer algo (hasta $20) o hacer un mandado. Siempre gratis: lo básico de seguridad no se cobra.",
+  "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate. Always free — safety basics are not a paywall.":
+    "Cubre a 1 cliente. Compartir ubicación, chequeos, conteo de bebidas, SOS, reserva de viajes y transporte seguro a la tarifa real del proveedor. Siempre gratis: lo básico de seguridad no se cobra.",
 };
 
 const MONTHS: Record<string, string> = {

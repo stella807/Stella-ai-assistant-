@@ -400,7 +400,7 @@ export const PLANS: Plan[] = [
     features: FREE_FEATURES,
     // A getter, so the blurb never promises errands while they are paused.
     get blurb() {
-      return "For one person. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate"
+      return "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate"
         + (isEnabled("free-errands") ? ", and quick errands — grab something (up to $20) or run an errand" : "")
         + ". Always free — safety basics are not a paywall.";
     },
@@ -415,7 +415,7 @@ export const PLANS: Plan[] = [
     annualCents: 39000,
     seats: 1,
     features: BASIC_FEATURES,
-    blurb: "For members 65 and over, with an ID. One person. The safety basics, $35 a month of errands paid for — free food pickups — a snack, a restaurant order or groceries, brought to you at home or in a hospital bed.",
+    blurb: "For members 65 and over, with an ID. Covers 1 client. The safety basics, $35 a month of errands paid for — free food pickups — a snack, a restaurant order or groceries, brought to you at home or in a hospital bed.",
   },
   {
     id: "premium-basic",
@@ -428,7 +428,7 @@ export const PLANS: Plan[] = [
     // real feature of it. See PREMIUM_FEATURES's own doc comment above.
     features: PREMIUM_FEATURES,
     includedConciergeHours: 2,
-    blurb: "For one person. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
+    blurb: "Covers 1 client. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {
     id: "premium-plus",
@@ -443,7 +443,7 @@ export const PLANS: Plan[] = [
     // once a plan actually covers more than one person.
     features: PLUS_FEATURES,
     includedConciergeHours: 4,
-    blurb: "The same everything as Premium, for two people instead of one, plus multiple people on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
+    blurb: "The same everything as Premium, covering 2 clients instead of one, plus multiple clients on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
   },
   {
     id: "family",
@@ -460,7 +460,7 @@ export const PLANS: Plan[] = [
     // PREMIUM_FEATURES's own doc comment above.
     features: PLUS_FEATURES,
     includedConciergeHours: 8,
-    blurb: "The same everything as Premium Plus, for up to six people instead of two — one household on one bill, at ownership's set price.",
+    blurb: "The same everything as Premium Plus, covering up to 6 clients instead of two — one household on one bill, at ownership's set price.",
   },
   {
     id: "elite",
@@ -470,7 +470,7 @@ export const PLANS: Plan[] = [
     seats: 1,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 20,
-    blurb: "For one person. A desk that answers 24/7 — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately. Twenty hours of an assistant's time on the ground each month; more at the usual rate.",
+    blurb: "Covers 1 client. A desk that answers 24/7 — jet charter arranged, villas, yachts and events — plus a concierge physician practice, retainer included rather than billed separately. Twenty hours of an assistant's time on the ground each month; more at the usual rate.",
   },
   {
     id: "elite-signature",
@@ -480,7 +480,7 @@ export const PLANS: Plan[] = [
     seats: 2,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 50,
-    blurb: "For two. The same 24/7 desk and the same included physician's retainer, with fifty hours a month of an assistant on the ground behind it — enough that they know your household rather than your last request.",
+    blurb: "Covers 2 clients. The same 24/7 desk and the same included physician's retainer, with fifty hours a month of an assistant on the ground behind it — enough that they know your household rather than your last request.",
   },
   {
     id: "elite-private",
@@ -490,7 +490,7 @@ export const PLANS: Plan[] = [
     seats: 6,
     features: [...PLUS_FEATURES, ...ELITE_ONLY],
     includedConciergeHours: 200,
-    blurb: "For up to six. A 24/7 desk and a named team, two hundred hours a month of their time on the ground, the physician's retainer included, and at-home doctor visits arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
+    blurb: "Covers up to 6 clients. A 24/7 desk and a named team, two hundred hours a month of their time on the ground, the physician's retainer included, and at-home doctor visits arranged for anyone on the membership — not just a referral, a doctor who comes to you.",
   },
 ];
 
