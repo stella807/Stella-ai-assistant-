@@ -9,6 +9,7 @@
  * partnerships — all of which the user can see.
  */
 
+import { includedHoursOverride } from "./included-hours.ts";
 import { planSwitchFor } from "./plan-switches.ts";
 import { isEnabled } from "./features.ts";
 
@@ -569,7 +570,7 @@ export function deskTaskAllowanceFor(id: PlanId): number {
 
 /** The hours a plan's price already covers each month. Zero on Free. */
 export function includedConciergeHours(id: PlanId): number {
-  return findPlan(id).includedConciergeHours ?? 0;
+  return includedHoursOverride(id) ?? findPlan(id).includedConciergeHours ?? 0;
 }
 
 /**

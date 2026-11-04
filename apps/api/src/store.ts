@@ -262,6 +262,8 @@ export interface Db {
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */
   monthlyFreebies?: MonthlyFreebies;
   /** The owner's on/off for the Free and Basic plans; unset means the built-in behaviour. */
+  /** The owner's included assistant hours per plan; a plan with no entry keeps its built-in number. */
+  includedHours?: Record<string, number>;
   planSwitches?: { free?: boolean; basic?: boolean };
   /** The owner's count of people wanted per job; a job with no entry uses the built-in number. */
   hiringTargets?: Partial<Record<StaffRole, number>>;

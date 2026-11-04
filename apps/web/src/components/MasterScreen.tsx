@@ -4,7 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
-import { api, type HiringRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
@@ -327,6 +327,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.account.role === "owner" && <VendorsSection />}
 
       {overview.account.role === "owner" && <PlansOnOfferSection />}
+      {overview.account.role === "owner" && <IncludedHoursSection />}
       {overview.account.role === "owner" && <HiringSection />}
       {overview.account.role === "owner" && <PricingSection />}
 
@@ -895,6 +896,61 @@ function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promi
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
       {note && <div className="banner banner-safe">{note}</div>}
     </div>
+  );
+}
+
+function IncludedHoursSection() {
+  const [rows, setRows] = useState<IncludedHoursRow[] | null>(null);
+  const [max, setMax] = useState(500);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    api.masterGetIncludedHours().then((r) => { setRows(r.plans); setMax(r.maxHours); }).catch(() => setError("Could not load included hours."));
+  }, []);
+  const usd = (cents: number) => `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toFixed(2)}`;
+  const save = async (p: IncludedHoursRow) => {
+    const text = (drafts[p.id] ?? "").trim();
+    const hours = Number(text);
+    if (!/^[0-9]{1,3}$/.test(text) || hours > max) { setError(`Enter whole hours from 0 to ${max}.`); return; }
+    setBusy(p.id); setError(null); setNote(null);
+    try {
+      const r = await api.masterSetIncludedHours(p.id, hours);
+      setRows(r.plans);
+      setDrafts((d) => { const { [p.id]: _gone, ...rest } = d; return rest; });
+      setNote(`${p.name} now includes ${hours} assistant ${hours === 1 ? "hour" : "hours"} a month.`);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? `Could not save: ${err.message}` : "Could not save.");
+    } finally { setBusy(null); }
+  };
+  return (
+    <section className="card stack" style={{ gap: 8 }}>
+      <h3 style={{ margin: 0 }}>Included assistant hours</h3>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        How many hours of a personal assistant each plan gives a month. The plan cards, comparison table and booking price follow it.
+        "If all used" is the worst month: every hour used, paid to the assistant at the current hourly rate, after the card fee.
+      </p>
+      {!rows && !error && <p className="tiny muted">Loading...</p>}
+      {rows?.map((p) => (
+        <div key={p.id} className="stack" style={{ gap: 2 }}>
+          <label className="row-between small" style={{ gap: 8 }}>
+            <span>{p.name} <span className="tiny muted">(${(p.monthlyCents / 100).toFixed(2)}/mo, now {p.hours} hr)</span></span>
+            <span className="row" style={{ gap: 6 }}>
+              <input type="text" inputMode="numeric" aria-label={`${p.name} included hours`} style={{ width: 70, padding: 8, borderRadius: 4 }}
+                placeholder={String(p.hours)} value={drafts[p.id] ?? ""} disabled={busy !== null}
+                onChange={(e) => { setDrafts({ ...drafts, [p.id]: e.target.value }); setError(null); setNote(null); }} />
+              <button className="btn" onClick={() => void save(p)} disabled={busy !== null || !(drafts[p.id] ?? "").trim()}>{busy === p.id ? "Saving..." : "Save"}</button>
+            </span>
+          </label>
+          <span className="tiny" style={{ color: p.marginIfAllUsedCents < 0 ? "var(--danger, #c0392b)" : undefined }}>
+            If all used: assistant costs {usd(p.fullUseCostCents)}, leaving {usd(p.marginIfAllUsedCents)} on the plan{p.marginIfAllUsedCents < 0 ? " (a loss if a member uses every hour)" : ""}.
+          </span>
+        </div>
+      ))}
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+      {note && <div className="banner banner-safe">{note}</div>}
+    </section>
   );
 }
 

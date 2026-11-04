@@ -1,4 +1,4 @@
-import { setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
+import { setIncludedHours, setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
@@ -218,6 +218,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       setMonthlyFreebies(ctx.store.data.monthlyFreebies ?? null);
       setPayDeltas(payDeltasFrom(ctx.store.data.priceOverrides));
       setPlanSwitches(ctx.store.data.planSwitches ?? null);
+      setIncludedHours(ctx.store.data.includedHours ?? null);
       const params = { ...Object.fromEntries(url.searchParams), ...found.params };
       send(res, 200, await found.handler(ctx, params, body), method === "HEAD");
     } catch (err) {

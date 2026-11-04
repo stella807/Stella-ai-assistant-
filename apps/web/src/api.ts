@@ -910,6 +910,9 @@ export const api = {
    *  server refuses an observed step outright — see launch-plan.ts. */
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
+  masterGetIncludedHours: () => request<{ plans: IncludedHoursRow[]; maxHours: number }>("GET", "/api/master/included-hours"),
+  masterSetIncludedHours: (plan: string, hours: number) =>
+    request<{ plans: IncludedHoursRow[]; maxHours: number }>("POST", "/api/master/included-hours", { plan, hours }),
   masterGetPlans: () => request<{ plans: PlanSwitchRow[] }>("GET", "/api/master/plans"),
   masterSetPlan: (plan: "free" | "basic", on: boolean) => request<{ plans: PlanSwitchRow[] }>("POST", "/api/master/plans", { plan, on }),
   masterGetHiring: () => request<{ jobs: HiringRow[] }>("GET", "/api/master/hiring"),
@@ -926,6 +929,11 @@ export const api = {
   masterProcessPayroll: (period: string) =>
     request<any>("POST", "/api/master/payroll/process", { period }),
 };
+
+export interface IncludedHoursRow {
+  id: string; name: string; monthlyCents: number; defaultHours: number; hours: number;
+  fullUseCostCents: number; marginIfAllUsedCents: number;
+}
 
 export interface PlanSwitchRow { id: "free" | "basic"; name: string; on: boolean; members: number }
 

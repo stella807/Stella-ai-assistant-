@@ -4,7 +4,7 @@ import {
 } from "@safehubby/core";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
-  isPlanReleased, releasedPlans, setPlanSwitches,
+  isPlanReleased, releasedPlans, setPlanSwitches, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
@@ -1161,6 +1161,21 @@ function hiringRows(ctx: Ctx) {
     const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
     const target = ctx.store.data.hiringTargets?.[r.id] ?? OPEN_POSITIONS[r.id];
     return { id: r.id, label: r.label, target, defaultTarget: OPEN_POSITIONS[r.id], hired, openings: Math.max(0, target - hired) };
+  });
+}
+
+/** Each plan with included hours: the number, and what it costs if a member uses every one. */
+function includedHoursRows(ctx: Ctx) {
+  void ctx;
+  return PLANS.filter((p) => p.includedConciergeHours !== undefined).map((p) => {
+    const hours = includedConciergeHours(p.id);
+    const costCents = hours * livePaHourlyPayCents();
+    const feeCents = Math.round(p.monthlyCents * PROCESSOR_FEE_RATE + PROCESSOR_FEE_FIXED_CENTS);
+    return {
+      id: p.id, name: p.name, monthlyCents: p.monthlyCents, defaultHours: p.includedConciergeHours as number, hours,
+      // The worst month: every included hour used, paid to the assistant at the live hourly rate.
+      fullUseCostCents: costCents, marginIfAllUsedCents: p.monthlyCents - feeCents - costCents,
+    };
   });
 }
 
@@ -6348,6 +6363,36 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Master: the assistant hours each plan includes a month, with what they cost if every one is used. */
+  "GET /api/master/included-hours": (ctx) => {
+    requireAdmin(ctx, "money");
+    return { plans: includedHoursRows(ctx), maxHours: MAX_INCLUDED_HOURS };
+  },
+
+  /** Master: set how many assistant hours a plan includes a month. */
+  "POST /api/master/included-hours": (ctx, _p, body) => {
+    requireAdmin(ctx, "money");
+    requireAdmin(ctx, "write");
+    const account = masterAccountOf(ctx);
+    const plan = PLANS.find((p) => p.id === body?.plan && p.includedConciergeHours !== undefined);
+    if (!plan) throw new HttpError(400, "That plan has no included hours to set.");
+    const hours = Number(body?.hours);
+    if (!Number.isInteger(hours) || hours < 0 || hours > MAX_INCLUDED_HOURS) {
+      throw new HttpError(400, `Included hours must be a whole number from 0 to ${MAX_INCLUDED_HOURS}.`);
+    }
+    ctx.store.update((db) => {
+      db.includedHours = { ...db.includedHours, [plan.id]: hours };
+      if (account) {
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "operations",
+          subject: `${plan.id} included hours set to ${hours}`, at: ctx.now().toISOString(),
+        });
+      }
+    });
+    setIncludedHours(ctx.store.data.includedHours);
+    return { plans: includedHoursRows(ctx), maxHours: MAX_INCLUDED_HOURS };
   },
 
   /** Master: whether the Free and Basic plans are on offer, and how many members each has. */
