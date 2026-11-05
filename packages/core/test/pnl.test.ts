@@ -142,7 +142,7 @@ describe("the monthly profit calculator", () => {
 
   describe("drivers' pay", () => {
     it("pays each trip the base plus the miles and the minutes, from the published card", () => {
-      const r = monthlyProfit(base({ driverTrips: 20, driverTier: "standard", driverMiles: 5, driverMinutes: 15 }));
+      const r = monthlyProfit(base({ driverTrips: 20, driverTier: "standard", driverMiles: 5, driverMinutes: 15, driverFareCents: 0 }));
       const perTrip = 300 + 90 * 5 + 18 * 15; // $3.00 + $0.90/mi + $0.18/min
       expect(r.payouts.driversCents).toBe(20 * perTrip);
       const line = r.lines.find((l) => l.id === "drivers")!;
@@ -164,6 +164,15 @@ describe("the monthly profit calculator", () => {
       expect(line.revenueCents).toBe(10 * 8_000);
       expect(line.profitCents).toBe(10 * (8_000 - pay - errandCardCostCents(8_000)));
       expect(line.profitCents).toBeGreaterThan(0);
+    });
+
+    it("charges the client $85 a trip unless told otherwise, and keeps the rest after the driver and Stripe", () => {
+      expect(defaultPnlInputs().driverFareCents).toBe(8_500);
+      const r = monthlyProfit(base({ driverTrips: 100 }));
+      const pay = 300 + 90 * 5 + 18 * 15;
+      const line = r.lines.find((l) => l.id === "drivers")!;
+      expect(line.revenueCents).toBe(100 * 8_500);
+      expect(line.profitCents).toBe(100 * (8_500 - pay - errandCardCostCents(8_500)));
     });
 
     it("is nothing with no trips", () => {

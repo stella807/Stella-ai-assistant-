@@ -90,7 +90,7 @@ export function ProfitCalculatorSection() {
       </label>
       {count("driverMiles", "Typical trip: miles")}
       {count("driverMinutes", "Typical trip: minutes")}
-      {dollars("driverFareCents", "What a client pays per trip ($, 0 if not set)")}
+      {dollars("driverFareCents", "What a client pays per trip ($)")}
       <label className="row-between small">Typical errand size
         <select value={inputs.errandTier} style={{ width: 150 }} onChange={(e) => set("errandTier", e.target.value as ErrandTierId)}>
           {ERRAND_TIERS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}

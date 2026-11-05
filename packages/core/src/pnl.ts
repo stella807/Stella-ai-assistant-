@@ -39,7 +39,7 @@ export interface PnlInputs {
   paidErrands: number;
   errandTier: ErrandTierId;
   errandCapCents: number;
-  /** Trips by drivers Safehubby hires itself, in a month: the tier, a typical trip, and what a client pays per trip (0 if not set, which shows only the pay). */
+  /** Trips by drivers Safehubby hires itself, in a month: the tier, a typical trip, and what a client pays per trip ($85 unless changed; 0 shows only the pay). */
   driverTrips: number;
   driverTier: DriverTier;
   driverMiles: number;
@@ -98,7 +98,7 @@ export const defaultPnlInputs = (): PnlInputs => ({
   driverTier: "standard",
   driverMiles: 5,
   driverMinutes: 15,
-  driverFareCents: 0,
+  driverFareCents: 8_500, // what a client pays per trip, per the owner
   errandTier: "nearby-store",
   errandCapCents: ERRAND_REFERENCE_CAP_CENTS,
   clubMembers: 0,
