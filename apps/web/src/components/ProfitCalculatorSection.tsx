@@ -28,6 +28,15 @@ export function ProfitCalculatorSection() {
 
   useEffect(() => {
     api.masterFreebies().then((r) => setMonthlyFreebies(r.freebies)).catch(() => undefined).finally(() => setReady(true));
+    // Start from the driver pay you have set in Pricing Controls, so the calculator follows the app: the flat pay
+    // when there are no per-mile or per-minute amounts, otherwise a typical 5-mile, 15-minute trip. You can still type over it.
+    api.masterGetPricing().then((p) => {
+      const d = p?.current?.driverStandard as { baseCents: number; perMileCents: number; perMinuteCents: number } | undefined;
+      if (d && Number.isFinite(d.baseCents)) {
+        const pay = Math.round(d.baseCents + d.perMileCents * 5 + d.perMinuteCents * 15);
+        setInputs((i) => ({ ...i, driverPayPerTripCents: pay }));
+      }
+    }).catch(() => undefined);
   }, []);
 
   const result = useMemo(() => monthlyProfit(inputs), [inputs, ready]); // eslint-disable-line react-hooks/exhaustive-deps
