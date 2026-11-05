@@ -324,7 +324,7 @@ export function PublicWorkerPay({ heading = true }: { heading?: boolean } = {}) 
       <div className="card card-quiet stack" style={{ gap: 2 }}>
         <span className="tiny muted">{t("pay.drivers")}</span>
         <strong className="small">
-          {t("pay.driverLine")
+          {t(standard.perMileCents === 0 && standard.perMinuteCents === 0 ? "pay.driverFlat" : "pay.driverLine")
             .replace("{base}", money(standard.baseCents))
             .replace("{mile}", money(standard.perMileCents))
             .replace("{minute}", money(standard.perMinuteCents))}

@@ -63,12 +63,13 @@ export interface DriverRate {
  * because a number elsewhere went up.
  */
 export const DRIVER_RATE_CARD: Record<DriverTier, DriverRate> = {
-  standard: { baseCents: 300, perMileCents: 90, perMinuteCents: 18 },
-  // Set below what an Uber Black driver takes home, at ownership's direction:
-  // Uber Black riders pay about $2.50-$4.00/mi and $0.40-$0.65/min, and its
-  // drivers keep roughly 75-80% after commission (~$1.90-$3.20/mi). Was $15 +
-  // $4.50/mi + $0.60/min, which paid ~$117/hr — far above Black.
-  "secure-transport": { baseCents: 600, perMileCents: 200, perMinuteCents: 35 },
+  // $85 a trip, regardless of distance or time, on both tiers, at ownership's direction. It is more than an Uber
+  // Black driver takes home on a typical trip (a 5-mile, 15-minute one nets about $15-$25), so the old note below
+  // about paying under Uber Black no longer describes this card. The base-plus-miles-plus-minutes shape is kept
+  // (miles and minutes at zero) so the owner can still add them in `/master`.
+  standard: { baseCents: 8500, perMileCents: 0, perMinuteCents: 0 },
+  // Also $85 a trip. It used to be set below what an Uber Black driver takes home ($6 + $2/mi + $0.35/min).
+  "secure-transport": { baseCents: 8500, perMileCents: 0, perMinuteCents: 0 },
 };
 
 export function driverRateFor(tier: DriverTier): DriverRate {

@@ -6513,7 +6513,7 @@ describe("master pricing controls", () => {
     const { cookie } = await masterLogin("owner");
     const start = (await call("GET", "/api/catalog")).json.driverRates;
     // The dashboard and the application begin from the same published rate card.
-    expect(start.standard).toEqual({ baseCents: 300, perMileCents: 90, perMinuteCents: 18 });
+    expect(start.standard).toEqual({ baseCents: 8500, perMileCents: 0, perMinuteCents: 0 });
     expect((await callAdmin("GET", "/api/master/pricing")).json.current.driverSecureTransport).toEqual(start["secure-transport"]);
 
     const set = (body: object) => call("POST", "/api/master/pricing/override", { roleOrService: "driver-standard", ...body }, null, cookie);

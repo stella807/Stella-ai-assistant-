@@ -156,7 +156,7 @@ export function DriveSignupScreen({ onBack }: { onBack: () => void }) {
         </p>
         <p className="tiny muted">
           {w.example(exampleCents)}
-          {tier === "secure-transport" ? w.secureWhy : ""}
+          {tier === "secure-transport" && (rates["secure-transport"]?.baseCents ?? 0) > (rates.standard?.baseCents ?? 0) ? w.secureWhy : ""}
         </p>
         <p className="tiny muted">{w.notLive}</p>
       </section>

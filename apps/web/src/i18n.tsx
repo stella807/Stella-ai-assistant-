@@ -236,6 +236,7 @@ const EN = {
   "pay.runnersNote": "A set amount for each errand, bigger for a longer one. It includes your time and your driving.",
   "pay.drivers": "Drivers",
   "pay.driverLine": "{base} a trip + {mile} a mile + {minute} a minute",
+  "pay.driverFlat": "{base} a trip, regardless of distance or time",
   "pay.note": "The same rate in every market we work. Safehubby's cut is added on top, never taken out of your pay.",
 
   "invest.heading": "Invest in Safehubby",
@@ -553,6 +554,7 @@ const ES: Record<TranslationKey, string> = {
   "pay.runnersNote": "Una cantidad fija por cada mandado, mayor si es más largo. Incluye tu tiempo y tu manejo.",
   "pay.drivers": "Choferes",
   "pay.driverLine": "{base} por viaje + {mile} por milla + {minute} por minuto",
+  "pay.driverFlat": "{base} por viaje, sin importar la distancia ni el tiempo",
   "pay.note": "La misma tarifa en cada mercado donde trabajamos. La parte de Safehubby se suma aparte; nunca sale de tu pago.",
 
   "invest.heading": "Invierte en Safehubby",

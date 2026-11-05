@@ -12,6 +12,8 @@ on under pressure.
 
 `packages/core/src/driver-pay.ts` defines `DRIVER_RATE_CARD` — a base fare
 plus a per-mile and per-minute rate, set independently for each `DriverTier`.
+Today both tiers pay a flat **$85 a trip, regardless of distance or time**
+(base $85, miles and minutes at zero).
 This is not the same rate card personal-concierge assistants are paid from
 (`CONCIERGE_ASSISTANT_PAYOUT_CENTS` in `concierge.ts`), and deliberately shaped
 differently: a concierge task is a bounded, discrete job priced flat per

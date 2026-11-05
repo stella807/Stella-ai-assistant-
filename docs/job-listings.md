@@ -208,18 +208,10 @@ Drive people home. Two tiers:
 
 ## What you get paid
 
-Per trip, on a published rate card:
-
-| Tier | Base | Per mile | Per minute |
-|---|---|---|---|
-| Standard | $3.00 | $0.90 | $0.18 |
-| Secure transport | $15.00 | $4.50 | $0.60 |
-
-A 6-mile, 15-minute standard trip pays $11.10. The same trip on secure
-transport pays $51.00.
-
-Secure transport costs more because it *is* more — it is not standard driving
-with a bigger number attached. Standard is deliberately not inflated to match.
+**$85 per trip, regardless of distance or time**, on both tiers. It is more than
+an Uber Black driver takes home on a typical trip. (The rate card is still a
+base plus miles and minutes underneath, with the miles and minutes at zero, so
+the owner can change it in `/master`.)
 
 Pay runs every two weeks.
 

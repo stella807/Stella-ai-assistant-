@@ -137,8 +137,9 @@ export const DRIVE = {
     secureNote: "For licensed protective-services, military, or law-enforcement professionals. Requires a verifiable protective-services licence in addition to everything below.",
     standardNote: "A driving licence, a roadworthy vehicle, and a background check.",
     pay: "Pay",
-    payLine: (base: number, mile: number, minute: number) =>
-      `${usd(base)} per trip, plus ${usd(mile)}/mile and ${usd(minute)}/minute — a base, plus what the trip actually costs in distance and time, not one flat number for every trip length.`,
+    payLine: (base: number, mile: number, minute: number) => mile === 0 && minute === 0
+      ? `${usd(base)} per trip, regardless of distance or time.`
+      : `${usd(base)} per trip, plus ${usd(mile)}/mile and ${usd(minute)}/minute — a base, plus what the trip actually costs in distance and time, not one flat number for every trip length.`,
     example: (cents: number) => `Example: a 5-mile, 15-minute trip pays about ${usd(cents)}.`,
     secureWhy: " Higher than standard by design — it reflects the real, ongoing cost of a licensed protective-services driver's insurance and training, not a premium for the job sounding riskier.",
     notLive: "Nobody is dispatched from this list yet — see the note after you apply. This is the rate that will apply once driving for Safehubby is live, published now rather than decided later.",
@@ -160,8 +161,9 @@ export const DRIVE = {
     secureNote: "Para profesionales con licencia de servicios de protección, militares o de la policía. Requiere una licencia de servicios de protección verificable además de todo lo de abajo.",
     standardNote: "Licencia de conducir, un vehículo en buenas condiciones y una verificación de antecedentes.",
     pay: "Pago",
-    payLine: (base: number, mile: number, minute: number) =>
-      `${usd(base)} por viaje, más ${usd(mile)} por milla y ${usd(minute)} por minuto: una base, más lo que el viaje realmente cuesta en distancia y tiempo, no una sola cifra para cualquier viaje.`,
+    payLine: (base: number, mile: number, minute: number) => mile === 0 && minute === 0
+      ? `${usd(base)} por viaje, sin importar la distancia ni el tiempo.`
+      : `${usd(base)} por viaje, más ${usd(mile)} por milla y ${usd(minute)} por minuto: una base, más lo que el viaje realmente cuesta en distancia y tiempo, no una sola cifra para cualquier viaje.`,
     example: (cents: number) => `Ejemplo: un viaje de 5 millas y 15 minutos paga cerca de ${usd(cents)}.`,
     secureWhy: " Más alto que el estándar a propósito: refleja el costo real del seguro y el entrenamiento de un chofer de protección con licencia, no un extra porque el trabajo suene más arriesgado.",
     notLive: "Todavía no se despacha a nadie de esta lista; mira la nota después de solicitar. Esta es la tarifa que aplicará cuando manejar para Safehubby esté activo, publicada ahora y no decidida después.",
