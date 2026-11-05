@@ -128,6 +128,8 @@ export interface Account {
   displayName: string;
   planId: string;
   homeLabel: string;
+  /** Whether they have agreed to the current terms, privacy policy, disclosures and armed-personnel consent. */
+  consentAccepted?: boolean;
 }
 
 export type PaymentProcessor = "paypal" | "stripe";
@@ -370,6 +372,8 @@ export const api = {
     /** Whoever invited them, if they arrived on a ?ref= link or typed a code.
      *  An unknown code is ignored server-side rather than failing signup. */
     referralCode?: string;
+    /** The box they check to agree; the server refuses an account without it. */
+    acceptedTerms: boolean;
   }) =>
     request<{ traveler: Account }>("POST", "/api/auth/signup", input),
   share: () => request<ShareInvite>("GET", "/api/account/invite"),
@@ -387,6 +391,7 @@ export const api = {
   login: (input: { email: string; password: string }) =>
     request<{ traveler: Account }>("POST", "/api/auth/login", input),
   logout: () => request<{ ok: true }>("POST", "/api/auth/logout", {}),
+  acceptConsent: () => request<{ consentAccepted: true }>("POST", "/api/account/consent", { accepted: true }),
   exportAccount: () => request<Record<string, unknown>>("GET", "/api/account/export"),
   /** Basic is for members 65 and over; the ID that opens it. Never returns the document. */
   seniorId: () => request<SeniorIdView>("GET", "/api/account/senior-id"),

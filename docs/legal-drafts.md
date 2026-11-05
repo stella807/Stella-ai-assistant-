@@ -42,3 +42,18 @@ These are deliberately left open in the text rather than guessed:
 - Included hours, planned versus on-demand, $45 an hour: `included-grabs.ts`.
 - Cancellation in one tap, paid features to the end of the period:
   `docs/billing.md`.
+
+## The box a client checks to agree
+
+- **At sign-up** the form has a required checkbox: agree to the Terms of
+  Service, Privacy Policy and Client Disclosures, and allow armed personnel
+  (licensed bodyguards) to be with them when they book armed protection. The
+  server refuses an account without `acceptedTerms: true`, and records the
+  version (`CONSENT_VERSION`) and the date on the account.
+- **Before a first armed booking**, a member who signed up earlier (or under an
+  older version) sees the same box and must check it. The server refuses armed
+  quotes and bookings until the agreement is recorded.
+- It says "when I book armed protection", not "at all times": assistants are
+  unarmed, hospital stays never have firearms, and armed protection is
+  regulated guard work. A wider consent is a question for counsel.
+- To ask everyone again after the wording changes, bump `CONSENT_VERSION`.

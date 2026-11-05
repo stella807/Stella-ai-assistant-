@@ -20,6 +20,8 @@ import type {
   LaunchMarketId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
+import { ConsentBox } from "./ConsentBox.tsx";
+import { consentCopy } from "../app/consent-copy.ts";
 import { currentFix, type Fix } from "../native/location.ts";
 import type { Account } from "../api.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
@@ -112,6 +114,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const lang: Lang = language === "es" ? "es" : "en";
   const w = askWords(lang);
   const c = conciergeWords(lang);
+  const consent = consentCopy(lang);
   /** What the panel calls itself, per tab. A card headed "Personal concierge"
    *  sitting under a tab labelled "Small errands" is the two disagreeing about
    *  what you just picked. */
@@ -131,6 +134,11 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
   // Optional start time for hourly work. A day or more ahead uses the plan's planned hours.
   const [startLocal, setStartLocal] = useState("");
+  // Whether they have agreed to armed personnel being with them; asked once, before a first armed booking.
+  const [consentOk, setConsentOk] = useState(account.consentAccepted === true);
+  const [consentTick, setConsentTick] = useState(false);
+  const [consentBusy, setConsentBusy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   /** "Wait with someone" for a patient in hospital: the day rate, not hourly. */
   const [hospitalStay, setHospitalStay] = useState(false);
   /** A safety job somewhere with no security, done by an armed, licensed assistant. */
@@ -301,6 +309,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const bookedHours = hourly ? clampHours(hours) : undefined;
   const isHospitalStay = hospitalStay && category === HOSPITAL_STAY_CATEGORY;
   const isArmed = armedJob && !isHospitalStay && ARMED_CATEGORIES.includes(category);
+  const armedBlocked = isArmed && !consentOk;
   const usedThisMonth = includedGrabs?.used ?? Number.POSITIVE_INFINITY;
   const feeIncluded = isGrabIncluded({ planId, category, quickTask: effectiveQuickTask, errandTier: tier, usedThisMonth });
   const serviceFee = customerServiceFeeFor({
@@ -770,6 +779,19 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         </label>
       )}
 
+      {armedBlocked && (
+        <div className="card stack" style={{ gap: 6 }}>
+          <strong className="small">{consent.armedHeading}</strong>
+          <p className="tiny muted" style={{ margin: 0 }}>{consent.armedBody}</p>
+          <ConsentBox checked={consentTick} onChange={(v) => { setConsentTick(v); setConsentError(null); }} />
+          <button className="btn" disabled={!consentTick || consentBusy} onClick={() => {
+            setConsentBusy(true); setConsentError(null);
+            api.acceptConsent().then(() => setConsentOk(true)).catch(() => setConsentError(consent.failed)).finally(() => setConsentBusy(false));
+          }}>{consent.save}</button>
+          {consentError && <div className="banner banner-danger" role="alert">{consentError}</div>}
+        </div>
+      )}
+
       {category === HOSPITAL_STAY_CATEGORY && !simple && !isArmed && (
         <label className="row small" style={{ gap: 8, alignItems: "center" }}>
           <input type="checkbox" checked={hospitalStay} onChange={(e) => { setHospitalStay(e.target.checked); setRoster(null); }} />
@@ -915,7 +937,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           just without waiting for the notification to actually land since
           the customer is already looking at the screen that would send it. */}
       {useConfirmFlow && !confirming && (
-        <button className="btn btn-block" disabled={busy || !note.trim() || covered === false || !onBehalfReady} onClick={startConfirm}>
+        <button className="btn btn-block" disabled={busy || armedBlocked || !note.trim() || covered === false || !onBehalfReady} onClick={startConfirm}>
           {simple ? w.send : c.sendRequest}
         </button>
       )}
@@ -937,7 +959,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
 
       {!useConfirmFlow && roster === null && (
         <button className="btn btn-block"
-          disabled={busy || !note.trim() || covered === false || !onBehalfReady || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
+          disabled={busy || armedBlocked || !note.trim() || covered === false || !onBehalfReady || (isAirportPickup && (!flightNumber.trim() || !flightDate))}
           onClick={browse}>
           {c.browse}
         </button>

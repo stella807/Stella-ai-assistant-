@@ -4,7 +4,7 @@ import {
 } from "@safehubby/core";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
-  isPlanReleased, releasedPlans, setPlanSwitches, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
+  isPlanReleased, releasedPlans, setPlanSwitches, CONSENT_VERSION, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
@@ -1408,9 +1408,21 @@ export function makeLimiters() {
   };
 }
 
-function publicTraveler(t: { id: string; email: string; displayName: string; planId: string; homeLabel: string }) {
+function publicTraveler(t: { id: string; email: string; displayName: string; planId: string; homeLabel: string; consentVersion?: string }) {
   // The password hash never leaves the server, even to its owner.
-  return { id: t.id, email: t.email, displayName: t.displayName, planId: t.planId, homeLabel: t.homeLabel };
+  return {
+    id: t.id, email: t.email, displayName: t.displayName, planId: t.planId, homeLabel: t.homeLabel,
+    // Whether they have agreed to the current terms, privacy policy, disclosures and armed-personnel consent.
+    consentAccepted: t.consentVersion === CONSENT_VERSION,
+  };
+}
+
+/** Armed protection needs the client's recorded agreement that armed personnel will be with them. */
+function requireArmedConsent(ctx: Ctx, travelerId: string): void {
+  const t = ctx.store.data.travelers.find((x) => x.id === travelerId);
+  if (t?.consentVersion !== CONSENT_VERSION) {
+    throw new HttpError(409, "Before booking armed protection, agree to the terms and to armed personnel being with you.");
+  }
 }
 
 /** Feature gating lives at the API boundary so the UI cannot be the only guard. */
@@ -1816,11 +1828,17 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(409, "An account already exists for that email.");
     }
 
+    // The box they check to agree: terms, privacy, disclosures, and armed personnel on armed bookings.
+    if (body?.acceptedTerms !== true) {
+      throw new HttpError(400, "Please agree to the Terms of Service, Privacy Policy and Client Disclosures to create an account.");
+    }
     const traveler = {
       id: newId("usr"),
       email,
       passwordHash: await hashPassword(body.password),
       displayName,
+      consentVersion: CONSENT_VERSION,
+      consentAcceptedAt: ctx.now().toISOString(),
       planId: "free" as const,
       homeLabel: String(body?.homeLabel ?? "Home"),
       emergencyContacts: [],
@@ -1856,6 +1874,17 @@ export const routes: Record<string, Handler> = {
     });
     ctx.setSession?.(token);
     return { traveler: publicTraveler(traveler) };
+  },
+
+  /** Records that the signed-in client agrees to the current terms, privacy policy, disclosures and armed-personnel consent. */
+  "POST /api/account/consent": (ctx, _p, body) => {
+    const me = actor(ctx);
+    if (body?.accepted !== true) throw new HttpError(400, "Check the box to agree.");
+    ctx.store.update((db) => {
+      const t = db.travelers.find((x) => x.id === me);
+      if (t) { t.consentVersion = CONSENT_VERSION; t.consentAcceptedAt = ctx.now().toISOString(); }
+    });
+    return { consentAccepted: true };
   },
 
   "POST /api/auth/login": async (ctx, _p, body) => {
@@ -3226,6 +3255,7 @@ export const routes: Record<string, Handler> = {
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input, planOf(ctx, me));
     checkStartsAt(ctx, input.startsAt);
+    if (input.armed) requireArmedConsent(ctx, me);
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
 
@@ -3329,6 +3359,7 @@ export const routes: Record<string, Handler> = {
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input, planOf(ctx, me));
     checkStartsAt(ctx, input.startsAt);
+    if (input.armed) requireArmedConsent(ctx, me);
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
     // Looked up server-side, from the flight number and date alone — never

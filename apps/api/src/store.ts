@@ -50,6 +50,9 @@ export interface Traveler {
   email: string;
   passwordHash: string;
   displayName: string;
+  /** Which version of the consent they agreed to, and when. See `CONSENT_VERSION`. */
+  consentVersion?: string;
+  consentAcceptedAt?: string;
   // The canonical union from billing.ts rather than a copy of it — a copy
   // silently goes stale the moment a tier is added.
   planId: PlanId;

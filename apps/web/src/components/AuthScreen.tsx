@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type Account } from "../api.ts";
 import { clearReferralCode, incomingReferralCode } from "../referral.ts";
 import { useLanguage } from "../i18n.tsx";
+import { ConsentBox } from "./ConsentBox.tsx";
 
 /**
  * Sign-in gate. Deliberately plain: the interesting part of this app happens
@@ -20,6 +21,8 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
   const [referralCode, setReferralCode] = useState(incomingReferralCode());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The agree box: required to create an account.
+  const [agreed, setAgreed] = useState(false);
 
   // "Get started" on the landing page can fire after this screen already
   // mounted (it's rendered alongside LandingIntro, not after it) — react to
@@ -36,7 +39,7 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
         ? await api.login({ email, password })
         : await api.signup({
           email, password, displayName, homeLabel: homeLabel || (language === "es" ? "Casa" : "Home"),
-          referralCode: referralCode.trim() || undefined,
+          referralCode: referralCode.trim() || undefined, acceptedTerms: agreed,
         });
       if (mode === "signup") clearReferralCode();
       onSignedIn(res.traveler);
@@ -47,7 +50,7 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
     }
   };
 
-  const ready = email.trim() && password.length >= (mode === "signup" ? 10 : 1) && (mode === "login" || displayName.trim());
+  const ready = email.trim() && password.length >= (mode === "signup" ? 10 : 1) && (mode === "login" || (displayName.trim() && agreed));
 
   return (
     <div className="stack">
@@ -94,6 +97,8 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
             <span className="tiny muted">{t("auth.referralHint")}</span>
           </div>
         )}
+
+        {mode === "signup" && <ConsentBox checked={agreed} onChange={setAgreed} />}
 
         <button className="btn btn-primary btn-block" disabled={busy || !ready} onClick={submit}>
           {mode === "login" ? t("auth.signIn") : t("auth.createAccount")}

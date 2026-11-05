@@ -76,7 +76,7 @@ const callAdmin = (method: string, path: string, body?: unknown, key = "test-adm
 let sam = "", jordan = "", samId = "", jordanId = "";
 
 const signup = async (email: string, displayName: string) => {
-  const res = await call("POST", "/api/auth/signup", { email, password: "a-long-enough-passphrase", displayName });
+  const res = await call("POST", "/api/auth/signup", { email, password: "a-long-enough-passphrase", displayName, acceptedTerms: true });
   const token = /sh_session=([^;]+)/.exec(res.setCookie ?? "")?.[1] ?? "";
   return { token, id: res.json.traveler?.id as string, res };
 };
@@ -359,6 +359,37 @@ describe("authentication", () => {
   it("rejects a weak password and a malformed email", async () => {
     expect((await call("POST", "/api/auth/signup", { email: "a@b.co", password: "short", displayName: "X" })).status).toBe(400);
     expect((await call("POST", "/api/auth/signup", { email: "nope", password: "a-long-enough-passphrase", displayName: "X" })).status).toBe(400);
+  });
+
+  it("will not create an account until the client agrees, and records when they did", async () => {
+    const body = { email: "agree@example.com", password: "a-long-enough-passphrase", displayName: "Agree" };
+    const refused = await call("POST", "/api/auth/signup", body);
+    expect(refused.status).toBe(400);
+    expect(refused.json.error).toMatch(/agree/i);
+    expect((await call("POST", "/api/auth/signup", { ...body, acceptedTerms: false })).status).toBe(400);
+    const ok = await call("POST", "/api/auth/signup", { ...body, acceptedTerms: true });
+    expect(ok.status).toBe(200);
+    expect(ok.json.traveler.consentAccepted).toBe(true);
+    const saved = store.data.travelers.find((t) => t.email === "agree@example.com")!;
+    expect(saved.consentVersion).toBe("2026-11");
+    expect(typeof saved.consentAcceptedAt).toBe("string");
+  });
+
+  it("holds armed bookings until the client has agreed to armed personnel, then lets them through", async () => {
+    // Sam signed up before the agree box existed, so has no agreement on file.
+    store.update((db) => { const t = db.travelers.find((x) => x.id === samId)!; delete t.consentVersion; delete t.consentAcceptedAt; });
+    const armed = { category: "wait-with-someone", note: "Stay with me.", location: { lat: 18.45, lng: -66.07 }, spendCapCents: 2000, hours: 2, armed: true };
+    const blocked = await call("POST", "/api/concierge/quote", armed, sam);
+    expect(blocked.status).toBe(409);
+    expect(blocked.json.error).toMatch(/armed personnel/i);
+    expect((await call("POST", "/api/concierge/tasks", { ...armed, acknowledgedDisclosures: true }, sam)).status).toBe(409);
+    expect((await call("POST", "/api/account/consent", { accepted: false }, sam)).status).toBe(400);
+    expect((await call("POST", "/api/account/consent", { accepted: true })).status).toBe(401);
+    const agreed = await call("POST", "/api/account/consent", { accepted: true }, sam);
+    expect(agreed.status).toBe(200);
+    expect(store.data.travelers.find((x) => x.id === samId)!.consentVersion).toBe("2026-11");
+    // No longer held by the consent (it may still fail for another reason, such as no bodyguard nearby).
+    expect((await call("POST", "/api/concierge/quote", armed, sam)).status).not.toBe(409);
   });
 
   it("refuses a duplicate account", async () => {
@@ -3872,7 +3903,7 @@ describe("the launch party and the share loop", () => {
     const before = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
 
     const joined = await call("POST", "/api/auth/signup", {
-      email: "riley@example.com", password: "a-long-enough-passphrase", displayName: "Riley",
+      email: "riley@example.com", password: "a-long-enough-passphrase", displayName: "Riley", acceptedTerms: true,
       referralCode: code,
     });
     expect(joined.status).toBe(200);
@@ -3887,7 +3918,7 @@ describe("the launch party and the share loop", () => {
     const code = (await call("GET", "/api/share", undefined, sam)).json.code;
     const sloppy = code.replace("-", "").toLowerCase();
     const joined = await call("POST", "/api/auth/signup", {
-      email: "nico@example.com", password: "a-long-enough-passphrase", displayName: "Nico",
+      email: "nico@example.com", password: "a-long-enough-passphrase", displayName: "Nico", acceptedTerms: true,
       referralCode: sloppy,
     });
     expect(joined.status).toBe(200);
@@ -3896,7 +3927,7 @@ describe("the launch party and the share loop", () => {
 
   it("still creates the account when the code is wrong, rather than losing a signup to a typo", async () => {
     const joined = await call("POST", "/api/auth/signup", {
-      email: "ada@example.com", password: "a-long-enough-passphrase", displayName: "Ada",
+      email: "ada@example.com", password: "a-long-enough-passphrase", displayName: "Ada", acceptedTerms: true,
       referralCode: "ZZZ-999",
     });
     expect(joined.status).toBe(200);
@@ -3906,7 +3937,7 @@ describe("the launch party and the share loop", () => {
 
   it("records nothing for a signup with no code at all", async () => {
     await call("POST", "/api/auth/signup", {
-      email: "kit@example.com", password: "a-long-enough-passphrase", displayName: "Kit",
+      email: "kit@example.com", password: "a-long-enough-passphrase", displayName: "Kit", acceptedTerms: true,
     });
     expect(store.data.referrals).toHaveLength(0);
   });
