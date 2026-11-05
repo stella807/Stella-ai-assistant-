@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CALCULATOR_PLANS, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, type CalculatorPlan, type PnlInputs } from "@safehubby/core";
+import { CALCULATOR_PLANS, ERRAND_TIERS, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, type CalculatorPlan, type ErrandTierId, type PnlInputs } from "@safehubby/core";
 import { api } from "../api.ts";
 
 const STORE = "sh_pnl_scenarios";
@@ -37,9 +37,9 @@ export function ProfitCalculatorSection() {
       <input type="number" min={0} max={100} step={5} style={{ width: 80 }} value={Math.round(inputs[k] * 100)} onChange={(e) => set(k, num(e.target.value) / 100)} />
     </label>
   );
-  const dollars = (k: "payrollCents" | "otherFixedCents" | "cashCents" | "keptPerErrandCents", label: string) => (
+  const dollars = (k: "payrollCents" | "otherFixedCents" | "cashCents" | "errandCapCents", label: string) => (
     <label className="row-between small">{label}
-      <input type="number" min={0} step={k === "keptPerErrandCents" ? 0.25 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
+      <input type="number" min={0} step={k === "errandCapCents" ? 1 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
     </label>
   );
   const count = (k: "extraAssistantHours" | "paidErrands" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
@@ -73,7 +73,12 @@ export function ProfitCalculatorSection() {
       {count("clubMembers", "Wingman Club members ($99)")}
       {count("extraAssistantHours", "Extra assistant hours sold")}
       {count("paidErrands", "Errands with a fee")}
-      {dollars("keptPerErrandCents", "Kept per errand ($)")}
+      <label className="row-between small">Typical errand size
+        <select value={inputs.errandTier} style={{ width: 150 }} onChange={(e) => set("errandTier", e.target.value as ErrandTierId)}>
+          {ERRAND_TIERS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </label>
+      {dollars("errandCapCents", "Typical purchase per errand ($)")}
 
       <strong className="tiny muted">Assumptions</strong>
       {pct("usage", "% of included hours & pickups used")}
@@ -86,6 +91,17 @@ export function ProfitCalculatorSection() {
       {count("insuredPeople", "People insured ($75 each)")}
       {dollars("otherFixedCents", "Hosting, tools, marketing ($)")}
       {dollars("cashCents", "Cash in the bank ($)")}
+
+      <div className="card stack" style={{ gap: 4, background: "rgba(0,0,0,0.03)" }} aria-label="What you keep">
+        <div className="row-between"><strong>What you keep each month</strong>
+          <strong style={{ color: result.netCents < 0 ? "#e5484d" : undefined }}>{money(result.netCents)}</strong></div>
+        <span className="tiny muted">
+          After paying every assistant and errand runner, Stripe's fees and your fixed costs below. That is your profit, and what you can pay yourself.
+        </span>
+        <div className="row-between tiny"><span className="muted">Paid to assistants</span><span>{money(result.payouts.assistantsCents)}</span></div>
+        <div className="row-between tiny"><span className="muted">Paid to errand runners</span><span>{money(result.payouts.runnersCents)}</span></div>
+        <div className="row-between tiny"><span className="muted">Stripe fees and task cards</span><span>{money(result.payouts.cardFeesCents)}</span></div>
+      </div>
 
       <strong className="tiny muted">Where profit comes from</strong>
       {result.lines.length === 0 && <p className="tiny muted" style={{ margin: 0 }}>Add members above.</p>}

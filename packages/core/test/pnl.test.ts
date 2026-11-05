@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CALCULATOR_PLANS, cardFeeCents, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, defaultMonthlyFreebies,
+  errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandMarginCents, errandPayoutCents,
   type PnlInputs,
 } from "../src/index.ts";
 
@@ -82,5 +83,40 @@ describe("the monthly profit calculator", () => {
     const r = monthlyProfit(base({ usage: 9, deskMinutes: -5, clubMembers: -3, paidErrands: Number.NaN, members: members({ basic: 2.7 }) }));
     expect(Number.isFinite(r.netCents)).toBe(true);
     for (const p of CALCULATOR_PLANS) expect(Number.isFinite(r.perMemberCents[p])).toBe(true);
+  });
+
+  describe("what you keep, after paying assistants and errand runners", () => {
+    const scenario = base({
+      members: members({ "premium-basic": 100, "premium-plus": 40, family: 10, free: 80 }),
+      usage: 0.3, extraAssistantHours: 50, paidErrands: 120, errandTier: "nearby-store", errandCapCents: 2_000,
+      payrollCents: 0, insuredPeople: 2, otherFixedCents: 50_000,
+    });
+
+    it("splits the money into assistants, errand runners and Stripe, and they add up with what you keep", () => {
+      const r = monthlyProfit(scenario);
+      const revenue = r.lines.reduce((sum, l) => sum + l.revenueCents, 0);
+      expect(r.payouts.assistantsCents).toBeGreaterThan(0);
+      expect(r.payouts.runnersCents).toBeGreaterThan(0);
+      expect(r.payouts.cardFeesCents).toBeGreaterThan(0);
+      // Without the Wingman Club (whose venue costs are not worker pay), every cent of cost is one of the three payouts.
+      expect(revenue - r.payouts.assistantsCents - r.payouts.runnersCents - r.payouts.cardFeesCents).toBe(r.grossProfitCents);
+      expect(r.netCents).toBe(r.grossProfitCents - r.fixedCents);
+    });
+
+    it("pays assistants $35 an hour on the hours it counts, and the runner the real errand rate", () => {
+      const only = monthlyProfit(base({ extraAssistantHours: 10, paidErrands: 10, errandTier: "in-building", errandCapCents: 1_000 }));
+      expect(only.payouts.assistantsCents).toBe(10 * 3_500);
+      expect(only.payouts.runnersCents).toBe(10 * errandPayoutCents("in-building"));
+    });
+
+    it("works the errand income out from the real fee: the fee less the runner, Stripe and the task card", () => {
+      const r = monthlyProfit(base({ paidErrands: 100, errandTier: "nearby-store", errandCapCents: 2_000 }));
+      const line = r.lines.find((l) => l.id === "errands")!;
+      const fee = errandFeeCents("nearby-store", 2_000);
+      const kept = fee - errandPayoutCents("nearby-store") - errandCardCostCents(2_000 + fee) - errandIssuingCostCents(2_000);
+      expect(line.revenueCents).toBe(100 * fee);
+      expect(line.profitCents).toBe(100 * kept);
+      expect(kept).toBeGreaterThanOrEqual(errandMarginCents("nearby-store"));
+    });
   });
 });

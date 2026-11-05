@@ -1,7 +1,9 @@
 import { PROCESSOR_FEE_FIXED_CENTS, PROCESSOR_FEE_RATE, deskTaskAllowanceFor, findPlan, includedConciergeHours, type PlanId } from "./billing.ts";
 import { PA_CUSTOMER_HOURLY_CENTS, livePaHourlyPayCents } from "./concierge.ts";
 import { payDeltas } from "./pay-adjustments.ts";
-import { errandPayoutCents } from "./errand-tiers.ts";
+import {
+  ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandPayoutCents, type ErrandTierId,
+} from "./errand-tiers.ts";
 import { errandCreditFor, includedGrabAllowanceFor } from "./included-grabs.ts";
 import {
   CLUB_EXPERIENCES, CLUB_GROUP_RATE_MIN_MEMBERS, CLUB_INCLUDED_EVENT_MAX_CENTS, CLUB_MONTHLY_DUES_CENTS, CLUB_PREMIUM_CREDIT_CENTS,
@@ -31,9 +33,10 @@ export interface PnlInputs {
   deskMinutes: number;
   /** Assistant hours customers buy beyond what their plan includes, in a month. */
   extraAssistantHours: number;
-  /** Errands customers pay the fee on, in a month, and what Safehubby keeps on each after card fees. */
+  /** Errands customers pay the fee on, in a month, the size of a typical one, and its typical purchase. The fee, the runner's pay, the card fees and the task card are worked out from those. */
   paidErrands: number;
-  keptPerErrandCents: number;
+  errandTier: ErrandTierId;
+  errandCapCents: number;
   /** Wingman Club members, and the share who go to light outings and to bigger days. */
   clubMembers: number;
   clubLightAttendance: number;
@@ -62,6 +65,8 @@ export interface PnlResult {
   fixed: { id: string; label: string; cents: number }[];
   fixedCents: number;
   netCents: number;
+  /** Where the money went before it reached you: assistants, errand runners and the card processor (Stripe). */
+  payouts: { assistantsCents: number; runnersCents: number; cardFeesCents: number };
   /** What one more member of a plan adds to the month, at this usage. */
   perMemberCents: Record<CalculatorPlan, number>;
   /** How many more Premium members would bring the month to zero; 0 if it is already there. */
@@ -76,7 +81,8 @@ export const defaultPnlInputs = (): PnlInputs => ({
   deskMinutes: 15,
   extraAssistantHours: 0,
   paidErrands: 0,
-  keptPerErrandCents: 250,
+  errandTier: "nearby-store",
+  errandCapCents: ERRAND_REFERENCE_CAP_CENTS,
   clubMembers: 0,
   clubLightAttendance: 0.5,
   clubBigAttendance: 0.25,
@@ -94,7 +100,9 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, N
 const whole = (n: number) => Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
 
 /** What one member of a plan leaves each month: dues, less the card fee, the included hours and pickups they use, the credit, and desk-task time. */
-function planProfitPerMemberCents(plan: CalculatorPlan, usage: number, deskMinutes: number): { revenue: number; cost: number; profit: number } {
+function planProfitPerMemberCents(plan: CalculatorPlan, usage: number, deskMinutes: number): {
+  revenue: number; cost: number; profit: number; cardFee: number; assistantPay: number; runnerPay: number;
+} {
   const p = findPlan(plan);
   const revenue = p.monthlyCents;
   const hours = includedConciergeHours(plan);
@@ -102,9 +110,13 @@ function planProfitPerMemberCents(plan: CalculatorPlan, usage: number, deskMinut
   const credit = errandCreditFor(plan);
   const desk = deskTaskAllowanceFor(plan);
   const deskCents = Math.round((deskMinutes / 60) * livePaHourlyPayCents());
-  const given = hours * livePaHourlyPayCents() + grabs * errandPayoutCents("in-building") + credit + desk * deskCents;
-  const cost = cardFeeCents(revenue) + Math.round(given * usage);
-  return { revenue, cost, profit: revenue - cost };
+  const assistantGiven = hours * livePaHourlyPayCents() + desk * deskCents;
+  const runnerGiven = grabs * errandPayoutCents("in-building") + credit;
+  const cardFee = cardFeeCents(revenue);
+  const assistantPay = Math.round(assistantGiven * usage);
+  const runnerPay = Math.round(runnerGiven * usage);
+  const cost = cardFee + assistantPay + runnerPay;
+  return { revenue, cost, profit: revenue - cost, cardFee, assistantPay, runnerPay };
 }
 
 /** What a Wingman Club member leaves each month: the $99, less the card fee and the outing they go to. A mix of light months and bigger days. */
@@ -132,12 +144,14 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
   const usage = clamp(raw.usage, 0, 1);
   const deskMinutes = clamp(raw.deskMinutes, 0, 240);
   const lines: PnlLine[] = [];
+  const payouts = { assistantsCents: 0, runnersCents: 0, cardFeesCents: 0 };
 
   for (const plan of CALCULATOR_PLANS) {
     const n = whole(raw.members[plan]);
     if (n === 0) continue;
     const per = planProfitPerMemberCents(plan, usage, deskMinutes);
     const name = findPlan(plan).name;
+    payouts.assistantsCents += per.assistantPay * n; payouts.runnersCents += per.runnerPay * n; payouts.cardFeesCents += per.cardFee * n;
     lines.push({
       id: `plan-${plan}`, label: `${name} members`, revenueCents: per.revenue * n, costCents: per.cost * n, profitCents: per.profit * n,
       note: plan === "free"
@@ -151,6 +165,7 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
     const perHourFee = Math.round((PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly) * PROCESSOR_FEE_RATE + PROCESSOR_FEE_FIXED_CENTS / 2); // an average two-hour booking
     const revenue = extraHours * (PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly);
     const cost = extraHours * (livePaHourlyPayCents() + perHourFee);
+    payouts.assistantsCents += extraHours * livePaHourlyPayCents(); payouts.cardFeesCents += extraHours * perHourFee;
     lines.push({
       id: "extra-hours", label: "Assistant hours sold beyond the plans", revenueCents: revenue, costCents: cost, profitCents: revenue - cost,
       note: "Customers pay $45 an hour, the assistant earns $35, and the card fee comes off (an average two-hour booking).",
@@ -159,16 +174,26 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
 
   const errands = whole(raw.paidErrands);
   if (errands > 0) {
-    const profit = errands * whole(raw.keptPerErrandCents);
+    const tier = ERRAND_TIERS.some((t) => t.id === raw.errandTier) ? raw.errandTier : defaultPnlInputs().errandTier;
+    const cap = clamp(raw.errandCapCents, 0, 75_000);
+    // The same functions the app charges with: the fee, what the runner is paid, Stripe's cut and the task card.
+    const fee = errandFeeCents(tier, cap);
+    const runner = errandPayoutCents(tier);
+    const processing = errandCardCostCents(cap + fee);
+    const issuing = errandIssuingCostCents(cap);
+    payouts.runnersCents += errands * runner; payouts.cardFeesCents += errands * (processing + issuing);
+    const revenue = errands * fee;
+    const cost = errands * (runner + processing + issuing);
     lines.push({
-      id: "errands", label: "Errands with a fee", revenueCents: profit, costCents: 0, profitCents: profit,
-      note: "What Safehubby keeps on each after the runner's pay and the card fee. Enter your own average.",
+      id: "errands", label: "Errands with a fee", revenueCents: revenue, costCents: cost, profitCents: revenue - cost,
+      note: `Each errand charges ${(fee / 100).toFixed(2)}; the runner is paid ${(runner / 100).toFixed(2)}, and Stripe's cut and the task card come out. The purchase itself passes through to the store.`,
     });
   }
 
   const clubMembers = whole(raw.clubMembers);
   if (clubMembers > 0) {
     const per = clubProfitPerMemberCents(clubMembers, clamp(raw.clubLightAttendance, 0, 1), clamp(raw.clubBigAttendance, 0, 1));
+    payouts.cardFeesCents += clubMembers * cardFeeCents(CLUB_MONTHLY_DUES_CENTS);
     lines.push({
       id: "club", label: "Wingman Club", revenueCents: clubMembers * CLUB_MONTHLY_DUES_CENTS, costCents: clubMembers * (CLUB_MONTHLY_DUES_CENTS - per),
       profitCents: clubMembers * per,
@@ -194,5 +219,5 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
   const cash = whole(raw.cashCents);
   const runwayMonths = netCents < 0 && cash > 0 ? Math.round((cash / -netCents) * 10) / 10 : null;
 
-  return { lines, grossProfitCents, fixed, fixedCents, netCents, perMemberCents, premiumToBreakEven, runwayMonths };
+  return { lines, grossProfitCents, fixed, fixedCents, netCents, payouts, perMemberCents, premiumToBreakEven, runwayMonths };
 }
