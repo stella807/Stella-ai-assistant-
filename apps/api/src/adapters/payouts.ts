@@ -8,7 +8,7 @@ import { statusFor } from "@safehubby/core";
  * still works out every 14 days what each assistant is owed (and holds back
  * the 10% for Hacienda in Puerto Rico), and records the payout with the
  * reason below, so the owner can send it from the business bank account or
- * ATH Business. A payout provider plugs in here later.
+ * the business bank account. Workers who set up Stripe are paid by transfer.
  */
 let statusOverride: ProviderStatus | undefined;
 
@@ -16,7 +16,7 @@ export const assistantPayouts: PayoutPort = {
   get status() {
     return statusOverride ?? statusFor(
       "assistant-payouts", "Assistant payouts", false,
-      "Pay this one yourself from the business bank account or ATH Business — no automatic payout provider is connected.",
+      "Pay this one yourself from the business bank account — no automatic payout provider is connected.",
     );
   },
   set status(value) { statusOverride = value; },

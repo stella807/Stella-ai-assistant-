@@ -178,8 +178,8 @@ voice, take their own selfie and an optional completion photo of what they
 delivered, and mark a task done or decline it. Assistants are paid biweekly
 — an hourly sweep totals up what each one earned in the most recently closed
 14-day period and sends it to the bank account they entered for themselves,
-as a manual transfer the owner sends from the business bank account or
-ATH Business; paying a contractor on a schedule like this is the same thing Uber and DoorDash do,
+as a manual transfer the owner sends from the business bank account, or
+automatically by Stripe transfer for workers who set that up; paying a contractor on a schedule like this is the same thing Uber and DoorDash do,
 and doesn't make Safehubby anyone's employer. If a customer disputes a
 completed task — never delivered, or the money was kept — they get a full,
 immediate refund, and the same amount becomes a debt against that assistant's

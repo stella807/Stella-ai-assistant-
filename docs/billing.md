@@ -386,7 +386,7 @@ at 0.4.31) straight into **your own Bitcoin wallet** over Lightning.
   Railway Postgres (a SQLite file in development).
 - **Refunds are by hand.** The wallet connection cannot send money, so a crypto
   load is never refunded automatically: the "send it back" button only covers
-  money added with ATH Móvil (`athRefundableCents`).
+  money added with ATH Móvil before it was removed (`athRefundableCents`).
 - **If the wallet is unreachable** the crypto pages answer 503 and the rest of
   the app carries on.
 - **Bitcoin's price** comes from CoinGecko at the moment of payment; you
@@ -701,7 +701,7 @@ When PayPal's keys are set and a customer saved a PayPal account, every hold in 
 - **Done:** only what was actually spent is captured; the rest of the authorization falls away.
 - **Cancelled or declined by the assistant:** the authorization is voided, releasing the whole hold.
 
-A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid balance, loaded with ATH Móvil or crypto, is unchanged. Plan subscriptions are charged to the saved PayPal account too — see "When the period turns over".
+A capture that fails is written onto the charge for the owner to follow up; it never fails the assistant's "mark done". The prepaid balance, loaded with crypto, is unchanged. Plan subscriptions are charged to the saved PayPal account too — see "When the period turns over".
 
 ## Stripe, beside PayPal
 
@@ -724,23 +724,11 @@ on PayPal. Each method is charged by the processor it was saved with.
 
 ## ATH Móvil
 
-Members can add money to their Safehubby balance with ATH Móvil, through
-ATH Business's Payment Button API (`apps/api/src/adapters/ath-movil.ts`,
-`apps/api/src/ath-loads.ts`). It is off until `ATH_MOVIL_PUBLIC_TOKEN` is set
-in Railway; `ATH_MOVIL_PRIVATE_TOKEN` is needed for refunds. Both come from the
-ATH Business app's settings.
-
-1. The member picks an amount and enters their ATH Móvil phone number.
-2. The server opens the payment with ATH for that amount (`POST /api/balance/ath/start`).
-3. The member approves it in their ATH Móvil app within 10 minutes.
-4. The page asks the server to check (`POST /api/balance/ath/:id/check`); once ATH
-   reports it approved, the server authorizes it, which takes the money, and
-   credits the balance. A payment that is declined or left unapproved is
-   cancelled and nothing is charged.
-
-ATH Móvil cannot be saved and charged later, so it cannot renew a plan
-automatically; it funds the balance, which pays for errands and assistants.
-Evertec has no test environment: the first check is a small real payment.
+Removed. Members can no longer add money to their balance with ATH Móvil: the
+adapter, the load routes (`/api/balance/ath/*`) and the button are gone, and
+`ATH_MOVIL_PUBLIC_TOKEN` / `ATH_MOVIL_PRIVATE_TOKEN` are no longer read. Money
+already added that way stays in members' balances. Payments go through Stripe;
+the balance can still be loaded with crypto.
 
 ## Free each month: the owner's switch
 

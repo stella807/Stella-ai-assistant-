@@ -750,7 +750,7 @@ which, for the most recently *closed* period:
 3. Sends one transfer per assistant through `PayoutPort`
    (`apps/api/src/adapters/payouts.ts`; there is no automatic payout provider
    yet, so each payout is recorded for the owner to send from the business
-   bank account or ATH Business), to the bank account the assistant entered
+   bank account; workers who set up Stripe are paid by transfer), to the bank account the assistant entered
    for themselves in the employee portal
    (`POST /api/assistant/payout-destination` — never collected by Safehubby
    staff on their behalf).

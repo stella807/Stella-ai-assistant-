@@ -83,7 +83,6 @@ async function main(): Promise<void> {
     });
   }
   console.log(`[safehubby] Email (alerts): ${emailMode() ?? "NOT ready (set BREVO_API_KEY)"}.`);
-  console.log(`[safehubby] ATH Móvil: ${process.env.ATH_MOVIL_PUBLIC_TOKEN?.trim() ? "connected" : "not connected (ATH_MOVIL_PUBLIC_TOKEN missing)"}${process.env.ATH_MOVIL_PRIVATE_TOKEN?.trim() ? "" : ", refunds need ATH_MOVIL_PRIVATE_TOKEN"}.`);
   console.log(`[safehubby] PayPal: ${!isEnabled("paypal-payments") ? "paused (paypal-payments is off)"
     : process.env.PAYPAL_CLIENT_ID?.trim() && process.env.PAYPAL_CLIENT_SECRET?.trim() ? "connected" : "not connected"}.`);
 
