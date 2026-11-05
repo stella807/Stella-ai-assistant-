@@ -1,8 +1,6 @@
 import { PROCESSOR_FEE_FIXED_CENTS, PROCESSOR_FEE_RATE, deskTaskAllowanceFor, findPlan, includedConciergeHours, type PlanId } from "./billing.ts";
 import { MAX_BOOKED_HOURS, PA_CUSTOMER_HOURLY_CENTS, assistantPayoutFor, livePaHourlyPayCents, serviceFeeFor } from "./concierge.ts";
 import { payDeltas } from "./pay-adjustments.ts";
-import { DRIVER_RATE_CARD, type DriverRate } from "./driver-pay.ts";
-import type { DriverTier } from "./driver-applications.ts";
 import {
   ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandPayoutCents, type ErrandTierId,
 } from "./errand-tiers.ts";
@@ -39,14 +37,10 @@ export interface PnlInputs {
   paidErrands: number;
   errandTier: ErrandTierId;
   errandCapCents: number;
-  /** Trips by drivers Safehubby hires itself, in a month: the tier, a typical trip, and what a client pays per trip ($85 unless changed; 0 shows only the pay). */
+  /** Trips by drivers Safehubby hires itself, in a month: what each trip pays the driver ($85), and what a client pays per trip (0 until you enter it, which shows only the pay). */
   driverTrips: number;
-  driverTier: DriverTier;
-  driverMiles: number;
-  driverMinutes: number;
+  driverPayPerTripCents: number;
   driverFareCents: number;
-  /** The driver pay rates in force, if different from the published card (the owner can change them in `/master`). */
-  driverRates?: Record<DriverTier, DriverRate>;
   /** Hospital days booked in a month: a caretaker stays with a patient for the day, charged and paid at the hospital-day rates. */
   hospitalDays: number;
   /** Wingman Club members, and the share who go to light outings and to bigger days. */
@@ -95,10 +89,8 @@ export const defaultPnlInputs = (): PnlInputs => ({
   paidErrands: 0,
   hospitalDays: 0,
   driverTrips: 0,
-  driverTier: "standard",
-  driverMiles: 5,
-  driverMinutes: 15,
-  driverFareCents: 8_500, // what a client pays per trip, per the owner
+  driverPayPerTripCents: 8_500, // each trip pays the driver $85, per the owner: more than Uber Black pays
+  driverFareCents: 0,
   errandTier: "nearby-store",
   errandCapCents: ERRAND_REFERENCE_CAP_CENTS,
   clubMembers: 0,
@@ -210,12 +202,7 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
 
   const trips = whole(raw.driverTrips);
   if (trips > 0) {
-    const tier: DriverTier = raw.driverTier === "secure-transport" ? "secure-transport" : "standard";
-    const rate = (raw.driverRates ?? DRIVER_RATE_CARD)[tier];
-    const miles = clamp(raw.driverMiles, 0, 500);
-    const minutes = clamp(raw.driverMinutes, 0, 600);
-    // What one trip pays the driver: the base, plus the distance and the time.
-    const pay = Math.round(rate.baseCents + rate.perMileCents * miles + rate.perMinuteCents * minutes);
+    const pay = whole(raw.driverPayPerTripCents);
     const fare = whole(raw.driverFareCents);
     const processing = fare > 0 ? errandCardCostCents(fare) : 0;
     payouts.driversCents += trips * pay; payouts.cardFeesCents += trips * processing;
@@ -223,8 +210,8 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
       id: "drivers", label: "Trips by your own drivers", revenueCents: trips * fare, costCents: trips * (pay + processing),
       profitCents: trips * (fare - pay - processing),
       note: fare > 0
-        ? `Each trip charges ${(fare / 100).toFixed(2)} and pays the driver ${(pay / 100).toFixed(2)} (base, miles and minutes), and Stripe's cut comes out.`
-        : `Each trip pays the driver ${(pay / 100).toFixed(2)} (base, miles and minutes). Enter what a client pays per trip to see the profit; until then this is only a cost.`,
+        ? `Each trip charges ${(fare / 100).toFixed(2)} and pays the driver ${(pay / 100).toFixed(2)}, and Stripe's cut comes out.`
+        : `Each trip pays the driver ${(pay / 100).toFixed(2)}. Enter what a client pays per trip to see the profit; until then this is only a cost.`,
     });
   }
 

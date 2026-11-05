@@ -141,38 +141,27 @@ describe("the monthly profit calculator", () => {
   });
 
   describe("drivers' pay", () => {
-    it("pays each trip the base plus the miles and the minutes, from the published card", () => {
-      const r = monthlyProfit(base({ driverTrips: 20, driverTier: "standard", driverMiles: 5, driverMinutes: 15, driverFareCents: 0 }));
-      const perTrip = 300 + 90 * 5 + 18 * 15; // $3.00 + $0.90/mi + $0.18/min
-      expect(r.payouts.driversCents).toBe(20 * perTrip);
+    it("pays each trip $85, more than Uber Black pays, as a cost until a client fare is entered", () => {
+      expect(defaultPnlInputs().driverPayPerTripCents).toBe(8_500);
+      const r = monthlyProfit(base({ driverTrips: 20 }));
+      expect(r.payouts.driversCents).toBe(20 * 8_500);
       const line = r.lines.find((l) => l.id === "drivers")!;
-      expect(line.costCents).toBe(20 * perTrip);
-      expect(line.revenueCents).toBe(0); // no fare entered: only the cost shows
-      expect(r.grossProfitCents).toBe(-20 * perTrip);
+      expect(line.costCents).toBe(20 * 8_500);
+      expect(line.revenueCents).toBe(0);
+      expect(r.grossProfitCents).toBe(-20 * 8_500);
     });
 
-    it("uses the rates the owner has set instead of the card when they are given", () => {
-      const rates = { standard: { baseCents: 500, perMileCents: 100, perMinuteCents: 20 }, "secure-transport": { baseCents: 600, perMileCents: 200, perMinuteCents: 35 } };
-      const r = monthlyProfit(base({ driverTrips: 10, driverMiles: 10, driverMinutes: 20, driverRates: rates }));
-      expect(r.payouts.driversCents).toBe(10 * (500 + 100 * 10 + 20 * 20));
+    it("uses whatever pay per trip is entered", () => {
+      const r = monthlyProfit(base({ driverTrips: 10, driverPayPerTripCents: 6_000 }));
+      expect(r.payouts.driversCents).toBe(10 * 6_000);
     });
 
     it("shows profit once a fare is entered: the fare less the driver and Stripe's cut", () => {
-      const r = monthlyProfit(base({ driverTrips: 10, driverTier: "secure-transport", driverMiles: 10, driverMinutes: 20, driverFareCents: 8_000 }));
-      const pay = 600 + 200 * 10 + 35 * 20;
+      const r = monthlyProfit(base({ driverTrips: 10, driverPayPerTripCents: 8_500, driverFareCents: 20_000 }));
       const line = r.lines.find((l) => l.id === "drivers")!;
-      expect(line.revenueCents).toBe(10 * 8_000);
-      expect(line.profitCents).toBe(10 * (8_000 - pay - errandCardCostCents(8_000)));
+      expect(line.revenueCents).toBe(10 * 20_000);
+      expect(line.profitCents).toBe(10 * (20_000 - 8_500 - errandCardCostCents(20_000)));
       expect(line.profitCents).toBeGreaterThan(0);
-    });
-
-    it("charges the client $85 a trip unless told otherwise, and keeps the rest after the driver and Stripe", () => {
-      expect(defaultPnlInputs().driverFareCents).toBe(8_500);
-      const r = monthlyProfit(base({ driverTrips: 100 }));
-      const pay = 300 + 90 * 5 + 18 * 15;
-      const line = r.lines.find((l) => l.id === "drivers")!;
-      expect(line.revenueCents).toBe(100 * 8_500);
-      expect(line.profitCents).toBe(100 * (8_500 - pay - errandCardCostCents(8_500)));
     });
 
     it("is nothing with no trips", () => {
