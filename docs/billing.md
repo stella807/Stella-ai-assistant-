@@ -722,6 +722,17 @@ on PayPal. Each method is charged by the processor it was saved with.
   the member is charged exactly what the app shows. Stripe only collects where
   the account has a tax registration.
 
+## Adding money to the balance with Stripe
+
+A member adds money to their Safehubby balance by charging their saved Stripe
+card (`POST /api/balance/load`, button on the balance card). The server charges
+the card first (`paySavedNow`, a Stripe PaymentIntent keyed by the request id, so
+a double tap is one charge) and credits the balance only if it went through. The
+credit's reference is the Stripe payment id, which is what a refund is issued
+against. Money added this way is refunded by the team in Stripe, not
+automatically. It needs a saved card and Stripe connected; otherwise the card
+shows nothing to load with.
+
 ## ATH Móvil
 
 Removed. Members can no longer add money to their balance with ATH Móvil: the

@@ -38,7 +38,7 @@ export interface BalanceEntry {
   againstEntryId?: string;
   /** Where a load came from. Absent on older entries. */
   /** `"ath-movil"` is kept for entries added before ATH Móvil was removed. */
-  source?: "crypto" | "ath-movil";
+  source?: "crypto" | "ath-movil" | "stripe";
   createdAt: string;
 }
 

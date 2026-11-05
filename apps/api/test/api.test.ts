@@ -4603,6 +4603,68 @@ describe("hiring somebody and actually sending them to a job", () => {
       }
     });
 
+    describe("adding money with the saved card through Stripe", () => {
+      const calls: { path: string; body: string }[] = [];
+      const realFetch = globalThis.fetch;
+      let declined = false;
+      beforeEach(() => {
+        calls.length = 0; declined = false;
+        process.env.STRIPE_SECRET_KEY = "sk_test_balance";
+        process.env.STRIPE_PUBLISHABLE_KEY = "pk_test_balance";
+        process.env.STRIPE_API_BASE = "http://stripe.fake";
+        globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+          const u = String(url);
+          if (!u.startsWith("http://stripe.fake")) return realFetch(url as never, init);
+          calls.push({ path: u.replace("http://stripe.fake", ""), body: String(init?.body ?? "") });
+          if (declined) return new Response(JSON.stringify({ error: { message: "Your card was declined." } }), { status: 402, headers: { "content-type": "application/json" } });
+          return new Response(JSON.stringify({ id: "pi_balance1", status: "succeeded" }), { status: 200, headers: { "content-type": "application/json" } });
+        }) as typeof fetch;
+      });
+      afterEach(() => {
+        globalThis.fetch = realFetch;
+        delete process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_PUBLISHABLE_KEY; delete process.env.STRIPE_API_BASE;
+      });
+      const saveCard = () => store.update((db) => {
+        db.stripeCustomers[samId] = "cus_sam";
+        db.paymentMethods[samId] = { id: "pm_sam", processor: "stripe", processorToken: "pm_card", brand: "Visa", last4: "4242", accountLabel: "Visa 4242", addedAt: clock.toISOString() } as never;
+      });
+
+      it("offers it once Stripe is connected, and says whether a card is saved", async () => {
+        const before = (await call("GET", "/api/balance", undefined, sam)).json;
+        expect(before.stripe).toEqual({ ready: true, hasCard: false });
+        saveCard();
+        expect((await call("GET", "/api/balance", undefined, sam)).json.stripe).toEqual({ ready: true, hasCard: true });
+      });
+
+      it("charges the card and credits the balance, once per request", async () => {
+        saveCard();
+        const first = await call("POST", "/api/balance/load", { amountCents: 2_500, requestId: "r1" }, sam);
+        expect(first.status, JSON.stringify(first.json)).toBe(200);
+        expect(first.json.availableCents).toBe(2_500);
+        const charge = calls.find((c) => c.path === "/v1/payment_intents")!;
+        expect(charge.body).toContain("amount=2500");
+        expect(store.data.balanceEntries.find((e) => e.source === "stripe")).toMatchObject({ kind: "load", amountCents: 2_500, reference: "stripe:pi_balance1" });
+        // The same tap again lands on the same Stripe payment and adds nothing.
+        const again = await call("POST", "/api/balance/load", { amountCents: 2_500, requestId: "r1" }, sam);
+        expect(again.json.availableCents).toBe(2_500);
+        expect(await availableOf(sam)).toBe(2_500);
+      });
+
+      it("credits nothing when the card is declined, and refuses without a saved card or a sensible amount", async () => {
+        expect((await call("POST", "/api/balance/load", { amountCents: 2_500 }, sam)).status).toBe(402); // no card yet
+        saveCard();
+        declined = true;
+        const no = await call("POST", "/api/balance/load", { amountCents: 2_500, requestId: "r2" }, sam);
+        expect(no.status).toBe(402);
+        expect(no.json.error).toMatch(/declined/i);
+        expect(await availableOf(sam)).toBe(0);
+        declined = false;
+        expect((await call("POST", "/api/balance/load", { amountCents: 1 }, sam)).status).toBe(400);
+        expect((await call("POST", "/api/balance/load", { amountCents: 99_999_999 }, sam)).status).toBe(400);
+        expect((await call("POST", "/api/balance/load", { amountCents: 2_500 })).status).toBe(401);
+      });
+    });
+
     it("keeps the whole balance under its ceiling", async () => {
       process.env.NWC_URI = "nostr+walletconnect://test";
       try {

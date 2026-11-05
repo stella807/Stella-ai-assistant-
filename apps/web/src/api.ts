@@ -150,7 +150,9 @@ export interface BalanceSummary {
 export type BalanceInfo = BalanceSummary & {
   minLoadCents: number;
   maxLoadCents: number;
-  crypto: { ready: true } | { ready: false; note: string };
+  crypto?: { ready: true } | { ready: false; note: string };
+  /** Loading with the saved card through Stripe. */
+  stripe: { ready: boolean; hasCard: boolean };
 };
 export interface PaymentMethod {
   id: string;
@@ -415,6 +417,8 @@ export const api = {
   saveEmailAlerts: (scope: "account" | "assistant", input: { email?: string; consent: boolean; language: "en" | "es" }) =>
     request<{ enabled: boolean; emailHint?: string }>("POST", `/api/${scope}/email-alerts`, input),
   balance: () => request<BalanceInfo>("GET", "/api/balance"),
+  loadBalance: (amountCents: number, requestId: string) =>
+    request<BalanceInfo>("POST", "/api/balance/load", { amountCents, requestId }),
   startCryptoLoad: (amountCents: number) =>
     request<{ reference: string }>("POST", "/api/balance/crypto/start", { amountCents }),
   paymentMethod: () => request<{ method: PaymentMethod | null; live: boolean }>("GET", "/api/account/payment-method"),

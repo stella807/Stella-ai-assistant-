@@ -2149,7 +2149,54 @@ export const routes: Record<string, Handler> = {
       minLoadCents: BALANCE_MIN_LOAD_CENTS,
       maxLoadCents: BALANCE_MAX_LOAD_CENTS,
       crypto: cryptoReady() ? { ready: true as const } : { ready: false as const, note: cryptoRequires },
+      // Loading with the member's saved card through Stripe: offered once Stripe is connected, and needs a saved card.
+      stripe: {
+        ready: processorReady("stripe"),
+        hasCard: ctx.store.data.paymentMethods[me]?.processor === "stripe" && Boolean(ctx.store.data.paymentMethods[me]?.processorToken),
+      },
     };
+  },
+
+  /**
+   * Adds money to the balance by charging the member's saved card through
+   * Stripe. The charge happens first and the balance is credited only if it
+   * went through; `requestId` makes a double tap a single charge. Money added
+   * this way is refunded by the team, not automatically.
+   */
+  "POST /api/balance/load": async (ctx, _p, body) => {
+    const me = actor(ctx);
+    const amountCents = Number(body?.amountCents);
+    const current = balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
+    try { validateLoad(amountCents, current.availableCents + current.heldCents); }
+    catch (e) { throw new HttpError(400, e instanceof Error ? e.message : "That amount cannot be loaded."); }
+    const method = ctx.store.data.paymentMethods[me];
+    const customerId = ctx.store.data.stripeCustomers[me];
+    if (!method?.processorToken || method.processor !== "stripe" || !customerId || !processorReady("stripe")) {
+      throw new HttpError(402, "Save a card under Payments first, then add money to your balance.");
+    }
+    const requestId = String(body?.requestId ?? "").slice(0, 64) || newId("req");
+    const reference = `stripe-balance:${me}:${requestId}`;
+    let paid: { id: string };
+    try {
+      paid = await paySavedNow({
+        processor: "stripe", customerId, paymentMethodId: method.processorToken, method: { brand: method.brand, last4: method.last4 },
+        amountCents, description: "Safehubby balance", idempotencyKey: reference,
+      });
+    } catch (e) {
+      throw new HttpError(402, e instanceof Error ? e.message : "Your card could not be charged.");
+    }
+    // Stripe gives the same payment back for the same request id, so a double tap or a retry lands on a
+    // payment already credited and adds nothing. The entry's reference is what a refund is issued against.
+    const entryRef = `stripe:${paid.id}`;
+    if (!ctx.store.data.balanceEntries.some((e) => e.reference === entryRef)) {
+      ctx.store.update((db) => {
+        db.balanceEntries.push({
+          id: newId("be"), travelerId: me, kind: "load", amountCents,
+          reference: entryRef, source: "stripe", createdAt: ctx.now().toISOString(),
+        });
+      });
+    }
+    return balanceSummary(ctx.store.data.balanceEntries, ctx.store.data.holds, me);
   },
 
   /**

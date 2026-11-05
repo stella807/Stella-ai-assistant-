@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BALANCE_MAX_CENTS } from "@safehubby/core";
 import { api, type BalanceInfo } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
@@ -6,50 +6,46 @@ import { money } from "../money.ts";
 
 const PRESETS_CENTS = [1_000, 2_500, 5_000, 10_000];
 
-// Only someone paying in crypto downloads the checkout.
-const CryptoCheckout = lazy(() => import("./CryptoCheckout.tsx"));
-
 const COPY = {
   en: {
     title: "Safehubby balance",
-    lead: "Add money with crypto and errands and assistants are paid from it. Whatever isn't spent stays here.",
+    lead: "Add money with your saved card and errands and assistants are paid from it. Whatever isn't spent stays here.",
     available: "Available",
     held: "Set aside for tasks in progress",
     pick: "How much?",
-    cancel: "Cancel",
     added: "Added to your balance.",
-    crypto: (amount: string) => `Add ${amount} with crypto`,
-    cryptoNote: "Bitcoin, or USDT, USDC, SOL and ETH where offered. Money added with crypto is refunded by our team, not automatically.",
-    loading: "Loading…",
+    add: (amount: string) => `Add ${amount} with your card`,
+    adding: "Charging your card…",
+    note: "Charged to your saved card through Stripe. Money added to your balance is refunded by our team, not automatically.",
+    needCard: "Save a card under Payments first, then you can add money here.",
   },
   es: {
     title: "Balance de Safehubby",
-    lead: "Añade dinero con cripto y los mandados y asistentes se pagan de ahí. Lo que no se gasta se queda aquí.",
+    lead: "Añade dinero con tu tarjeta guardada y los mandados y asistentes se pagan de ahí. Lo que no se gasta se queda aquí.",
     available: "Disponible",
     held: "Reservado para tareas en curso",
-    cancel: "Cancelar",
     pick: "¿Cuánto?",
     added: "Añadido a tu balance.",
-    crypto: (amount: string) => `Añadir ${amount} con cripto`,
-    cryptoNote: "Bitcoin, o USDT, USDC, SOL y ETH donde se ofrezca. El dinero añadido con cripto lo devuelve nuestro equipo, no automáticamente.",
-    loading: "Cargando…",
+    add: (amount: string) => `Añadir ${amount} con tu tarjeta`,
+    adding: "Cobrando tu tarjeta…",
+    note: "Se cobra a tu tarjeta guardada a través de Stripe. El dinero añadido a tu balance lo devuelve nuestro equipo, no automáticamente.",
+    needCard: "Guarda primero una tarjeta en Pagos y luego podrás añadir dinero aquí.",
   },
 } as const;
 
+/** A fresh id for each tap, so a double tap or a retry is one charge, not two. */
+const newRequestId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
 /**
- * The prepaid balance, and the crypto button that loads it.
- *
- * A crypto payment settles the moment it is made, so it pays into a balance
- * rather than sitting behind a hold like a saved PayPal account. The checkout
- * is OpenReceive's, and the server prices the load and credits it only once
- * the wallet itself reports the payment final.
+ * The prepaid balance, and the button that loads it from the member's saved
+ * card through Stripe. The server charges the card first and credits the
+ * balance only if the charge went through.
  */
 export function BalanceCard() {
   const { language } = useLanguage();
   const c = COPY[language === "es" ? "es" : "en"];
   const [info, setInfo] = useState<BalanceInfo | null>(null);
   const [amount, setAmount] = useState(2_500);
-  const [cryptoRef, setCryptoRef] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,10 +53,11 @@ export function BalanceCard() {
   const refresh = useCallback(() => api.balance().then(setInfo).catch(() => {}), []);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const beginCrypto = async () => {
+  const load = async () => {
     setBusy(true); setError(null); setMessage(null);
     try {
-      setCryptoRef((await api.startCryptoLoad(amount)).reference);
+      setInfo(await api.loadBalance(amount, newRequestId()));
+      setMessage(c.added);
     } catch (e) {
       setError(e instanceof Error ? e.message : null);
     } finally {
@@ -69,10 +66,10 @@ export function BalanceCard() {
   };
 
   if (!info) return null;
-  // Until crypto is turned on there is nothing to load the balance with, so
-  // the card stays off the screen rather than showing a button that cannot
-  // work — unless money is already in it, which is always shown.
-  if (!info.crypto.ready && info.availableCents === 0 && info.heldCents === 0) return null;
+  // Until Stripe is connected there is nothing to load the balance with, so the
+  // card stays off the screen rather than showing a button that cannot work,
+  // unless money is already in it, which is always shown.
+  if (!info.stripe.ready && info.availableCents === 0 && info.heldCents === 0) return null;
   const maxLoad = Math.min(info.maxLoadCents, Math.max(0, BALANCE_MAX_CENTS - info.availableCents - info.heldCents));
 
   return (
@@ -91,16 +88,7 @@ export function BalanceCard() {
         </div>
       )}
 
-      {cryptoRef && (
-        <>
-          <Suspense fallback={<p className="small muted">{c.loading}</p>}>
-            <CryptoCheckout reference={cryptoRef} onSettled={() => { setCryptoRef(null); setMessage(c.added); void refresh(); }} />
-          </Suspense>
-          <button className="btn btn-block btn-ghost" onClick={() => setCryptoRef(null)}>{c.cancel}</button>
-        </>
-      )}
-
-      {!cryptoRef && info.crypto.ready && (
+      {info.stripe.ready && (
         <>
           <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 8 }}>
             <legend className="small"><strong>{c.pick}</strong></legend>
@@ -113,13 +101,15 @@ export function BalanceCard() {
               ))}
             </div>
           </fieldset>
-          {info.crypto.ready && (
+          {info.stripe.hasCard ? (
             <>
-              <button className="btn btn-block btn-primary" disabled={busy || amount > maxLoad} onClick={beginCrypto}>
-                {c.crypto(money(amount))}
+              <button className="btn btn-block btn-primary" disabled={busy || amount > maxLoad || amount < info.minLoadCents} onClick={load}>
+                {busy ? c.adding : c.add(money(amount))}
               </button>
-              <p className="tiny muted" style={{ margin: 0 }}>{c.cryptoNote}</p>
+              <p className="tiny muted" style={{ margin: 0 }}>{c.note}</p>
             </>
+          ) : (
+            <p className="small muted" style={{ margin: 0 }}>{c.needCard}</p>
           )}
         </>
       )}
