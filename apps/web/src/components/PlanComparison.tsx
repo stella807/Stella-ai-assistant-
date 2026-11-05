@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, includedHoursSplit,
+  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, includedHoursSplit, serviceFeeFor,
 } from "@safehubby/core";
 import type { Feature, Plan } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
@@ -92,6 +92,9 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
               </tbody>
             </table>
           </div>
+          <p className="tiny muted" style={{ margin: 0 }}>
+            {t("compare.hoursNote").replace("{rate}", money(serviceFeeFor("wait-with-someone", false, 1, 1)))}
+          </p>
           <p className="tiny muted" style={{ margin: 0 }}>
             {t("compare.everyPlan").replace("{amount}", money(PHARMACY_RUN_FEE_CENTS))}
           </p>

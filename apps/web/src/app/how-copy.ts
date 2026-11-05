@@ -26,7 +26,9 @@ const EN = {
   orYear: (amount: string) => `or ${amount} a year`,
   hourly: "An assistant by the hour",
   perHour: (amount: string) => `${amount} an hour`,
-  hoursPaid: (h: number) => `${h} hours a month are already paid for by your plan.`,
+  hoursPaid: (h: number, planned: number, onDemand: number, pooled: boolean) => pooled
+    ? `${h} hours a month are already paid for by your plan.`
+    : `${h} hours a month are already paid for by your plan: ${planned} planned (booked at least 24 hours ahead) and ${onDemand} on-demand (anything that comes up sooner). Extra hours are billed by the hour.`,
   plusCap: "Plus the spending limit you load for what they buy.",
   foodTitle: "Free food pickups",
   foodValue: (amount: string) => `${amount} of errands a month`,
@@ -68,7 +70,9 @@ const ES: typeof EN = {
   orYear: (amount: string) => `o ${amount} al año`,
   hourly: "Un asistente por hora",
   perHour: (amount: string) => `${amount} la hora`,
-  hoursPaid: (h: number) => `Tu plan ya paga ${h} horas al mes.`,
+  hoursPaid: (h: number, planned: number, onDemand: number, pooled: boolean) => pooled
+    ? `Tu plan ya paga ${h} horas al mes.`
+    : `Tu plan ya paga ${h} horas al mes: ${planned} planificadas (reservadas con al menos 24 horas de anticipación) y ${onDemand} a demanda (lo que surja antes). Las horas extra se cobran por hora.`,
   plusCap: "Más el límite de gasto que cargues para lo que compre.",
   foodTitle: "Recogidos de comida sin cargo",
   foodValue: (amount: string) => `${amount} en mandados al mes`,

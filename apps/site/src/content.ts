@@ -1,6 +1,6 @@
 import {
   CLUB_MONTHLY_DUES_CENTS, CLUB_EXPERIENCES, ERRAND_MILEAGE_CENTS, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, includedGrabAllowanceFor, LAUNCH_DISCOUNT_RATE,
-  LAUNCH_WINDOW_END, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS,
+  LAUNCH_WINDOW_END, MIN_BOOKED_HOURS, PA_HOURLY_RATE_CENTS, PA_CUSTOMER_HOURLY_CENTS, ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS,
   SERVICE_LIVE_AT, customerServiceFeeFor, duesForCents, errandFeeCents, errandPayoutCents, isHourlyCategory, isQuickTaskEligible,
   OPEN_POSITIONS, releasedPlans, type ConciergeCategory, type ErrandTierId, type Plan, type PlanId,
 } from "@safehubby/core";
@@ -237,6 +237,7 @@ export interface Copy {
    *  page needs a sentence, not a manifest. Prices still come from core. */
   planBlurbs: Partial<Record<PlanId, string>>;
   morePlans: string;
+  hoursNote: string;
   pricingNote: string;
   /** "from", as in "from $5" — a floor, never a quote. */
   fromLabel: string;
@@ -353,6 +354,7 @@ export const COPY: Record<Lang, Copy> = {
       "elite-private": "A named team, two hundred hours a month, and a doctor who comes to the house.",
     },
     morePlans: "Every plan cancels in one tap, from the app.",
+    hoursNote: `Included assistant hours come in two kinds: planned hours, for bookings that start 24 or more hours ahead, and on-demand hours, for anything that comes up sooner. Each plan splits its hours between the two, and any extra hours are billed at ${money(PA_CUSTOMER_HOURLY_CENTS)} an hour.`,
     fromLabel: "from",
 
     clubHeading: "The Wingman Club",
@@ -421,6 +423,7 @@ export const COPY: Record<Lang, Copy> = {
       "elite-private": "Un equipo asignado, doscientas horas al mes, y un médico que va a la casa.",
     },
     morePlans: "Todos los planes se cancelan con un toque, desde la app.",
+    hoursNote: `Las horas de asistente incluidas son de dos tipos: planificadas, para reservas que empiezan con 24 horas o más de anticipación, y a demanda, para lo que surja antes. Cada plan reparte sus horas entre las dos, y las horas extra se cobran a ${money(PA_CUSTOMER_HOURLY_CENTS)} la hora.`,
     fromLabel: "desde",
 
     clubHeading: "El Wingman Club",

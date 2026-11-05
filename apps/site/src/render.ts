@@ -217,6 +217,7 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
     <div class="plan-rail" role="group" aria-label="${esc(c.pricingHeading)}" tabindex="0">
       ${plans.map((p) => planCard(lang, p)).join("\n      ")}
     </div>
+    <p class="more-plans">${esc(c.hoursNote)}</p>
     <p class="more-plans">${esc(c.morePlans)}</p>
     <p class="note">${esc(c.pricingNote)}</p>
 
