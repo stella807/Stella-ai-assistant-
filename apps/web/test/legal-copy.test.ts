@@ -40,6 +40,11 @@ describe("the Terms of Service and Privacy Policy drafts", () => {
     expect(text).toMatch(/dispute/i);
     expect(text).toMatch(/Stripe/);
     expect(text).not.toMatch(/14[- ]day/i);
+    // Payments are through Stripe; no other payment method is mentioned.
+    for (const lang of ["en", "es"] as const) {
+      const all = refundCopy(lang).sections.flatMap((s) => s.paragraphs).join(" ");
+      expect(all, lang).not.toMatch(/ATH|crypto|cripto/i);
+    }
     // The refund rules: Elite and the club in full; Premium, Premium Plus and Family their card fee only.
     expect(text).toMatch(/Elite \(any rung\) and the Wingman Club, the whole charge is refunded/);
     expect(text).toMatch(/Premium, Premium Plus and Family, the card processing fee/);

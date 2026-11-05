@@ -272,14 +272,11 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
         { heading: "4. Salidas del Wingman Club", paragraphs: [
           "La cuota mensual del Wingman Club se reembolsa completa. Si cancelas tu lugar en una salida con cargo extra antes de que el club confirme el día, se te reembolsa ese extra completo. Si el club cancela la salida, se reembolsa a todos los que pagaron.",
         ] },
-        { heading: "5. Saldo prepagado", paragraphs: [
-          "Un saldo cargado con ATH Móvil se puede devolver. Un saldo cargado con criptomonedas no se reembolsa automáticamente.",
-        ] },
-        { heading: "6. Cómo recibes el reembolso", paragraphs: [
+        { heading: "5. Cómo recibes el reembolso", paragraphs: [
           "Los reembolsos van a la tarjeta con la que pagaste, a través de Stripe. Cuánto tarda en aparecer depende de tu banco.",
           "Si te cobramos algo por error, escríbenos y lo corregimos.",
         ] },
-        { heading: "7. Cómo pedirlo", paragraphs: [
+        { heading: "6. Cómo pedirlo", paragraphs: [
           "Para una tarea, abre una reclamación desde la app. Para el reembolso de un plan o del Wingman Club, escribe a contact@safehubby.com con el correo de tu cuenta y la fecha del cobro; nosotros lo procesamos.",
         ] },
       ],
@@ -308,14 +305,11 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
       { heading: "4. Wingman Club outings", paragraphs: [
         "The Wingman Club's monthly dues are refunded in full. If you cancel your place in an outing that carries an extra charge before the club locks the day in, the extra is refunded in full. If the club calls the outing off, everyone who paid is refunded.",
       ] },
-      { heading: "5. Prepaid balance", paragraphs: [
-        "A balance loaded with ATH Móvil can be sent back. A balance loaded with crypto is not refunded automatically.",
-      ] },
-      { heading: "6. How you get the refund", paragraphs: [
+      { heading: "5. How you get the refund", paragraphs: [
         "Refunds go back to the card you paid with, through Stripe. How long it takes to show up depends on your bank.",
         "If we charged you something by mistake, write to us and we will correct it.",
       ] },
-      { heading: "7. How to ask", paragraphs: [
+      { heading: "6. How to ask", paragraphs: [
         "For a task, open a dispute in the app. For a plan or Wingman Club refund, write to contact@safehubby.com with your account email and the date of the charge, and we will process it.",
       ] },
     ],
