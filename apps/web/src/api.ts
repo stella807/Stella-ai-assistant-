@@ -374,6 +374,8 @@ export const api = {
     referralCode?: string;
     /** The box they check to agree; the server refuses an account without it. */
     acceptedTerms: boolean;
+    /** YYYY-MM-DD, checked for 18 or older. The server does not keep it. */
+    birthDate: string;
   }) =>
     request<{ traveler: Account }>("POST", "/api/auth/signup", input),
   share: () => request<ShareInvite>("GET", "/api/account/invite"),

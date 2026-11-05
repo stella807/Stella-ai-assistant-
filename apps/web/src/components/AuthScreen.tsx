@@ -23,6 +23,7 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
   const [busy, setBusy] = useState(false);
   // The agree box: required to create an account.
   const [agreed, setAgreed] = useState(false);
+  const [birthDate, setBirthDate] = useState("");
 
   // "Get started" on the landing page can fire after this screen already
   // mounted (it's rendered alongside LandingIntro, not after it) — react to
@@ -39,7 +40,7 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
         ? await api.login({ email, password })
         : await api.signup({
           email, password, displayName, homeLabel: homeLabel || (language === "es" ? "Casa" : "Home"),
-          referralCode: referralCode.trim() || undefined, acceptedTerms: agreed,
+          referralCode: referralCode.trim() || undefined, acceptedTerms: agreed, birthDate,
         });
       if (mode === "signup") clearReferralCode();
       onSignedIn(res.traveler);
@@ -50,7 +51,7 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
     }
   };
 
-  const ready = email.trim() && password.length >= (mode === "signup" ? 10 : 1) && (mode === "login" || (displayName.trim() && agreed));
+  const ready = email.trim() && password.length >= (mode === "signup" ? 10 : 1) && (mode === "login" || (displayName.trim() && agreed && birthDate));
 
   return (
     <div className="stack">
@@ -81,6 +82,15 @@ export function AuthScreen({ onSignedIn, startInSignup }: { onSignedIn: (account
             onChange={(e) => setPassword(e.target.value)} />
           {mode === "signup" && <span className="tiny muted">{t("auth.passwordHint")}</span>}
         </div>
+
+        {mode === "signup" && (
+          <div className="field">
+            <label htmlFor="dob">{t("auth.birthDate")}</label>
+            <input id="dob" type="date" autoComplete="bday" value={birthDate} max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setBirthDate(e.target.value)} />
+            <span className="tiny muted">{t("auth.birthHint")}</span>
+          </div>
+        )}
 
         {mode === "signup" && (
           <div className="field">

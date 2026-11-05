@@ -31,7 +31,7 @@ These are deliberately left open in the text rather than guessed:
   and access procedures, and whether a data-processing agreement is needed
   with each service provider (Stripe, the text and email providers, maps,
   push, flight tracking, hosting).
-- **Age:** the Terms require 18+; the signup form does not check it.
+- **Age:** the signup form asks for a date of birth and refuses under 18; only that the check was done is stored, not the date. It is self-declared, so ask whether more is needed (for example for armed bookings).
 - **Minimum retention** for payment and task records.
 
 ## What the drafts claim, and where it comes from

@@ -37,7 +37,7 @@ export function termsCopy(lang: "en" | "es", rate: string): LegalDocument {
           "Safehubby coordina el servicio. Tus asistentes son profesionales independientes y verificados, no empleados tuyos, y la relación entre ellos y Safehubby no te hace su patrono.",
         ] },
         { heading: "2. Tu cuenta", paragraphs: [
-          "Debes tener 18 años o más. Debes dar información verdadera, mantener segura tu contraseña y avisarnos si alguien más entra a tu cuenta. Eres responsable de lo que pase en ella.",
+          "Debes tener 18 años o más, y lo comprobamos al crear la cuenta con tu fecha de nacimiento. Debes dar información verdadera, mantener segura tu contraseña y avisarnos si alguien más entra a tu cuenta. Eres responsable de lo que pase en ella.",
           "Los planes que cubren a varios clientes (por ejemplo, Premium Plus o Familia) son para las personas que el plan cubre, y la persona que contrata el plan responde por ellas.",
         ] },
         { heading: "3. El servicio y sus límites", paragraphs: [
@@ -99,7 +99,7 @@ export function termsCopy(lang: "en" | "es", rate: string): LegalDocument {
         "Safehubby coordinates the service. Your assistants are independent, vetted professionals, not your employees, and the arrangement between them and Safehubby does not make you their employer.",
       ] },
       { heading: "2. Your account", paragraphs: [
-        "You must be 18 or older. You must give true information, keep your password secure, and tell us if someone else gets into your account. You are responsible for what happens on it.",
+        "You must be 18 or older, and we check this when you create an account with your date of birth. You must give true information, keep your password secure, and tell us if someone else gets into your account. You are responsible for what happens on it.",
         "Plans that cover more than one client (such as Premium Plus or Family) are for the people the plan covers, and the person who buys the plan is responsible for them.",
       ] },
       { heading: "3. The service and its limits", paragraphs: [
@@ -161,7 +161,7 @@ export function privacyCopy(lang: "en" | "es"): LegalDocument {
       intro: "Safehubby maneja datos sensibles, como dónde estás y qué compras. Esta política dice qué guardamos, para qué, con quién lo compartimos y qué puedes decidir tú. Tu ubicación e historial de bebidas son tuyos. Nunca se venden y nunca se usan para publicidad dirigida.",
       sections: [
         { heading: "1. Qué datos guardamos", paragraphs: [
-          "Cuenta: tu nombre, correo, una versión protegida de tu contraseña (nunca la guardamos tal cual) y el lugar que llamas casa.",
+          "Cuenta: tu nombre, correo, una versión protegida de tu contraseña (nunca la guardamos tal cual) y el lugar que llamas casa. Al crear la cuenta te pedimos la fecha de nacimiento solo para comprobar que tienes 18 años o más; no la guardamos, solo que se comprobó.",
           "Ubicación: tu ubicación cuando usas funciones que la necesitan, como compartir ubicación, chequeos, SOS o una tarea con un asistente.",
           "Uso de la app: tus chequeos, tus contactos de guardianes, tu historial de bebidas y estimaciones relacionadas, y tus tareas (la nota, el lugar, mensajes, mensajes de voz, recibos y fotos).",
           "Pagos: la marca y los últimos cuatro dígitos de tu tarjeta y una referencia de Stripe. El número completo de la tarjeta lo maneja Stripe y no pasa por nuestros servidores.",
@@ -207,7 +207,7 @@ export function privacyCopy(lang: "en" | "es"): LegalDocument {
     intro: "Safehubby handles sensitive data, like where you are and what you buy. This policy says what we keep, why, who we share it with and what you can decide. Your location and drink history are yours. They are never sold and never used for ad targeting.",
     sections: [
       { heading: "1. What we keep", paragraphs: [
-        "Account: your name, email, a protected version of your password (we never store it as typed) and the place you call home.",
+        "Account: your name, email, a protected version of your password (we never store it as typed) and the place you call home. When you sign up we ask your date of birth only to check you are 18 or older; we do not keep it, only that the check was done.",
         "Location: your location when you use features that need it, such as location sharing, check-ins, SOS, or a task with an assistant.",
         "Using the app: your check-ins, your guardian contacts, your drink history and related estimates, and your tasks (the note, the place, messages, voice messages, receipts and photos).",
         "Payments: your card's brand and last four digits and a Stripe reference. The full card number is handled by Stripe and does not pass through our servers.",

@@ -76,7 +76,7 @@ const callAdmin = (method: string, path: string, body?: unknown, key = "test-adm
 let sam = "", jordan = "", samId = "", jordanId = "";
 
 const signup = async (email: string, displayName: string) => {
-  const res = await call("POST", "/api/auth/signup", { email, password: "a-long-enough-passphrase", displayName, acceptedTerms: true });
+  const res = await call("POST", "/api/auth/signup", { email, password: "a-long-enough-passphrase", displayName, acceptedTerms: true, birthDate: "1990-06-15" });
   const token = /sh_session=([^;]+)/.exec(res.setCookie ?? "")?.[1] ?? "";
   return { token, id: res.json.traveler?.id as string, res };
 };
@@ -362,17 +362,37 @@ describe("authentication", () => {
   });
 
   it("will not create an account until the client agrees, and records when they did", async () => {
-    const body = { email: "agree@example.com", password: "a-long-enough-passphrase", displayName: "Agree" };
+    const body = { email: "agree@example.com", password: "a-long-enough-passphrase", displayName: "Agree", birthDate: "1990-06-15" };
     const refused = await call("POST", "/api/auth/signup", body);
     expect(refused.status).toBe(400);
     expect(refused.json.error).toMatch(/agree/i);
     expect((await call("POST", "/api/auth/signup", { ...body, acceptedTerms: false })).status).toBe(400);
-    const ok = await call("POST", "/api/auth/signup", { ...body, acceptedTerms: true });
+    const ok = await call("POST", "/api/auth/signup", { ...body, acceptedTerms: true, birthDate: "1990-06-15" });
     expect(ok.status).toBe(200);
     expect(ok.json.traveler.consentAccepted).toBe(true);
     const saved = store.data.travelers.find((t) => t.email === "agree@example.com")!;
     expect(saved.consentVersion).toBe("2026-11");
     expect(typeof saved.consentAcceptedAt).toBe("string");
+  });
+
+  it("checks the client is 18 or older and keeps only that it checked, not the birth date", async () => {
+    const base = { email: "age@example.com", password: "a-long-enough-passphrase", displayName: "Age", acceptedTerms: true };
+    const day = (years: number, extraDays = 0) => {
+      const d = new Date(clock.getTime()); d.setUTCFullYear(d.getUTCFullYear() - years); d.setUTCDate(d.getUTCDate() + extraDays);
+      return d.toISOString().slice(0, 10);
+    };
+    // A few, not all: sign-up is rate limited per client, and the full set of bad dates is covered in core's age tests.
+    for (const bad of ["2026-02-31", day(17)]) {
+      const r = await call("POST", "/api/auth/signup", { ...base, ...(bad === undefined ? {} : { birthDate: bad }) });
+      expect(r.status, String(bad)).toBe(400);
+      expect(r.json.error).toMatch(/18 or older/);
+    }
+    expect(store.data.travelers.some((t) => t.email === "age@example.com")).toBe(false);
+    const ok = await call("POST", "/api/auth/signup", { ...base, birthDate: day(18) }); // turns 18 today
+    expect(ok.status).toBe(200);
+    const saved = store.data.travelers.find((t) => t.email === "age@example.com")!;
+    expect(typeof saved.ageConfirmedAt).toBe("string");
+    expect(JSON.stringify(saved)).not.toContain(day(18));
   });
 
   it("holds armed bookings until the client has agreed to armed personnel, then lets them through", async () => {
@@ -3903,7 +3923,7 @@ describe("the launch party and the share loop", () => {
     const before = (await call("GET", `/api/travelers/${samId}`, undefined, sam)).json.points.balance;
 
     const joined = await call("POST", "/api/auth/signup", {
-      email: "riley@example.com", password: "a-long-enough-passphrase", displayName: "Riley", acceptedTerms: true,
+      email: "riley@example.com", password: "a-long-enough-passphrase", displayName: "Riley", acceptedTerms: true, birthDate: "1990-06-15",
       referralCode: code,
     });
     expect(joined.status).toBe(200);
@@ -3918,7 +3938,7 @@ describe("the launch party and the share loop", () => {
     const code = (await call("GET", "/api/share", undefined, sam)).json.code;
     const sloppy = code.replace("-", "").toLowerCase();
     const joined = await call("POST", "/api/auth/signup", {
-      email: "nico@example.com", password: "a-long-enough-passphrase", displayName: "Nico", acceptedTerms: true,
+      email: "nico@example.com", password: "a-long-enough-passphrase", displayName: "Nico", acceptedTerms: true, birthDate: "1990-06-15",
       referralCode: sloppy,
     });
     expect(joined.status).toBe(200);
@@ -3927,7 +3947,7 @@ describe("the launch party and the share loop", () => {
 
   it("still creates the account when the code is wrong, rather than losing a signup to a typo", async () => {
     const joined = await call("POST", "/api/auth/signup", {
-      email: "ada@example.com", password: "a-long-enough-passphrase", displayName: "Ada", acceptedTerms: true,
+      email: "ada@example.com", password: "a-long-enough-passphrase", displayName: "Ada", acceptedTerms: true, birthDate: "1990-06-15",
       referralCode: "ZZZ-999",
     });
     expect(joined.status).toBe(200);
@@ -3937,7 +3957,7 @@ describe("the launch party and the share loop", () => {
 
   it("records nothing for a signup with no code at all", async () => {
     await call("POST", "/api/auth/signup", {
-      email: "kit@example.com", password: "a-long-enough-passphrase", displayName: "Kit", acceptedTerms: true,
+      email: "kit@example.com", password: "a-long-enough-passphrase", displayName: "Kit", acceptedTerms: true, birthDate: "1990-06-15",
     });
     expect(store.data.referrals).toHaveLength(0);
   });

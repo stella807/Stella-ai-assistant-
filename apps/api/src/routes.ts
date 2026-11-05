@@ -4,7 +4,7 @@ import {
 } from "@safehubby/core";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
-  isPlanReleased, releasedPlans, setPlanSwitches, CONSENT_VERSION, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
+  isPlanReleased, releasedPlans, setPlanSwitches, CONSENT_VERSION, MINIMUM_AGE, isAdult, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
@@ -1828,6 +1828,10 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(409, "An account already exists for that email.");
     }
 
+    // Age check: 18 or older. Only that it was checked is kept; the date of birth is not stored.
+    if (!isAdult(String(body?.birthDate ?? ""), ctx.now())) {
+      throw new HttpError(400, `You must be ${MINIMUM_AGE} or older to create an account. Enter your date of birth as YYYY-MM-DD.`);
+    }
     // The box they check to agree: terms, privacy, disclosures, and armed personnel on armed bookings.
     if (body?.acceptedTerms !== true) {
       throw new HttpError(400, "Please agree to the Terms of Service, Privacy Policy and Client Disclosures to create an account.");
@@ -1839,6 +1843,7 @@ export const routes: Record<string, Handler> = {
       displayName,
       consentVersion: CONSENT_VERSION,
       consentAcceptedAt: ctx.now().toISOString(),
+      ageConfirmedAt: ctx.now().toISOString(),
       planId: "free" as const,
       homeLabel: String(body?.homeLabel ?? "Home"),
       emergencyContacts: [],
