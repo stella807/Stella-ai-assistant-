@@ -954,3 +954,19 @@ book-and-buy tasks have no ceiling on any plan.
 Sized against what people spend when someone shops for them: about $32 per
 DoorDash order and about $110 per Instacart basket (2025 totals divided by
 orders), and $76–$103 per TaskRabbit errand invoice (2026 cost guide).
+
+## Client disclosure policy
+
+A plain-language policy a client can read before booking, linked as **Client
+disclosures** in the footer (signed out and signed in), in English and Spanish.
+The copy lives in `apps/web/src/app/disclosure-copy.ts` and is written from
+what the app does: who the assistants are, what is charged and when, how the
+planned and on-demand included hours work and what an extra hour costs (read
+from the same function the booking is charged with), the task card and spend
+cap, safety and location, and hospital rules. The per-booking list
+(`CONCIERGE_DISCLOSURES`) still appears, and is acknowledged, at the moment of
+booking.
+
+It is a disclosure, not a Terms of Service: Terms and Privacy still need a
+lawyer's review. **When a rule it describes changes (the 24-hour lead time,
+the card hold, cancellation, the safety limits), change it in the same commit.**

@@ -19,6 +19,8 @@ import { HowItWorks } from "./components/HowItWorks.tsx";
 import { LandingIntro } from "./components/LandingIntro.tsx";
 import { useLanguage } from "./i18n.tsx";
 import { LanguageToggle } from "./components/LanguageToggle.tsx";
+import { ClientDisclosures } from "./components/ClientDisclosures.tsx";
+import { disclosureCopy } from "./app/disclosure-copy.ts";
 import { ScreenGuard } from "./components/ScreenGuard.tsx";
 import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
@@ -71,6 +73,7 @@ export function App() {
   // there for a specific thing. Cleared by HiringScreen's own tabs from then
   // on; it only decides where that screen starts.
   const [hiringTab, setHiringTab] = useState<HiringTab | undefined>(undefined);
+  const [showDisclosures, setShowDisclosures] = useState(false);
   const [drinks, setDrinks] = useState<DrinkDefinition[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
   const [launch, setLaunch] = useState<LaunchStatus | null>(null);
@@ -195,10 +198,12 @@ export function App() {
           <div className="stack" style={{ gap: 6, marginTop: 10 }}>
             <nav className="footer-links" aria-label={language === "es" ? "Más" : "More"}>
               <button className="linklike" onClick={() => setRole("about")}>{t("nav.about")}</button>
+              <button className="linklike" aria-expanded={showDisclosures} onClick={() => setShowDisclosures((v) => !v)}>{disclosureCopy(language === "es" ? "es" : "en", "").link}</button>
               <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
               {isEnabled("party-supply") && <button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button>}
               <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
             </nav>
+            {showDisclosures && <ClientDisclosures />}
             <nav className="footer-links footer-portals" aria-label={language === "es" ? "Trabaja con nosotros" : "Work with us"}>
               <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
               <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>

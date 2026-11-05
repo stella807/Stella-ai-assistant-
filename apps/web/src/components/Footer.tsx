@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useLanguage } from "../i18n.tsx";
+import { ClientDisclosures } from "./ClientDisclosures.tsx";
+import { disclosureCopy } from "../app/disclosure-copy.ts";
 
 /**
  * What a stranger looks for below the fold, before they have any account:
@@ -18,7 +20,7 @@ import { useLanguage } from "../i18n.tsx";
  */
 export function Footer() {
   const { t, language } = useLanguage();
-  const [open, setOpen] = useState<"terms" | "privacy" | "press" | null>(null);
+  const [open, setOpen] = useState<"terms" | "privacy" | "press" | "disclosures" | null>(null);
 
   return (
     <footer className="stack" style={{ marginTop: 24 }}>
@@ -34,6 +36,7 @@ export function Footer() {
         <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
         <button className="linklike" aria-expanded={open === "press"} onClick={() => setOpen((o) => (o === "press" ? null : "press"))}>{t("footer.press")}</button>
         <button className="linklike" aria-expanded={open === "terms"} onClick={() => setOpen((o) => (o === "terms" ? null : "terms"))}>{t("footer.terms")}</button>
+        <button className="linklike" aria-expanded={open === "disclosures"} onClick={() => setOpen((o) => (o === "disclosures" ? null : "disclosures"))}>{disclosureCopy(language === "es" ? "es" : "en", "").link}</button>
         <button className="linklike" aria-expanded={open === "privacy"} onClick={() => setOpen((o) => (o === "privacy" ? null : "privacy"))}>{t("footer.privacy")}</button>
       </nav>
       {/* Real links, not router pushes: each portal is its own area with its own sign-in. */}
@@ -44,6 +47,7 @@ export function Footer() {
       </nav>
 
       {open === "press" && <PressRelease />}
+      {open === "disclosures" && <ClientDisclosures />}
 
       {(open === "terms" || open === "privacy") && (
         <p className="tiny muted" style={{ textAlign: "center" }}>
