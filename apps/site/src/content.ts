@@ -320,7 +320,7 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "A juice, a phone charger, a blanket — to a hospital room, or to a house where somebody lives alone. Safehubby sends a real person, at a spend cap you set. From one errand to a full concierge desk.",
     heroCta: "Get started",
-    heroCtaNote: `No contract. Live since ${liveDate("en")}, with a free trial before your first charge.`,
+    heroCtaNote: `No contract. Live since ${liveDate("en")}.`,
 
     whatHeading: "What we do",
     tiersHeading: "Errands, by size",
@@ -389,7 +389,7 @@ export const COPY: Record<Lang, Copy> = {
     heroBody:
       "Un jugo, un cargador, una frisa — a un cuarto de hospital, o a una casa donde alguien vive solo. Safehubby envía a una persona de verdad, con el tope de gasto que tú pongas. Desde una diligencia hasta un servicio de concierge completo.",
     heroCta: "Empezar",
-    heroCtaNote: `Sin contrato. En servicio desde el ${liveDate("es")}, con una prueba gratis antes del primer cobro.`,
+    heroCtaNote: `Sin contrato. En servicio desde el ${liveDate("es")}.`,
 
     whatHeading: "Lo que hacemos",
     tiersHeading: "Diligencias, por tamaño",

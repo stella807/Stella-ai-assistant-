@@ -31,11 +31,19 @@ const consent = (planId: Parameters<typeof findPlan>[0], at: Date = now) => ({
   acceptedAt: at.toISOString(),
 });
 
-const subFor = (planId: Parameters<typeof findPlan>[0], platform: "web" | "ios" = "web") =>
-  startSubscription({
+/**
+ * A subscription waiting for its first charge, fourteen days out: what someone
+ * who joined before launch has (billing starts at go-live). There is no free
+ * trial, so a plan joined after launch is due at once; this fixture is for the
+ * renewal mechanics, which still run for the waiting ones.
+ */
+const subFor = (planId: Parameters<typeof findPlan>[0], platform: "web" | "ios" = "web"): Subscription => {
+  const started = startSubscription({
     travelerId: "t1", planId, cadence: "monthly", platform, now,
     renewalConsent: consent(planId),
   }).subscription;
+  return { ...started, status: "trialing", trialEndsAt: days(14).toISOString(), currentPeriodEnd: days(14).toISOString() };
+};
 
 describe("renewDueSubscriptions", () => {
   it("leaves a period that has not run out alone", () => {

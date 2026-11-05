@@ -43,6 +43,17 @@ These are deliberately left open in the text rather than guessed:
 - Cancellation in one tap, paid features to the end of the period:
   `docs/billing.md`.
 
+## The refund policy
+
+A **Refund Policy** page is linked in the footer, written from how the app
+handles money: no free trial, plans charged when they start (or at go-live for
+pre-launch sign-ups), cancel in one tap with paid features running to the end
+of the period, no refund of an unused paid period unless the law or we say so,
+tasks released if cancelled and refunded in full if disputed and upheld, club
+extras refunded until the day is locked, and refunds paid back through Stripe.
+Counsel should check the "no refund of a paid period" rule against state
+auto-renewal laws and card-network rules.
+
 ## The box a client checks to agree
 
 - **At sign-up** the form has a required checkbox: agree to the Terms of

@@ -231,8 +231,9 @@ forgotten in either direction.
 
 ## Rules the tests enforce
 
-- **A trial is never charged on the way in.** A paid plan starts in a 14-day
-  trial with nothing taken.
+- **There is no free trial.** A paid plan is charged when it starts
+  (`TRIAL_DAYS` is 0). Someone who joins before go-live is the one exception, and
+  not a trial: their first charge waits for `SERVICE_LIVE_AT`.
 - **Mid-period changes are prorated.** The unused remainder of what was already
   paid for is credited against the new plan. A downgrade never produces a bill —
   and never a refund either, since refunding through a store rail is the store's
@@ -610,7 +611,7 @@ The launch window is a **pre-launch** period: customers can sign up, and they
 receive no service because there is nobody hired yet to provide it.
 
 **Nobody is charged for a period we cannot serve.** `startSubscription` runs
-the free trial from `SERVICE_LIVE_AT` rather than from signup whenever
+the billing start from `SERVICE_LIVE_AT` rather than from signup whenever
 someone joins before go-live (`billingStartsAt` in `promotions.ts`), so the
 first invoice lands after there is a working product to invoice for. It is
 date arithmetic rather than an operator's memory, because taking two months of

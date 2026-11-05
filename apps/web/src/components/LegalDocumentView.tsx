@@ -1,16 +1,16 @@
 import { serviceFeeFor } from "@safehubby/core";
-import { privacyCopy, termsCopy, type LegalDocument } from "../app/legal-copy.ts";
+import { privacyCopy, refundCopy, termsCopy, type LegalDocument } from "../app/legal-copy.ts";
 import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
 
 /** One legal document, read in full, with the draft notice at the top while counsel has not signed it off. */
-export function LegalDocumentView({ which }: { which: "terms" | "privacy" }) {
+export function LegalDocumentView({ which }: { which: "terms" | "privacy" | "refunds" }) {
   const { language } = useLanguage();
   const lang = language === "es" ? "es" : "en";
   // The extra-hour price is read from the function the booking is charged with, never typed.
   const doc: LegalDocument = which === "terms"
     ? termsCopy(lang, money(serviceFeeFor("wait-with-someone", false, 1, 1)))
-    : privacyCopy(lang);
+    : which === "refunds" ? refundCopy(lang) : privacyCopy(lang);
   return (
     <article className="card stack" aria-label={doc.title}>
       <h3 style={{ margin: 0 }}>{doc.title}</h3>

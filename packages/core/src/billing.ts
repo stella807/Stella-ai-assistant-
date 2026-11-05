@@ -669,7 +669,15 @@ export function releasedPlans(): Plan[] {
  */
 export const SECURE_TRANSPORT_BILLING = "per-trip, at the provider's rate" as const;
 
-export const TRIAL_DAYS = 14;
+/**
+ * There is no free trial: a paid plan is charged when it starts. Someone who
+ * joins before the service is running is the one exception, and not a trial:
+ * billing starts on go-live (`billingStartsAt` in promotions.ts), because
+ * charging for a product that does not exist yet would be wrong. The constant
+ * stays, at zero, because the subscription and renewal code is written in terms
+ * of it.
+ */
+export const TRIAL_DAYS = 0;
 
 export function findPlan(id: PlanId): Plan {
   const plan = PLANS.find((p) => p.id === id);

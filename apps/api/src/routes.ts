@@ -197,7 +197,9 @@ function noteFor(sub: Subscription, rail: string | null, dueCents: number): stri
     // day on one screen reads like two different dates.
     const when = new Date(sub.currentPeriodEnd)
       .toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-    return `Free for ${TRIAL_DAYS} days. Nothing has been charged — the first payment is on ${when}.`;
+    // Only a plan joined before launch is still waiting; there is no free trial.
+    if (new Date(sub.currentPeriodEnd).getTime() <= Date.now()) return "Your plan starts now.";
+    return `Nothing has been charged. Billing starts when the service goes live; the first payment is on ${when}.`;
   }
   if (dueCents === 0) return "Plan changed. Nothing owed — the part of this period you already paid for covers it.";
   if (rail === "card") return `Plan changed. $${(dueCents / 100).toFixed(2)} charged to your card, with any unused part of the old period credited.`;
@@ -2881,6 +2883,8 @@ export const routes: Record<string, Handler> = {
       // question, not this one's.
       if (isElitePlan(traveler.planId as PlanId)) traveler.clubMember = true;
     });
+    // With no free trial, a plan joined after launch is due now: charge it, rather than waiting for the hourly sweep.
+    if (!existing) catchUpBilling(ctx);
 
     // A card-rail charge is taken from the saved PayPal account when PayPal is set
     // up, and settled inline when it is not; a store charge cannot be either,

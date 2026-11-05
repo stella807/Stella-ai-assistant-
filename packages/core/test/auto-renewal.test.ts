@@ -31,15 +31,14 @@ describe("automatic-renewal terms", () => {
 
   it("never tells a pre-launch subscriber they will be charged before go-live", () => {
     // The disclosure has to be true. Somebody joining in the launch window is
-    // not charged fourteen days later — the trial itself starts at go-live,
-    // so the first charge is fourteen days after that.
+    // not charged before the service is running: with no free trial, the first
+    // charge is on go-live.
     const terms = autoRenewalTermsFor("premium-basic", "monthly", BEFORE_LIVE);
-    const live = Date.parse(SERVICE_LIVE_AT);
-    expect(Date.parse(terms.firstChargeAt)).toBe(live + TRIAL_DAYS * 86_400_000);
-    expect(Date.parse(terms.firstChargeAt)).toBeGreaterThan(live);
+    expect(terms.trialDays).toBe(0);
+    expect(Date.parse(terms.firstChargeAt)).toBe(Date.parse(SERVICE_LIVE_AT));
   });
 
-  it("charges a post-launch subscriber a trial's length after they join", () => {
+  it("charges a post-launch subscriber when they join, with no free trial", () => {
     const terms = autoRenewalTermsFor("premium-basic", "monthly", AFTER_LIVE);
     expect(Date.parse(terms.firstChargeAt))
       .toBe(AFTER_LIVE.getTime() + TRIAL_DAYS * 86_400_000);

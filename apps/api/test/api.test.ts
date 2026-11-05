@@ -813,12 +813,14 @@ describe("subscription", () => {
     expect((await call("GET", `/api/nights/${jordanNight.id}/recovery`, undefined, jordan)).status).toBe(200);
   });
 
-  it("starts a trial rather than charging on the way in", async () => {
+  it("has no free trial: a plan joined after launch starts active and is charged", async () => {
     const res = await call("POST", "/api/subscription", { planId: "premium-basic" }, jordan);
-    expect(res.json.subscription.status).toBe("trialing");
-    expect(res.json.charged).toBeNull();
-    expect(res.json.note).toMatch(/nothing has been charged/i);
-    expect(res.json.statement.settledCents).toBe(0);
+    expect(res.status).toBe(200);
+    expect(res.json.subscription.status).toBe("active");
+    expect(res.json.subscription.trialEndsAt).toBeUndefined();
+    const charges = store.data.charges.filter((c) => c.travelerId === jordanId && c.kind === "subscription");
+    expect(charges.length).toBeGreaterThan(0);
+    expect(charges[0]!.amountCents).toBeGreaterThan(0);
   });
 
   it("rejects an unknown plan and requires a session", async () => {

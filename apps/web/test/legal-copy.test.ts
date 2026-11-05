@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { privacyCopy, termsCopy } from "../src/app/legal-copy.ts";
+import { privacyCopy, refundCopy, termsCopy } from "../src/app/legal-copy.ts";
 
 describe("the Terms of Service and Privacy Policy drafts", () => {
-  const docs = [["terms", termsCopy("en", "$45.00"), termsCopy("es", "$45.00")], ["privacy", privacyCopy("en"), privacyCopy("es")]] as const;
+  const docs = [["terms", termsCopy("en", "$45.00"), termsCopy("es", "$45.00")], ["privacy", privacyCopy("en"), privacyCopy("es")], ["refunds", refundCopy("en"), refundCopy("es")]] as const;
 
   it("say the same things in both languages, section for section", () => {
     for (const [, en, es] of docs) {
@@ -30,5 +30,15 @@ describe("the Terms of Service and Privacy Policy drafts", () => {
     expect(privacy).toMatch(/never sold/i);
     // The parts a lawyer has to settle say so rather than guessing.
     expect(text).toMatch(/once confirmed/i);
+  });
+
+  it("describes the refund rules the app actually follows, with no free trial", () => {
+    const text = refundCopy("en").sections.flatMap((s) => s.paragraphs).join(" ");
+    expect(text).toMatch(/no free trial/i);
+    expect(text).toMatch(/one tap/i);
+    expect(text).toMatch(/released/i);
+    expect(text).toMatch(/dispute/i);
+    expect(text).toMatch(/Stripe/);
+    expect(text).not.toMatch(/14[- ]day/i);
   });
 });

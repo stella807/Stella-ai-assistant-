@@ -70,7 +70,9 @@ const lowerLabel = (s: string) => {
 type Rule = [RegExp, (...g: string[]) => string];
 const PATTERNS: Rule[] = [
   // ---- the plan and its charges
-  [/^Free trial — first charge on (.+)\. Cancel before then and you are not billed\.$/, (d) => `Prueba gratis: el primer cobro es el ${spanishDate(d)}. Si cancelas antes, no se te cobra.`],
+  [/^Billing starts when the service goes live — first charge on (.+)\. Cancel before then and you are not billed\.$/, (d) => `El cobro empieza cuando el servicio arranca: el primer cobro es el ${spanishDate(d)}. Si cancelas antes, no se te cobra.`],
+  [/^Your plan starts now\.$/, () => "Tu plan empieza ahora."],
+  [/^Nothing has been charged\. Billing starts when the service goes live; the first payment is on (.+)\.$/, (d) => `No se ha cobrado nada. El cobro empieza cuando el servicio arranca; el primer pago es el ${spanishDate(d)}.`],
   [/^Canceled — your plan stays on until (.+), then goes back to free\.$/, (d) => `Cancelado: tu plan sigue activo hasta el ${spanishDate(d)} y luego vuelve a Gratis.`],
   [/^Payment did not go through\. Your features are still on; update your card to keep them past (.+)\.$/, (d) => `El pago no se completó. Tus funciones siguen activas; actualiza tu tarjeta para mantenerlas después del ${spanishDate(d)}.`],
   [/^Renews (.+)\.$/, (d) => `Se renueva el ${spanishDate(d)}.`],

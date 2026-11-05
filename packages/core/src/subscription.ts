@@ -334,7 +334,7 @@ export function isRenewalDue(sub: Subscription, now: Date): boolean {
 export function describeSubscription(sub: Subscription | null, now: Date): string {
   if (!sub || sub.planId === "free") return "You are on the free plan. SOS, check-ins, location sharing and drink count never cost anything.";
   const when = new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-  if (sub.status === "trialing") return `Free trial — first charge on ${when}. Cancel before then and you are not billed.`;
+  if (sub.status === "trialing") return `Billing starts when the service goes live — first charge on ${when}. Cancel before then and you are not billed.`;
   if (sub.status === "canceled") {
     return now.getTime() >= new Date(sub.currentPeriodEnd).getTime()
       ? "Canceled. You are back on the free plan."

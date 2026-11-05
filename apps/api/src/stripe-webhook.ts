@@ -127,7 +127,9 @@ export function handleStripeWebhook(
         // Nothing taken at checkout means the free trial the member agreed to
         // is running; Stripe charges when it ends (reported as invoice.paid).
         const trialing = Number(object.amount_total ?? 0) === 0;
-        const trialEndsAt = trialing ? autoRenewalTermsFor(plan.id, cadence, now).trialEndsAt : undefined;
+        // Only a plan joined before launch is waiting: with no free trial, one joined later is active at once.
+        const waitingUntil = trialing ? autoRenewalTermsFor(plan.id, cadence, now).trialEndsAt : undefined;
+        const trialEndsAt = waitingUntil && Date.parse(waitingUntil) > now.getTime() ? waitingUntil : undefined;
         const next: Subscription = {
           travelerId, planId: plan.id, cadence, rail: "card", status: trialing && trialEndsAt ? "trialing" : "active",
           ...(trialing && trialEndsAt ? { trialEndsAt } : {}),

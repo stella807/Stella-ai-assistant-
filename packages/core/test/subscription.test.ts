@@ -35,18 +35,17 @@ describe("starting a subscription", () => {
     expect(due).toBeNull();
   });
 
-  it("runs the trial from go-live for anyone who joins before the service starts", () => {
+  it("has no free trial, and starts billing at go-live for anyone who joins before the service starts", () => {
     // `now` here is months ahead of the launch, so this is the pre-launch
-    // cohort: fourteen days of a product that is not running yet would not be
-    // a trial, and letting it lapse would put their first charge inside the
-    // window where we cannot serve them.
+    // cohort. There is no trial, but charging for a product that is not running
+    // yet would be wrong, so the first charge waits for go-live and not a day more.
+    expect(TRIAL_DAYS).toBe(0);
     const { subscription } = start("premium-plus");
     const live = new Date(SERVICE_LIVE_AT).getTime();
-    expect(subscription.trialEndsAt).toBe(new Date(live + TRIAL_DAYS * 86_400_000).toISOString());
-    expect(new Date(subscription.trialEndsAt!).getTime()).toBeGreaterThan(live);
+    expect(subscription.trialEndsAt).toBe(new Date(live).toISOString());
   });
 
-  it("runs the trial from signup once the service is live", () => {
+  it("starts billing at signup once the service is live", () => {
     const after = new Date(Date.parse(SERVICE_LIVE_AT) + 90 * 86_400_000);
     const { subscription } = startSubscription({
       travelerId: "t1", planId: "premium-plus", cadence: "monthly", platform: "web", now: after,
@@ -203,8 +202,10 @@ describe("cancelling and entitlement", () => {
 });
 
 describe("describeSubscription", () => {
-  it("says when the first charge lands during a trial", () => {
-    expect(describeSubscription(start("premium-plus").subscription, now)).toMatch(/Free trial/);
+  it("says when the first charge lands for a plan waiting for launch, and never calls it a free trial", () => {
+    const said = describeSubscription(start("premium-plus").subscription, now);
+    expect(said).toMatch(/first charge on/);
+    expect(said).not.toMatch(/free trial/i);
   });
 
   it("says the plan stays on after cancelling, then that it is gone", () => {

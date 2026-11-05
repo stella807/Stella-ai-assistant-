@@ -45,7 +45,7 @@ describe("the server's English, for a Spanish reader", () => {
     const trial = describeSubscription({
       planId: "premium-basic", status: "trialing", currentPeriodEnd: "2026-12-12T00:00:00Z",
     } as never, new Date("2026-12-01T00:00:00Z"));
-    expect(localized(trial, "es")).toBe("Prueba gratis: el primer cobro es el 12 de dic de 2026. Si cancelas antes, no se te cobra.");
+    expect(localized(trial, "es")).toBe("El cobro empieza cuando el servicio arranca: el primer cobro es el 12 de dic de 2026. Si cancelas antes, no se te cobra.");
   });
 
   it("translates the terms of a task's charge line and keeps the customer's own words", () => {

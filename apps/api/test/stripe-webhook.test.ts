@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { SERVICE_LIVE_AT } from "@safehubby/core";
 import { handleStripeWebhook, verifyStripeSignature } from "../src/stripe-webhook.ts";
 import { renewDueSubscriptions } from "../src/billing.ts";
 import { SEED } from "../src/seed.ts";
@@ -52,12 +53,21 @@ describe("Stripe webhook", () => {
     expect(db.charges.find((c) => c.id === "stripe_cs_1")).toMatchObject({ status: "settled", amountCents: 9399 });
   });
 
-  it("starts the agreed free trial when checkout took nothing", () => {
+  it("waits for go-live when checkout took nothing before launch, since there is no free trial", () => {
     const { db, store } = storeWithMember();
-    deliver(store, event("checkout.session.completed", { ...completed, amount_total: 0, payment_status: "no_payment_required" }));
+    const before = new Date("2026-10-01T00:00:00Z");
+    deliver(store, event("checkout.session.completed", { ...completed, amount_total: 0, payment_status: "no_payment_required" }), before);
     expect(db.subscriptions.t1).toMatchObject({ status: "trialing", planId: "premium-basic" });
+    expect(db.subscriptions.t1!.trialEndsAt).toBe(new Date(SERVICE_LIVE_AT).toISOString());
     expect(db.subscriptions.t1!.currentPeriodEnd).toBe(db.subscriptions.t1!.trialEndsAt);
     expect(db.charges.some((c) => c.id === "stripe_cs_1")).toBe(false);
+  });
+
+  it("makes a plan active at once when it starts after launch, even if checkout took nothing", () => {
+    const { db, store } = storeWithMember();
+    deliver(store, event("checkout.session.completed", { ...completed, amount_total: 0, payment_status: "no_payment_required" }));
+    expect(db.subscriptions.t1).toMatchObject({ status: "active", planId: "premium-basic" });
+    expect(db.subscriptions.t1!.trialEndsAt).toBeUndefined();
   });
 
   it("asks Stripe to cancel a plan a newer checkout replaced", () => {

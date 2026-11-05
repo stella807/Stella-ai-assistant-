@@ -55,7 +55,7 @@ export function termsCopy(lang: "en" | "es", rate: string): LegalDocument {
           "El asistente paga con una tarjeta emitida solo para esa tarea y limitada a tu límite. Nunca usa tu propia tarjeta. Las compras son por el costo del artículo; el cargo de servicio paga el tiempo del asistente.",
         ] },
         { heading: "6. Cancelaciones y reembolsos", paragraphs: [
-          "Puedes cancelar tu plan en cualquier momento, con un toque, desde la app. Las funciones pagadas siguen hasta el final del periodo que ya pagaste, y después tu cuenta pasa al plan gratis si está disponible o queda sin plan.",
+          "Los detalles están en la Política de reembolsos. Puedes cancelar tu plan en cualquier momento, con un toque, desde la app. Las funciones pagadas siguen hasta el final del periodo que ya pagaste, y después tu cuenta pasa al plan gratis si está disponible o queda sin plan.",
           "Puedes cancelar una tarea antes de que se complete; lo que no se haya gastado se libera. Si una tarea no se entrega, puedes presentar una reclamación desde la app y la revisaremos. Fuera de eso, los periodos ya cobrados no se reembolsan, salvo que la ley lo exija o que te lo digamos por escrito.",
         ] },
         { heading: "7. Lo que esperamos de ti", paragraphs: [
@@ -117,7 +117,7 @@ export function termsCopy(lang: "en" | "es", rate: string): LegalDocument {
         "The assistant pays with a card issued for that task alone and limited to your cap. They never use your own card. Purchases are charged at the item's cost; the service fee pays for the assistant's time.",
       ] },
       { heading: "6. Cancellation and refunds", paragraphs: [
-        "You can cancel your plan at any time, in one tap, from the app. Paid features run to the end of the period you already paid for, after which your account moves to the free plan if it is offered, or has no plan.",
+        "The details are in the Refund Policy. You can cancel your plan at any time, in one tap, from the app. Paid features run to the end of the period you already paid for, after which your account moves to the free plan if it is offered, or has no plan.",
         "You can cancel a task before it is completed, and anything unspent is released. If a task is not delivered, you can open a dispute in the app and we will review it. Otherwise, periods already charged are not refunded unless the law requires it or we tell you so in writing.",
       ] },
       { heading: "7. What we expect of you", paragraphs: [
@@ -241,6 +241,80 @@ export function privacyCopy(lang: "en" | "es"): LegalDocument {
       ] },
       { heading: "9. Changes to this policy", paragraphs: [
         "If we change this policy in a material way, we will tell you in the app or by email before it applies.",
+      ] },
+    ],
+    contact: "Safehubby · contact@safehubby.com",
+  };
+}
+
+/** The refund policy, written from how the app actually handles money; a draft until counsel has read it. */
+export function refundCopy(lang: "en" | "es"): LegalDocument {
+  if (lang === "es") {
+    return {
+      title: "Política de reembolsos",
+      draftNotice: "Borrador en revisión legal. Esta política describe cómo funciona hoy la app y todavía no ha sido revisada por un abogado.",
+      updated: `Borrador de ${LEGAL_DRAFT_DATE}`,
+      intro: "Qué se te devuelve, cuándo y cómo, según cómo la app maneja realmente el dinero.",
+      sections: [
+        { heading: "1. Tu plan", paragraphs: [
+          "No hay prueba gratis. Un plan de pago se cobra cuando empieza. Si te uniste antes del lanzamiento, el primer cobro es el día en que el servicio empieza, no antes.",
+          "Puedes cancelar en cualquier momento, con un toque, desde la app. Las funciones pagadas siguen hasta el final del periodo que ya pagaste. La parte que no uses de un periodo ya cobrado no se reembolsa, salvo que la ley lo exija o te lo digamos por escrito.",
+          "Si subes a un plan más caro a mitad de periodo, la parte sin usar de lo que ya pagaste se te acredita contra el nuevo plan. Un cambio a un plan más barato pasa por el equipo de ayuda y no genera un reembolso.",
+        ] },
+        { heading: "2. Tareas", paragraphs: [
+          "Al enviar una tarea, retenemos en tu tarjeta el límite de gasto y el cargo de servicio. Si cancelas la tarea antes de que se complete, o el asistente no la acepta, se libera todo y no se cobra nada.",
+          "Cuando la tarea termina, se cobra solo lo que se gastó de verdad y el cargo de servicio. Lo que sobre del límite se libera.",
+        ] },
+        { heading: "3. Si una tarea no se entrega", paragraphs: [
+          "Si una tarea aparece como completada pero no se entregó, o el asistente se quedó con el dinero, puedes abrir una reclamación desde la app. Si la aprobamos, se reembolsa completo el cobro de esa tarea.",
+        ] },
+        { heading: "4. Salidas del Wingman Club", paragraphs: [
+          "Si cancelas tu lugar en una salida con cargo extra antes de que el club confirme el día, se te reembolsa ese extra completo. Si el club cancela la salida, se reembolsa a todos los que pagaron.",
+        ] },
+        { heading: "5. Saldo prepagado", paragraphs: [
+          "Un saldo cargado con ATH Móvil se puede devolver. Un saldo cargado con criptomonedas no se reembolsa automáticamente.",
+        ] },
+        { heading: "6. Cómo recibes el reembolso", paragraphs: [
+          "Los reembolsos van a la tarjeta con la que pagaste, a través de Stripe. Cuánto tarda en aparecer depende de tu banco.",
+          "Si te cobramos algo por error, escríbenos y lo corregimos.",
+        ] },
+        { heading: "7. Cómo pedirlo", paragraphs: [
+          "Para una tarea, abre una reclamación desde la app. Para cualquier otra cosa, escribe a contact@safehubby.com con lo que pasó y la fecha del cobro.",
+        ] },
+      ],
+      contact: "Safehubby · contact@safehubby.com",
+    };
+  }
+  return {
+    title: "Refund Policy",
+    draftNotice: "Draft under legal review. This policy describes how the app works today and has not yet been reviewed by a lawyer.",
+    updated: `Draft of ${LEGAL_DRAFT_DATE}`,
+    intro: "What is returned to you, when and how, based on how the app actually handles money.",
+    sections: [
+      { heading: "1. Your plan", paragraphs: [
+        "There is no free trial. A paid plan is charged when it starts. If you joined before launch, your first charge is the day the service starts, not before.",
+        "You can cancel at any time, in one tap, from the app. Paid features run to the end of the period you already paid for. The part you do not use of a period already charged is not refunded, unless the law requires it or we tell you so in writing.",
+        "If you move up to a more expensive plan part-way through a period, the unused part of what you already paid is credited toward the new plan. A move to a cheaper plan goes through the help desk and does not produce a refund.",
+      ] },
+      { heading: "2. Tasks", paragraphs: [
+        "When you send a task, we hold your spend cap and the service fee on your card. If you cancel the task before it is completed, or the assistant does not accept it, the whole hold is released and nothing is charged.",
+        "When the task is done, only what was actually spent and the service fee are charged. Anything left of the cap is released.",
+      ] },
+      { heading: "3. If a task is not delivered", paragraphs: [
+        "If a task shows as completed but was not delivered, or the assistant kept the money, you can open a dispute in the app. If we uphold it, the full charge for that task is refunded.",
+      ] },
+      { heading: "4. Wingman Club outings", paragraphs: [
+        "If you cancel your place in an outing that carries an extra charge before the club locks the day in, the extra is refunded in full. If the club calls the outing off, everyone who paid is refunded.",
+      ] },
+      { heading: "5. Prepaid balance", paragraphs: [
+        "A balance loaded with ATH Móvil can be sent back. A balance loaded with crypto is not refunded automatically.",
+      ] },
+      { heading: "6. How you get the refund", paragraphs: [
+        "Refunds go back to the card you paid with, through Stripe. How long it takes to show up depends on your bank.",
+        "If we charged you something by mistake, write to us and we will correct it.",
+      ] },
+      { heading: "7. How to ask", paragraphs: [
+        "For a task, open a dispute in the app. For anything else, write to contact@safehubby.com with what happened and the date of the charge.",
       ] },
     ],
     contact: "Safehubby · contact@safehubby.com",

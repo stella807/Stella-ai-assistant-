@@ -3,6 +3,7 @@ import { useLanguage } from "../i18n.tsx";
 import { ClientDisclosures } from "./ClientDisclosures.tsx";
 import { LegalDocumentView } from "./LegalDocumentView.tsx";
 import { disclosureCopy } from "../app/disclosure-copy.ts";
+import { refundCopy } from "../app/legal-copy.ts";
 
 /**
  * What a stranger looks for below the fold, before they have any account:
@@ -19,7 +20,7 @@ import { disclosureCopy } from "../app/disclosure-copy.ts";
  */
 export function Footer() {
   const { t, language } = useLanguage();
-  const [open, setOpen] = useState<"terms" | "privacy" | "press" | "disclosures" | null>(null);
+  const [open, setOpen] = useState<"terms" | "privacy" | "refunds" | "press" | "disclosures" | null>(null);
 
   return (
     <footer className="stack" style={{ marginTop: 24 }}>
@@ -36,6 +37,7 @@ export function Footer() {
         <button className="linklike" aria-expanded={open === "press"} onClick={() => setOpen((o) => (o === "press" ? null : "press"))}>{t("footer.press")}</button>
         <button className="linklike" aria-expanded={open === "terms"} onClick={() => setOpen((o) => (o === "terms" ? null : "terms"))}>{t("footer.terms")}</button>
         <button className="linklike" aria-expanded={open === "disclosures"} onClick={() => setOpen((o) => (o === "disclosures" ? null : "disclosures"))}>{disclosureCopy(language === "es" ? "es" : "en", "").link}</button>
+        <button className="linklike" aria-expanded={open === "refunds"} onClick={() => setOpen((o) => (o === "refunds" ? null : "refunds"))}>{refundCopy(language === "es" ? "es" : "en").title}</button>
         <button className="linklike" aria-expanded={open === "privacy"} onClick={() => setOpen((o) => (o === "privacy" ? null : "privacy"))}>{t("footer.privacy")}</button>
       </nav>
       {/* Real links, not router pushes: each portal is its own area with its own sign-in. */}
@@ -48,7 +50,7 @@ export function Footer() {
       {open === "press" && <PressRelease />}
       {open === "disclosures" && <ClientDisclosures />}
 
-      {(open === "terms" || open === "privacy") && <LegalDocumentView which={open} />}
+      {(open === "terms" || open === "privacy" || open === "refunds") && <LegalDocumentView which={open} />}
 
       <p className="tiny muted" style={{ textAlign: "center" }}>
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}

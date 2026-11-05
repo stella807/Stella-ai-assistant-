@@ -15,10 +15,9 @@ subscription revenue**:
 
 - Customers can sign up, and they get the launch-party discount.
 - **They receive no service, and they are not charged.** Enforced in
-  `startSubscription`: a subscription started before go-live runs its free
-  trial from go-live, so the first invoice lands after there is something to
-  invoice for. Verified end to end — a signup during the window gets a trial
-  ending two weeks *after* launch day.
+  `startSubscription`: a subscription started before go-live starts billing
+  on go-live (there is no free trial), so the first invoice lands after there is
+  something to invoice for.
 - The two months are spent hiring, insuring, and training.
 
 That makes this the one number in the business most worth computing rather
