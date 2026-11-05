@@ -139,4 +139,35 @@ describe("the monthly profit calculator", () => {
       expect(monthlyProfit(base({ hospitalDays: 0 })).lines.find((l) => l.id === "hospital-days")).toBeUndefined();
     });
   });
+
+  describe("drivers' pay", () => {
+    it("pays each trip the base plus the miles and the minutes, from the published card", () => {
+      const r = monthlyProfit(base({ driverTrips: 20, driverTier: "standard", driverMiles: 5, driverMinutes: 15 }));
+      const perTrip = 300 + 90 * 5 + 18 * 15; // $3.00 + $0.90/mi + $0.18/min
+      expect(r.payouts.driversCents).toBe(20 * perTrip);
+      const line = r.lines.find((l) => l.id === "drivers")!;
+      expect(line.costCents).toBe(20 * perTrip);
+      expect(line.revenueCents).toBe(0); // no fare entered: only the cost shows
+      expect(r.grossProfitCents).toBe(-20 * perTrip);
+    });
+
+    it("uses the rates the owner has set instead of the card when they are given", () => {
+      const rates = { standard: { baseCents: 500, perMileCents: 100, perMinuteCents: 20 }, "secure-transport": { baseCents: 600, perMileCents: 200, perMinuteCents: 35 } };
+      const r = monthlyProfit(base({ driverTrips: 10, driverMiles: 10, driverMinutes: 20, driverRates: rates }));
+      expect(r.payouts.driversCents).toBe(10 * (500 + 100 * 10 + 20 * 20));
+    });
+
+    it("shows profit once a fare is entered: the fare less the driver and Stripe's cut", () => {
+      const r = monthlyProfit(base({ driverTrips: 10, driverTier: "secure-transport", driverMiles: 10, driverMinutes: 20, driverFareCents: 8_000 }));
+      const pay = 600 + 200 * 10 + 35 * 20;
+      const line = r.lines.find((l) => l.id === "drivers")!;
+      expect(line.revenueCents).toBe(10 * 8_000);
+      expect(line.profitCents).toBe(10 * (8_000 - pay - errandCardCostCents(8_000)));
+      expect(line.profitCents).toBeGreaterThan(0);
+    });
+
+    it("is nothing with no trips", () => {
+      expect(monthlyProfit(base({ driverTrips: 0 })).lines.find((l) => l.id === "drivers")).toBeUndefined();
+    });
+  });
 });

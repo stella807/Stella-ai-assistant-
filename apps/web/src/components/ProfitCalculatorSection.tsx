@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CALCULATOR_PLANS, ERRAND_TIERS, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, type CalculatorPlan, type ErrandTierId, type PnlInputs } from "@safehubby/core";
+import { CALCULATOR_PLANS, ERRAND_TIERS, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, type CalculatorPlan, type DriverTier, type ErrandTierId, type PnlInputs } from "@safehubby/core";
 import { api } from "../api.ts";
 
 const STORE = "sh_pnl_scenarios";
@@ -28,6 +28,13 @@ export function ProfitCalculatorSection() {
 
   useEffect(() => {
     api.masterFreebies().then((r) => setMonthlyFreebies(r.freebies)).catch(() => undefined).finally(() => setReady(true));
+    // The driver pay you have set in Pricing Controls, so the calculator pays drivers what you actually pay them.
+    api.masterGetPricing().then((p) => {
+      const cur = p?.current;
+      if (cur?.driverStandard && cur?.driverSecureTransport) {
+        setInputs((i) => ({ ...i, driverRates: { standard: cur.driverStandard, "secure-transport": cur.driverSecureTransport } }));
+      }
+    }).catch(() => undefined);
   }, []);
 
   const result = useMemo(() => monthlyProfit(inputs), [inputs, ready]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -37,12 +44,12 @@ export function ProfitCalculatorSection() {
       <input type="number" min={0} max={100} step={5} style={{ width: 80 }} value={Math.round(inputs[k] * 100)} onChange={(e) => set(k, num(e.target.value) / 100)} />
     </label>
   );
-  const dollars = (k: "payrollCents" | "otherFixedCents" | "cashCents" | "errandCapCents", label: string) => (
+  const dollars = (k: "payrollCents" | "otherFixedCents" | "cashCents" | "errandCapCents" | "driverFareCents", label: string) => (
     <label className="row-between small">{label}
-      <input type="number" min={0} step={k === "errandCapCents" ? 1 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
+      <input type="number" min={0} step={k === "errandCapCents" || k === "driverFareCents" ? 1 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
     </label>
   );
-  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
+  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "driverTrips" | "driverMiles" | "driverMinutes" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
     <label className="row-between small">{label}
       <input type="number" min={0} step={1} style={{ width: 80 }} value={inputs[k]} onChange={(e) => set(k, num(e.target.value))} />
     </label>
@@ -74,6 +81,16 @@ export function ProfitCalculatorSection() {
       {count("extraAssistantHours", "Extra assistant hours sold")}
       {count("hospitalDays", "Hospital caretaker days")}
       {count("paidErrands", "Errands with a fee")}
+      {count("driverTrips", "Trips by your own drivers")}
+      <label className="row-between small">Driver trip type
+        <select value={inputs.driverTier} style={{ width: 150 }} onChange={(e) => set("driverTier", e.target.value as DriverTier)}>
+          <option value="standard">Standard</option>
+          <option value="secure-transport">Secure transport</option>
+        </select>
+      </label>
+      {count("driverMiles", "Typical trip: miles")}
+      {count("driverMinutes", "Typical trip: minutes")}
+      {dollars("driverFareCents", "What a client pays per trip ($, 0 if not set)")}
       <label className="row-between small">Typical errand size
         <select value={inputs.errandTier} style={{ width: 150 }} onChange={(e) => set("errandTier", e.target.value as ErrandTierId)}>
           {ERRAND_TIERS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -101,6 +118,7 @@ export function ProfitCalculatorSection() {
         </span>
         <div className="row-between tiny"><span className="muted">Paid to assistants and caretakers</span><span>{money(result.payouts.assistantsCents)}</span></div>
         <div className="row-between tiny"><span className="muted">Paid to errand runners</span><span>{money(result.payouts.runnersCents)}</span></div>
+        {result.payouts.driversCents > 0 && <div className="row-between tiny"><span className="muted">Paid to drivers</span><span>{money(result.payouts.driversCents)}</span></div>}
         <div className="row-between tiny"><span className="muted">Stripe fees and task cards</span><span>{money(result.payouts.cardFeesCents)}</span></div>
       </div>
 

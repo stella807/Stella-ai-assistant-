@@ -1,6 +1,8 @@
 import { PROCESSOR_FEE_FIXED_CENTS, PROCESSOR_FEE_RATE, deskTaskAllowanceFor, findPlan, includedConciergeHours, type PlanId } from "./billing.ts";
 import { MAX_BOOKED_HOURS, PA_CUSTOMER_HOURLY_CENTS, assistantPayoutFor, livePaHourlyPayCents, serviceFeeFor } from "./concierge.ts";
 import { payDeltas } from "./pay-adjustments.ts";
+import { DRIVER_RATE_CARD, type DriverRate } from "./driver-pay.ts";
+import type { DriverTier } from "./driver-applications.ts";
 import {
   ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandPayoutCents, type ErrandTierId,
 } from "./errand-tiers.ts";
@@ -37,6 +39,14 @@ export interface PnlInputs {
   paidErrands: number;
   errandTier: ErrandTierId;
   errandCapCents: number;
+  /** Trips by drivers Safehubby hires itself, in a month: the tier, a typical trip, and what a client pays per trip (0 if not set, which shows only the pay). */
+  driverTrips: number;
+  driverTier: DriverTier;
+  driverMiles: number;
+  driverMinutes: number;
+  driverFareCents: number;
+  /** The driver pay rates in force, if different from the published card (the owner can change them in `/master`). */
+  driverRates?: Record<DriverTier, DriverRate>;
   /** Hospital days booked in a month: a caretaker stays with a patient for the day, charged and paid at the hospital-day rates. */
   hospitalDays: number;
   /** Wingman Club members, and the share who go to light outings and to bigger days. */
@@ -68,7 +78,7 @@ export interface PnlResult {
   fixedCents: number;
   netCents: number;
   /** Where the money went before it reached you: assistants, errand runners and the card processor (Stripe). */
-  payouts: { assistantsCents: number; runnersCents: number; cardFeesCents: number };
+  payouts: { assistantsCents: number; runnersCents: number; driversCents: number; cardFeesCents: number };
   /** What one more member of a plan adds to the month, at this usage. */
   perMemberCents: Record<CalculatorPlan, number>;
   /** How many more Premium members would bring the month to zero; 0 if it is already there. */
@@ -84,6 +94,11 @@ export const defaultPnlInputs = (): PnlInputs => ({
   extraAssistantHours: 0,
   paidErrands: 0,
   hospitalDays: 0,
+  driverTrips: 0,
+  driverTier: "standard",
+  driverMiles: 5,
+  driverMinutes: 15,
+  driverFareCents: 0,
   errandTier: "nearby-store",
   errandCapCents: ERRAND_REFERENCE_CAP_CENTS,
   clubMembers: 0,
@@ -147,7 +162,7 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
   const usage = clamp(raw.usage, 0, 1);
   const deskMinutes = clamp(raw.deskMinutes, 0, 240);
   const lines: PnlLine[] = [];
-  const payouts = { assistantsCents: 0, runnersCents: 0, cardFeesCents: 0 };
+  const payouts = { assistantsCents: 0, runnersCents: 0, driversCents: 0, cardFeesCents: 0 };
 
   for (const plan of CALCULATOR_PLANS) {
     const n = whole(raw.members[plan]);
@@ -190,6 +205,26 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
     lines.push({
       id: "errands", label: "Errands with a fee", revenueCents: revenue, costCents: cost, profitCents: revenue - cost,
       note: `Each errand charges ${(fee / 100).toFixed(2)}; the runner is paid ${(runner / 100).toFixed(2)}, and Stripe's cut and the task card come out. The purchase itself passes through to the store.`,
+    });
+  }
+
+  const trips = whole(raw.driverTrips);
+  if (trips > 0) {
+    const tier: DriverTier = raw.driverTier === "secure-transport" ? "secure-transport" : "standard";
+    const rate = (raw.driverRates ?? DRIVER_RATE_CARD)[tier];
+    const miles = clamp(raw.driverMiles, 0, 500);
+    const minutes = clamp(raw.driverMinutes, 0, 600);
+    // What one trip pays the driver: the base, plus the distance and the time.
+    const pay = Math.round(rate.baseCents + rate.perMileCents * miles + rate.perMinuteCents * minutes);
+    const fare = whole(raw.driverFareCents);
+    const processing = fare > 0 ? errandCardCostCents(fare) : 0;
+    payouts.driversCents += trips * pay; payouts.cardFeesCents += trips * processing;
+    lines.push({
+      id: "drivers", label: "Trips by your own drivers", revenueCents: trips * fare, costCents: trips * (pay + processing),
+      profitCents: trips * (fare - pay - processing),
+      note: fare > 0
+        ? `Each trip charges ${(fare / 100).toFixed(2)} and pays the driver ${(pay / 100).toFixed(2)} (base, miles and minutes), and Stripe's cut comes out.`
+        : `Each trip pays the driver ${(pay / 100).toFixed(2)} (base, miles and minutes). Enter what a client pays per trip to see the profit; until then this is only a cost.`,
     });
   }
 
