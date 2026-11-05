@@ -37,9 +37,28 @@ export const ERRAND_MILEAGE_CENTS = 70;
 export const CARD_FEE_RATE = 0.029;
 export const CARD_FEE_FIXED_CENTS = 30;
 export const ERRAND_PROFIT_FLOOR_CENTS = 5;
+
 /**
- * What Safehubby keeps on an errand, on top of the runner's pay and the card
- * fee: 10% of the runner's pay, never under $1. Halved at ownership's direction
+ * What it costs to give the runner a virtual task card on Stripe Issuing, which
+ * the client pays through the errand fee instead of it coming out of margin.
+ *
+ * A virtual card is $0.10 each in the US, per the sources I could find; Stripe's
+ * own pricing page was not readable, so check it against your Stripe account.
+ * Some sources also quote a per-transaction fee (0.2% + $0.20) that applies only
+ * past a spending threshold; it is left at zero until that is confirmed for this
+ * account. Change these three numbers, and every errand price follows.
+ */
+export const ISSUING_CARD_FEE_CENTS = 10;
+export const ISSUING_TRANSACTION_FIXED_CENTS = 0;
+export const ISSUING_TRANSACTION_RATE = 0;
+
+/** What issuing the task card and spending on it costs, for a hold of this size, rounded up so the profit floor is never flattered. */
+export function errandIssuingCostCents(spendCapCents: number): number {
+  return Math.ceil(ISSUING_CARD_FEE_CENTS + ISSUING_TRANSACTION_FIXED_CENTS + ISSUING_TRANSACTION_RATE * spendCapCents);
+}
+/**
+ * What Safehubby keeps on an errand, on top of the runner's pay, the card
+ * fee and the cost of the virtual task card: 10% of the runner's pay, never under $1. Halved at ownership's direction
  * to lower what customers pay; the runner's pay and the card processor's cut
  * are untouched, and five cents left nothing to run the service on.
  */
@@ -127,7 +146,8 @@ export function errandCardCostCents(holdCents: number): number {
 
 /**
  * The service fee: the smallest, to the cent, that still leaves
- * `ERRAND_PROFIT_FLOOR_CENTS` after the runner and the card processor.
+ * `ERRAND_PROFIT_FLOOR_CENTS` after the runner, the card processor and the
+ * virtual task card.
  *
  * Solved in closed form and then checked, because the processor's cut is
  * itself a percentage of the fee being solved for, and rounding it up can
@@ -136,17 +156,18 @@ export function errandCardCostCents(holdCents: number): number {
 export function errandFeeCents(id: ErrandTierId, spendCapCents: number): number {
   const payout = errandPayoutCents(id);
   const margin = errandMarginCents(id);
-  const need = payout + CARD_FEE_FIXED_CENTS + margin + CARD_FEE_RATE * spendCapCents;
+  const issuing = errandIssuingCostCents(spendCapCents);
+  const need = payout + CARD_FEE_FIXED_CENTS + margin + issuing + CARD_FEE_RATE * spendCapCents;
   let fee = Math.ceil(need / (1 - CARD_FEE_RATE));
   if (id === "pharmacy") fee = Math.max(fee, PHARMACY_RUN_FEE_CENTS);
-  while (fee - payout - errandCardCostCents(spendCapCents + fee) < margin) fee += 1;
+  while (fee - payout - errandCardCostCents(spendCapCents + fee) - issuing < margin) fee += 1;
   return fee;
 }
 
 /** What Safehubby keeps if the whole cap is spent — the worst case. */
 export function errandProfitCents(id: ErrandTierId, spendCapCents: number): number {
   const fee = errandFeeCents(id, spendCapCents);
-  return fee - errandPayoutCents(id) - errandCardCostCents(spendCapCents + fee);
+  return fee - errandPayoutCents(id) - errandCardCostCents(spendCapCents + fee) - errandIssuingCostCents(spendCapCents);
 }
 
 /** The amount charged for the tier's fee and the whole hold, together. */

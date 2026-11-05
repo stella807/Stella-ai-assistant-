@@ -6,7 +6,7 @@ import { resetFlags, setFlag } from "../src/features.ts";
 beforeEach(() => { setFlag("free-errands", true); setFlag("plan-free-errands", true); });
 afterEach(() => resetFlags());
 import {
-  CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_RATE_PER_HOUR_CENTS,
+  CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_RATE_PER_HOUR_CENTS, ISSUING_CARD_FEE_CENTS, errandIssuingCostCents,
   ERRAND_TIERS, errandCardCostCents, errandMarginCents, errandFeeCents, errandPayoutCents, errandProfitCents,
   FOOD_ERRAND_TIERS, PHARMACY_RUN_FEE_CENTS, findErrandTier, validateErrandTier,
 } from "../src/index.ts";
@@ -58,6 +58,19 @@ describe("errand tiers", () => {
       for (const cap of CAPS) {
         expect(errandProfitCents(t.id, cap), `${t.id} at ${cap}`)
           .toBeLessThan(errandMarginCents(t.id) + 3);
+      }
+    }
+  });
+
+  it("charges the client for the virtual task card, so it does not come out of the margin", () => {
+    expect(ISSUING_CARD_FEE_CENTS).toBe(10);
+    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
+      for (const cap of CAPS) {
+        const fee = errandFeeCents(t.id, cap);
+        const kept = fee - errandPayoutCents(t.id) - errandCardCostCents(cap + fee) - errandIssuingCostCents(cap);
+        expect(kept, `${t.id} at ${cap}`).toBeGreaterThanOrEqual(errandMarginCents(t.id));
+        // Without the issuing cost in the fee, the same errand would keep less than its margin.
+        expect(kept - errandIssuingCostCents(cap), `${t.id} at ${cap}`).toBeLessThan(kept);
       }
     }
   });

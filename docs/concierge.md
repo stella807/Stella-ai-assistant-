@@ -970,3 +970,14 @@ booking.
 It is a disclosure, not a Terms of Service: Terms and Privacy still need a
 lawyer's review. **When a rule it describes changes (the 24-hour lead time,
 the card hold, cancellation, the safety limits), change it in the same commit.**
+
+## The task card's cost is in the errand fee
+
+An errand's service fee covers the runner's pay, Stripe's processing cut on the
+client's charge, the margin, **and the cost of the virtual task card**
+(`errandIssuingCostCents` in `errand-tiers.ts`), so the card never comes out of
+margin. Today that is $0.10 per card (`ISSUING_CARD_FEE_CENTS`), from third-party
+sources: confirm it against your Stripe Issuing pricing. A per-transaction fee
+(`ISSUING_TRANSACTION_FIXED_CENTS`, `ISSUING_TRANSACTION_RATE`) is left at zero
+until you have confirmed that it applies to your account; set the three numbers
+and every errand price follows.
