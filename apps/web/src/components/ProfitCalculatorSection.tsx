@@ -42,7 +42,7 @@ export function ProfitCalculatorSection() {
       <input type="number" min={0} step={k === "errandCapCents" ? 1 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
     </label>
   );
-  const count = (k: "extraAssistantHours" | "paidErrands" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
+  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
     <label className="row-between small">{label}
       <input type="number" min={0} step={1} style={{ width: 80 }} value={inputs[k]} onChange={(e) => set(k, num(e.target.value))} />
     </label>
@@ -72,6 +72,7 @@ export function ProfitCalculatorSection() {
       ))}
       {count("clubMembers", "Wingman Club members ($99)")}
       {count("extraAssistantHours", "Extra assistant hours sold")}
+      {count("hospitalDays", "Hospital caretaker days")}
       {count("paidErrands", "Errands with a fee")}
       <label className="row-between small">Typical errand size
         <select value={inputs.errandTier} style={{ width: 150 }} onChange={(e) => set("errandTier", e.target.value as ErrandTierId)}>
@@ -98,7 +99,7 @@ export function ProfitCalculatorSection() {
         <span className="tiny muted">
           After paying every assistant and errand runner, Stripe's fees and your fixed costs below. That is your profit, and what you can pay yourself.
         </span>
-        <div className="row-between tiny"><span className="muted">Paid to assistants</span><span>{money(result.payouts.assistantsCents)}</span></div>
+        <div className="row-between tiny"><span className="muted">Paid to assistants and caretakers</span><span>{money(result.payouts.assistantsCents)}</span></div>
         <div className="row-between tiny"><span className="muted">Paid to errand runners</span><span>{money(result.payouts.runnersCents)}</span></div>
         <div className="row-between tiny"><span className="muted">Stripe fees and task cards</span><span>{money(result.payouts.cardFeesCents)}</span></div>
       </div>

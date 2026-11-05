@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CALCULATOR_PLANS, cardFeeCents, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, defaultMonthlyFreebies,
+  MAX_BOOKED_HOURS, assistantPayoutFor, serviceFeeFor,
   errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandMarginCents, errandPayoutCents,
   type PnlInputs,
 } from "../src/index.ts";
@@ -117,6 +118,25 @@ describe("the monthly profit calculator", () => {
       expect(line.revenueCents).toBe(100 * fee);
       expect(line.profitCents).toBe(100 * kept);
       expect(kept).toBeGreaterThanOrEqual(errandMarginCents("nearby-store"));
+    });
+  });
+
+  describe("hospital caretaker days", () => {
+    it("counts what the client pays for a day, less the caretaker's pay and Stripe's cut", () => {
+      const r = monthlyProfit(base({ hospitalDays: 10 }));
+      const line = r.lines.find((l) => l.id === "hospital-days")!;
+      const price = serviceFeeFor("wait-with-someone", false, 1, MAX_BOOKED_HOURS, true);
+      const pay = assistantPayoutFor("wait-with-someone", false, 1, MAX_BOOKED_HOURS, true);
+      expect(price).toBeGreaterThan(pay);
+      expect(line.revenueCents).toBe(10 * price);
+      expect(line.profitCents).toBe(10 * (price - pay - errandCardCostCents(price)));
+      expect(line.profitCents).toBeGreaterThan(0);
+      expect(r.payouts.assistantsCents).toBe(10 * pay);
+      expect(r.grossProfitCents).toBe(line.profitCents);
+    });
+
+    it("is nothing when no days are booked", () => {
+      expect(monthlyProfit(base({ hospitalDays: 0 })).lines.find((l) => l.id === "hospital-days")).toBeUndefined();
     });
   });
 });

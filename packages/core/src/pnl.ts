@@ -1,5 +1,5 @@
 import { PROCESSOR_FEE_FIXED_CENTS, PROCESSOR_FEE_RATE, deskTaskAllowanceFor, findPlan, includedConciergeHours, type PlanId } from "./billing.ts";
-import { PA_CUSTOMER_HOURLY_CENTS, livePaHourlyPayCents } from "./concierge.ts";
+import { MAX_BOOKED_HOURS, PA_CUSTOMER_HOURLY_CENTS, assistantPayoutFor, livePaHourlyPayCents, serviceFeeFor } from "./concierge.ts";
 import { payDeltas } from "./pay-adjustments.ts";
 import {
   ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandPayoutCents, type ErrandTierId,
@@ -37,6 +37,8 @@ export interface PnlInputs {
   paidErrands: number;
   errandTier: ErrandTierId;
   errandCapCents: number;
+  /** Hospital days booked in a month: a caretaker stays with a patient for the day, charged and paid at the hospital-day rates. */
+  hospitalDays: number;
   /** Wingman Club members, and the share who go to light outings and to bigger days. */
   clubMembers: number;
   clubLightAttendance: number;
@@ -81,6 +83,7 @@ export const defaultPnlInputs = (): PnlInputs => ({
   deskMinutes: 15,
   extraAssistantHours: 0,
   paidErrands: 0,
+  hospitalDays: 0,
   errandTier: "nearby-store",
   errandCapCents: ERRAND_REFERENCE_CAP_CENTS,
   clubMembers: 0,
@@ -187,6 +190,21 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
     lines.push({
       id: "errands", label: "Errands with a fee", revenueCents: revenue, costCents: cost, profitCents: revenue - cost,
       note: `Each errand charges ${(fee / 100).toFixed(2)}; the runner is paid ${(runner / 100).toFixed(2)}, and Stripe's cut and the task card come out. The purchase itself passes through to the store.`,
+    });
+  }
+
+  const hospitalDays = whole(raw.hospitalDays);
+  if (hospitalDays > 0) {
+    // The same functions a booking is charged and paid with: the client pays the hospital-day price,
+    // the caretaker earns the hospital-day pay, and Stripe takes its cut of the client's charge.
+    const price = serviceFeeFor("wait-with-someone", false, 1, MAX_BOOKED_HOURS, true);
+    const pay = assistantPayoutFor("wait-with-someone", false, 1, MAX_BOOKED_HOURS, true);
+    const processing = errandCardCostCents(price);
+    payouts.assistantsCents += hospitalDays * pay; payouts.cardFeesCents += hospitalDays * processing;
+    lines.push({
+      id: "hospital-days", label: "Hospital caretaker days", revenueCents: hospitalDays * price,
+      costCents: hospitalDays * (pay + processing), profitCents: hospitalDays * (price - pay - processing),
+      note: `Each day the client pays ${(price / 100).toFixed(2)}, the caretaker is paid ${(pay / 100).toFixed(2)}, and Stripe's cut comes out.`,
     });
   }
 
