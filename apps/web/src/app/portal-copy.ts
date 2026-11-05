@@ -150,6 +150,10 @@ const EN = {
     near: (place: string) => `Near ${place}`,
     paid: "You'll be paid",
     covers: (n: number) => ` — covers ${n} people, so it pays more`,
+    hoursBooked: "Hours booked",
+    hoursBreakdown: (included: number, extra: number, rate: string) =>
+      `${included} h covered by the client's plan, ${extra} h extra billed to the client at ${rate} an hour. You are paid for every hour.`,
+    startsAt: (when: string) => `Starts ${when}`,
     cap: "Spend cap for the purchase — reimbursed on the card issued for this task",
     payWithCard: (network: string, last4: string) => `Pay with the task card — ${network} ···· ${last4}`,
     noCard: "No card was issued for this task, so pay however the customer arranged it and report what you spent when you mark it done.",
@@ -329,6 +333,10 @@ const ES: typeof EN = {
     near: (place: string) => `Cerca de ${place}`,
     paid: "Se te pagará",
     covers: (n: number) => `: cubre a ${n} personas, así que paga más`,
+    hoursBooked: "Horas reservadas",
+    hoursBreakdown: (included: number, extra: number, rate: string) =>
+      `${included} h cubiertas por el plan del cliente, ${extra} h extra cobradas al cliente a ${rate} la hora. A ti se te paga cada hora.`,
+    startsAt: (when: string) => `Empieza ${when}`,
     cap: "Límite de gasto para la compra; se paga con la tarjeta emitida para esta tarea",
     payWithCard: (network: string, last4: string) => `Pagar con la tarjeta de la tarea: ${network} ···· ${last4}`,
     noCard: "No se emitió tarjeta para esta tarea, así que paga como lo haya acordado el cliente y anota lo que gastaste cuando la marques como terminada.",

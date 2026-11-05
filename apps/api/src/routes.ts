@@ -4,7 +4,7 @@ import {
 } from "@safehubby/core";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
-  isPlanReleased, releasedPlans, setPlanSwitches, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
+  isPlanReleased, releasedPlans, setPlanSwitches, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
@@ -1163,6 +1163,42 @@ function hiringRows(ctx: Ctx) {
     const target = ctx.store.data.hiringTargets?.[r.id] ?? OPEN_POSITIONS[r.id];
     return { id: r.id, label: r.label, target, defaultTarget: OPEN_POSITIONS[r.id], hired, openings: Math.max(0, target - hired) };
   });
+}
+
+/**
+ * Hourly assistant work for a month, split into the hours plans covered and the
+ * extra hours billed at the hourly rate. Armed jobs and hospital-day stays are
+ * priced on their own rates, so they are left out of the extra-hours figures.
+ */
+function extraHoursReport(ctx: Ctx, start: Date, end: Date) {
+  const tasks = ctx.store.data.conciergeTasks.filter((t) => {
+    if (t.hoursBooked === undefined || t.status === "canceled" || t.armed || t.hospitalStay) return false;
+    const at = new Date(t.createdAt).getTime();
+    return at >= start.getTime() && at < end.getTime();
+  });
+  const byMember = new Map<string, { travelerId: string; name: string; planId: string; extraHours: number; includedHours: number; billedCents: number }>();
+  let included = 0, extra = 0, billed = 0, paid = 0, plannedUsed = 0, onDemandUsed = 0;
+  for (const t of tasks) {
+    const inc = t.includedHoursUsed ?? 0;
+    const ext = Math.max(0, t.hoursBooked! - inc);
+    included += inc; extra += ext; billed += t.serviceFeeCents; paid += t.assistantPayoutCents;
+    if (t.includedHoursKind === "planned") plannedUsed += inc; else onDemandUsed += inc;
+    const row = byMember.get(t.travelerId) ?? {
+      travelerId: t.travelerId, name: nameOf(ctx, t.travelerId), planId: planOf(ctx, t.travelerId), extraHours: 0, includedHours: 0, billedCents: 0,
+    };
+    row.extraHours += ext; row.includedHours += inc; row.billedCents += t.serviceFeeCents;
+    byMember.set(t.travelerId, row);
+  }
+  return {
+    bookings: tasks.length, includedHours: included, includedPlannedHours: plannedUsed, includedOnDemandHours: onDemandUsed,
+    extraHours: extra, billedCents: billed, assistantPaidCents: paid,
+    members: [...byMember.values()].sort((a, b) => b.extraHours - a.extraHours || b.includedHours - a.includedHours).slice(0, 10),
+    recent: tasks.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20).map((t) => ({
+      id: t.id, at: t.createdAt, member: nameOf(ctx, t.travelerId), hours: t.hoursBooked!, includedHours: t.includedHoursUsed ?? 0,
+      extraHours: Math.max(0, t.hoursBooked! - (t.includedHoursUsed ?? 0)), billedCents: t.serviceFeeCents, startsAt: t.startsAt,
+      kind: t.includedHoursKind, status: t.status,
+    })),
+  };
 }
 
 /** Each plan with included hours: the number, and what it costs if a member uses every one. */
@@ -6395,6 +6431,21 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Master: extra assistant hours (beyond a plan's included hours) billed this month and last, for monitoring. */
+  "GET /api/master/extra-hours": (ctx) => {
+    requireAdmin(ctx, "money");
+    const now = ctx.now();
+    const thisStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const nextStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const lastStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    return {
+      // What a customer pays for each extra hour: the published hourly rate, moved with the owner's pay setting.
+      ratePerHourCents: PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly,
+      thisMonth: extraHoursReport(ctx, thisStart, nextStart),
+      lastMonth: extraHoursReport(ctx, lastStart, thisStart),
+    };
   },
 
   /** Master: the assistant hours each plan includes a month, with what they cost if every one is used. */

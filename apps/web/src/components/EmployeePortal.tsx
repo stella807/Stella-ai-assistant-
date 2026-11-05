@@ -5,7 +5,7 @@ import {
   CONCIERGE_CATEGORIES, MAX_SPEND_REQUEST_NOTE, MAX_TASKS_PER_WEEK_ESTIMATE, MAX_VOICE_MESSAGE_SECONDS,
   REFERENCE_MARKET, LAUNCH_MARKETS, describePayAgainstMarket, minutesFor, type LaunchMarketId,
   annualEstimateCentsFor, assistantPayoutFor, canRevealCard, conciergeCategoryLabel, defaultHoursFor,
-  hourlyRateCentsFor, isHourlyCategory,
+  hourlyRateCentsFor, isHourlyCategory, PA_CUSTOMER_HOURLY_CENTS,
   isQuickTaskEligible, remainingSpendCents, unaccountedSpendCents,
 } from "@safehubby/core";
 import type { ConciergeTask, VoiceMessage } from "@safehubby/core";
@@ -982,6 +982,20 @@ function TaskDetail({ task, onBack, onChanged, aiAssist }: {
           </span>
           <span className="charge-amount">{money(task.assistantPayoutCents)}</span>
         </div>
+        {task.hoursBooked !== undefined && (
+          <div className="stack" style={{ gap: 2 }}>
+            <div className="row-between tiny muted">
+              <span>{w.hoursBooked}</span>
+              <span className="charge-amount">{task.hoursBooked} h</span>
+            </div>
+            {!task.armed && !task.hospitalStay && (
+              <span className="tiny muted">
+                {w.hoursBreakdown(task.includedHoursUsed ?? 0, Math.max(0, task.hoursBooked - (task.includedHoursUsed ?? 0)), money(PA_CUSTOMER_HOURLY_CENTS))}
+              </span>
+            )}
+            {task.startsAt && <span className="tiny muted">{w.startsAt(new Date(task.startsAt).toLocaleString())}</span>}
+          </div>
+        )}
         <div className="row-between tiny muted">
           <span>{w.cap}</span>
           <span className="charge-amount">{money(task.spendCapCents)}</span>

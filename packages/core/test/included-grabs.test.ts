@@ -211,6 +211,13 @@ describe("planned and on-demand included hours", () => {
     expect(hourlyServiceFee({ ...base, planId: "premium-basic", hours: 2, usedByKind: spent }).includedHoursUsed).toBe(2);
   });
 
+  it("bills every hour beyond the plan's at $45", () => {
+    // Premium, on-demand, 8 hours with nothing used: 3 are covered, the other 5 are billed at $45 each.
+    const r = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 8, usedByKind: { planned: 0, onDemand: 0 } });
+    expect(r.includedHoursUsed).toBe(3);
+    expect(r.serviceFeeCents).toBe(5 * 4500);
+  });
+
   it("keeps Elite's hours in one pool", () => {
     const r = hourlyServiceFee({ ...base, planId: "elite", hours: 3, usedByKind: { planned: 0, onDemand: 0 } });
     expect(r.includedHoursUsed).toBe(3);

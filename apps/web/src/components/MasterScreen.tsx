@@ -4,7 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
-import { api, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type ExtraHoursReport, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
@@ -327,6 +327,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.account.role === "owner" && <VendorsSection />}
 
       {overview.account.role === "owner" && <PlansOnOfferSection />}
+      {overview.account.role === "owner" && <ExtraHoursSection />}
       {overview.account.role === "owner" && <IncludedHoursSection />}
       {overview.account.role === "owner" && <HiringSection />}
       {overview.account.role === "owner" && <PricingSection />}
@@ -896,6 +897,63 @@ function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promi
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
       {note && <div className="banner banner-safe">{note}</div>}
     </div>
+  );
+}
+
+function ExtraHoursSection() {
+  const [data, setData] = useState<ExtraHoursReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => { setError(null); api.masterGetExtraHours().then(setData).catch(() => setError("Could not load extra hours.")); };
+  useEffect(load, []);
+  const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const hrs = (n: number) => `${n % 1 === 0 ? n : n.toFixed(1)} h`;
+  const month = (label: string, m: ExtraHoursReport["thisMonth"]) => (
+    <div className="stack" style={{ gap: 2 }}>
+      <strong className="small">{label}</strong>
+      <span className="tiny">{m.bookings} hourly {m.bookings === 1 ? "booking" : "bookings"}: {hrs(m.includedHours)} included ({hrs(m.includedPlannedHours)} planned, {hrs(m.includedOnDemandHours)} on-demand) and {hrs(m.extraHours)} extra</span>
+      <span className="tiny muted">Billed {usd(m.billedCents)} · assistants paid {usd(m.assistantPaidCents)}</span>
+    </div>
+  );
+  return (
+    <section className="card stack" style={{ gap: 8 }}>
+      <div className="row-between">
+        <h3 style={{ margin: 0 }}>Extra assistant hours</h3>
+        <button className="btn btn-sm" onClick={load}>Refresh</button>
+      </div>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Hours beyond what a plan includes are billed at {data ? `${usd(data.ratePerHourCents)} an hour` : "the hourly rate"}. Armed jobs and hospital days have their own rates and are not counted here.
+      </p>
+      {!data && !error && <p className="tiny muted">Loading...</p>}
+      {data && (
+        <>
+          {month("This month", data.thisMonth)}
+          {month("Last month", data.lastMonth)}
+          {data.thisMonth.members.length > 0 && (
+            <div className="stack" style={{ gap: 2 }}>
+              <strong className="small">Who is using the most this month</strong>
+              {data.thisMonth.members.map((m) => (
+                <div key={m.travelerId} className="row-between tiny">
+                  <span>{m.name} <span className="muted">({m.planId})</span></span>
+                  <span>{hrs(m.extraHours)} extra · {hrs(m.includedHours)} included · {usd(m.billedCents)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {data.thisMonth.recent.length > 0 && (
+            <details>
+              <summary className="small">Recent bookings</summary>
+              {data.thisMonth.recent.map((r) => (
+                <div key={r.id} className="row-between tiny" style={{ gap: 8 }}>
+                  <span>{new Date(r.at).toLocaleDateString()} · {r.member}</span>
+                  <span>{hrs(r.hours)}{r.extraHours > 0 ? ` (${hrs(r.extraHours)} extra)` : ""}{r.kind ? ` · ${r.kind}` : ""} · {usd(r.billedCents)}</span>
+                </div>
+              ))}
+            </details>
+          )}
+        </>
+      )}
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+    </section>
   );
 }
 

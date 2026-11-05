@@ -917,6 +917,7 @@ export const api = {
    *  server refuses an observed step outright — see launch-plan.ts. */
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
+  masterGetExtraHours: () => request<ExtraHoursReport>("GET", "/api/master/extra-hours"),
   masterGetIncludedHours: () => request<{ plans: IncludedHoursRow[]; maxHours: number }>("GET", "/api/master/included-hours"),
   masterSetIncludedHours: (plan: string, hours: number) =>
     request<{ plans: IncludedHoursRow[]; maxHours: number }>("POST", "/api/master/included-hours", { plan, hours }),
@@ -936,6 +937,14 @@ export const api = {
   masterProcessPayroll: (period: string) =>
     request<any>("POST", "/api/master/payroll/process", { period }),
 };
+
+export interface ExtraHoursMonth {
+  bookings: number; includedHours: number; includedPlannedHours: number; includedOnDemandHours: number;
+  extraHours: number; billedCents: number; assistantPaidCents: number;
+  members: { travelerId: string; name: string; planId: string; extraHours: number; includedHours: number; billedCents: number }[];
+  recent: { id: string; at: string; member: string; hours: number; includedHours: number; extraHours: number; billedCents: number; startsAt?: string; kind?: "planned" | "on-demand"; status: string }[];
+}
+export interface ExtraHoursReport { ratePerHourCents: number; thisMonth: ExtraHoursMonth; lastMonth: ExtraHoursMonth }
 
 export interface IncludedHoursRow {
   id: string; name: string; monthlyCents: number; defaultHours: number; hours: number;

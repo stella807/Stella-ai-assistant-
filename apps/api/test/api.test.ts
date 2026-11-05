@@ -6037,6 +6037,33 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect(bad.status).toBe(400);
   });
 
+  it("shows the owner the extra hours billed at the hourly rate, and keeps it from the secretary", async () => {
+    const owner = (await masterLogin("owner", "Extra Boss", "extraboss@example.com")).cookie;
+    const sec = (await masterLogin("secretary", "Extra Sec", "extrasec@example.com")).cookie;
+    const at = clock.toISOString();
+    store.update((db) => {
+      db.conciergeTasks.push(
+        { id: "ct_extra1", travelerId: samId, category: "wait-with-someone", note: "x", location: { lat: 30.26, lng: -97.74 }, spendCapCents: 1000,
+          serviceFeeCents: 4500, assistantPayoutCents: 7000, peopleCount: 1, hoursBooked: 3, includedHoursUsed: 2, includedHoursKind: "planned",
+          status: "completed", provider: "Nearby Aide", createdAt: at } as never,
+        { id: "ct_extra2", travelerId: samId, category: "wait-with-someone", note: "armed", location: { lat: 30.26, lng: -97.74 }, spendCapCents: 1000,
+          serviceFeeCents: 15000, assistantPayoutCents: 11000, peopleCount: 1, hoursBooked: 2, armed: true,
+          status: "completed", provider: "Nearby Aide", createdAt: at } as never,
+      );
+    });
+    const res = await call("GET", "/api/master/extra-hours", undefined, null, owner);
+    expect(res.status).toBe(200);
+    expect(res.json.ratePerHourCents).toBe(4500);
+    const m = res.json.thisMonth;
+    expect(m.bookings).toBe(1); // the armed job has its own rate and is left out
+    expect(m.extraHours).toBe(1);
+    expect(m.includedHours).toBe(2);
+    expect(m.includedPlannedHours).toBe(2);
+    expect(m.billedCents).toBe(4500);
+    expect(m.members[0].extraHours).toBe(1);
+    expect((await call("GET", "/api/master/extra-hours", undefined, null, sec)).status).toBe(401);
+  });
+
   it("lets the owner set the assistant hours each plan includes", async () => {
     const owner = (await masterLogin("owner", "Hours Boss", "hoursboss@example.com")).cookie;
     const sec = (await masterLogin("secretary", "Hours Sec", "hourssec@example.com")).cookie;
