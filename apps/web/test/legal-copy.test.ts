@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import { privacyCopy, termsCopy } from "../src/app/legal-copy.ts";
+
+describe("the Terms of Service and Privacy Policy drafts", () => {
+  const docs = [["terms", termsCopy("en", "$45.00"), termsCopy("es", "$45.00")], ["privacy", privacyCopy("en"), privacyCopy("es")]] as const;
+
+  it("say the same things in both languages, section for section", () => {
+    for (const [, en, es] of docs) {
+      expect(es.sections.map((s) => s.paragraphs.length)).toEqual(en.sections.map((s) => s.paragraphs.length));
+    }
+  });
+
+  it("are marked as drafts under legal review in both languages", () => {
+    for (const [, en, es] of docs) {
+      expect(en.draftNotice).toMatch(/draft/i);
+      expect(es.draftNotice).toMatch(/borrador/i);
+    }
+  });
+
+  it("state the facts the app is built on, not invented ones", () => {
+    const terms = termsCopy("en", "$45.00");
+    const text = terms.sections.flatMap((s) => s.paragraphs).join(" ");
+    expect(text).toContain("$45.00 an hour");
+    expect(text).toMatch(/one tap/i);
+    expect(text).toMatch(/not an emergency service/i);
+    expect(text).toMatch(/armed/i);
+    const policy = privacyCopy("en");
+    const privacy = [policy.intro, ...policy.sections.flatMap((s) => s.paragraphs)].join(" ");
+    expect(privacy).toContain("7 days");
+    expect(privacy).toMatch(/never sold/i);
+    // The parts a lawyer has to settle say so rather than guessing.
+    expect(text).toMatch(/once confirmed/i);
+  });
+});

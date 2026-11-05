@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLanguage } from "../i18n.tsx";
 import { ClientDisclosures } from "./ClientDisclosures.tsx";
+import { LegalDocumentView } from "./LegalDocumentView.tsx";
 import { disclosureCopy } from "../app/disclosure-copy.ts";
 
 /**
@@ -11,12 +12,10 @@ import { disclosureCopy } from "../app/disclosure-copy.ts";
  * safety disclaimer in `App.tsx`, which is a different audience with a
  * different footer.
  *
- * Terms of Service and Privacy Policy have no real text yet — drafting
- * both is the lawyer role's actual job (see docs/job-listings.md, section
- * 6), not something to invent here. The links stay, honestly: clicking
- * either says plainly that it is still being finalized, with a real address
- * to write to, rather than linking to a page that does not exist or, worse,
- * a fabricated policy nobody actually reviewed.
+ * Terms of Service and Privacy Policy are drafts, written from what the app
+ * does (apps/web/src/app/legal-copy.ts) and marked as drafts under legal
+ * review at the top of each. They become final only when counsel has read
+ * them; the open questions are in docs/legal-drafts.md.
  */
 export function Footer() {
   const { t, language } = useLanguage();
@@ -49,11 +48,7 @@ export function Footer() {
       {open === "press" && <PressRelease />}
       {open === "disclosures" && <ClientDisclosures />}
 
-      {(open === "terms" || open === "privacy") && (
-        <p className="tiny muted" style={{ textAlign: "center" }}>
-          {t(open === "terms" ? "footer.termsPending" : "footer.privacyPending")}
-        </p>
-      )}
+      {(open === "terms" || open === "privacy") && <LegalDocumentView which={open} />}
 
       <p className="tiny muted" style={{ textAlign: "center" }}>
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}
