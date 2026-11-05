@@ -20,7 +20,7 @@ describe("the monthly profit calculator", () => {
     expect(cardFeeCents(0)).toBe(0);
   });
 
-  it("shows a Premium member as a loss when they use every included hour (ownership chose 6), and keeps the unused part when they do not", () => {
+  it("shows a Premium member as a loss when they use every included hour (ownership chose 4), and keeps the unused part when they do not", () => {
     const price = findPlan("premium-basic").monthlyCents;
     const full = monthlyProfit(base({ usage: 1, deskMinutes: 0, members: members({ "premium-basic": 1 }) }));
     expect(full.lines[0]!.profitCents).toBeLessThan(0);
@@ -55,7 +55,7 @@ describe("the monthly profit calculator", () => {
   });
 
   it("says how many more Premium members it takes to break even, and how long cash lasts", () => {
-    // At light usage: with 6 hours included, Premium only earns when most of them go unused.
+    // At light usage: with 4 hours included, Premium only earns when about half of them go unused.
     const r = monthlyProfit(base({ usage: 0.1, payrollCents: 1_200_000, cashCents: 3_000_000 }));
     expect(r.netCents).toBeLessThan(0);
     expect(r.premiumToBreakEven).toBe(Math.ceil(-r.netCents / r.perMemberCents["premium-basic"]));

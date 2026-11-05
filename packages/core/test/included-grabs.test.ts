@@ -187,7 +187,8 @@ describe("planned and on-demand included hours", () => {
   const ahead = (h: number) => new Date(now.getTime() + h * 3_600_000).toISOString();
 
   it("splits a plan's hours half and half, and leaves Elite as one pool", () => {
-    expect(includedHoursSplit("premium-basic")).toEqual({ planned: 3, onDemand: 3, pooled: false }); // 6 hours
+    expect(includedHoursSplit("premium-basic")).toEqual({ planned: 2, onDemand: 2, pooled: false }); // 4 hours
+    expect(includedHoursSplit("family")).toEqual({ planned: 6, onDemand: 6, pooled: false }); // 12 hours
     expect(includedHoursSplit("premium-plus").pooled).toBe(false);
     expect(includedHoursSplit("elite").pooled).toBe(true);
   });
@@ -202,20 +203,20 @@ describe("planned and on-demand included hours", () => {
   it("covers a booking only from its own pool, and bills the rest", () => {
     const used = { planned: 0, onDemand: 0 };
     const planned = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 5, startsAt: ahead(48), usedByKind: used });
-    expect(planned).toMatchObject({ includedHoursUsed: 3, kind: "planned" });
+    expect(planned).toMatchObject({ includedHoursUsed: 2, kind: "planned" });
     const onDemand = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 5, usedByKind: used });
-    expect(onDemand).toMatchObject({ includedHoursUsed: 3, kind: "on-demand" });
+    expect(onDemand).toMatchObject({ includedHoursUsed: 2, kind: "on-demand" });
     // The planned pool is spent, so a planned booking is billed in full while on-demand hours are still free.
-    const spent = { planned: 3, onDemand: 0 };
+    const spent = { planned: 2, onDemand: 0 };
     expect(hourlyServiceFee({ ...base, planId: "premium-basic", hours: 2, startsAt: ahead(48), usedByKind: spent }).includedHoursUsed).toBe(0);
     expect(hourlyServiceFee({ ...base, planId: "premium-basic", hours: 2, usedByKind: spent }).includedHoursUsed).toBe(2);
   });
 
   it("bills every hour beyond the plan's at $45", () => {
-    // Premium, on-demand, 8 hours with nothing used: 3 are covered, the other 5 are billed at $45 each.
+    // Premium, on-demand, 8 hours with nothing used: 2 are covered, the other 6 are billed at $45 each.
     const r = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 8, usedByKind: { planned: 0, onDemand: 0 } });
-    expect(r.includedHoursUsed).toBe(3);
-    expect(r.serviceFeeCents).toBe(5 * 4500);
+    expect(r.includedHoursUsed).toBe(2);
+    expect(r.serviceFeeCents).toBe(6 * 4500);
   });
 
   it("keeps Elite's hours in one pool", () => {

@@ -427,7 +427,7 @@ export const PLANS: Plan[] = [
     // Premium is one seat, so "multiple people, one account" is not a
     // real feature of it. See PREMIUM_FEATURES's own doc comment above.
     features: PREMIUM_FEATURES,
-    includedConciergeHours: 6,
+    includedConciergeHours: 4,
     blurb: "Covers 1 client. Everything Safehubby does, with nothing held back for a higher tier: Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, extended emergency contacts, and a personal concierge.",
   },
   {

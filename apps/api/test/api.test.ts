@@ -6223,7 +6223,7 @@ describe("master access — a per-account role instead of one shared secret", ()
     const sec = (await masterLogin("secretary", "Hours Sec", "hourssec@example.com")).cookie;
     const hoursOf = async (id: string) => (await call("GET", "/api/master/included-hours", undefined, null, owner)).json.plans.find((p: any) => p.id === id);
     const builtIn = (await hoursOf("premium-basic")).hours;
-    expect(builtIn).toBe(6);
+    expect(builtIn).toBe(4);
     const set = await call("POST", "/api/master/included-hours", { plan: "premium-basic", hours: 9 }, null, owner);
     expect(set.status).toBe(200);
     const row = set.json.plans.find((p: any) => p.id === "premium-basic");
