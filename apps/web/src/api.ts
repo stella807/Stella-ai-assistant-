@@ -498,7 +498,7 @@ export const api = {
   placeSearch: (query: string, near: { lat: number; lng: number }) =>
     request<{ places: NearbyStore[] }>(
       "GET", `/api/concierge/places?query=${encodeURIComponent(query)}&lat=${near.lat}&lng=${near.lng}`),
-  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; errandTier?: ErrandTierId; onBehalfOf?: OnBehalfOf; peopleCount?: number; hours?: number }) =>
+  conciergeQuote: (input: { category: ConciergeCategory; note: string; location: { lat: number; lng: number; label?: string }; spendCapCents: number; quickTask?: boolean; errandTier?: ErrandTierId; onBehalfOf?: OnBehalfOf; peopleCount?: number; hours?: number; startsAt?: string }) =>
     request<{
       /** Null when Safehubby's own roster is doing the work — there is no
        *  supplier to quote, the rate card already decided the price. */
@@ -515,6 +515,11 @@ export const api = {
       /** Present only for work paid by the hour, and only as the server
        *  priced it — the client's number after clamping, not before. */
       hoursBooked?: number;
+      /** Included hours left this month in each pool, and which pool this booking draws on.
+       *  Absent on Elite, whose hours are one pool. */
+      includedHoursRemainingPlanned?: number;
+      includedHoursRemainingOnDemand?: number;
+      bookingKind?: "planned" | "on-demand";
     }>(
       "POST", "/api/concierge/quote", input),
   /** `quickTask` is what the free tier books these categories as — send it,
@@ -532,6 +537,8 @@ export const api = {
      *  the market named here, and refuses the booking without the agreement. */
     onBehalfOf?: OnBehalfOf; acknowledgedOnBehalf?: boolean;
     hours?: number;
+    /** When to start (ISO). A day or more ahead draws on the plan's planned hours. */
+    startsAt?: string;
     /** A wait with someone in hospital, at the hospital-day rate. */
     hospitalStay?: boolean;
     /** Armed work, for an assistant cleared for it. */

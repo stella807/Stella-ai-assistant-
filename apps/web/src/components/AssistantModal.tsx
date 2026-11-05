@@ -39,13 +39,15 @@ const MESSAGE_POLL_MS = 10_000;
  * talking to the person they just hired would be a strange place to make
  * them re-orient.
  */
-export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, errandTier, onBehalfOf, acknowledgedOnBehalf, hours, location, flight, existingTask, onBooked, onClose }: {
+export function AssistantModal({ assistant, category, note, spendCapCents, quickTask, errandTier, onBehalfOf, acknowledgedOnBehalf, hours, startsAt, location, flight, existingTask, onBooked, onClose }: {
   assistant: AssistantProfile;
   category: ConciergeCategory;
   note: string;
   spendCapCents: number;
   /** Only for work paid by the hour; absent on an errand. */
   hours?: number;
+  /** When the assistant should start (ISO); a day or more ahead uses the planned hours. */
+  startsAt?: string;
   /** Whether the subscriber opted into the discounted quick-task fee. */
   quickTask?: boolean;
   /** How big an errand this is — prices the runner's pay and the fee. */
@@ -73,6 +75,8 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
   // number shown is never out of sync with what booking will actually
   // charge. `null` while loading or if the quote call hasn't resolved yet.
   const [serviceFeeCents, setServiceFeeCents] = useState<number | null>(existingTask?.serviceFeeCents ?? null);
+  // Included hours left in each pool, once the quote says (absent on Elite, whose hours are one pool).
+  const [pools, setPools] = useState<{ planned: number; onDemand: number; kind?: "planned" | "on-demand" } | null>(null);
   const [totalCents, setTotalCents] = useState<number | null>(
     existingTask ? existingTask.spendCapCents + existingTask.serviceFeeCents : null,
   );
@@ -151,16 +155,18 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
 
   useEffect(() => {
     if (task) return;
-    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, errandTier, onBehalfOf, peopleCount, hours })
+    api.conciergeQuote({ category, note, location, spendCapCents, quickTask, errandTier, onBehalfOf, peopleCount, hours, startsAt })
       .then((r) => {
         setServiceFeeCents(r.serviceFeeCents);
+        setPools(r.includedHoursRemainingPlanned === undefined || r.includedHoursRemainingOnDemand === undefined ? null
+          : { planned: r.includedHoursRemainingPlanned, onDemand: r.includedHoursRemainingOnDemand, kind: r.bookingKind });
         setTotalCents(r.totalCents);
         setMaxPeopleCount(r.maxPeopleCount);
         // The server may have clamped it to the plan's seats; follow its answer.
         if (r.peopleCount !== peopleCount) setPeopleCount(r.peopleCount);
       })
       .catch(() => {});
-  }, [task, category, note, location, spendCapCents, quickTask, errandTier, onBehalfOf, peopleCount, hours]);
+  }, [task, category, note, location, spendCapCents, quickTask, errandTier, onBehalfOf, peopleCount, hours, startsAt]);
 
   useEffect(() => () => {
     activeRecording.current?.cancel();
@@ -181,7 +187,7 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
     setError(null);
     try {
       const res = await api.bookConcierge({
-        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, errandTier, peopleCount, hours, flight,
+        category, note, location, spendCapCents, assistantId: assistant.id, quickTask, errandTier, peopleCount, hours, startsAt, flight,
         ...(onBehalfOf ? { onBehalfOf, acknowledgedOnBehalf } : {}),
       });
       setTask(res.task);
@@ -367,6 +373,11 @@ export function AssistantModal({ assistant, category, note, spendCapCents, quick
             <span>{w.serviceFee(peopleCount)}</span>
             <span className="charge-amount">{serviceFeeCents === null ? "…" : serviceFeeCents === 0 ? w.included : money(serviceFeeCents)}</span>
           </div>
+          {pools && (
+            <p className="tiny muted" style={{ margin: 0 }}>
+              {w.pools(pools.planned, pools.onDemand, pools.kind)}
+            </p>
+          )}
           {/* Not the fee: the fee is what the assistant is paid plus Safehubby's
               margin. This is the line that adds up for somebody doing the
               hourly arithmetic themselves. */}

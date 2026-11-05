@@ -129,6 +129,8 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
   const [note, setNote] = useState("");
   const [capCents, setCapCents] = useState(() => kind === "errand" ? ERRAND_TIERS[0]!.suggestedCapCents : defaultCapFor(allowed[0] ?? "grab-something", planId));
   const [hours, setHours] = useState(() => defaultHoursFor(allowed[0] ?? "grab-something"));
+  // Optional start time for hourly work. A day or more ahead uses the plan's planned hours.
+  const [startLocal, setStartLocal] = useState("");
   /** "Wait with someone" for a patient in hospital: the day rate, not hourly. */
   const [hospitalStay, setHospitalStay] = useState(false);
   /** A safety job somewhere with no security, done by an armed, licensed assistant. */
@@ -794,6 +796,16 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
         />
       )}
 
+      {hourly && !simple && !isHospitalStay && !isArmed && (
+        <div className="field">
+          <label htmlFor="concierge-start">{c.startTime}</label>
+          <input id="concierge-start" type="datetime-local" value={startLocal}
+            min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+            onChange={(e) => { setStartLocal(e.target.value); setRoster(null); }} />
+          <span className="tiny muted">{c.startTimeHint}</span>
+        </div>
+      )}
+
       {!simple && <details className={quickEligible ? "cap-change" : "cap-change cap-open"} open={!quickEligible}>
       {quickEligible && (
         <summary className="small">
@@ -997,6 +1009,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
           note={note}
           spendCapCents={spendCapCents}
           hours={bookedHours}
+          startsAt={hourly && startLocal ? new Date(startLocal).toISOString() : undefined}
           quickTask={effectiveQuickTask}
           errandTier={tier}
           onBehalfOf={onBehalfOf}

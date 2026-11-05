@@ -1,4 +1,4 @@
-import { includedConciergeHours, type PlanId } from "./billing.ts";
+import { includedConciergeHours, isElitePlan, type PlanId } from "./billing.ts";
 import { isEnabled } from "./features.ts";
 import {
   isHourlyCategory, isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
@@ -265,14 +265,65 @@ export function includedHoursUsedIn(tasks: ConciergeTask[], monthStart: Date, mo
  * The assistant is paid for every hour either way; Safehubby pays the covered
  * ones out of the subscription.
  */
+/** How far ahead a booking must start to count as planned. */
+export const PLANNING_LEAD_HOURS = 24;
+
+/** Whether a start time is far enough ahead to draw on the planned hours. */
+export function isPlannedBooking(startsAt: string | undefined, now: Date): boolean {
+  if (!startsAt) return false;
+  const at = Date.parse(startsAt);
+  return Number.isFinite(at) && at - now.getTime() >= PLANNING_LEAD_HOURS * 3_600_000;
+}
+
+/**
+ * A plan's included hours split into two pools: planned (booked ahead) and
+ * on-demand (anything that comes up). Half each, the extra one going to
+ * planned when the total is odd: Premium's 6 hours are 3 and 3.
+ *
+ * Elite stays one pool. Its desk is on call at any hour, so rationing which
+ * hours may be used how would work against what the tier sells.
+ */
+export function includedHoursSplit(planId: PlanId): { planned: number; onDemand: number; pooled: boolean } {
+  const total = includedConciergeHours(planId);
+  if (isElitePlan(planId)) return { planned: total, onDemand: total, pooled: true };
+  const planned = Math.ceil(total / 2);
+  return { planned, onDemand: total - planned, pooled: false };
+}
+
+/** This month's included hours used, by pool. Tasks from before the split were all immediate, so they count as on-demand. */
+export function includedHoursUsedByKindIn(
+  tasks: ConciergeTask[], monthStart: Date, monthEnd: Date,
+): { planned: number; onDemand: number } {
+  const out = { planned: 0, onDemand: 0 };
+  for (const t of tasks) {
+    if (!t.includedHoursUsed || t.status === "canceled") continue;
+    const at = new Date(t.createdAt).getTime();
+    if (at < monthStart.getTime() || at >= monthEnd.getTime()) continue;
+    if (t.includedHoursKind === "planned") out.planned += t.includedHoursUsed;
+    else out.onDemand += t.includedHoursUsed;
+  }
+  return out;
+}
+
 export function hourlyServiceFee(input: {
   planId: PlanId; category: ConciergeCategory; quickTask?: boolean; peopleCount?: number;
   hours?: number; includedHoursUsedThisMonth: number; hospitalStay?: boolean; armed?: boolean;
-}): { serviceFeeCents: number; includedHoursUsed: number } {
+  /** Set together to apply the planned / on-demand split; left out, the plan's hours are one pool. */
+  startsAt?: string; now?: Date; usedByKind?: { planned: number; onDemand: number };
+}): { serviceFeeCents: number; includedHoursUsed: number; kind?: "planned" | "on-demand" } {
   const full = serviceFeeFor(input.category, input.quickTask, input.peopleCount ?? 1, input.hours, input.hospitalStay, input.armed);
   // Included hours are ordinary assistant time; armed work is never covered by them.
   if (input.armed) return { serviceFeeCents: full, includedHoursUsed: 0 };
   if (!input.hours || !isHourlyCategory(input.category)) return { serviceFeeCents: full, includedHoursUsed: 0 };
+  const split = input.usedByKind && input.now ? includedHoursSplit(input.planId) : null;
+  if (split && !split.pooled && input.usedByKind && input.now) {
+    // A booking draws on one pool only: planned if it starts far enough ahead, otherwise on-demand.
+    const kind = isPlannedBooking(input.startsAt, input.now) ? "planned" : "on-demand";
+    const poolLeft = Math.max(0, (kind === "planned" ? split.planned : split.onDemand)
+      - (kind === "planned" ? input.usedByKind.planned : input.usedByKind.onDemand));
+    const covered = Math.min(input.hours, poolLeft);
+    return { serviceFeeCents: Math.round(full * (input.hours - covered) / input.hours), includedHoursUsed: covered, kind };
+  }
   const left = Math.max(0, includedConciergeHours(input.planId) - input.includedHoursUsedThisMonth);
   const covered = Math.min(input.hours, left);
   return { serviceFeeCents: Math.round(full * (input.hours - covered) / input.hours), includedHoursUsed: covered };

@@ -751,6 +751,10 @@ export interface ConciergeTaskInput {
    *  snapshot, the same "never trust a client-computed price" rule this
    *  module already applies to money. */
   flight?: { flightNumber: string; date: string };
+  /** When the assistant should start. Booked at least `PLANNING_LEAD_HOURS`
+   *  ahead it draws on the plan's planned hours; with no time, or a nearer one,
+   *  it draws on the on-demand hours. ISO 8601. */
+  startsAt?: string;
 }
 
 const MAX_NOTE_LENGTH = 280;
@@ -777,6 +781,10 @@ export function validateConciergeRequest(input: ConciergeTaskInput, planId?: Pla
     if (Math.abs(input.hours / BOOKED_HOUR_STEP - Math.round(input.hours / BOOKED_HOUR_STEP)) > 1e-9) {
       throw new Error("Hours are booked in half hours.");
     }
+  }
+  if (input.startsAt !== undefined) {
+    if (!isHourlyCategory(input.category)) throw new Error("A start time applies to bookings by the hour.");
+    if (!Number.isFinite(Date.parse(input.startsAt))) throw new Error("Choose a valid start time.");
   }
   if (input.peopleCount !== undefined) {
     if (!Number.isInteger(input.peopleCount) || input.peopleCount < 1 || input.peopleCount > MAX_PEOPLE_PER_TASK) {
@@ -902,6 +910,12 @@ export interface ConciergeTask {
   /** Hours of this task the member's plan paid for (its monthly included
    *  assistant hours); the service fee covered only the rest. */
   includedHoursUsed?: number;
+  /** Which of the plan's two hour pools those hours came from: planned (booked
+   *  at least `PLANNING_LEAD_HOURS` ahead) or on-demand. Absent on older tasks,
+   *  which were all immediate and so count as on-demand. */
+  includedHoursKind?: "planned" | "on-demand";
+  /** When the member asked the assistant to start, if they set a time. */
+  startsAt?: string;
   /** Fee cents the plan's monthly errand credit paid — see included-grabs.ts. */
   errandCreditCents?: number;
   /** Who this was sent to, when it was for somebody other than the customer —

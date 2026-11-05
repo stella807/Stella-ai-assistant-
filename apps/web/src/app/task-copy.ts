@@ -63,6 +63,8 @@ const EN = {
     spendCap: "Spend cap (reimbursed purchase)",
     serviceFee: (people: number) => `Service fee${people > 1 ? ` — for ${people} people` : ""}`,
     included: "Included",
+    pools: (planned: number, onDemand: number, kind?: "planned" | "on-demand") =>
+      `Included hours left this month: ${planned} planned, ${onDemand} on-demand.${kind ? ` This booking uses your ${kind === "planned" ? "planned" : "on-demand"} hours.` : ""}`,
     paid: "Your assistant is paid",
     held: "Held on your card now",
     stopSend: "Stop and send",
@@ -168,6 +170,8 @@ const ES: typeof EN = {
     spendCap: "Límite de gasto (compra reembolsada)",
     serviceFee: (people: number) => `Cargo de servicio${people > 1 ? `: para ${people} personas` : ""}`,
     included: "Incluido",
+    pools: (planned: number, onDemand: number, kind?: "planned" | "on-demand") =>
+      `Horas incluidas que quedan este mes: ${planned} planificadas, ${onDemand} a demanda.${kind ? ` Esta reserva usa tus horas ${kind === "planned" ? "planificadas" : "a demanda"}.` : ""}`,
     paid: "Tu asistente recibe",
     held: "Retenido en tu tarjeta ahora",
     stopSend: "Parar y enviar",

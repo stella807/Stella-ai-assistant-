@@ -8,7 +8,7 @@ afterEach(() => resetFlags());
 import {
   INCLUDED_GRABS_PER_MONTH, INCLUDED_GRAB_CATEGORY, assistantPayoutFor, customerServiceFeeFor,
   customerTotalCents, findPlan, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded,
-  errandCreditCover, errandCreditFor, errandCreditUsedIn, errandFeeCents, includedConciergeHours,
+  errandCreditCover, errandCreditFor, errandCreditUsedIn, errandFeeCents, includedConciergeHours, includedHoursSplit, includedHoursUsedByKindIn, isPlannedBooking, PLANNING_LEAD_HOURS,
   monthBoundsFor, releasedPlans, netAfterProcessorFeeCents, remainingIncludedGrabs, serviceFeeFor, hourlyServiceFee, includedHoursUsedIn,
   type ConciergeCategory, type ConciergeTask, type PlanId,
 } from "../src/index.ts";
@@ -178,6 +178,52 @@ describe("included assistant hours", () => {
       ({ createdAt: iso, includedHoursUsed: used, status }) as never;
     const start = new Date("2026-10-01T00:00:00Z"); const end = new Date("2026-11-01T00:00:00Z");
     expect(includedHoursUsedIn([at("2026-10-03T00:00:00Z", 2), at("2026-10-05T00:00:00Z", 1, "canceled"), at("2026-09-30T00:00:00Z", 4)], start, end)).toBe(2);
+  });
+});
+
+describe("planned and on-demand included hours", () => {
+  const now = new Date("2026-11-10T12:00:00Z");
+  const base = { category: "wait-with-someone" as const, includedHoursUsedThisMonth: 0, now };
+  const ahead = (h: number) => new Date(now.getTime() + h * 3_600_000).toISOString();
+
+  it("splits a plan's hours half and half, and leaves Elite as one pool", () => {
+    expect(includedHoursSplit("premium-basic")).toEqual({ planned: 3, onDemand: 3, pooled: false }); // 6 hours
+    expect(includedHoursSplit("premium-plus").pooled).toBe(false);
+    expect(includedHoursSplit("elite").pooled).toBe(true);
+  });
+
+  it("calls a booking planned only when it starts at least a day ahead", () => {
+    expect(isPlannedBooking(undefined, now)).toBe(false);
+    expect(isPlannedBooking(ahead(PLANNING_LEAD_HOURS - 1), now)).toBe(false);
+    expect(isPlannedBooking(ahead(PLANNING_LEAD_HOURS), now)).toBe(true);
+    expect(isPlannedBooking("garbage", now)).toBe(false);
+  });
+
+  it("covers a booking only from its own pool, and bills the rest", () => {
+    const used = { planned: 0, onDemand: 0 };
+    const planned = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 5, startsAt: ahead(48), usedByKind: used });
+    expect(planned).toMatchObject({ includedHoursUsed: 3, kind: "planned" });
+    const onDemand = hourlyServiceFee({ ...base, planId: "premium-basic", hours: 5, usedByKind: used });
+    expect(onDemand).toMatchObject({ includedHoursUsed: 3, kind: "on-demand" });
+    // The planned pool is spent, so a planned booking is billed in full while on-demand hours are still free.
+    const spent = { planned: 3, onDemand: 0 };
+    expect(hourlyServiceFee({ ...base, planId: "premium-basic", hours: 2, startsAt: ahead(48), usedByKind: spent }).includedHoursUsed).toBe(0);
+    expect(hourlyServiceFee({ ...base, planId: "premium-basic", hours: 2, usedByKind: spent }).includedHoursUsed).toBe(2);
+  });
+
+  it("keeps Elite's hours in one pool", () => {
+    const r = hourlyServiceFee({ ...base, planId: "elite", hours: 3, usedByKind: { planned: 0, onDemand: 0 } });
+    expect(r.includedHoursUsed).toBe(3);
+    expect(r.kind).toBeUndefined();
+  });
+
+  it("counts this month's hours by pool, treating older tasks as on-demand", () => {
+    const at = (iso: string, used: number, kind?: "planned" | "on-demand") =>
+      ({ createdAt: iso, includedHoursUsed: used, status: "completed", ...(kind ? { includedHoursKind: kind } : {}) }) as never;
+    const start = new Date("2026-11-01T00:00:00Z"); const end = new Date("2026-12-01T00:00:00Z");
+    expect(includedHoursUsedByKindIn(
+      [at("2026-11-03T00:00:00Z", 2, "planned"), at("2026-11-05T00:00:00Z", 1, "on-demand"), at("2026-11-06T00:00:00Z", 2), at("2026-10-30T00:00:00Z", 4, "planned")], start, end,
+    )).toEqual({ planned: 2, onDemand: 3 });
   });
 });
 

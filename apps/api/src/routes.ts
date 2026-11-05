@@ -45,7 +45,7 @@ import {
   clampHours, defaultHoursFor, isHourlyCategory,
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
-  errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn,
+  errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn, includedHoursUsedByKindIn, includedHoursSplit,
   errandPayoutCents, errandFeeCents, openingsFor, OPEN_POSITIONS, payLabelFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
@@ -439,6 +439,7 @@ function conciergeInputFrom(body: any): ConciergeTaskInput {
     ...(body?.errandTier === undefined ? {} : { errandTier: String(body.errandTier) as ErrandTierId }),
     ...(body?.peopleCount === undefined ? {} : { peopleCount: Number(body.peopleCount) }),
     ...(body?.hours === undefined ? {} : { hours: Number(body.hours) }),
+    ...(body?.startsAt === undefined || body.startsAt === "" ? {} : { startsAt: String(body.startsAt) }),
     ...(body?.hospitalStay === true ? { hospitalStay: true } : {}),
     ...(body?.armed === true ? { armed: true } : {}),
     ...(body?.flight === undefined
@@ -1433,6 +1434,23 @@ function errandCreditUsed(ctx: Ctx, travelerId: string): number {
 }
 
 /** Included assistant hours this member has used in the current month. */
+/** The included hours used this month, by pool, so the planned/on-demand split can be enforced. */
+function includedHoursUsedByKind(ctx: Ctx, travelerId: string): { planned: number; onDemand: number } {
+  const now = ctx.now();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return includedHoursUsedByKindIn(ctx.store.data.conciergeTasks.filter((t) => t.travelerId === travelerId), start, end);
+}
+
+/** A start time the member may book: in the future (a few minutes' grace) and within 90 days. */
+function checkStartsAt(ctx: Ctx, startsAt: string | undefined): void {
+  if (startsAt === undefined) return;
+  const at = Date.parse(startsAt);
+  const now = ctx.now().getTime();
+  if (at < now - 5 * 60_000) throw new HttpError(400, "Choose a start time that has not passed.");
+  if (at > now + 90 * 86_400_000) throw new HttpError(400, "Book up to 90 days ahead.");
+}
+
 function includedHoursUsed(ctx: Ctx, travelerId: string): number {
   const now = ctx.now();
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -3171,6 +3189,7 @@ export const routes: Record<string, Handler> = {
     const me = actor(ctx);
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input, planOf(ctx, me));
+    checkStartsAt(ctx, input.startsAt);
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
 
@@ -3225,6 +3244,7 @@ export const routes: Record<string, Handler> = {
       planId, category: input.category, quickTask: input.quickTask, peopleCount: people, hours,
       hospitalStay: input.hospitalStay === true, armed: input.armed === true,
       includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
+      startsAt: input.startsAt, now: ctx.now(), usedByKind: includedHoursUsedByKind(ctx, me),
     });
     const errandFee = input.errandTier ? errandFeeCents(input.errandTier, input.spendCapCents) : 0;
     const creditCents = feeIncluded ? 0 : errandCreditCover({
@@ -3239,6 +3259,15 @@ export const routes: Record<string, Handler> = {
       errandCreditCents: creditCents,
       includedHoursUsed: hourly.includedHoursUsed,
       includedHoursRemaining: Math.max(0, includedConciergeHours(planId) - includedHoursUsed(ctx, me)),
+      ...(() => {
+        const split = includedHoursSplit(planId);
+        const used = includedHoursUsedByKind(ctx, me);
+        return split.pooled ? {} : {
+          includedHoursRemainingPlanned: Math.max(0, split.planned - used.planned),
+          includedHoursRemainingOnDemand: Math.max(0, split.onDemand - used.onDemand),
+          ...(hourly.kind ? { bookingKind: hourly.kind } : {}),
+        };
+      })(),
       quote, disclosures: CONCIERGE_DISCLOSURES,
       serviceFeeCents,
       totalCents: input.spendCapCents + serviceFeeCents,
@@ -3263,6 +3292,7 @@ export const routes: Record<string, Handler> = {
     requireServiceLive(ctx);
     const input = conciergeInputFrom(body);
     validateConciergeRequest(input, planOf(ctx, me));
+    checkStartsAt(ctx, input.startsAt);
     requireConciergeAccess(ctx, me, input.category, input.quickTask);
     requireLaunchMarket(input.location);
     // Looked up server-side, from the flight number and date alone — never
@@ -3345,6 +3375,7 @@ export const routes: Record<string, Handler> = {
       planId: planOf(ctx, me), category: input.category, quickTask: input.quickTask, peopleCount,
       hours: hoursBooked, includedHoursUsedThisMonth: includedHoursUsed(ctx, me),
       hospitalStay: input.hospitalStay === true, armed: input.armed === true,
+      startsAt: input.startsAt, now: ctx.now(), usedByKind: includedHoursUsedByKind(ctx, me),
     });
     const errandFee = input.errandTier ? errandFeeCents(input.errandTier, input.spendCapCents) : 0;
     const creditCents = feeIncluded ? 0 : errandCreditCover({
@@ -3452,7 +3483,8 @@ export const routes: Record<string, Handler> = {
           ...(input.hospitalStay === true ? { hospitalStay: true } : {}),
           ...(input.armed === true ? { armed: true } : {}),
           quickTask: input.quickTask, ...(feeIncluded ? { feeIncluded: true } : {}),
-          ...(!feeIncluded && hourly.includedHoursUsed > 0 ? { includedHoursUsed: hourly.includedHoursUsed } : {}),
+          ...(!feeIncluded && hourly.includedHoursUsed > 0 ? { includedHoursUsed: hourly.includedHoursUsed, ...(hourly.kind ? { includedHoursKind: hourly.kind } : {}) } : {}),
+          ...(input.startsAt ? { startsAt: input.startsAt } : {}),
           ...(creditCents > 0 ? { errandCreditCents: creditCents } : {}),
           ...(input.errandTier ? { errandTier: input.errandTier } : {}),
           ...(input.onBehalfOf ? { onBehalfOf: input.onBehalfOf } : {}), status: "in-progress",

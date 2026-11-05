@@ -5360,6 +5360,27 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(res.json.quote).toBeNull();
   });
 
+  it("draws a booking on the planned hours when it starts a day or more ahead, and on the on-demand hours otherwise", async () => {
+    await hireOne();
+    const quote = (extra: object) => call("POST", "/api/concierge/quote", {
+      category: "wait-with-someone", note: "Stay with my father through his appointment.",
+      location: IN_TEXAS, spendCapCents: 10_000, hours: 2, ...extra,
+    }, sam);
+    const soon = await quote({});
+    expect(soon.status, JSON.stringify(soon.json)).toBe(200);
+    expect(soon.json.bookingKind).toBe("on-demand");
+    expect(soon.json.includedHoursRemainingPlanned + soon.json.includedHoursRemainingOnDemand).toBe(soon.json.includedHoursRemaining);
+
+    const ahead = await quote({ startsAt: new Date(clock.getTime() + 3 * 86_400_000).toISOString() });
+    expect(ahead.json.bookingKind).toBe("planned");
+    const tooSoon = await quote({ startsAt: new Date(clock.getTime() + 2 * 3_600_000).toISOString() });
+    expect(tooSoon.json.bookingKind).toBe("on-demand");
+
+    expect((await quote({ startsAt: new Date(clock.getTime() - 86_400_000).toISOString() })).status).toBe(400);
+    expect((await quote({ startsAt: new Date(clock.getTime() + 200 * 86_400_000).toISOString() })).status).toBe(400);
+    expect((await quote({ startsAt: "not a date" })).status).toBe(400);
+  });
+
   it("still refuses a quote where neither our roster nor a partner can go", async () => {
     // The 503 is correct when nobody can actually do the work. Removing it
     // outright would quote a price for a task that cannot be dispatched.

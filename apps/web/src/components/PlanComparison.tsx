@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor,
+  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, includedHoursSplit,
 } from "@safehubby/core";
 import type { Feature, Plan } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
@@ -43,7 +43,12 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
       label: "compare.hoursIncluded",
       cell: (p) => {
         const h = includedConciergeHours(p.id);
-        return h > 0 ? { kind: "text", text: t("compare.hours").replace("{n}", String(h)) } : { kind: "no" };
+        if (h <= 0) return { kind: "no" };
+        const split = includedHoursSplit(p.id);
+        // Elite's hours are one pool; every other plan splits them into planned and on-demand.
+        return split.pooled
+          ? { kind: "text", text: t("compare.hours").replace("{n}", String(h)) }
+          : { kind: "text", text: t("compare.hoursSplit").replace("{n}", String(h)).replace("{planned}", String(split.planned)).replace("{onDemand}", String(split.onDemand)) };
       },
     },
     { label: "compare.bookAndPay", cell: (p) => yesNo(has(p, "automatic-rides", "automatic-delivery")) },
