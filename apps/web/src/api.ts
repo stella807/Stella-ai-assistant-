@@ -924,6 +924,10 @@ export const api = {
    *  server refuses an observed step outright — see launch-plan.ts. */
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
+  masterRefundCharges: (email: string) =>
+    request<RefundCharges>("GET", `/api/master/refunds?email=${encodeURIComponent(email)}`),
+  masterRefund: (chargeId: string) =>
+    request<{ refundedCents: number; tier: "full" | "fees" }>("POST", "/api/master/refunds", { chargeId }),
   masterGetExtraHours: () => request<ExtraHoursReport>("GET", "/api/master/extra-hours"),
   masterGetIncludedHours: () => request<{ plans: IncludedHoursRow[]; maxHours: number }>("GET", "/api/master/included-hours"),
   masterSetIncludedHours: (plan: string, hours: number) =>
@@ -944,6 +948,11 @@ export const api = {
   masterProcessPayroll: (period: string) =>
     request<any>("POST", "/api/master/payroll/process", { period }),
 };
+
+export interface RefundCharges {
+  member: { id: string; name: string; email: string };
+  charges: { id: string; description: string; amountCents: number; createdAt: string; status: string; refundedCents: number; tier: "full" | "fees" | "none"; refundCents: number }[];
+}
 
 export interface ExtraHoursMonth {
   bookings: number; includedHours: number; includedPlannedHours: number; includedOnDemandHours: number;

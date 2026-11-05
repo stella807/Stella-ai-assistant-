@@ -6090,6 +6090,75 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect(bad.status).toBe(400);
   });
 
+  describe("refunding plan charges", () => {
+    const calls: { path: string; body: string }[] = [];
+    const realFetch = globalThis.fetch;
+    beforeEach(() => {
+      calls.length = 0;
+      process.env.STRIPE_SECRET_KEY = "sk_test_refund";
+      process.env.STRIPE_API_BASE = "http://stripe.fake";
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const u = String(url);
+        if (!u.startsWith("http://stripe.fake")) return realFetch(url as never, init);
+        const path = u.replace("http://stripe.fake", "");
+        calls.push({ path, body: String(init?.body ?? "") });
+        const json = path.startsWith("/v1/checkout/sessions/") ? { payment_intent: "pi_plan1" }
+          : path === "/v1/refunds" ? { id: "re_1" } : {};
+        return new Response(JSON.stringify(json), { status: 200, headers: { "content-type": "application/json" } });
+      }) as typeof fetch;
+    });
+    afterEach(() => { globalThis.fetch = realFetch; delete process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_API_BASE; });
+
+    const addCharge = (id: string, description: string, amountCents: number) => store.update((db) => {
+      db.charges.push({ id, travelerId: samId, kind: "subscription", rail: "card", description, amountCents, currency: "usd", status: "settled", createdAt: clock.toISOString() } as never);
+    });
+
+    it("refunds Elite in full, Premium only its card fee, and keeps the ledger honest", async () => {
+      const owner = (await masterLogin("owner", "Refund Boss", "refundboss@example.com")).cookie;
+      addCharge("stripe_cs_elite", "Elite (monthly) — paid through Stripe", 155_500);
+      addCharge("stripe_cs_prem", "Premium (monthly) — paid through Stripe", 9_399);
+
+      const list = await call("GET", "/api/master/refunds?email=sam@example.com", undefined, null, owner);
+      expect(list.status).toBe(200);
+      const byId = Object.fromEntries(list.json.charges.map((c: any) => [c.id, c]));
+      expect(byId.stripe_cs_elite).toMatchObject({ tier: "full", refundCents: 155_500 });
+      expect(byId.stripe_cs_prem).toMatchObject({ tier: "fees", refundCents: Math.round(9_399 * 0.0349 + 49) });
+
+      const elite = await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_elite" }, null, owner);
+      expect(elite.status, JSON.stringify(elite.json)).toBe(200);
+      expect(elite.json.refundedCents).toBe(155_500);
+      expect(store.data.charges.find((c) => c.id === "stripe_cs_elite")!.status).toBe("refunded");
+      const refund = calls.filter((c) => c.path === "/v1/refunds");
+      expect(refund[0]!.body).toContain("payment_intent=pi_plan1");
+      expect(refund[0]!.body).not.toContain("amount="); // the whole payment
+
+      const prem = await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_prem" }, null, owner);
+      expect(prem.json.refundedCents).toBe(Math.round(9_399 * 0.0349 + 49));
+      expect(calls.filter((c) => c.path === "/v1/refunds")[1]!.body).toContain(`amount=${prem.json.refundedCents}`);
+      const kept = store.data.charges.find((c) => c.id === "stripe_cs_prem")!;
+      expect(kept.status).toBe("settled");
+      expect(kept.refundedCents).toBe(prem.json.refundedCents);
+
+      // Not twice: the fee is already back, so there is nothing more to refund.
+      expect((await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_prem" }, null, owner)).status).toBe(409);
+      expect((await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_elite" }, null, owner)).status).toBe(409);
+    });
+
+    it("refunds the Wingman Club's dues in full, refuses Basic, and keeps it from the secretary", async () => {
+      const owner = (await masterLogin("owner", "Club Boss", "clubboss@example.com")).cookie;
+      const sec = (await masterLogin("secretary", "Club Sec", "clubsec@example.com")).cookie;
+      addCharge("stripe_cs_club", "Wingman Club (monthly) — paid through Stripe", 9_900);
+      addCharge("stripe_cs_basic", "Basic (monthly) — paid through Stripe", 3_900);
+      expect((await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_club" }, null, sec)).status).toBe(401);
+      expect((await call("GET", "/api/master/refunds?email=sam@example.com", undefined, null, sec)).status).toBe(401);
+      expect((await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_basic" }, null, owner)).status).toBe(409);
+      const club = await call("POST", "/api/master/refunds", { chargeId: "stripe_cs_club" }, null, owner);
+      expect(club.json.refundedCents).toBe(9_900);
+      expect(store.data.charges.find((c) => c.id === "stripe_cs_club")!.status).toBe("refunded");
+      expect((await call("GET", "/api/master/refunds?email=nobody@example.com", undefined, null, owner)).status).toBe(404);
+    });
+  });
+
   it("shows the owner the extra hours billed at the hourly rate, and keeps it from the secretary", async () => {
     const owner = (await masterLogin("owner", "Extra Boss", "extraboss@example.com")).cookie;
     const sec = (await masterLogin("secretary", "Extra Sec", "extrasec@example.com")).cookie;

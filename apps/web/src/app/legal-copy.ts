@@ -258,7 +258,8 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
       sections: [
         { heading: "1. Tu plan", paragraphs: [
           "No hay prueba gratis. Un plan de pago se cobra cuando empieza. Si te uniste antes del lanzamiento, el primer cobro es el día en que el servicio empieza, no antes.",
-          "Puedes cancelar en cualquier momento, con un toque, desde la app. Las funciones pagadas siguen hasta el final del periodo que ya pagaste. La parte que no uses de un periodo ya cobrado no se reembolsa, salvo que la ley lo exija o te lo digamos por escrito.",
+          "Puedes cancelar en cualquier momento, con un toque, desde la app. Las funciones pagadas siguen hasta el final del periodo que ya pagaste.",
+          "Qué se reembolsa de un cobro de plan: en Elite (cualquier nivel) y en el Wingman Club se reembolsa el cobro completo. En Premium, Premium Plus y Familia se reembolsa la comisión de la tarjeta incluida en el precio, no el cobro del plan. Salvo que la ley lo exija o te lo digamos por escrito, no se reembolsa la parte sin usar de un periodo ya cobrado.",
           "Si subes a un plan más caro a mitad de periodo, la parte sin usar de lo que ya pagaste se te acredita contra el nuevo plan. Un cambio a un plan más barato pasa por el equipo de ayuda y no genera un reembolso.",
         ] },
         { heading: "2. Tareas", paragraphs: [
@@ -269,7 +270,7 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
           "Si una tarea aparece como completada pero no se entregó, o el asistente se quedó con el dinero, puedes abrir una reclamación desde la app. Si la aprobamos, se reembolsa completo el cobro de esa tarea.",
         ] },
         { heading: "4. Salidas del Wingman Club", paragraphs: [
-          "Si cancelas tu lugar en una salida con cargo extra antes de que el club confirme el día, se te reembolsa ese extra completo. Si el club cancela la salida, se reembolsa a todos los que pagaron.",
+          "La cuota mensual del Wingman Club se reembolsa completa. Si cancelas tu lugar en una salida con cargo extra antes de que el club confirme el día, se te reembolsa ese extra completo. Si el club cancela la salida, se reembolsa a todos los que pagaron.",
         ] },
         { heading: "5. Saldo prepagado", paragraphs: [
           "Un saldo cargado con ATH Móvil se puede devolver. Un saldo cargado con criptomonedas no se reembolsa automáticamente.",
@@ -279,7 +280,7 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
           "Si te cobramos algo por error, escríbenos y lo corregimos.",
         ] },
         { heading: "7. Cómo pedirlo", paragraphs: [
-          "Para una tarea, abre una reclamación desde la app. Para cualquier otra cosa, escribe a contact@safehubby.com con lo que pasó y la fecha del cobro.",
+          "Para una tarea, abre una reclamación desde la app. Para el reembolso de un plan o del Wingman Club, escribe a contact@safehubby.com con el correo de tu cuenta y la fecha del cobro; nosotros lo procesamos.",
         ] },
       ],
       contact: "Safehubby · contact@safehubby.com",
@@ -293,7 +294,8 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
     sections: [
       { heading: "1. Your plan", paragraphs: [
         "There is no free trial. A paid plan is charged when it starts. If you joined before launch, your first charge is the day the service starts, not before.",
-        "You can cancel at any time, in one tap, from the app. Paid features run to the end of the period you already paid for. The part you do not use of a period already charged is not refunded, unless the law requires it or we tell you so in writing.",
+        "You can cancel at any time, in one tap, from the app. Paid features run to the end of the period you already paid for.",
+        "What is refunded on a plan charge: on Elite (any rung) and the Wingman Club, the whole charge is refunded. On Premium, Premium Plus and Family, the card processing fee included in the price is refunded, not the plan charge itself. Unless the law requires it or we tell you so in writing, the part you do not use of a period already charged is not refunded.",
         "If you move up to a more expensive plan part-way through a period, the unused part of what you already paid is credited toward the new plan. A move to a cheaper plan goes through the help desk and does not produce a refund.",
       ] },
       { heading: "2. Tasks", paragraphs: [
@@ -304,7 +306,7 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
         "If a task shows as completed but was not delivered, or the assistant kept the money, you can open a dispute in the app. If we uphold it, the full charge for that task is refunded.",
       ] },
       { heading: "4. Wingman Club outings", paragraphs: [
-        "If you cancel your place in an outing that carries an extra charge before the club locks the day in, the extra is refunded in full. If the club calls the outing off, everyone who paid is refunded.",
+        "The Wingman Club's monthly dues are refunded in full. If you cancel your place in an outing that carries an extra charge before the club locks the day in, the extra is refunded in full. If the club calls the outing off, everyone who paid is refunded.",
       ] },
       { heading: "5. Prepaid balance", paragraphs: [
         "A balance loaded with ATH Móvil can be sent back. A balance loaded with crypto is not refunded automatically.",
@@ -314,7 +316,7 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
         "If we charged you something by mistake, write to us and we will correct it.",
       ] },
       { heading: "7. How to ask", paragraphs: [
-        "For a task, open a dispute in the app. For anything else, write to contact@safehubby.com with what happened and the date of the charge.",
+        "For a task, open a dispute in the app. For a plan or Wingman Club refund, write to contact@safehubby.com with your account email and the date of the charge, and we will process it.",
       ] },
     ],
     contact: "Safehubby · contact@safehubby.com",

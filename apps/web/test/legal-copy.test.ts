@@ -40,5 +40,9 @@ describe("the Terms of Service and Privacy Policy drafts", () => {
     expect(text).toMatch(/dispute/i);
     expect(text).toMatch(/Stripe/);
     expect(text).not.toMatch(/14[- ]day/i);
+    // The refund rules: Elite and the club in full; Premium, Premium Plus and Family their card fee only.
+    expect(text).toMatch(/Elite \(any rung\) and the Wingman Club, the whole charge is refunded/);
+    expect(text).toMatch(/Premium, Premium Plus and Family, the card processing fee/);
+    expect(text).toMatch(/monthly dues are refunded in full/);
   });
 });

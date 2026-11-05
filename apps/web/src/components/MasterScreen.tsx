@@ -4,7 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
-import { api, type ExtraHoursReport, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type RefundCharges, type ExtraHoursReport, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
@@ -327,6 +327,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.account.role === "owner" && <VendorsSection />}
 
       {overview.account.role === "owner" && <PlansOnOfferSection />}
+      {overview.account.role === "owner" && <RefundsSection />}
       {overview.account.role === "owner" && <ExtraHoursSection />}
       {overview.account.role === "owner" && <IncludedHoursSection />}
       {overview.account.role === "owner" && <HiringSection />}
@@ -897,6 +898,63 @@ function JobPayEditor({ pricing, onSaved }: { pricing: any; onSaved: () => Promi
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
       {note && <div className="banner banner-safe">{note}</div>}
     </div>
+  );
+}
+
+function RefundsSection() {
+  const [email, setEmail] = useState("");
+  const [data, setData] = useState<RefundCharges | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const find = async () => {
+    setBusy("find"); setError(null); setNote(null);
+    try { setData(await api.masterRefundCharges(email.trim())); }
+    catch (err) { setData(null); setError(err instanceof Error && err.message ? err.message : "Could not look that up."); }
+    finally { setBusy(null); }
+  };
+  const refund = async (id: string, cents: number) => {
+    if (!window.confirm(`Refund ${usd(cents)} to the member's card?`)) return;
+    setBusy(id); setError(null); setNote(null);
+    try {
+      const r = await api.masterRefund(id);
+      setNote(`Refunded ${usd(r.refundedCents)}.`);
+      setData(await api.masterRefundCharges(email.trim()));
+    } catch (err) { setError(err instanceof Error && err.message ? err.message : "Could not refund that."); }
+    finally { setBusy(null); }
+  };
+  return (
+    <section className="card stack" style={{ gap: 8 }}>
+      <h3 style={{ margin: 0 }}>Refund a plan charge</h3>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        Elite and the Wingman Club are refunded in full. Premium, Premium Plus and Family get the card fee back, not the plan charge. The refund goes to the member's card through Stripe.
+      </p>
+      <div className="row" style={{ gap: 6 }}>
+        <input type="email" aria-label="Member email" placeholder="member@example.com" value={email} style={{ flex: 1, padding: 8, borderRadius: 4 }}
+          onChange={(e) => setEmail(e.target.value)} disabled={busy !== null} />
+        <button className="btn" onClick={() => void find()} disabled={busy !== null || !email.trim()}>{busy === "find" ? "Looking..." : "Find"}</button>
+      </div>
+      {data && (
+        <div className="stack" style={{ gap: 4 }}>
+          <strong className="small">{data.member.name} <span className="tiny muted">({data.member.email})</span></strong>
+          {data.charges.length === 0 && <p className="tiny muted">No plan charges on this account.</p>}
+          {data.charges.map((c) => (
+            <div key={c.id} className="row-between tiny" style={{ gap: 8 }}>
+              <span>{new Date(c.createdAt).toLocaleDateString()} · {c.description} · {usd(c.amountCents)}
+                {c.refundedCents > 0 && <span className="muted"> (refunded {usd(c.refundedCents)})</span>}</span>
+              {c.refundCents > 0
+                ? <button className="btn btn-sm" disabled={busy !== null} onClick={() => void refund(c.id, c.refundCents)}>
+                  {busy === c.id ? "Refunding..." : `Refund ${usd(c.refundCents)}${c.tier === "fees" ? " (card fee)" : ""}`}
+                </button>
+                : <span className="muted">{c.status === "refunded" ? "Refunded" : "No refund under the rules"}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {error && <div className="banner banner-danger" role="alert">{error}</div>}
+      {note && <div className="banner banner-safe">{note}</div>}
+    </section>
   );
 }
 

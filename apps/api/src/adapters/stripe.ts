@@ -461,3 +461,36 @@ export async function transferToWorker(input: { accountId: string; amountCents: 
     transfer_group: input.reference, "metadata[payoutId]": input.reference,
   }, `transfer_${input.reference}`);
 }
+
+
+/**
+ * Gives back all or part of a plan's Stripe charge. The ledger line only knows
+ * Stripe's checkout-session or invoice id, so this finds the payment behind it
+ * and refunds that. The charge's own id is the idempotency key together with the
+ * amount, so a repeated click cannot refund twice.
+ */
+export async function refundPlanCharge(input: { stripeId: string; chargeId: string; amountCents?: number }): Promise<void> {
+  if (!key()) throw new Error("Stripe is not configured.");
+  const get = async (path: string) => {
+    const res = await fetch(`${api()}${path}`, { headers: { authorization: `Bearer ${key()}` } });
+    const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!res.ok || !data) throw new Error(`Stripe could not find that payment: ${res.status}`);
+    return data;
+  };
+  let id = input.stripeId;
+  if (id.startsWith("cs_")) {
+    const session = await get(`/v1/checkout/sessions/${encodeURIComponent(id)}`);
+    const next = (typeof session.payment_intent === "string" && session.payment_intent) || (typeof session.invoice === "string" && session.invoice) || "";
+    if (!next) throw new Error("No payment is recorded for that checkout.");
+    id = next;
+  }
+  let intent = id.startsWith("pi_") ? id : "";
+  if (!intent && id.startsWith("in_")) {
+    const invoice = await get(`/v1/invoices/${encodeURIComponent(id)}`);
+    intent = typeof invoice.payment_intent === "string" ? invoice.payment_intent : "";
+    if (!intent) throw new Error("No payment is recorded for that invoice.");
+  }
+  if (!intent) throw new Error("That is not a Stripe payment this can refund.");
+  await stripePost("/v1/refunds", { payment_intent: intent, ...(input.amountCents ? { amount: input.amountCents } : {}) },
+    `plan-refund:${input.chargeId}:${input.amountCents ?? "all"}`);
+}

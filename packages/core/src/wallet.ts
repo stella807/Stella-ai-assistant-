@@ -58,6 +58,8 @@ export interface Charge {
   reference?: string;
   /** The pre-authorization this line was captured from, for pay-then-bill lines. */
   holdId?: string;
+  /** Part of this charge given back (a fee refund). A full refund sets `status` to "refunded" instead. */
+  refundedCents?: number;
 }
 
 /**
@@ -161,6 +163,17 @@ export function failCharge(charge: Charge, reason: string, now: Date): Charge {
   return { ...charge, status: "failed", failureReason: reason, settledAt: now.toISOString() };
 }
 
+/** Gives part of a settled charge back. The line stays settled, with what was returned recorded on it. */
+export function partiallyRefundCharge(charge: Charge, cents: number, now: Date): Charge {
+  if (charge.status !== "settled") throw new Error(`Cannot refund a ${charge.status} charge.`);
+  const already = charge.refundedCents ?? 0;
+  if (!Number.isInteger(cents) || cents <= 0 || already + cents > charge.amountCents) {
+    throw new Error("The refund must be a whole number of cents that is no more than what is left of the charge.");
+  }
+  if (already + cents === charge.amountCents) return { ...charge, status: "refunded", refundedCents: charge.amountCents, settledAt: now.toISOString() };
+  return { ...charge, refundedCents: already + cents };
+}
+
 export function refundCharge(charge: Charge, now: Date): Charge {
   if (charge.status !== "settled") throw new Error(`Cannot refund a ${charge.status} charge.`);
   return { ...charge, status: "refunded", settledAt: now.toISOString() };
@@ -228,11 +241,11 @@ export function buildStatement(
   for (const c of mine) {
     if (c.status === "failed" || c.status === "refunded") continue;
     if (c.status === "pending") pendingCents += c.amountCents;
-    else settledCents += c.amountCents;
+    else settledCents += c.amountCents - (c.refundedCents ?? 0);
 
     const line = byKind.get(c.kind) ?? { kind: c.kind, label: KIND_LABEL[c.kind], count: 0, cents: 0 };
     line.count += 1;
-    line.cents += c.amountCents;
+    line.cents += c.amountCents - (c.refundedCents ?? 0);
     byKind.set(c.kind, line);
   }
 

@@ -45,8 +45,10 @@ These are deliberately left open in the text rather than guessed:
 
 ## The refund policy
 
-A **Refund Policy** page is linked in the footer, written from how the app
-handles money: no free trial, plans charged when they start (or at go-live for
+A **Refund Policy** page is linked in the footer. Elite and the Wingman Club are
+refunded in full, Premium, Premium Plus and Family get the card fee back and not
+the plan charge, and the owner sends them from `/master` (Refund a plan charge).
+It is written from how the app handles money: no free trial, plans charged when they start (or at go-live for
 pre-launch sign-ups), cancel in one tap with paid features running to the end
 of the period, no refund of an unused paid period unless the law or we say so,
 tasks released if cancelled and refunded in full if disputed and upheld, club

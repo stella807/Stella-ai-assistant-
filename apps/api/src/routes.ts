@@ -4,7 +4,7 @@ import {
 } from "@safehubby/core";
 import {
   REWARD_CATALOG, DRINK_CATALOG,
-  isPlanReleased, releasedPlans, setPlanSwitches, CONSENT_VERSION, MINIMUM_AGE, isAdult, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
+  isPlanReleased, releasedPlans, setPlanSwitches, CONSENT_VERSION, MINIMUM_AGE, isAdult, planRefundFor, partiallyRefundCharge, PA_CUSTOMER_HOURLY_CENTS, payDeltas, setIncludedHours, MAX_INCLUDED_HOURS, livePaHourlyPayCents, PROCESSOR_FEE_RATE, PROCESSOR_FEE_FIXED_CENTS,
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, joinedDuringLaunch,
   newReferralCode, normalizeReferralCode, shareMessage, launchOfferFor,
   SERVICE_LIVE_AT, serviceIsLive, launchDiscountApplies, launchDiscountEndsAt,
@@ -102,7 +102,7 @@ import { athReady, athRequires, normalizeAthPhone } from "./adapters/ath-movil.t
 import { cancelAthLoad, checkAthLoad, findAthLoad, startAthLoad } from "./ath-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
-import { cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
+import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
 import { buildStoreNote, storeLocator, walmartLink } from "./adapters/grocery.ts";
 import { push } from "./adapters/push.ts";
@@ -6471,6 +6471,59 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Master: a member's plan charges and what each would get back under the refund rules. */
+  "GET /api/master/refunds": (ctx, p) => {
+    requireAdmin(ctx, "money");
+    const email = String(p.email ?? "").trim().toLowerCase();
+    if (!email) throw new HttpError(400, "Enter the member's email.");
+    const member = ctx.store.data.travelers.find((t) => t.email.toLowerCase() === email);
+    if (!member) throw new HttpError(404, "No member has that email.");
+    const charges = ctx.store.data.charges
+      .filter((c) => c.travelerId === member.id && c.kind === "subscription" && c.amountCents > 0 && (c.status === "settled" || c.status === "refunded"))
+      .slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 24)
+      .map((c) => {
+        const r = planRefundFor({ description: c.description, amountCents: c.amountCents, refundedCents: c.refundedCents });
+        return {
+          id: c.id, description: c.description, amountCents: c.amountCents, createdAt: c.createdAt, status: c.status,
+          refundedCents: c.status === "refunded" ? c.amountCents : (c.refundedCents ?? 0),
+          tier: r.tier, refundCents: c.status === "refunded" ? 0 : r.refundCents,
+        };
+      });
+    return { member: { id: member.id, name: member.displayName, email: member.email }, charges };
+  },
+
+  /** Master: refund a plan charge under the rules: Elite and the club in full, Premium, Premium Plus and Family their card fee only. */
+  "POST /api/master/refunds": async (ctx, _p, body) => {
+    requireAdmin(ctx, "money");
+    requireAdmin(ctx, "write");
+    const account = masterAccountOf(ctx);
+    const chargeId = String(body?.chargeId ?? "");
+    const charge = ctx.store.data.charges.find((c) => c.id === chargeId && c.kind === "subscription");
+    if (!charge) throw notFound("Charge");
+    if (charge.status !== "settled") throw new HttpError(409, "Only a settled charge can be refunded.");
+    const r = planRefundFor({ description: charge.description, amountCents: charge.amountCents, refundedCents: charge.refundedCents });
+    if (r.tier === "none" || r.refundCents <= 0) throw new HttpError(409, "The refund rules give nothing back on that charge.");
+    // Checkout and invoice charges are recorded as `stripe_<id>`; an inline one keeps the invoice id as its reference.
+    const stripeId = charge.id.startsWith("stripe_") ? charge.id.slice("stripe_".length) : (charge.reference ?? "");
+    if (!stripeId) throw new HttpError(409, "No Stripe payment is recorded for that charge, so it has to be refunded by hand in Stripe.");
+    try {
+      await refundPlanCharge({ stripeId, chargeId: charge.id, amountCents: r.tier === "full" ? undefined : r.refundCents });
+    } catch (e) {
+      throw new HttpError(424, `Stripe could not refund that, so nothing was changed. ${e instanceof Error ? e.message : ""}`.trim());
+    }
+    ctx.store.update((db) => {
+      const i = db.charges.findIndex((c) => c.id === charge.id);
+      if (i >= 0) db.charges[i] = partiallyRefundCharge(db.charges[i]!, r.refundCents, ctx.now());
+      if (account) {
+        db.masterAuditLog.push({
+          id: newId("audit"), accountId: account.id, scope: "money",
+          subject: `refunded ${(r.refundCents / 100).toFixed(2)} (${r.tier}) on ${charge.id}`, at: ctx.now().toISOString(),
+        });
+      }
+    });
+    return { refundedCents: r.refundCents, tier: r.tier };
   },
 
   /** Master: extra assistant hours (beyond a plan's included hours) billed this month and last, for monitoring. */
