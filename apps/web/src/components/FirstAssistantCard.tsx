@@ -4,12 +4,12 @@ import { useLanguage } from "../i18n.tsx";
 
 type First = NonNullable<Awaited<ReturnType<typeof api.firstAssistant>>["assistant"]>;
 
-/** The words around the name follow the assistant's gender: Spanish changes the article and the noun ending. */
+/** The words around the name follow the assistant's gender: Spanish changes the article and the noun ending; unset gets the "nuestra primera asistente" wording. */
 export function firstAssistantHeading(gender: "female" | "male" | undefined, es: boolean): string {
   if (!es) return "Meet our first personal assistant";
   if (gender === "male") return "Conoce a nuestro primer asistente personal";
-  if (gender === "female") return "Conoce a nuestra primera asistente personal";
-  return "Conoce a la primera persona que contratamos como asistente personal";
+  // "Asistente" reads naturally as "nuestra primera asistente", so that is also the wording when the gender is not set.
+  return "Conoce a nuestra primera asistente personal";
 }
 
 /**
