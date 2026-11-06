@@ -317,6 +317,7 @@ export interface StaffApplicationInput {
   resume?: { base64: string; mimeType: string; fileName: string };
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
+  firearmsLicenseConfirmed?: boolean;
   /** Liability insurance (field roles) and, for armed work, both licences. */
   credentials?: {
     kind: "liability-insurance" | "firearms-license" | "guard-license";

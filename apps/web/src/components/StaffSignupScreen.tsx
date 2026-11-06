@@ -36,6 +36,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   const [consent, setConsent] = useState(false);
   const [resume, setResume] = useState<{ base64: string; mimeType: string; fileName: string } | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [hasFirearmsLicense, setHasFirearmsLicense] = useState(false);
   const [firearms, setFirearms] = useState(() => emptyCredential("firearms-license"));
   const [guard, setGuard] = useState(() => emptyCredential("guard-license"));
   const [busy, setBusy] = useState(false);
@@ -85,7 +86,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         hoursPerWeek: Number(hoursPerWeek),
         backgroundCheckConsent: consent,
         ...(resume ? { resume } : {}),
-        credentials: [credentialPayload(firearms), ...(role === "bodyguard" ? [credentialPayload(guard)] : [])],
+        ...(role === "bodyguard" ? { credentials: [credentialPayload(firearms), credentialPayload(guard)] } : { firearmsLicenseConfirmed: hasFirearmsLicense }),
       });
       setSubmitted({ id: res.id });
     } catch (e) {
@@ -95,8 +96,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     }
   };
 
-  // Insurance is not asked for. Every job requires a firearms licence; only the bodyguard job also requires the guard licence.
-  const credentialsReady = isCredentialFilled(firearms) && (role !== "bodyguard" || isCredentialFilled(guard));
+  // Insurance is not asked for. Every job requires a firearms licence: a box to tick, except the bodyguard job, which attaches both licences.
+  const credentialsReady = role === "bodyguard" ? isCredentialFilled(firearms) && isCredentialFilled(guard) : hasFirearmsLicense;
 
   if (submitted) {
     return (
@@ -135,8 +136,9 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     ...(city.trim() && state.trim() ? [] : [es ? "ciudad y estado" : "city and state"]),
     ...(experience.trim().length >= 20 ? [] : [es ? "experiencia (al menos 20 letras)" : "experience (at least 20 characters)"]),
     ...(Number(hoursPerWeek) > 0 ? [] : [es ? "horas a la semana" : "hours a week"]),
-    ...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms),
-    ...(role === "bodyguard" ? credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard) : []),
+    ...(role === "bodyguard"
+      ? [...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms), ...credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard)]
+      : hasFirearmsLicense ? [] : [es ? "la casilla de la licencia de armas" : "the firearms licence box"]),
     ...(consent ? [] : [es ? "la casilla de verificación de antecedentes" : "the background check box"]),
   ];
 
@@ -234,13 +236,24 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
-        <p className="tiny muted" style={{ margin: 0 }}>
-          {lang === "es"
-            ? "Se requiere tu licencia de armas para todos los puestos. El puesto de guardaespaldas también requiere tu licencia de guardia de seguridad."
-            : "Your firearms licence is required for every job. The bodyguard job also requires your security-guard licence."}
-        </p>
-        <CredentialFields value={firearms} onChange={setFirearms} lang={lang} />
-        {role === "bodyguard" && <CredentialFields value={guard} onChange={setGuard} lang={lang} />}
+        {role === "bodyguard" ? (
+          <>
+            <p className="tiny muted" style={{ margin: 0 }}>
+              {lang === "es"
+                ? "Este puesto requiere tu licencia de armas y tu licencia de guardia de seguridad, con copia."
+                : "This job requires your firearms licence and your security-guard licence, with a copy of each."}
+            </p>
+            <CredentialFields value={firearms} onChange={setFirearms} lang={lang} />
+            <CredentialFields value={guard} onChange={setGuard} lang={lang} />
+          </>
+        ) : (
+          <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={hasFirearmsLicense} onChange={(e) => setHasFirearmsLicense(e.target.checked)} />
+            <span className="tiny">
+              {lang === "es" ? "Tengo una licencia de armas vigente (requerida para todos los puestos)." : "I hold a current firearms licence (required for every job)."}
+            </span>
+          </label>
+        )}
 
         <div className="field">
           <label htmlFor="s-hours">{w.hours}</label>

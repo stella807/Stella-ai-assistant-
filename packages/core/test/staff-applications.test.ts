@@ -80,6 +80,9 @@ describe("licences", () => {
   it("requires a firearms licence for every role, and the guard licence only for a bodyguard", () => {
     expect(() => submitStaffApplication(input({ credentials: [] }))).toThrow(/firearms licence/i);
     expect(() => submitStaffApplication(input({ role: "bodyguard" }))).toThrow(/security-guard licence/i);
+    // Ticking the box is enough for every job but the bodyguard one.
+    expect(submitStaffApplication(input({ credentials: [], firearmsLicenseConfirmed: true })).firearmsLicenseConfirmed).toBe(true);
+    expect(() => submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true }))).toThrow(/both/i);
     expect(submitStaffApplication(input({ role: "bodyguard", credentials: [FIREARMS, { ...FIREARMS, kind: "guard-license" as const }] })).role).toBe("bodyguard");
   });
 });

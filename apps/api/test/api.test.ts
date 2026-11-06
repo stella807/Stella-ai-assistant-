@@ -3983,6 +3983,7 @@ describe("hiring for the roles that do not drive", () => {
 
   it("takes a field application without insurance, but refuses one without a firearms licence", async () => {
     expect((await call("POST", "/api/staff/apply", application())).status).toBe(200);
+    expect((await call("POST", "/api/staff/apply", application({ credentials: [], firearmsLicenseConfirmed: true }))).status).toBe(200);
     const res = await call("POST", "/api/staff/apply", application({ credentials: [] }));
     expect(res.status).toBe(400);
     expect(res.json.error).toMatch(/firearms licence/i);

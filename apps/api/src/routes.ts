@@ -6114,6 +6114,7 @@ export const routes: Record<string, Handler> = {
       resume: resumeFrom(body, ctx.now()),
       hoursPerWeek: Number(body?.hoursPerWeek),
       backgroundCheckConsent: body?.backgroundCheckConsent === true,
+      firearmsLicenseConfirmed: body?.firearmsLicenseConfirmed === true,
       credentials: credentialsFrom(body, ctx.now()),
       now: ctx.now(),
     });

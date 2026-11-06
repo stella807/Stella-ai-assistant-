@@ -50,6 +50,8 @@ export interface StaffApplication {
    *  same reason the driver form requires them: this is in-person work with
    *  vulnerable people. */
   backgroundCheckConsent: boolean;
+  /** They ticked that they hold a firearms licence, which every job requires. A bodyguard attaches the licence itself instead. */
+  firearmsLicenseConfirmed?: boolean;
   /** Their own liability insurance (required for field roles) and, for armed
    *  work, firearms and security-guard licences — see credentials.ts. */
   credentials?: Credential[];
@@ -71,6 +73,7 @@ export interface SubmitStaffApplicationInput {
   resume?: Resume;
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
+  firearmsLicenseConfirmed?: boolean;
   credentials?: Credential[];
   now: Date;
 }
@@ -126,12 +129,15 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
   const credentials = input.credentials ?? [];
   for (const c of credentials) validateCredential(c, input.now);
   // Liability insurance is welcome but not required to apply; a policy that is attached is still checked above.
-  // A firearms licence is required for every job; the security-guard licence only for the bodyguard job.
-  if (!credentials.some((c) => c.kind === "firearms-license")) {
-    throw new Error("Attach your firearms licence — it is required for every job.");
-  }
-  if (input.role === "bodyguard" && !credentials.some((c) => c.kind === "guard-license")) {
-    throw new Error("For the bodyguard job, attach your security-guard licence as well as your firearms licence.");
+  // Every job requires a firearms licence. Most applicants tick that they hold one; the bodyguard job, which is the
+  // one cleared for armed work, attaches the firearms and security-guard licences themselves.
+  const hasGun = credentials.some((c) => c.kind === "firearms-license");
+  if (input.role === "bodyguard") {
+    if (!hasGun || !credentials.some((c) => c.kind === "guard-license")) {
+      throw new Error("For the bodyguard job, attach both your firearms licence and your security-guard licence.");
+    }
+  } else if (input.firearmsLicenseConfirmed !== true && !hasGun) {
+    throw new Error("Confirm that you hold a firearms licence — it is required for every job.");
   }
 
   return {
@@ -146,6 +152,7 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
     ...(input.resume ? { resume: input.resume } : {}),
     hoursPerWeek: input.hoursPerWeek,
     backgroundCheckConsent: true,
+    ...(input.firearmsLicenseConfirmed === true ? { firearmsLicenseConfirmed: true } : {}),
     ...(credentials.length ? { credentials } : {}),
     submittedAt: input.now.toISOString(),
     status: "submitted",
