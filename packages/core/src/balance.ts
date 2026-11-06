@@ -18,8 +18,8 @@ import type { PreAuthorization } from "./payment.ts";
 
 /** The least that can be added: 50 cents, the smallest card payment Stripe takes. There is no other floor. */
 export const BALANCE_MIN_LOAD_CENTS = 50;
-/** The most one card payment can be: $999,999.99, Stripe's own limit. Safehubby sets no ceiling of its own. */
-export const BALANCE_MAX_LOAD_CENTS = 99_999_999;
+/** Safehubby sets no ceiling on a load. (Stripe has its own per-payment limit, and will say so if one is ever reached.) */
+export const BALANCE_MAX_LOAD_CENTS = Number.MAX_SAFE_INTEGER;
 /** No limit on what a balance can hold. Kept as a number so a caller that asks has an answer. */
 export const BALANCE_MAX_CENTS = Number.MAX_SAFE_INTEGER;
 
@@ -81,8 +81,5 @@ export function validateLoad(amountCents: number, _currentBalanceCents: number):
   if (!Number.isInteger(amountCents)) throw new Error("Enter a whole number of cents.");
   if (amountCents < BALANCE_MIN_LOAD_CENTS) {
     throw new Error(`Add at least ${dollars(BALANCE_MIN_LOAD_CENTS)}, the smallest card payment Stripe takes.`);
-  }
-  if (amountCents > BALANCE_MAX_LOAD_CENTS) {
-    throw new Error(`One card payment can be at most ${dollars(BALANCE_MAX_LOAD_CENTS)}.`);
   }
 }

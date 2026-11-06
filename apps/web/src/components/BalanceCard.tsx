@@ -13,7 +13,7 @@ const COPY = {
     held: "Set aside for tasks in progress",
     pick: "How much?",
     other: "Or another amount ($)",
-    otherHint: "Any amount from $0.50. There is no limit on your balance.",
+    otherHint: "Any amount, $0.50 or more.",
     addCard: "Add a card to continue",
     added: "Added to your balance.",
     add: (amount: string) => `Add ${amount} with your card`,
@@ -28,7 +28,7 @@ const COPY = {
     held: "Reservado para tareas en curso",
     pick: "¿Cuánto?",
     other: "U otra cantidad ($)",
-    otherHint: "Cualquier cantidad desde $0.50. Tu balance no tiene límite.",
+    otherHint: "Cualquier cantidad, desde $0.50.",
     addCard: "Añade una tarjeta para continuar",
     added: "Añadido a tu balance.",
     add: (amount: string) => `Añadir ${amount} con tu tarjeta`,
@@ -80,7 +80,7 @@ export function BalanceCard() {
   // A typed amount wins over a preset. Whole cents, and never below the least a card payment can be.
   const typed = custom.trim() === "" ? null : Math.round(Number(custom.replace(/[$,\s]/g, "")) * 100);
   const chosen = typed ?? amount;
-  const valid = Number.isFinite(chosen) && chosen >= info.minLoadCents && chosen <= info.maxLoadCents;
+  const valid = Number.isFinite(chosen) && chosen >= info.minLoadCents;
   const goToCard = () => document.getElementById("payment-method")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (

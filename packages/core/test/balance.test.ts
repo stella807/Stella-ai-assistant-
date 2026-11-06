@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  BALANCE_MAX_CENTS, BALANCE_MAX_LOAD_CENTS, BALANCE_MIN_LOAD_CENTS,
+  BALANCE_MAX_CENTS, BALANCE_MIN_LOAD_CENTS,
   balanceSummary, validateLoad, type BalanceEntry,
 } from "../src/balance.ts";
 import { authorizeExactHold, captureHold, releaseHold } from "../src/payment.ts";
@@ -49,7 +49,7 @@ describe("balanceSummary", () => {
 describe("validateLoad", () => {
   it("lets any amount from 50 cents up be added, with no limit of our own", () => {
     expect(BALANCE_MIN_LOAD_CENTS).toBe(50);
-    for (const cents of [50, 100, 1_234, 50_000, 5_000_000, BALANCE_MAX_LOAD_CENTS]) {
+    for (const cents of [50, 100, 1_234, 50_000, 5_000_000, 1_000_000_000]) {
       expect(() => validateLoad(cents, 0), String(cents)).not.toThrow();
     }
   });
@@ -57,10 +57,9 @@ describe("validateLoad", () => {
     expect(() => validateLoad(100_000, 10_000_000)).not.toThrow();
     expect(BALANCE_MAX_CENTS).toBeGreaterThan(1_000_000_000);
   });
-  it("refuses an amount below Stripe's minimum, above its maximum, or not in whole cents", () => {
+  it("refuses only an amount below Stripe's 50-cent minimum, or not in whole cents; there is no maximum", () => {
     expect(() => validateLoad(BALANCE_MIN_LOAD_CENTS - 1, 0)).toThrow(/at least/i);
     expect(() => validateLoad(0, 0)).toThrow(/at least/i);
-    expect(() => validateLoad(BALANCE_MAX_LOAD_CENTS + 1, 0)).toThrow(/at most/i);
     expect(() => validateLoad(1000.5, 0)).toThrow(/whole/i);
     expect(() => validateLoad(Number.NaN, 0)).toThrow();
   });
