@@ -19,10 +19,10 @@ describe("a read that the host answers with 429", () => {
     expect(calls()).toBe(3);
   });
 
-  it("gives up after two retries with a plain sentence rather than a bare number", async () => {
+  it("gives up after four retries with a plain sentence rather than a bare number", async () => {
     const calls = queue(edge429());
     await expect(api.homeAddress()).rejects.toThrow(/Too many requests in a row/);
-    expect(calls()).toBe(3);
+    expect(calls()).toBe(5);
   });
 
   it("is not retried when the app itself said no, because that limit is meant", async () => {

@@ -226,7 +226,7 @@ export interface DriverApplicationInput {
 }
 
 /** How many times a read is retried when something in front of the server answers 429. */
-const EDGE_RETRIES = 2;
+const EDGE_RETRIES = 4;
 
 async function request<T>(
   method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>,
@@ -248,7 +248,7 @@ async function request<T>(
       if (typeof peek?.error !== "string") {
         attempt += 1;
         const asked = Number(res.headers.get("retry-after"));
-        const waitMs = Number.isFinite(asked) && asked >= 0 ? Math.min(asked, 5) * 1000 : 1000 * attempt;
+        const waitMs = Number.isFinite(asked) && asked >= 0 ? Math.min(asked, 5) * 1000 : Math.min(1000 * 2 ** (attempt - 1), 5000);
         await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }

@@ -75,7 +75,16 @@ export function BillingScreen({ currentPlanId, onPlanChanged }: {
     return (
       <div className="stack">
         <h2>{t("billing.heading")}</h2>
-        {error ? <div className="banner banner-danger">{error}</div> : <p className="small muted">{t("billing.loading")}</p>}
+        {error ? (
+          <>
+            <div className="banner banner-danger">{error}</div>
+            {/* A busy moment on the host clears itself; one tap tries again without leaving the screen. */}
+            <button className="btn btn-block" onClick={() => {
+              setError(null);
+              load().catch((e) => setError(e instanceof Error ? e.message : t("billing.couldNotLoad")));
+            }}>{language === "es" ? "Intentar de nuevo" : "Try again"}</button>
+          </>
+        ) : <p className="small muted">{t("billing.loading")}</p>}
       </div>
     );
   }
