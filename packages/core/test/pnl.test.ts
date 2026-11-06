@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CALCULATOR_PLANS, cardFeeCents, defaultPnlInputs, findPlan, monthlyProfit, setMonthlyFreebies, defaultMonthlyFreebies,
   MAX_BOOKED_HOURS, assistantPayoutFor, serviceFeeFor,
+  includedConciergeHours,
   errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandMarginCents, errandPayoutCents,
   type PnlInputs,
 } from "../src/index.ts";
@@ -166,6 +167,42 @@ describe("the monthly profit calculator", () => {
 
     it("is nothing with no trips", () => {
       expect(monthlyProfit(base({ driverTrips: 0 })).lines.find((l) => l.id === "drivers")).toBeUndefined();
+    });
+  });
+
+  describe("assistants: hours needed against the hours they can work", () => {
+    it("counts each plan's own included hours, at the share used, plus desk tasks and extra hours", () => {
+      const r = monthlyProfit(base({
+        members: members({ "premium-basic": 10, "premium-plus": 10, family: 10 }),
+        usage: 0.5, deskMinutes: 0, extraAssistantHours: 20, assistantCount: 3, hoursPerAssistant: 100,
+      }));
+      // Premium 4, Premium Plus 8, Family 12 included hours; half used; plus 20 extra hours sold.
+      const hours = (includedConciergeHours("premium-basic") * 10 + includedConciergeHours("premium-plus") * 10 + includedConciergeHours("family") * 10) * 0.5 + 20;
+      expect(r.assistants.neededHours).toBe(hours);
+      expect(r.assistants.availableHours).toBe(300);
+      expect(r.assistants.utilization).toBeCloseTo(hours / 300, 5);
+      expect(r.assistants.neededCount).toBe(Math.ceil(hours / 100));
+    });
+
+    it("pays each assistant $35 for the hours the work needs, shared evenly", () => {
+      const r = monthlyProfit(base({ extraAssistantHours: 100, assistantCount: 2, hoursPerAssistant: 80 }));
+      expect(r.assistants.neededHours).toBe(100);
+      expect(r.assistants.payEachCents).toBe(Math.round((100 * 3_500) / 2));
+      expect(r.assistants.neededCount).toBe(2);
+    });
+
+    it("counts desk-task time as assistant time, so slower tasks need more people", () => {
+      const quick = monthlyProfit(base({ members: members({ family: 10 }), deskMinutes: 5, assistantCount: 1 })).assistants.neededHours;
+      const slow = monthlyProfit(base({ members: members({ family: 10 }), deskMinutes: 60, assistantCount: 1 })).assistants.neededHours;
+      expect(slow).toBeGreaterThan(quick);
+    });
+
+    it("has no share or pay to show with no assistants entered, and never divides by zero", () => {
+      const r = monthlyProfit(base({ extraAssistantHours: 40, assistantCount: 0 }));
+      expect(r.assistants.utilization).toBe(0);
+      expect(r.assistants.payEachCents).toBe(0);
+      expect(r.assistants.neededCount).toBeGreaterThan(0);
+      expect(Number.isFinite(monthlyProfit(base({ assistantCount: 3, hoursPerAssistant: 0, extraAssistantHours: 5 })).assistants.neededCount)).toBe(true);
     });
   });
 });

@@ -37,6 +37,9 @@ export interface PnlInputs {
   paidErrands: number;
   errandTier: ErrandTierId;
   errandCapCents: number;
+  /** The personal assistants you have, and the hours each can work in a month. They are paid $35 for each hour worked, not a salary. */
+  assistantCount: number;
+  hoursPerAssistant: number;
   /** Trips by drivers Safehubby hires itself, in a month: what each trip pays the driver ($85), and what a client pays per trip (0 until you enter it, which shows only the pay). */
   driverTrips: number;
   driverPayPerTripCents: number;
@@ -73,6 +76,21 @@ export interface PnlResult {
   netCents: number;
   /** Where the money went before it reached you: assistants, errand runners and the card processor (Stripe). */
   payouts: { assistantsCents: number; runnersCents: number; driversCents: number; cardFeesCents: number };
+  /**
+   * The assistant hours this month's members and extra bookings call for, against the hours your assistants can work.
+   * Each plan counts its own included hours (Premium 4, Premium Plus 8, Family 12 today), the share used, the desk-task time and any extra hours sold.
+   * Hospital caretakers are a separate job and are not counted here.
+   */
+  assistants: {
+    count: number; hoursPerAssistant: number;
+    neededHours: number; availableHours: number;
+    /** Share of the available hours the work fills; above 100% means you are short. */
+    utilization: number;
+    /** How many assistants the work needs at the hours each can give. */
+    neededCount: number;
+    /** What each of your assistants is paid in the month if the work is split evenly; 0 with no assistants entered. */
+    payEachCents: number;
+  };
   /** What one more member of a plan adds to the month, at this usage. */
   perMemberCents: Record<CalculatorPlan, number>;
   /** How many more Premium members would bring the month to zero; 0 if it is already there. */
@@ -88,6 +106,8 @@ export const defaultPnlInputs = (): PnlInputs => ({
   extraAssistantHours: 0,
   paidErrands: 0,
   hospitalDays: 0,
+  assistantCount: 0,
+  hoursPerAssistant: 80,
   driverTrips: 0,
   driverPayPerTripCents: 8_500, // each trip pays the driver $85, per the owner: more than Uber Black pays
   driverFareCents: 0,
@@ -111,7 +131,7 @@ const whole = (n: number) => Math.max(0, Math.round(Number.isFinite(n) ? n : 0))
 
 /** What one member of a plan leaves each month: dues, less the card fee, the included hours and pickups they use, the credit, and desk-task time. */
 function planProfitPerMemberCents(plan: CalculatorPlan, usage: number, deskMinutes: number): {
-  revenue: number; cost: number; profit: number; cardFee: number; assistantPay: number; runnerPay: number;
+  revenue: number; cost: number; profit: number; cardFee: number; assistantPay: number; runnerPay: number; assistantHours: number;
 } {
   const p = findPlan(plan);
   const revenue = p.monthlyCents;
@@ -126,7 +146,9 @@ function planProfitPerMemberCents(plan: CalculatorPlan, usage: number, deskMinut
   const assistantPay = Math.round(assistantGiven * usage);
   const runnerPay = Math.round(runnerGiven * usage);
   const cost = cardFee + assistantPay + runnerPay;
-  return { revenue, cost, profit: revenue - cost, cardFee, assistantPay, runnerPay };
+  // The assistant time this member uses: their included hours, and the minutes of their desk tasks, at the usage share.
+  const assistantHours = (hours + desk * (deskMinutes / 60)) * usage;
+  return { revenue, cost, profit: revenue - cost, cardFee, assistantPay, runnerPay, assistantHours };
 }
 
 /** What a Wingman Club member leaves each month: the $99, less the card fee and the outing they go to. A mix of light months and bigger days. */
@@ -155,12 +177,14 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
   const deskMinutes = clamp(raw.deskMinutes, 0, 240);
   const lines: PnlLine[] = [];
   const payouts = { assistantsCents: 0, runnersCents: 0, driversCents: 0, cardFeesCents: 0 };
+  let neededHours = 0;
 
   for (const plan of CALCULATOR_PLANS) {
     const n = whole(raw.members[plan]);
     if (n === 0) continue;
     const per = planProfitPerMemberCents(plan, usage, deskMinutes);
     const name = findPlan(plan).name;
+    neededHours += per.assistantHours * n;
     payouts.assistantsCents += per.assistantPay * n; payouts.runnersCents += per.runnerPay * n; payouts.cardFeesCents += per.cardFee * n;
     lines.push({
       id: `plan-${plan}`, label: `${name} members`, revenueCents: per.revenue * n, costCents: per.cost * n, profitCents: per.profit * n,
@@ -175,6 +199,7 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
     const perHourFee = Math.round((PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly) * PROCESSOR_FEE_RATE + PROCESSOR_FEE_FIXED_CENTS / 2); // an average two-hour booking
     const revenue = extraHours * (PA_CUSTOMER_HOURLY_CENTS + payDeltas().paHourly);
     const cost = extraHours * (livePaHourlyPayCents() + perHourFee);
+    neededHours += extraHours;
     payouts.assistantsCents += extraHours * livePaHourlyPayCents(); payouts.cardFeesCents += extraHours * perHourFee;
     lines.push({
       id: "extra-hours", label: "Assistant hours sold beyond the plans", revenueCents: revenue, costCents: cost, profitCents: revenue - cost,
@@ -259,5 +284,16 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
   const cash = whole(raw.cashCents);
   const runwayMonths = netCents < 0 && cash > 0 ? Math.round((cash / -netCents) * 10) / 10 : null;
 
-  return { lines, grossProfitCents, fixed, fixedCents, netCents, payouts, perMemberCents, premiumToBreakEven, runwayMonths };
+  const count = whole(raw.assistantCount);
+  const each = clamp(raw.hoursPerAssistant, 0, 300);
+  const needed = Math.round(neededHours * 10) / 10;
+  const available = count * each;
+  const assistants = {
+    count, hoursPerAssistant: each, neededHours: needed, availableHours: available,
+    utilization: available > 0 ? needed / available : 0,
+    neededCount: each > 0 ? Math.ceil(needed / each) : 0,
+    payEachCents: count > 0 ? Math.round((needed * livePaHourlyPayCents()) / count) : 0,
+  };
+
+  return { lines, grossProfitCents, fixed, fixedCents, netCents, payouts, assistants, perMemberCents, premiumToBreakEven, runwayMonths };
 }

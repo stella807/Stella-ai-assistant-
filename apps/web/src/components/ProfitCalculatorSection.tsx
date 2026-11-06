@@ -51,7 +51,7 @@ export function ProfitCalculatorSection() {
       <input type="number" min={0} step={k === "errandCapCents" || k === "driverFareCents" || k === "driverPayPerTripCents" ? 1 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
     </label>
   );
-  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "driverTrips" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
+  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "driverTrips" | "assistantCount" | "hoursPerAssistant" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
     <label className="row-between small">{label}
       <input type="number" min={0} step={1} style={{ width: 80 }} value={inputs[k]} onChange={(e) => set(k, num(e.target.value))} />
     </label>
@@ -79,6 +79,8 @@ export function ProfitCalculatorSection() {
             onChange={(e) => set("members", { ...inputs.members, [p]: num(e.target.value) })} />
         </label>
       ))}
+      {count("assistantCount", "Personal assistants you have")}
+      {count("hoursPerAssistant", "Hours each can work per month")}
       {count("clubMembers", "Wingman Club members ($99)")}
       {count("extraAssistantHours", "Extra assistant hours sold")}
       {count("hospitalDays", "Hospital caretaker days")}
@@ -115,6 +117,26 @@ export function ProfitCalculatorSection() {
         <div className="row-between tiny"><span className="muted">Paid to errand runners</span><span>{money(result.payouts.runnersCents)}</span></div>
         {result.payouts.driversCents > 0 && <div className="row-between tiny"><span className="muted">Paid to drivers</span><span>{money(result.payouts.driversCents)}</span></div>}
         <div className="row-between tiny"><span className="muted">Stripe fees and task cards</span><span>{money(result.payouts.cardFeesCents)}</span></div>
+      </div>
+
+      <div className="card stack" style={{ gap: 4, background: "rgba(0,0,0,0.03)" }} aria-label="Assistant hours">
+        <strong className="small">Assistant hours this month</strong>
+        <span className="tiny muted">
+          What your members' plans call for, at the share used you entered, plus desk tasks and any extra hours sold. Each plan counts its own included hours. Assistants are paid $35 for each hour worked.
+        </span>
+        <div className="row-between tiny"><span className="muted">Hours the work needs</span><span>{result.assistants.neededHours.toLocaleString("en-US")}</span></div>
+        <div className="row-between tiny"><span className="muted">Hours your {result.assistants.count} {result.assistants.count === 1 ? "assistant" : "assistants"} can work</span><span>{result.assistants.availableHours.toLocaleString("en-US")}</span></div>
+        {result.assistants.count > 0 && (
+          <div className="row-between tiny"><span className="muted">Share of their time used</span>
+            <span style={{ color: result.assistants.utilization > 1 ? "#e5484d" : undefined }}>{Math.round(result.assistants.utilization * 100)}%</span></div>
+        )}
+        <div className="row-between tiny"><span className="muted">Assistants the work needs</span><span>{result.assistants.neededCount}</span></div>
+        {result.assistants.count > 0 && (
+          <div className="row-between tiny"><span className="muted">Each of yours earns about</span><span>{money(result.assistants.payEachCents)} a month</span></div>
+        )}
+        {result.assistants.count > 0 && result.assistants.neededCount > result.assistants.count && (
+          <span className="tiny" style={{ color: "#e5484d" }}>You are short about {result.assistants.neededCount - result.assistants.count} {result.assistants.neededCount - result.assistants.count === 1 ? "assistant" : "assistants"} at this level of use.</span>
+        )}
       </div>
 
       <strong className="tiny muted">Where profit comes from</strong>
