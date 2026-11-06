@@ -1613,7 +1613,7 @@ function sendEmails(messages: OutboundEmail[]): void {
 /** Tells an applicant where their application stands — see applicant-email.ts. */
 function emailApplicant(to: string, name: string, roleLabel: string, kind: ApplicantEmailKind): void {
   if (!isValidNewsletterEmail(to)) return;
-  const { subject, body } = applicantEmail({ kind, name, roleLabel });
+  const { subject, body } = applicantEmail({ kind, name, roleLabel, interviewUrl: process.env.INTERVIEW_URL });
   sendEmails([{ to, subject, body }]);
 }
 

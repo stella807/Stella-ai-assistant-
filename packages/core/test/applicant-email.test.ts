@@ -22,4 +22,14 @@ describe("applicantEmail", () => {
       expect(body).toContain("Nurse");
     }
   });
+
+  it("adds the interview scheduling link to an approval only, and only if it is an https link", () => {
+    const url = "https://calendar.app.google/abc";
+    const input = { name: "Ana", roleLabel: "Secretary", interviewUrl: url };
+    expect(applicantEmail({ ...input, kind: "approved" }).body).toContain(`Pick a time for your interview here: ${url}`);
+    expect(applicantEmail({ ...input, kind: "approved" }).body).toContain(`Elige la hora de tu entrevista aquí: ${url}`);
+    expect(applicantEmail({ ...input, kind: "rejected" }).body).not.toContain(url);
+    expect(applicantEmail({ ...input, kind: "approved", interviewUrl: "javascript:alert(1)" }).body).not.toContain("interview here");
+    expect(applicantEmail({ name: "Ana", roleLabel: "Secretary", kind: "approved" }).body).not.toContain("interview here");
+  });
 });

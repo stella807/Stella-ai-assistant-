@@ -16,6 +16,8 @@ export interface ApplicantEmailInput {
   name: string;
   /** What they applied for, e.g. "Personal assistant" or "Driver". */
   roleLabel: string;
+  /** A scheduling link (a Google Calendar booking page, say). On an approval it lets the applicant pick their own interview time. */
+  interviewUrl?: string;
 }
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || "there";
@@ -60,8 +62,11 @@ function spanish(kind: ApplicantEmailKind, name: string, role: string): string {
 
 export function applicantEmail(input: ApplicantEmailInput): { subject: string; body: string } {
   const name = firstName(input.name);
+  const link = input.kind === "approved" && (input.interviewUrl ?? "").startsWith("https://") ? input.interviewUrl : undefined;
+  const en = link ? `\n\nPick a time for your interview here: ${link}` : "";
+  const es = link ? `\n\nElige la hora de tu entrevista aquí: ${link}` : "";
   return {
     subject: SUBJECTS[input.kind],
-    body: `${english(input.kind, name, input.roleLabel)}\n\n— Safehubby\n\n---\n\n${spanish(input.kind, name, input.roleLabel)}\n\n— Safehubby`,
+    body: `${english(input.kind, name, input.roleLabel)}${en}\n\n— Safehubby\n\n---\n\n${spanish(input.kind, name, input.roleLabel)}${es}\n\n— Safehubby`,
   };
 }
