@@ -6090,6 +6090,26 @@ export const routes: Record<string, Handler> = {
 
   /** What roles are open, and the two things everyone hired gets. Public: this
    *  is a job post, and a job post behind a login is not a job post. */
+  /**
+   * The first personal assistant hired who is still on the roster, for the public landing page. Only what they
+   * chose to show customers (first name, photo, bio, years) leaves the server: no surname, contact details or pay.
+   */
+  "GET /api/team/first-assistant": (ctx) => {
+    const now = ctx.now();
+    const first = ctx.store.data.assistants
+      .filter((a) => a.role === "personal-assistant" && isOnRoster(a, now))
+      .sort((a, b) => a.hiredAt.localeCompare(b.hiredAt))[0];
+    if (!first) return { assistant: null };
+    // A photo is shown as an image source, so only an https address or an embedded image is ever passed on.
+    const photoUrl = first.photoUrl && /^(https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(first.photoUrl) ? first.photoUrl : undefined;
+    return {
+      assistant: {
+        firstName: first.name.trim().split(/\s+/)[0] || first.name,
+        bio: first.bio, photoUrl, yearsExperience: first.yearsExperience, hiredAt: first.hiredAt,
+      },
+    };
+  },
+
   "GET /api/staff/roles": (ctx) => ({
     // What each role pays and how many people we are looking for, worked out
     // here from the same constants the money moves with. `openings` is the

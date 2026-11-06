@@ -4342,6 +4342,20 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(idsAfter).not.toContain(json.id);
   });
 
+  it("showcases the first personal assistant hired, with only what is safe to show publicly", async () => {
+    expect((await call("GET", "/api/team/first-assistant")).json.assistant).toBeNull();
+    store.update((db) => {
+      const base = { applicationId: "a", role: "personal-assistant", market: "puerto-rico", categories: [], maxConcurrentCustomers: 1 };
+      db.assistants.push({ ...base, id: "pa-late", name: "Later Person", hiredAt: "2026-03-01T00:00:00.000Z" } as any);
+      db.assistants.push({ ...base, id: "pa-first", name: "Marisol Vega Rivera", hiredAt: "2026-01-01T00:00:00.000Z",
+        bio: "Six years running households.", yearsExperience: 6, photoUrl: "javascript:alert(1)", withholdingExemptionCertificate: "SECRET" } as any);
+    });
+    const { status, json } = await call("GET", "/api/team/first-assistant");
+    expect(status).toBe(200);
+    expect(json.assistant).toEqual({ firstName: "Marisol", bio: "Six years running households.", yearsExperience: 6, hiredAt: "2026-01-01T00:00:00.000Z" });
+    expect(JSON.stringify(json)).not.toMatch(/Vega|SECRET|javascript/);
+  });
+
   it("lists a newly hired assistant on the team, available until given a job", async () => {
     const { json } = await apply({ email: "teamtrack@example.com" });
     await callAdmin("POST", `/api/staff/applications/${json.id}/review`, { status: "under-review" });

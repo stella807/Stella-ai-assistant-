@@ -388,6 +388,8 @@ export const api = {
       subscribed: true; alreadyOnList: boolean; delivered: boolean; note: string; launch: LaunchStatus;
     }>("POST", "/api/newsletter", input),
 
+  firstAssistant: () =>
+    request<{ assistant: { firstName: string; bio?: string; photoUrl?: string; yearsExperience?: number; hiredAt: string } | null }>("GET", "/api/team/first-assistant"),
   staffRoles: () => request<{ roles: StaffRoleInfo[]; benefits: HiringBenefit[] }>("GET", "/api/staff/roles"),
   applyForStaffRole: (input: StaffApplicationInput) =>
     request<{ id: string; role: string; status: string }>("POST", "/api/staff/apply", input),
