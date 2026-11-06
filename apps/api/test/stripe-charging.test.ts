@@ -128,6 +128,20 @@ describe("Stripe Checkout Session", () => {
   beforeEach(() => { process.env.STRIPE_SECRET_KEY = "sk_test_x"; });
   afterEach(() => { vi.unstubAllGlobals(); process.env = { ...ENV }; });
 
+  it("has Stripe Tax work out IVU on the plan checkout when STRIPE_TAX is on", async () => {
+    process.env.STRIPE_TAX = "on";
+    const { createCheckoutSession } = await import("../src/adapters/stripe.ts");
+    stubStripe(checkoutReply);
+    await createCheckoutSession({
+      customerId: "cus_1", returnUrl: "https://x/#billing",
+      plan: { planId: "premium-basic", name: "Premium", cadence: "monthly", amountCents: 9_900, travelerId: "usr1" },
+    });
+    const b = calls.find((c) => c.url.endsWith("/v1/checkout/sessions"))!.body;
+    expect([b.get("automatic_tax[enabled]"), b.get("line_items[0][price_data][tax_behavior]"), b.get("customer_update[address]")])
+      .toEqual(["true", "inclusive", "auto"]);
+    expect([...b.keys()].some((k) => k.includes("tax_rates"))).toBe(false);
+  });
+
   it("creates the embedded form session with the Checkout Studio settings", async () => {
     const { createCheckoutSession, CHECKOUT_API_VERSION } = await import("../src/adapters/stripe.ts");
     stubStripe(checkoutReply);
@@ -146,6 +160,7 @@ describe("Stripe Checkout Session", () => {
     expect(b.get("integration_identifier")).toBe("custom_embedded_web_0001");
     expect(b.get("saved_payment_method_options[payment_method_save]")).toBe("enabled");
     expect(b.get("automatic_tax[enabled]")).toBe("false");
+    expect(b.get("line_items[0][price_data][tax_behavior]")).toBeNull();
     expect(b.get("line_items[0][price_data][unit_amount]")).toBe("93999");
     expect(b.get("line_items[0][price_data][recurring][interval]")).toBe("year");
     expect(b.get("subscription_data[metadata][planId]")).toBe("premium-basic");

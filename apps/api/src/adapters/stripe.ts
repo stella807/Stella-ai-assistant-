@@ -352,6 +352,9 @@ export async function createCheckoutSession(input: {
       "line_items[0][price_data][product_data][name]": `Safehubby ${plan.name} (${plan.cadence === "annual" ? "yearly" : "monthly"})`,
       "line_items[0][price_data][recurring][interval]": plan.cadence === "annual" ? "year" : "month",
       "line_items[0][quantity]": 1,
+      // IVU through Stripe Tax, same switch and same tax-inclusive pricing as the invoices: the member pays the
+      // advertised price and the tax is carved out of it. Stripe Tax only collects where the account is registered.
+      ...(taxOn() ? { "line_items[0][price_data][tax_behavior]": "inclusive", "customer_update[address]": "auto", "customer_update[name]": "auto" } : {}),
       // No tax-rate line here: Stripe's current API version rejects `dynamic_tax_rates` outright, which broke every
       // plan checkout. IVU by billing address needs Stripe Tax (automatic_tax) once a PR registration is set up.
       ...(trialEnd ? { "subscription_data[trial_end]": trialEnd } : {}),
@@ -365,7 +368,7 @@ export async function createCheckoutSession(input: {
       // to match a Puerto Rico address against.
       billing_address_collection: "required",
       "phone_number_collection[enabled]": false,
-      "automatic_tax[enabled]": false,
+      "automatic_tax[enabled]": taxOn(),
       ...(mode === "subscription" ? { payment_method_collection: "always" } : {}),
       submit_type: "auto",
       "name_collection[individual][enabled]": true,

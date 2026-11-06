@@ -54,7 +54,7 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `LITHIC_ENV` | with Lithic | `production` once your Lithic card program is live. |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | to take payments | A PayPal REST app. Customers save a PayPal account and are charged through it. Set `PAYPAL_API_BASE=https://api-m.sandbox.paypal.com` while testing; it defaults to the live API. See `docs/billing.md`. |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` | for cards through Stripe | Cards are saved and charged through Stripe only — without both keys, the card option is hidden. Use `sk_test_`/`pk_test_` keys while testing. Plan charges become Stripe invoices. |
-| `STRIPE_TAX` | optional | `on` turns on Stripe Tax for plan invoices. Prices are tax-inclusive, so members still pay the listed price. Register for tax in the Stripe Dashboard first. |
+| `STRIPE_TAX` | optional | `on` turns on Stripe Tax for plan invoices and the plan checkout (that is how Puerto Rico IVU is charged). Prices are tax-inclusive, so members still pay the listed price. Register for tax in the Stripe Dashboard first. |
 | `NWC_URI` | for crypto | A **receive-only** NWC code from your Bitcoin wallet. Turns on crypto balance loads through OpenReceive — see `docs/billing.md`. The server refuses a code that can also send money. |
 | `LSC_URI_PRIMARY`, `LSC_URI_BACKUP` | optional, for crypto | A swap provider, so customers can pay in USDT, USDC, SOL or ETH and you still receive Bitcoin. |
 | `PORT` | no | Railway injects it. |
