@@ -4834,6 +4834,22 @@ export const routes: Record<string, Handler> = {
 
   /* Owner: record that a worker showed a Hacienda exemption certificate (or
      take it back off). With one on file, nothing is withheld from their pay. */
+  /** Sets the gender the site's wording follows (the first-assistant card, for one). The owner's call, so it needs write access. */
+  "POST /api/master/assistants/:id/gender": (ctx, p, body) => {
+    const account = masterAccountOf(ctx);
+    const now = ctx.now();
+    if (!account || !isMasterAccountActive(account, now) || !canAccess(account, "write", now)) throw unauthorized();
+    const id = req(p, "id");
+    if (!ctx.store.data.assistants.some((a) => a.id === id)) throw notFound("Assistant");
+    const gender = body?.gender === "female" || body?.gender === "male" ? body.gender : body?.gender === null || body?.gender === "" ? undefined : null;
+    if (gender === null) throw new HttpError(400, "Gender must be female or male.");
+    ctx.store.update((db) => {
+      const a = db.assistants.find((x) => x.id === id);
+      if (a) a.gender = gender;
+    });
+    return { assistantId: id, gender: gender ?? null };
+  },
+
   "POST /api/master/assistants/:id/withholding-exemption": (ctx, p, body) => {
     const account = masterAccountOf(ctx);
     const now = ctx.now();
@@ -6106,6 +6122,8 @@ export const routes: Record<string, Handler> = {
       assistant: {
         firstName: first.name.trim().split(/\s+/)[0] || first.name,
         bio: first.bio, photoUrl, yearsExperience: first.yearsExperience, hiredAt: first.hiredAt,
+        // Only used to choose the words around their name (la / el in Spanish); anything else gets neutral wording.
+        ...(first.gender === "female" || first.gender === "male" ? { gender: first.gender } : {}),
       },
     };
   },

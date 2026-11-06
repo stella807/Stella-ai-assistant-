@@ -1,5 +1,7 @@
 import type { TeamActivity } from "@safehubby/core";
 import { TEAM_EVENT_LABEL, TEAM_STATUS_LABEL, TEAM_STATUS_PILL, timeAgo } from "../app/team-activity.ts";
+import { useState } from "react";
+import { api } from "../api.ts";
 import { money } from "../money.ts";
 
 /**
@@ -7,8 +9,10 @@ import { money } from "../money.ts";
  * their current jobs, recent output and unpaid pay, then a feed of what just
  * happened. Built server-side from the tasks and pickups themselves.
  */
-export function TeamActivitySection({ team }: { team: TeamActivity }) {
+export function TeamActivitySection({ team, canWrite = false }: { team: TeamActivity; canWrite?: boolean }) {
   const now = new Date();
+  // What the owner just chose, shown at once; the saved value arrives with the next refresh.
+  const [genders, setGenders] = useState<Record<string, string>>({});
   return (
     <section className="card stack">
       <h3>Team activity</h3>
@@ -25,7 +29,20 @@ export function TeamActivitySection({ team }: { team: TeamActivity }) {
             <tbody>
               {team.members.map((m) => (
                 <tr key={m.id}>
-                  <td>{m.name}<div className="tiny muted">{m.roleLabel}</div></td>
+                  <td>{m.name}<div className="tiny muted">{m.roleLabel}</div>
+                    {canWrite && m.role === "personal-assistant" && (
+                      <select aria-label={`Gender of ${m.name}`} className="tiny" value={genders[m.id] ?? m.gender ?? ""}
+                        onChange={(e) => {
+                          const g = e.target.value as "female" | "male" | "";
+                          setGenders((s) => ({ ...s, [m.id]: g }));
+                          void api.masterSetAssistantGender(m.id, g).catch(() => setGenders((s) => ({ ...s, [m.id]: m.gender ?? "" })));
+                        }}>
+                        <option value="">Gender (for the wording)</option>
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                      </select>
+                    )}
+                  </td>
                   <td><span className={TEAM_STATUS_PILL[m.status]}>{TEAM_STATUS_LABEL[m.status]}</span></td>
                   <td className="small">
                     {m.current.length === 0 ? "—" : m.current.map((j) => (

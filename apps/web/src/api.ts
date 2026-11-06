@@ -389,7 +389,7 @@ export const api = {
     }>("POST", "/api/newsletter", input),
 
   firstAssistant: () =>
-    request<{ assistant: { firstName: string; bio?: string; photoUrl?: string; yearsExperience?: number; hiredAt: string } | null }>("GET", "/api/team/first-assistant"),
+    request<{ assistant: { firstName: string; bio?: string; photoUrl?: string; yearsExperience?: number; gender?: "female" | "male"; hiredAt: string } | null }>("GET", "/api/team/first-assistant"),
   staffRoles: () => request<{ roles: StaffRoleInfo[]; benefits: HiringBenefit[] }>("GET", "/api/staff/roles"),
   applyForStaffRole: (input: StaffApplicationInput) =>
     request<{ id: string; role: string; status: string }>("POST", "/api/staff/apply", input),
@@ -918,13 +918,15 @@ export const api = {
    *  shown again, so the caller has to surface them immediately. */
   masterApplicationCredential: (id: string, kind: string) =>
     request<{ fileName: string; mimeType: string; base64: string }>("GET", `/api/applications/${encodeURIComponent(id)}/credential/${encodeURIComponent(kind)}`),
-  masterHireStaffApplication: (id: string, market: string, profile?: { bio?: string; age?: number; yearsExperience?: number; photoUrl?: string; armed?: boolean }) =>
+  masterHireStaffApplication: (id: string, market: string, profile?: { bio?: string; age?: number; yearsExperience?: number; photoUrl?: string; armed?: boolean; gender?: string }) =>
     request<{ assistant: { id: string; name: string }; credentials: { username: string; tempPassword?: string } }>(
       "POST", `/api/staff/applications/${id}/hire`, { market, ...profile }),
   /** Tick one of the launch steps the app cannot observe for itself. The
    *  server refuses an observed step outright — see launch-plan.ts. */
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
+  masterSetAssistantGender: (id: string, gender: "female" | "male" | "") =>
+    request<{ assistantId: string; gender: string | null }>("POST", `/api/master/assistants/${id}/gender`, { gender }),
   masterRefundCharges: (email: string) =>
     request<RefundCharges>("GET", `/api/master/refunds?email=${encodeURIComponent(email)}`),
   masterRefund: (chargeId: string) =>

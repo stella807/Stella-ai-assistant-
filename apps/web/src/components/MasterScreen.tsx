@@ -314,7 +314,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.operations && (
         <ApplicationsSection operations={overview.operations} canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
       )}
-      {overview.operations && <TeamActivitySection team={overview.operations.team} />}
+      {overview.operations && <TeamActivitySection team={overview.operations.team} canWrite={overview.scopes.includes("write")} />}
       {overview.operations && (
         <OperationsSection operations={overview.operations} />
       )}
@@ -434,6 +434,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   const [bio, setBio] = useState("");
   const [age, setAge] = useState("");
   const [years, setYears] = useState("");
+  const [gender, setGender] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
   // Both licences on file: the reviewer may clear them for armed jobs.
   // (or both ticked on the application, which carry no file to look at).
@@ -466,6 +467,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
       ...(bio.trim() ? { bio: bio.trim() } : {}),
       ...(age ? { age: Number(age) } : {}),
       ...(years ? { yearsExperience: Number(years) } : {}),
+      ...(gender ? { gender } : {}),
       ...(photo ? { photoUrl: photo } : {}),
       ...(armed ? { armed: true } : {}),
     });
@@ -541,6 +543,11 @@ function ApplicationRow({ app, canWrite, onChanged }: {
                 <span className="tiny muted">What customers see when choosing them (optional)</span>
                 <div className="row" style={{ gap: 6 }}>
                   <input aria-label="Years of experience" inputMode="numeric" placeholder="Years" value={years} onChange={(e) => setYears(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                  <select aria-label="Gender" value={gender} onChange={(e) => setGender(e.target.value)}>
+                    <option value="">Gender (for the wording)</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                  </select>
                   <input aria-label="Age" inputMode="numeric" placeholder="Age" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 2))} />
                 </div>
                 <input aria-label="A line about them" placeholder="A line about them" maxLength={160} value={bio} onChange={(e) => setBio(e.target.value)} />

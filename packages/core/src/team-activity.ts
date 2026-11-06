@@ -47,6 +47,8 @@ export interface TeamMember {
   /** Completed and not yet paid out. */
   unpaidCents: number;
   lastActiveAt?: Iso8601;
+  /** As recorded at hiring; only female or male changes any wording on the site. */
+  gender?: string;
 }
 
 export type TeamEventKind =
@@ -184,7 +186,7 @@ export function teamActivity(input: {
   };
 
   const members = [
-    ...input.assistants.map((a) => memberFor(a.id, a.name, a.role, isOnRoster(a, now))),
+    ...input.assistants.map((a) => ({ ...memberFor(a.id, a.name, a.role, isOnRoster(a, now)), ...(a.gender ? { gender: a.gender } : {}) })),
     ...(input.drivers ?? []).map((d) => memberFor(d.id, d.name, "driver", true)),
   ];
   // Busy first, then available, then people no longer on the roster; within

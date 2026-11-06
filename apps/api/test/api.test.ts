@@ -2802,6 +2802,21 @@ describe("biweekly payroll", () => {
       expect(mine.json.withheldThisYearCents).toBe(90);
     });
 
+    it("lets the owner set an assistant's gender for the site's wording, and nobody else", async () => {
+      store.update((db) => {
+        db.assistants.push({ id: assistantId, applicationId: "a", name: "Luis Pagan", role: "personal-assistant", market: "puerto-rico",
+          categories: [], maxConcurrentCustomers: 1, hiredAt: "2026-01-01T00:00:00.000Z" } as any);
+      });
+      const club = await master("club-assistant", "gclub@example.com");
+      expect((await call("POST", `/api/master/assistants/${assistantId}/gender`, { gender: "male" }, null, club)).status).toBe(401);
+      const owner = await master("owner", "gowner@example.com");
+      expect((await call("POST", `/api/master/assistants/${assistantId}/gender`, { gender: "robot" }, null, owner)).status).toBe(400);
+      expect((await call("POST", `/api/master/assistants/${assistantId}/gender`, { gender: "male" }, null, owner)).json.gender).toBe("male");
+      expect((await call("GET", "/api/team/first-assistant")).json.assistant).toMatchObject({ firstName: "Luis", gender: "male" });
+      await call("POST", `/api/master/assistants/${assistantId}/gender`, { gender: "" }, null, owner);
+      expect((await call("GET", "/api/team/first-assistant")).json.assistant.gender).toBeUndefined();
+    });
+
     it("shows the owner who is owed what, and keeps it away from everyone else", async () => {
       store.update((db) => {
         db.assistants.push({ id: assistantId, applicationId: "a", name: "Pay Test", role: "personal-assistant", market: "puerto-rico",
@@ -4348,11 +4363,11 @@ describe("hiring somebody and actually sending them to a job", () => {
       const base = { applicationId: "a", role: "personal-assistant", market: "puerto-rico", categories: [], maxConcurrentCustomers: 1 };
       db.assistants.push({ ...base, id: "pa-late", name: "Later Person", hiredAt: "2026-03-01T00:00:00.000Z" } as any);
       db.assistants.push({ ...base, id: "pa-first", name: "Marisol Vega Rivera", hiredAt: "2026-01-01T00:00:00.000Z",
-        bio: "Six years running households.", yearsExperience: 6, photoUrl: "javascript:alert(1)", withholdingExemptionCertificate: "SECRET" } as any);
+        bio: "Six years running households.", yearsExperience: 6, gender: "female", photoUrl: "javascript:alert(1)", withholdingExemptionCertificate: "SECRET" } as any);
     });
     const { status, json } = await call("GET", "/api/team/first-assistant");
     expect(status).toBe(200);
-    expect(json.assistant).toEqual({ firstName: "Marisol", bio: "Six years running households.", yearsExperience: 6, hiredAt: "2026-01-01T00:00:00.000Z" });
+    expect(json.assistant).toEqual({ firstName: "Marisol", bio: "Six years running households.", yearsExperience: 6, gender: "female", hiredAt: "2026-01-01T00:00:00.000Z" });
     expect(JSON.stringify(json)).not.toMatch(/Vega|SECRET|javascript/);
   });
 
