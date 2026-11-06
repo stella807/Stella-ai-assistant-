@@ -594,6 +594,23 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
             </span>}
           </button>
         ))}
+        {/* A one-click way in to armed protection: the same booking, with the armed box already ticked. */}
+        {!simple && allowed.includes("check-in-person") && (
+          <button className="category-tile"
+            onClick={() => {
+              onPickCategory?.();
+              setCategory("check-in-person"); setArmedJob(true);
+              setCapCents(kind === "errand" ? tierSuggestion(errandTier) : defaultCapFor("check-in-person", planId));
+              setCapTouched(false); setHours(defaultHoursFor("check-in-person")); setCapEntry("");
+              setRoster(null); setConfirming(false); setAutoAssistant(null);
+              setFlightNumber(""); setFlightDate(""); setFlightPreview(null); setFlightError(null);
+            }}
+            aria-pressed={!formHidden && armedJob && ARMED_CATEGORIES.includes(category)}>
+            <span className="category-tile-icon"><CategoryIcon id="check-in-person" /></span>
+            <span className="category-tile-label">{c.bodyguardTile}</span>
+            <span className="category-tile-price">{c.bodyguardRate(money(ARMED_CUSTOMER_HOURLY_CENTS))}</span>
+          </button>
+        )}
         {extraTiles}
       </div>
       {formHidden ? extra : <>
