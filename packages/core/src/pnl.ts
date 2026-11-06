@@ -37,9 +37,8 @@ export interface PnlInputs {
   paidErrands: number;
   errandTier: ErrandTierId;
   errandCapCents: number;
-  /** The personal assistants you have, and the hours each can work in a month. They are paid $35 for each hour worked, not a salary. */
+  /** The personal assistants you have. Their hours come from the plans your members are on, and they are paid $35 for each hour worked, not a salary. */
   assistantCount: number;
-  hoursPerAssistant: number;
   /** Trips by drivers Safehubby hires itself, in a month: what each trip pays the driver ($85), and what a client pays per trip (0 until you enter it, which shows only the pay). */
   driverTrips: number;
   driverPayPerTripCents: number;
@@ -84,18 +83,17 @@ export interface PnlResult {
   /** Where the money went before it reached you: assistants, errand runners and the card processor (Stripe). */
   payouts: { assistantsCents: number; runnersCents: number; driversCents: number; cardFeesCents: number };
   /**
-   * The assistant hours this month's members and extra bookings call for, against the hours your assistants can work.
+   * The assistant hours this month's members and extra bookings call for, and what that is for each assistant you have.
    * Each plan counts its own included hours (Premium 4, Premium Plus 8, Family 12 today), the share used, the desk-task time and any extra hours sold.
    * Hospital caretakers are a separate job and are not counted here.
    */
   assistants: {
-    count: number; hoursPerAssistant: number;
-    neededHours: number; availableHours: number;
-    /** Share of the available hours the work fills; above 100% means you are short. */
-    utilization: number;
-    /** How many assistants the work needs at the hours each can give. */
-    neededCount: number;
-    /** What each of your assistants is paid in the month if the work is split evenly; 0 with no assistants entered. */
+    count: number;
+    /** Hours of assistant work the plans call for in the month. */
+    neededHours: number;
+    /** Each assistant's hours in the month if the work is split evenly; follows the plans, so it moves with every member added. */
+    hoursEach: number;
+    /** What each is paid for those hours; 0 with no assistants entered. */
     payEachCents: number;
   };
   /** What one more member of a plan adds to the month, at this usage. */
@@ -118,7 +116,6 @@ export const defaultPnlInputs = (): PnlInputs => ({
   armedRateCents: 7_500,
   armedPayCents: 5_500,
   assistantCount: 0,
-  hoursPerAssistant: 80,
   driverTrips: 0,
   driverPayPerTripCents: 8_500, // each trip pays the driver $85, per the owner: more than Uber Black pays
   driverFareCents: 0,
@@ -313,13 +310,10 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
   const runwayMonths = netCents < 0 && cash > 0 ? Math.round((cash / -netCents) * 10) / 10 : null;
 
   const count = whole(raw.assistantCount);
-  const each = clamp(raw.hoursPerAssistant, 0, 300);
   const needed = Math.round(neededHours * 10) / 10;
-  const available = count * each;
   const assistants = {
-    count, hoursPerAssistant: each, neededHours: needed, availableHours: available,
-    utilization: available > 0 ? needed / available : 0,
-    neededCount: each > 0 ? Math.ceil(needed / each) : 0,
+    count, neededHours: needed,
+    hoursEach: count > 0 ? Math.round((needed / count) * 10) / 10 : 0,
     payEachCents: count > 0 ? Math.round((needed * livePaHourlyPayCents()) / count) : 0,
   };
 
