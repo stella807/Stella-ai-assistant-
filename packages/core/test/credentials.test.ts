@@ -17,8 +17,8 @@ const apply = (credentials: Credential[], role = "personal-assistant" as const) 
 const approved = (credentials: Credential[]) => ({ ...apply(credentials), status: "approved" as const });
 
 describe("insurance and licences for field work", () => {
-  it("requires the applicant's own liability insurance, current and documented", () => {
-    expect(() => apply([])).toThrow(/liability insurance/i);
+  it("does not require liability insurance to apply, but checks one that is attached", () => {
+    expect(apply([]).credentials ?? []).toHaveLength(0);
     expect(() => apply([cred("liability-insurance", "2026-01-01T00:00:00Z")])).toThrow(/expired/i);
     expect(() => apply([{ ...cred("liability-insurance"), document: { ...pdf, base64: "" } }])).toThrow(/attach a copy/i);
     expect(apply([cred("liability-insurance")]).credentials).toHaveLength(1);

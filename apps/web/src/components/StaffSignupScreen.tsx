@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
-import { MAX_RESUME_BYTES, STAFF_ROLES, payLabelFor, publicBenefits, requiresInsurance, type StaffRole } from "@safehubby/core";
+import { MAX_RESUME_BYTES, STAFF_ROLES, payLabelFor, publicBenefits, type StaffRole } from "@safehubby/core";
 import { CredentialFields, credentialPayload, emptyCredential, isCredentialFilled } from "./CredentialFields.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { PublicWorkerPay } from "./PublicPricing.tsx";
@@ -36,7 +36,6 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   const [consent, setConsent] = useState(false);
   const [resume, setResume] = useState<{ base64: string; mimeType: string; fileName: string } | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
-  const [insurance, setInsurance] = useState(() => emptyCredential("liability-insurance"));
   const [armedLicences, setArmedLicences] = useState(false);
   const [firearms, setFirearms] = useState(() => emptyCredential("firearms-license"));
   const [guard, setGuard] = useState(() => emptyCredential("guard-license"));
@@ -87,10 +86,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         hoursPerWeek: Number(hoursPerWeek),
         backgroundCheckConsent: consent,
         ...(resume ? { resume } : {}),
-        credentials: [
-          ...(needsInsurance ? [credentialPayload(insurance)] : []),
-          ...(needsInsurance && armedLicences ? [credentialPayload(firearms), credentialPayload(guard)] : []),
-        ],
+        credentials: role === "bodyguard" && armedLicences ? [credentialPayload(firearms), credentialPayload(guard)] : [],
       });
       setSubmitted({ id: res.id });
     } catch (e) {
@@ -100,9 +96,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     }
   };
 
-  const needsInsurance = Boolean(role) && requiresInsurance(role as StaffRole);
-  const credentialsReady = !needsInsurance
-    || (isCredentialFilled(insurance) && (!armedLicences || (isCredentialFilled(firearms) && isCredentialFilled(guard))));
+  // Nothing here is required to apply: insurance is not asked for, and the armed licences are an option for anyone who has them.
+  const credentialsReady = role !== "bodyguard" || !armedLicences || (isCredentialFilled(firearms) && isCredentialFilled(guard));
 
   if (submitted) {
     return (
@@ -141,8 +136,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     ...(city.trim() && state.trim() ? [] : [es ? "ciudad y estado" : "city and state"]),
     ...(experience.trim().length >= 20 ? [] : [es ? "experiencia (al menos 20 letras)" : "experience (at least 20 characters)"]),
     ...(Number(hoursPerWeek) > 0 ? [] : [es ? "horas a la semana" : "hours a week"]),
-    ...(needsInsurance ? credentialGaps(es ? "Seguro de responsabilidad civil" : "Liability insurance", insurance) : []),
-    ...(needsInsurance && armedLicences ? [
+    ...(role === "bodyguard" && armedLicences ? [
       ...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms),
       ...credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard),
     ] : []),
@@ -243,14 +237,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
-        {needsInsurance && (
+        {role === "bodyguard" && (
           <>
-            <p className="tiny muted" style={{ margin: 0 }}>
-              {lang === "es"
-                ? "Todo el que va donde los clientes tiene su propio seguro de responsabilidad civil. Adjunta el certificado."
-                : "Everyone who goes out to customers carries their own liability insurance. Attach the certificate."}
-            </p>
-            <CredentialFields value={insurance} onChange={setInsurance} lang={lang} />
             <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
               <input type="checkbox" checked={armedLicences} onChange={(e) => setArmedLicences(e.target.checked)} />
               <span>

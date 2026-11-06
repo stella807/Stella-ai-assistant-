@@ -4,7 +4,7 @@ import {
   assertWithdrawable, nextReviewStatus, type ApplicationStatus,
 } from "./application-review.ts";
 import { validateResume, type Resume } from "./resume.ts";
-import { requiresInsurance, validateCredential, type Credential } from "./credentials.ts";
+import { validateCredential, type Credential } from "./credentials.ts";
 
 /**
  * Applications for the roles that do not drive: personal assistant, errand
@@ -125,9 +125,7 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
 
   const credentials = input.credentials ?? [];
   for (const c of credentials) validateCredential(c, input.now);
-  if (requiresInsurance(input.role) && !credentials.some((c) => c.kind === "liability-insurance")) {
-    throw new Error("Attach proof of your own liability insurance — everyone who goes out to customers carries it.");
-  }
+  // Liability insurance is welcome but not required to apply; a policy that is attached is still checked above.
   const gun = credentials.some((c) => c.kind === "firearms-license");
   const guard = credentials.some((c) => c.kind === "guard-license");
   if (gun !== guard) {

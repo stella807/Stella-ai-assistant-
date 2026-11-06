@@ -3981,10 +3981,9 @@ describe("hiring for the roles that do not drive", () => {
     ...over,
   });
 
-  it("refuses a field application without the applicant's own insurance", async () => {
+  it("takes a field application without insurance or licences", async () => {
     const res = await call("POST", "/api/staff/apply", application({ credentials: [] }));
-    expect(res.status).toBe(400);
-    expect(res.json.error).toMatch(/liability insurance/i);
+    expect(res.status).toBe(200);
   });
 
   it("publishes the open roles and what everyone hired gets, without a login", async () => {

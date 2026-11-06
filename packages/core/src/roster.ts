@@ -1,4 +1,4 @@
-import { armedUntil, isCurrent, requiresInsurance, type Credential } from "./credentials.ts";
+import { armedUntil, isCurrent, type Credential } from "./credentials.ts";
 import type { Iso8601 } from "./types.ts";
 import type { LaunchMarketId } from "./service-area.ts";
 import type { StaffRole } from "./staffing.ts";
@@ -171,10 +171,9 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
     throw new Error(`A ${app.role} does not take concierge tasks, so there is no roster to add them to.`);
   }
 
-  const insurance = app.credentials?.find((c) => c.kind === "liability-insurance");
-  if (requiresInsurance(app.role) && !isCurrent(insurance, input.now)) {
-    throw new Error("Their liability insurance is missing or expired — they need a current policy before they are hired.");
-  }
+  // A policy is optional, but one that is on file and current is kept, so they come off the roster when it runs out.
+  const found = app.credentials?.find((c) => c.kind === "liability-insurance");
+  const insurance = isCurrent(found, input.now) ? found : undefined;
   // A bodyguard is always cleared armed, so both licences must be on file; nobody else is.
   const wantsArmed = app.role === "bodyguard" || input.armed === true;
   if (input.armed && app.role !== "bodyguard") {
