@@ -128,7 +128,8 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
   // Liability insurance is welcome but not required to apply; a policy that is attached is still checked above.
   const gun = credentials.some((c) => c.kind === "firearms-license");
   const guard = credentials.some((c) => c.kind === "guard-license");
-  if (gun !== guard) {
+  // Only the bodyguard job requires licences; anyone else who attaches one must attach both.
+  if ((input.role === "bodyguard" && !(gun && guard)) || gun !== guard) {
     throw new Error("For armed work, attach both your firearms licence and your security-guard licence.");
   }
 
