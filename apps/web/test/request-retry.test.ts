@@ -31,6 +31,12 @@ describe("a read that the host answers with 429", () => {
     expect(calls()).toBe(1);
   });
 
+  it("is repeated for a write that is safe to repeat, such as setting a gender", async () => {
+    const calls = queue(edge429(), new Response(JSON.stringify({ assistantId: "a1", gender: "male" }), { status: 200 }));
+    await expect(api.masterSetAssistantGender("a1", "male")).resolves.toEqual({ assistantId: "a1", gender: "male" });
+    expect(calls()).toBe(2);
+  });
+
   it("is never repeated for a write, which could charge or send twice", async () => {
     const calls = queue(edge429());
     await expect(api.claimGrant("ABC-234")).rejects.toThrow(/Too many requests in a row/);
