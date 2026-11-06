@@ -311,10 +311,12 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {overview.scopes.includes("club") && <ClubDeskSection />}
 
       {overview.customers && <CustomersSection customers={overview.customers} />}
+      {overview.operations && (
+        <ApplicationsSection operations={overview.operations} canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
+      )}
       {overview.operations && <TeamActivitySection team={overview.operations.team} />}
       {overview.operations && (
-        <OperationsSection operations={overview.operations}
-          canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
+        <OperationsSection operations={overview.operations} />
       )}
       {overview.money && (
         <LaunchSection launch={overview.money.launch}
@@ -590,10 +592,32 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   );
 }
 
-function OperationsSection({ operations, canWrite, onChanged }: {
+/** Every application still waiting on the owner, in a card of its own near the top so it is never hunted for. */
+function ApplicationsSection({ operations, canWrite, onChanged }: {
+  operations: NonNullable<MasterOverview["operations"]>; canWrite: boolean; onChanged: () => void;
+}) {
+  const applications = [
+    ...operations.applications.staff.map((a) => ({ ...a, kind: "staff" as const })),
+    ...operations.applications.drivers.map((a) => ({ ...a, role: "driver", hoursPerWeek: undefined, kind: "driver" as const })),
+  ].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+  return (
+    <section className="card stack">
+      <h3 style={{ margin: 0 }}>Job applications ({applications.length})</h3>
+      {applications.length === 0
+        ? <p className="tiny muted" style={{ margin: 0 }}>Nothing waiting. A new application appears here as soon as someone applies; press Refresh above if you are expecting one.</p>
+        : (
+          <ul className="timeline">
+            {applications.map((a) => (
+              <ApplicationRow key={a.id} app={a as never} canWrite={canWrite} onChanged={onChanged} />
+            ))}
+          </ul>
+        )}
+    </section>
+  );
+}
+
+function OperationsSection({ operations }: {
   operations: NonNullable<MasterOverview["operations"]>;
-  canWrite: boolean;
-  onChanged: () => void;
 }) {
   const rows: [string, number | string][] = [
     ["Active concierge tasks", operations.activeConciergeTasks],
@@ -604,10 +628,6 @@ function OperationsSection({ operations, canWrite, onChanged }: {
     ["Wingman Club members", operations.wingmanClubMembers],
   ];
   const roles = Object.keys(operations.recommendedHeadcount);
-  const applications = [
-    ...operations.applications.staff.map((a) => ({ ...a, kind: "staff" as const })),
-    ...operations.applications.drivers.map((a) => ({ ...a, role: "driver", hoursPerWeek: undefined, kind: "driver" as const })),
-  ].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
 
   return (
     <section className="card stack">
@@ -640,18 +660,6 @@ function OperationsSection({ operations, canWrite, onChanged }: {
         ))}
       </div>
 
-      {applications.length > 0 && (
-        <div className="stack" style={{ gap: 4 }}>
-          <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.02em" }}>
-            Applications awaiting review ({applications.length})
-          </strong>
-          <ul className="timeline">
-            {applications.map((a) => (
-              <ApplicationRow key={a.id} app={a as never} canWrite={canWrite} onChanged={onChanged} />
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   );
 }
