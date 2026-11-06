@@ -4362,6 +4362,7 @@ export const routes: Record<string, Handler> = {
             // The full application, résumé included, is one call away at
             // GET /api/staff/applications (admin key) for whoever needs it.
             hasResume: Boolean(a.resume),
+            firearmsLicenseConfirmed: a.firearmsLicenseConfirmed === true, guardLicenseConfirmed: a.guardLicenseConfirmed === true,
             // What was attached, never the files themselves — each opens on its own route.
             credentials: (a.credentials ?? []).map((c) => ({ kind: c.kind, number: c.number, issuer: c.issuer, expiresAt: c.expiresAt })),
           })),
@@ -6115,6 +6116,7 @@ export const routes: Record<string, Handler> = {
       hoursPerWeek: Number(body?.hoursPerWeek),
       backgroundCheckConsent: body?.backgroundCheckConsent === true,
       firearmsLicenseConfirmed: body?.firearmsLicenseConfirmed === true,
+      guardLicenseConfirmed: body?.guardLicenseConfirmed === true,
       credentials: credentialsFrom(body, ctx.now()),
       now: ctx.now(),
     });

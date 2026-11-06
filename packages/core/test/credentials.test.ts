@@ -48,6 +48,14 @@ describe("insurance and licences for field work", () => {
       .toThrow(/firearms licence/i);
   });
 
+  it("clears a bodyguard whose licences were ticked, once the reviewer checks them, for a year", () => {
+    const ticked = { ...approved([]), role: "bodyguard" as const, firearmsLicenseConfirmed: true, guardLicenseConfirmed: true };
+    expect(() => hireFromApplication({ id: "t1", application: ticked, market: "puerto-rico", now: NOW })).toThrow(/ticked/i);
+    const hired = hireFromApplication({ id: "t2", application: ticked, market: "puerto-rico", armed: true, now: NOW });
+    expect(isArmedAvailable(hired, NOW)).toBe(true);
+    expect(isArmedAvailable(hired, new Date("2027-11-01T00:00:00Z"))).toBe(false);
+  });
+
   it("takes somebody off the roster when their insurance runs out", () => {
     const a = hireFromApplication({ id: "a1", application: approved([cred("liability-insurance", "2027-01-01T00:00:00Z")]), market: "puerto-rico", now: NOW });
     expect(isOnRoster(a, NOW)).toBe(true);

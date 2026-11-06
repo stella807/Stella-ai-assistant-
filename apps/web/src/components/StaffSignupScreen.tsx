@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
 import { MAX_RESUME_BYTES, STAFF_ROLES, payLabelFor, publicBenefits, type StaffRole } from "@safehubby/core";
-import { CredentialFields, credentialPayload, emptyCredential, isCredentialFilled } from "./CredentialFields.tsx";
 import { useLanguage } from "../i18n.tsx";
 import { PublicWorkerPay } from "./PublicPricing.tsx";
 import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
@@ -37,8 +36,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   const [resume, setResume] = useState<{ base64: string; mimeType: string; fileName: string } | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [hasFirearmsLicense, setHasFirearmsLicense] = useState(false);
-  const [firearms, setFirearms] = useState(() => emptyCredential("firearms-license"));
-  const [guard, setGuard] = useState(() => emptyCredential("guard-license"));
+  const [hasGuardLicense, setHasGuardLicense] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<{ id: string } | null>(null);
@@ -86,7 +84,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         hoursPerWeek: Number(hoursPerWeek),
         backgroundCheckConsent: consent,
         ...(resume ? { resume } : {}),
-        ...(role === "bodyguard" ? { credentials: [credentialPayload(firearms), credentialPayload(guard)] } : { firearmsLicenseConfirmed: hasFirearmsLicense }),
+        firearmsLicenseConfirmed: hasFirearmsLicense,
+        ...(role === "bodyguard" ? { guardLicenseConfirmed: hasGuardLicense } : {}),
       });
       setSubmitted({ id: res.id });
     } catch (e) {
@@ -97,7 +96,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   };
 
   // Insurance is not asked for. Every job requires a firearms licence: a box to tick, except the bodyguard job, which attaches both licences.
-  const credentialsReady = role === "bodyguard" ? isCredentialFilled(firearms) && isCredentialFilled(guard) : hasFirearmsLicense;
+  const credentialsReady = hasFirearmsLicense && (role !== "bodyguard" || hasGuardLicense);
 
   if (submitted) {
     return (
@@ -122,12 +121,6 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
 
   // Said out loud under the button: a greyed-out "Apply" that never says what is missing reads as broken.
   const es = lang === "es";
-  const credentialGaps = (label: string, c: ReturnType<typeof emptyCredential>) => [
-    ...(c.number.trim() ? [] : [`${label}: ${es ? "número" : "number"}`]),
-    ...(c.issuer.trim() ? [] : [`${label}: ${es ? "emitida por" : "issued by"}`]),
-    ...(c.expiresOn ? [] : [`${label}: ${es ? "fecha de vencimiento" : "expiry date"}`]),
-    ...(c.document ? [] : [`${label}: ${es ? "copia (PDF o foto)" : "a copy (PDF or photo)"}`]),
-  ];
   const missing = [
     ...(role ? [] : [es ? "el puesto" : "the job"]),
     ...(fullName.trim() ? [] : [es ? "tu nombre" : "your name"]),
@@ -136,9 +129,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     ...(city.trim() && state.trim() ? [] : [es ? "ciudad y estado" : "city and state"]),
     ...(experience.trim().length >= 20 ? [] : [es ? "experiencia (al menos 20 letras)" : "experience (at least 20 characters)"]),
     ...(Number(hoursPerWeek) > 0 ? [] : [es ? "horas a la semana" : "hours a week"]),
-    ...(role === "bodyguard"
-      ? [...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms), ...credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard)]
-      : hasFirearmsLicense ? [] : [es ? "la casilla de la licencia de armas" : "the firearms licence box"]),
+    ...(hasFirearmsLicense ? [] : [es ? "la casilla de la licencia de armas" : "the firearms licence box"]),
+    ...(role !== "bodyguard" || hasGuardLicense ? [] : [es ? "la casilla de la licencia de guardia de seguridad" : "the security-guard licence box"]),
     ...(consent ? [] : [es ? "la casilla de verificación de antecedentes" : "the background check box"]),
   ];
 
@@ -236,21 +228,17 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
-        {role === "bodyguard" ? (
-          <>
-            <p className="tiny muted" style={{ margin: 0 }}>
-              {lang === "es"
-                ? "Este puesto requiere tu licencia de armas y tu licencia de guardia de seguridad, con copia."
-                : "This job requires your firearms licence and your security-guard licence, with a copy of each."}
-            </p>
-            <CredentialFields value={firearms} onChange={setFirearms} lang={lang} />
-            <CredentialFields value={guard} onChange={setGuard} lang={lang} />
-          </>
-        ) : (
+        <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+          <input type="checkbox" checked={hasFirearmsLicense} onChange={(e) => setHasFirearmsLicense(e.target.checked)} />
+          <span className="tiny">
+            {lang === "es" ? "Tengo una licencia de armas vigente (requerida para todos los puestos)." : "I hold a current firearms licence (required for every job)."}
+          </span>
+        </label>
+        {role === "bodyguard" && (
           <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
-            <input type="checkbox" checked={hasFirearmsLicense} onChange={(e) => setHasFirearmsLicense(e.target.checked)} />
+            <input type="checkbox" checked={hasGuardLicense} onChange={(e) => setHasGuardLicense(e.target.checked)} />
             <span className="tiny">
-              {lang === "es" ? "Tengo una licencia de armas vigente (requerida para todos los puestos)." : "I hold a current firearms licence (required for every job)."}
+              {lang === "es" ? "Tengo una licencia de guardia de seguridad vigente (requerida para este puesto)." : "I hold a current security-guard licence (required for this job)."}
             </span>
           </label>
         )}

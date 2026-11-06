@@ -418,6 +418,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   app: {
     id: string; fullName: string; role: string; city: string; state: string; status: string; hoursPerWeek?: number;
     hasResume?: boolean; kind: "staff" | "driver";
+    firearmsLicenseConfirmed?: boolean; guardLicenseConfirmed?: boolean;
     credentials?: { kind: "liability-insurance" | "firearms-license" | "guard-license"; number: string; issuer: string; expiresAt: string }[];
   };
   canWrite: boolean;
@@ -433,7 +434,9 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   const [years, setYears] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
   // Both licences on file: the reviewer may clear them for armed jobs.
-  const canBeArmed = ["firearms-license", "guard-license"].every((k) => app.credentials?.some((c) => c.kind === k));
+  // (or both ticked on the application, which carry no file to look at).
+  const canBeArmed = ["firearms-license", "guard-license"].every((k) => app.credentials?.some((c) => c.kind === k))
+    || Boolean(app.firearmsLicenseConfirmed && app.guardLicenseConfirmed);
   const [armed, setArmed] = useState(false);
   // Shown once and never again: the server does not store this readably, so
   // if it scrolls past unread the person needs a fresh provisioning.
@@ -553,7 +556,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
               {canBeArmed && (
                 <label className="row tiny" style={{ gap: 6, alignItems: "center", width: "100%" }}>
                   <input type="checkbox" checked={armed} onChange={(e) => setArmed(e.target.checked)} />
-                  I checked their firearms and guard licences — clear them for armed jobs
+                  I checked their firearms and guard licences (attached, or ticked on the application) — clear them for armed jobs
                 </label>
               )}
               <button className="btn btn-sm btn-primary" disabled={busy} onClick={hire}>

@@ -318,6 +318,7 @@ export interface StaffApplicationInput {
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
   firearmsLicenseConfirmed?: boolean;
+  guardLicenseConfirmed?: boolean;
   /** Liability insurance (field roles) and, for armed work, both licences. */
   credentials?: {
     kind: "liability-insurance" | "firearms-license" | "guard-license";
@@ -1007,6 +1008,7 @@ export interface MasterOverview {
       staff: {
         id: string; role: string; fullName: string; city: string; state: string; hoursPerWeek: number; status: string;
         submittedAt: string; hasResume: boolean;
+        firearmsLicenseConfirmed?: boolean; guardLicenseConfirmed?: boolean;
         credentials?: { kind: "liability-insurance" | "firearms-license" | "guard-license"; number: string; issuer: string; expiresAt: string }[];
       }[];
       drivers: { id: string; fullName: string; city: string; state: string; status: string; submittedAt: string; hasResume: boolean }[];

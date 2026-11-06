@@ -139,6 +139,8 @@ export interface HireInput {
     status: string;
     hoursPerWeek: number;
     credentials?: Credential[];
+    firearmsLicenseConfirmed?: boolean;
+    guardLicenseConfirmed?: boolean;
   };
   /** The reviewer checked the firearms and guard licences and clears this
    *  person for armed work. Refused unless both are on file and current. */
@@ -179,9 +181,14 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
   if (input.armed && app.role !== "bodyguard") {
     throw new Error("Only a bodyguard is cleared for armed work. Hire them as a bodyguard instead.");
   }
-  const armed = wantsArmed ? armedUntil(app.credentials, input.now) : undefined;
+  // Licences on file give their own expiry. Ticked ones carry no date, so the reviewer's own check at hiring
+  // (`armed`) clears them for a year, after which the clearance has to be renewed.
+  const ticked = app.firearmsLicenseConfirmed === true && app.guardLicenseConfirmed === true;
+  const armed = wantsArmed
+    ? armedUntil(app.credentials, input.now) ?? (ticked && input.armed === true ? new Date(input.now.getTime() + 365 * 86_400_000).toISOString() : undefined)
+    : undefined;
   if (wantsArmed && !armed) {
-    throw new Error("Armed work needs a current firearms licence and security-guard licence on the application.");
+    throw new Error("Armed work needs a current firearms licence and security-guard licence: attached on the application, or both ticked and the reviewer's check made.");
   }
 
   const capacity = input.maxConcurrentCustomers ?? ASSISTANT_MIN_CAPACITY;

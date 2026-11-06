@@ -77,13 +77,12 @@ describe("what the form insists on", () => {
 });
 
 describe("licences", () => {
-  it("requires a firearms licence for every role, and the guard licence only for a bodyguard", () => {
+  it("rejects anyone who does not confirm a firearms licence, and a bodyguard who does not confirm the guard licence too", () => {
     expect(() => submitStaffApplication(input({ credentials: [] }))).toThrow(/firearms licence/i);
-    expect(() => submitStaffApplication(input({ role: "bodyguard" }))).toThrow(/security-guard licence/i);
-    // Ticking the box is enough for every job but the bodyguard one.
+    expect(() => submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true }))).toThrow(/security-guard licence/i);
     expect(submitStaffApplication(input({ credentials: [], firearmsLicenseConfirmed: true })).firearmsLicenseConfirmed).toBe(true);
-    expect(() => submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true }))).toThrow(/both/i);
-    expect(submitStaffApplication(input({ role: "bodyguard", credentials: [FIREARMS, { ...FIREARMS, kind: "guard-license" as const }] })).role).toBe("bodyguard");
+    const guard = submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true, guardLicenseConfirmed: true }));
+    expect([guard.firearmsLicenseConfirmed, guard.guardLicenseConfirmed]).toEqual([true, true]);
   });
 });
 

@@ -52,6 +52,8 @@ export interface StaffApplication {
   backgroundCheckConsent: boolean;
   /** They ticked that they hold a firearms licence, which every job requires. A bodyguard attaches the licence itself instead. */
   firearmsLicenseConfirmed?: boolean;
+  /** The bodyguard job also needs the security-guard licence, ticked the same way. */
+  guardLicenseConfirmed?: boolean;
   /** Their own liability insurance (required for field roles) and, for armed
    *  work, firearms and security-guard licences — see credentials.ts. */
   credentials?: Credential[];
@@ -74,6 +76,7 @@ export interface SubmitStaffApplicationInput {
   hoursPerWeek: number;
   backgroundCheckConsent: boolean;
   firearmsLicenseConfirmed?: boolean;
+  guardLicenseConfirmed?: boolean;
   credentials?: Credential[];
   now: Date;
 }
@@ -129,15 +132,13 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
   const credentials = input.credentials ?? [];
   for (const c of credentials) validateCredential(c, input.now);
   // Liability insurance is welcome but not required to apply; a policy that is attached is still checked above.
-  // Every job requires a firearms licence. Most applicants tick that they hold one; the bodyguard job, which is the
-  // one cleared for armed work, attaches the firearms and security-guard licences themselves.
-  const hasGun = credentials.some((c) => c.kind === "firearms-license");
-  if (input.role === "bodyguard") {
-    if (!hasGun || !credentials.some((c) => c.kind === "guard-license")) {
-      throw new Error("For the bodyguard job, attach both your firearms licence and your security-guard licence.");
-    }
-  } else if (input.firearmsLicenseConfirmed !== true && !hasGun) {
-    throw new Error("Confirm that you hold a firearms licence — it is required for every job.");
+  // Every job requires a firearms licence, confirmed by a tick (or the licence attached). The bodyguard job, the one
+  // cleared for armed work, also needs the security-guard licence.
+  const hasGun = input.firearmsLicenseConfirmed === true || credentials.some((c) => c.kind === "firearms-license");
+  const hasGuard = input.guardLicenseConfirmed === true || credentials.some((c) => c.kind === "guard-license");
+  if (!hasGun) throw new Error("Confirm that you hold a firearms licence — it is required for every job.");
+  if (input.role === "bodyguard" && !hasGuard) {
+    throw new Error("For the bodyguard job, confirm your security-guard licence as well as your firearms licence.");
   }
 
   return {
@@ -153,6 +154,7 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
     hoursPerWeek: input.hoursPerWeek,
     backgroundCheckConsent: true,
     ...(input.firearmsLicenseConfirmed === true ? { firearmsLicenseConfirmed: true } : {}),
+    ...(input.guardLicenseConfirmed === true ? { guardLicenseConfirmed: true } : {}),
     ...(credentials.length ? { credentials } : {}),
     submittedAt: input.now.toISOString(),
     status: "submitted",
