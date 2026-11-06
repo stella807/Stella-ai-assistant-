@@ -13,6 +13,8 @@ export function TeamActivitySection({ team, canWrite = false }: { team: TeamActi
   const now = new Date();
   // What the owner just chose, shown at once; the saved value arrives with the next refresh.
   const [genders, setGenders] = useState<Record<string, string>>({});
+  // A failed save says why, instead of the choice quietly snapping back.
+  const [genderNote, setGenderNote] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   return (
     <section className="card stack">
       <h3>Team activity</h3>
@@ -35,12 +37,21 @@ export function TeamActivitySection({ team, canWrite = false }: { team: TeamActi
                         onChange={(e) => {
                           const g = e.target.value as "female" | "male" | "";
                           setGenders((s) => ({ ...s, [m.id]: g }));
-                          void api.masterSetAssistantGender(m.id, g).catch(() => setGenders((s) => ({ ...s, [m.id]: m.gender ?? "" })));
+                          setGenderNote({ id: m.id, text: "Saving...", ok: true });
+                          api.masterSetAssistantGender(m.id, g)
+                            .then(() => setGenderNote({ id: m.id, text: "Saved.", ok: true }))
+                            .catch((err) => {
+                              setGenders((s) => ({ ...s, [m.id]: m.gender ?? "" }));
+                              setGenderNote({ id: m.id, text: `Not saved: ${err instanceof Error ? err.message : "try again"}`, ok: false });
+                            });
                         }}>
                         <option value="">Gender (for the wording)</option>
                         <option value="female">Female</option>
                         <option value="male">Male</option>
                       </select>
+                    )}
+                    {genderNote?.id === m.id && (
+                      <div className="tiny" style={{ color: genderNote.ok ? "var(--safe, inherit)" : "var(--danger)" }}>{genderNote.text}</div>
                     )}
                   </td>
                   <td><span className={TEAM_STATUS_PILL[m.status]}>{TEAM_STATUS_LABEL[m.status]}</span></td>
