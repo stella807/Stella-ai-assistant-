@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { BALANCE_MAX_CENTS } from "@safehubby/core";
 import { api, type BalanceInfo } from "../api.ts";
 import { useLanguage } from "../i18n.tsx";
 import { money } from "../money.ts";
@@ -13,6 +12,9 @@ const COPY = {
     available: "Available",
     held: "Set aside for tasks in progress",
     pick: "How much?",
+    other: "Or another amount ($)",
+    otherHint: "Any amount from $0.50. There is no limit on your balance.",
+    addCard: "Add a card to continue",
     added: "Added to your balance.",
     add: (amount: string) => `Add ${amount} with your card`,
     adding: "Charging your card…",
@@ -25,6 +27,9 @@ const COPY = {
     available: "Disponible",
     held: "Reservado para tareas en curso",
     pick: "¿Cuánto?",
+    other: "U otra cantidad ($)",
+    otherHint: "Cualquier cantidad desde $0.50. Tu balance no tiene límite.",
+    addCard: "Añade una tarjeta para continuar",
     added: "Añadido a tu balance.",
     add: (amount: string) => `Añadir ${amount} con tu tarjeta`,
     adding: "Cobrando tu tarjeta…",
@@ -46,6 +51,8 @@ export function BalanceCard() {
   const c = COPY[language === "es" ? "es" : "en"];
   const [info, setInfo] = useState<BalanceInfo | null>(null);
   const [amount, setAmount] = useState(2_500);
+  // What is typed in the "another amount" box, in dollars; empty means one of the preset amounts is chosen.
+  const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +63,7 @@ export function BalanceCard() {
   const load = async () => {
     setBusy(true); setError(null); setMessage(null);
     try {
-      setInfo(await api.loadBalance(amount, newRequestId()));
+      setInfo(await api.loadBalance(chosen, newRequestId()));
       setMessage(c.added);
     } catch (e) {
       setError(e instanceof Error ? e.message : null);
@@ -70,7 +77,11 @@ export function BalanceCard() {
   // card stays off the screen rather than showing a button that cannot work,
   // unless money is already in it, which is always shown.
   if (!info.stripe.ready && info.availableCents === 0 && info.heldCents === 0) return null;
-  const maxLoad = Math.min(info.maxLoadCents, Math.max(0, BALANCE_MAX_CENTS - info.availableCents - info.heldCents));
+  // A typed amount wins over a preset. Whole cents, and never below the least a card payment can be.
+  const typed = custom.trim() === "" ? null : Math.round(Number(custom.replace(/[$,\s]/g, "")) * 100);
+  const chosen = typed ?? amount;
+  const valid = Number.isFinite(chosen) && chosen >= info.minLoadCents && chosen <= info.maxLoadCents;
+  const goToCard = () => document.getElementById("payment-method")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <section className="card stack balance-card">
@@ -93,23 +104,32 @@ export function BalanceCard() {
           <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 8 }}>
             <legend className="small"><strong>{c.pick}</strong></legend>
             <div className="row balance-presets">
-              {PRESETS_CENTS.filter((p) => p >= info.minLoadCents && p <= maxLoad).map((p) => (
-                <button key={p} type="button" className={`btn grow${amount === p ? " btn-primary" : ""}`}
-                  aria-pressed={amount === p} onClick={() => setAmount(p)}>
+              {PRESETS_CENTS.map((p) => (
+                <button key={p} type="button" className={`btn grow${typed === null && amount === p ? " btn-primary" : ""}`}
+                  aria-pressed={typed === null && amount === p} onClick={() => { setAmount(p); setCustom(""); }}>
                   ${p / 100}
                 </button>
               ))}
             </div>
+            <label className="stack" style={{ gap: 4 }}>
+              <span className="small">{c.other}</span>
+              <input type="text" inputMode="decimal" placeholder="0.00" value={custom} aria-describedby="balance-other-hint"
+                onChange={(e) => setCustom(e.target.value)} />
+              <span id="balance-other-hint" className="tiny muted">{c.otherHint}</span>
+            </label>
           </fieldset>
           {info.stripe.hasCard ? (
             <>
-              <button className="btn btn-block btn-primary" disabled={busy || amount > maxLoad || amount < info.minLoadCents} onClick={load}>
-                {busy ? c.adding : c.add(money(amount))}
+              <button className="btn btn-block btn-primary" disabled={busy || !valid} onClick={load}>
+                {busy ? c.adding : valid ? c.add(money(chosen)) : c.add(money(amount))}
               </button>
               <p className="tiny muted" style={{ margin: 0 }}>{c.note}</p>
             </>
           ) : (
-            <p className="small muted" style={{ margin: 0 }}>{c.needCard}</p>
+            <>
+              <p className="small muted" style={{ margin: 0 }}>{c.needCard}</p>
+              <button className="btn btn-block btn-primary" onClick={goToCard}>{c.addCard}</button>
+            </>
           )}
         </>
       )}

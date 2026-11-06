@@ -4572,7 +4572,7 @@ describe("hiring somebody and actually sending them to a job", () => {
 
       process.env.NWC_URI = "nostr+walletconnect://test";
       try {
-        for (const amountCents of [1, 100, 99_999_99, 1_000.5, "lots"]) {
+        for (const amountCents of [1, 49, 100_000_000, 1_000.5, "lots"]) {
           expect((await call("POST", "/api/balance/crypto/start", { amountCents }, sam)).status, String(amountCents)).toBe(400);
         }
         const ok = await call("POST", "/api/balance/crypto/start", { amountCents: 2_000 }, sam);
@@ -4660,16 +4660,17 @@ describe("hiring somebody and actually sending them to a job", () => {
         expect(await availableOf(sam)).toBe(0);
         declined = false;
         expect((await call("POST", "/api/balance/load", { amountCents: 1 }, sam)).status).toBe(400);
-        expect((await call("POST", "/api/balance/load", { amountCents: 99_999_999 }, sam)).status).toBe(400);
+        expect((await call("POST", "/api/balance/load", { amountCents: 100_000_000 }, sam)).status).toBe(400);
         expect((await call("POST", "/api/balance/load", { amountCents: 2_500 })).status).toBe(401);
       });
     });
 
-    it("keeps the whole balance under its ceiling", async () => {
+    it("puts no ceiling on the balance: a large load is fine, only Stripe's own minimum and maximum apply", async () => {
       process.env.NWC_URI = "nostr+walletconnect://test";
       try {
         for (let i = 0; i < 2; i++) fund(samId, 50_000);
-        expect((await call("POST", "/api/balance/crypto/start", { amountCents: 500 }, sam)).status).toBe(400);
+        expect((await call("POST", "/api/balance/crypto/start", { amountCents: 5_000 }, sam)).status).toBe(200);
+        expect((await call("POST", "/api/balance/crypto/start", { amountCents: 10 }, sam)).status).toBe(400);
       } finally { delete process.env.NWC_URI; }
     });
 

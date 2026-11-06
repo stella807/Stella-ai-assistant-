@@ -16,13 +16,12 @@ import type { PreAuthorization } from "./payment.ts";
  * balance with no second write that could disagree with it.
  */
 
-/** The floor keeps loads from being a few dollars at a time, which is a cost
- *  nobody benefits from. */
-export const BALANCE_MIN_LOAD_CENTS = 500;
-export const BALANCE_MAX_LOAD_CENTS = 50_000;
-/** The most a person can have loaded at once. Keeps the money we are holding
- *  for customers small, and the exposure if something goes wrong small too. */
-export const BALANCE_MAX_CENTS = 100_000;
+/** The least that can be added: 50 cents, the smallest card payment Stripe takes. There is no other floor. */
+export const BALANCE_MIN_LOAD_CENTS = 50;
+/** The most one card payment can be: $999,999.99, Stripe's own limit. Safehubby sets no ceiling of its own. */
+export const BALANCE_MAX_LOAD_CENTS = 99_999_999;
+/** No limit on what a balance can hold. Kept as a number so a caller that asks has an answer. */
+export const BALANCE_MAX_CENTS = Number.MAX_SAFE_INTEGER;
 
 export type BalanceEntryKind = "load" | "payout";
 
@@ -78,15 +77,12 @@ export function balanceSummary(
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-export function validateLoad(amountCents: number, currentBalanceCents: number): void {
+export function validateLoad(amountCents: number, _currentBalanceCents: number): void {
   if (!Number.isInteger(amountCents)) throw new Error("Enter a whole number of cents.");
   if (amountCents < BALANCE_MIN_LOAD_CENTS) {
-    throw new Error(`Load at least ${dollars(BALANCE_MIN_LOAD_CENTS)} at a time.`);
+    throw new Error(`Add at least ${dollars(BALANCE_MIN_LOAD_CENTS)}, the smallest card payment Stripe takes.`);
   }
   if (amountCents > BALANCE_MAX_LOAD_CENTS) {
-    throw new Error(`Load at most ${dollars(BALANCE_MAX_LOAD_CENTS)} at a time.`);
-  }
-  if (currentBalanceCents + amountCents > BALANCE_MAX_CENTS) {
-    throw new Error(`Your balance can hold at most ${dollars(BALANCE_MAX_CENTS)}.`);
+    throw new Error(`One card payment can be at most ${dollars(BALANCE_MAX_LOAD_CENTS)}.`);
   }
 }

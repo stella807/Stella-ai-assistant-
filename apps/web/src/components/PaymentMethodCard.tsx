@@ -90,7 +90,7 @@ export function PaymentMethodCard() {
   if (!method && !ready) return null;
 
   return (
-    <section className="card">
+    <section className="card" id="payment-method">
       <div className="row-between">
         <h3 style={{ margin: 0 }}>{w.title}</h3>
         {paypalReady && <PayPalLogo />}
