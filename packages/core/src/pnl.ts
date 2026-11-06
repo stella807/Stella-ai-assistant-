@@ -278,8 +278,8 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
     const revenue = armedHours * hourlyPrice, pay = armedHours * hourlyPay;
     payouts.assistantsCents += pay; payouts.cardFeesCents += processing;
     lines.push({
-      id: "armed-bodyguard", label: "Armed bodyguard hours", revenueCents: revenue, costCents: pay + processing, profitCents: revenue - pay - processing,
-      note: `Each hour the client pays ${(hourlyPrice / 100).toFixed(2)} and the bodyguard is paid ${(hourlyPay / 100).toFixed(2)}, less Stripe's cut. You keep about ${((revenue - pay - processing) / armedHours / 100).toFixed(2)} an hour.`,
+      id: "armed-bodyguard", label: "Armed bodyguard: what you keep", revenueCents: revenue, costCents: pay + processing, profitCents: revenue - pay - processing,
+      note: `You keep about ${((revenue - pay - processing) / armedHours / 100).toFixed(2)} an hour: ${armedHours} hours at ${(hourlyPrice / 100).toFixed(2)}, after paying the bodyguards and Stripe.`,
     });
   }
 
