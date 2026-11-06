@@ -1,4 +1,5 @@
 import { StrictMode } from "react";
+import { reloadOnceForNewVersion } from "./app/lazy-import.ts";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { EmployeePortal } from "./components/EmployeePortal.tsx";
@@ -28,6 +29,11 @@ import "./styles/desktop.css";
 const path = window.location.pathname.replace(/\/$/, "");
 const isEmployeeArea = path === "/employee";
 const isMasterArea = path === "/master";
+
+// Vite fires this when a code chunk the page asked for no longer exists (a deploy replaced it): fetch the new version.
+window.addEventListener("vite:preloadError", (e) => {
+  if (reloadOnceForNewVersion(sessionStorage, () => window.location.reload())) e.preventDefault();
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

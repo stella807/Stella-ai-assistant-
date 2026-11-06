@@ -1,4 +1,5 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyWithReload } from "../app/lazy-import.ts";
 
 /**
  * The public entry point every screen imports. The real implementation
@@ -7,7 +8,7 @@ import { lazy, Suspense } from "react";
  * safety app's first paint should not wait on ~50KB gzipped of mapping
  * library nobody asked for yet.
  */
-const LiveMapImpl = lazy(() => import("./LiveMapImpl.tsx"));
+const LiveMapImpl = lazyWithReload(() => import("./LiveMapImpl.tsx"));
 
 export function LiveMap({ points, height = 200, onPick, onLocate }: {
   points: { lat: number; lng: number; label?: string }[];

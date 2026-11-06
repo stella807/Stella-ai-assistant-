@@ -1,11 +1,12 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { CardView } from "../api.ts";
 import { loadStripeJs } from "../native/stripe.ts";
 import { useLanguage } from "../i18n.tsx";
 import { eliteWords } from "../app/elite-copy.ts";
+import { lazyWithReload } from "../app/lazy-import.ts";
 
 // Lithic's embed is only downloaded when a Lithic card is actually opened.
-const LithicCardFields = lazy(() => import("./LithicCardFields.tsx"));
+const LithicCardFields = lazyWithReload(() => import("./LithicCardFields.tsx"));
 
 /**
  * A task card's number, expiry and CVC, drawn by the issuer's own frames
