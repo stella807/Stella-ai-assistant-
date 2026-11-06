@@ -48,6 +48,9 @@ export interface PnlInputs {
   hospitalDays: number;
   /** Hours of armed bodyguard work booked in a month, at the armed rate: the client pays it, the bodyguard earns the armed pay. */
   armedHours: number;
+  /** What a client pays per armed hour, and what the bodyguard is paid for it, so the margin can be tried at other numbers. */
+  armedRateCents: number;
+  armedPayCents: number;
   /** Wingman Club members, and the share who go to light outings and to bigger days. */
   clubMembers: number;
   clubLightAttendance: number;
@@ -109,6 +112,8 @@ export const defaultPnlInputs = (): PnlInputs => ({
   paidErrands: 0,
   hospitalDays: 0,
   armedHours: 0,
+  armedRateCents: 7_500,
+  armedPayCents: 5_500,
   assistantCount: 0,
   hoursPerAssistant: 80,
   driverTrips: 0,
@@ -260,17 +265,17 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
 
   const armedHours = whole(raw.armedHours);
   if (armedHours > 0) {
-    // The same prices a booking uses (the owner's pay changes included). Stripe's fixed 30 cents is charged once
-    // per booking, so the hours are counted as bookings of 4 hours, the usual length of a protection job.
-    const hourlyPrice = serviceFeeFor("check-in-person", false, 1, 1, false, true);
-    const hourlyPay = assistantPayoutFor("check-in-person", false, 1, 1, false, true);
+    // The client rate and the bodyguard's pay are inputs so the margin can be tried at other numbers. Stripe's fixed
+    // 30 cents is charged once per booking, so the hours are counted as bookings of 4 hours, the usual protection job.
+    const hourlyPrice = whole(raw.armedRateCents);
+    const hourlyPay = whole(raw.armedPayCents);
     const bookings = Math.ceil(armedHours / 4);
     const processing = Math.ceil(armedHours * hourlyPrice * CARD_FEE_RATE) + bookings * CARD_FEE_FIXED_CENTS;
     const revenue = armedHours * hourlyPrice, pay = armedHours * hourlyPay;
     payouts.assistantsCents += pay; payouts.cardFeesCents += processing;
     lines.push({
       id: "armed-bodyguard", label: "Armed bodyguard hours", revenueCents: revenue, costCents: pay + processing, profitCents: revenue - pay - processing,
-      note: `Each hour the client pays ${(hourlyPrice / 100).toFixed(2)} and the bodyguard is paid ${(hourlyPay / 100).toFixed(2)}, less Stripe's cut.`,
+      note: `Each hour the client pays ${(hourlyPrice / 100).toFixed(2)} and the bodyguard is paid ${(hourlyPay / 100).toFixed(2)}, less Stripe's cut. You keep about ${((revenue - pay - processing) / armedHours / 100).toFixed(2)} an hour.`,
     });
   }
 
