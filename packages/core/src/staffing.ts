@@ -218,7 +218,7 @@ export const STAFF_ROLES: RoleInfo[] = [
   },
   {
     id: "bodyguard",
-    label: "Bodyguard",
+    label: "Armed bodyguard",
     description: "Protect a client in person: close protection at events, on the road and at home. Armed work needs your own firearms and security-guard licences (Ley 108).",
     drives: false,
     // Puerto Rico reference: armed security guards earn roughly $12-16/hr

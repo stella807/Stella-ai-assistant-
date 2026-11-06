@@ -436,6 +436,7 @@ export const CORE_ES: Record<string, string> = {
   "Wingman Club coordinator": "Coordinador/a del Wingman Club",
   "Personal assistant to the owner, dedicated to running the Wingman Club: picking and negotiating each month's experience, the venue relationships, and the reveal.": "Asistente personal del dueño, dedicado a manejar el Wingman Club: escoger y negociar la experiencia de cada mes, la relación con los locales y la revelación.",
   "Bodyguard": "Guardaespaldas",
+  "Armed bodyguard": "Guardaespaldas armado",
   "Protect a client in person: close protection at events, on the road and at home. Armed work needs your own firearms and security-guard licences (Ley 108).": "Proteger a un cliente en persona: protección cercana en eventos, en la carretera y en casa. El trabajo armado requiere tus propias licencias de armas y de guardia de seguridad (Ley 108).",
   "Supervisor": "Supervisor/a",
   "Lead the field team: check in on assistants, drivers and errand runners during jobs, step in when something goes wrong, and keep every customer's day on track.": "Dirigir al equipo de campo: dar seguimiento a asistentes, choferes y mensajeros durante los trabajos, intervenir cuando algo sale mal y mantener el día de cada cliente en marcha.",

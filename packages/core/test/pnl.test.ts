@@ -122,6 +122,22 @@ describe("the monthly profit calculator", () => {
     });
   });
 
+  describe("armed bodyguard hours", () => {
+    it("counts the armed rate the client pays, less the bodyguard's pay and Stripe's cut", () => {
+      const r = monthlyProfit(base({ armedHours: 40 }));
+      const line = r.lines.find((l) => l.id === "armed-bodyguard")!;
+      expect(line.revenueCents).toBe(40 * 7_500);
+      expect(r.payouts.assistantsCents).toBe(40 * 5_500);
+      // 40 hours in 10 four-hour bookings: 2.9% of the charge plus 30 cents each.
+      expect(r.payouts.cardFeesCents).toBe(Math.ceil(40 * 7_500 * 0.029) + 10 * 30);
+      expect(line.profitCents).toBe(line.revenueCents - 40 * 5_500 - r.payouts.cardFeesCents);
+      expect(line.profitCents).toBeGreaterThan(0);
+    });
+    it("is nothing when no hours are booked", () => {
+      expect(monthlyProfit(base({ armedHours: 0 })).lines.find((l) => l.id === "armed-bodyguard")).toBeUndefined();
+    });
+  });
+
   describe("hospital caretaker days", () => {
     it("counts what the client pays for a day, less the caretaker's pay and Stripe's cut", () => {
       const r = monthlyProfit(base({ hospitalDays: 10 }));

@@ -2,7 +2,7 @@ import { PROCESSOR_FEE_FIXED_CENTS, PROCESSOR_FEE_RATE, deskTaskAllowanceFor, fi
 import { MAX_BOOKED_HOURS, PA_CUSTOMER_HOURLY_CENTS, assistantPayoutFor, livePaHourlyPayCents, serviceFeeFor } from "./concierge.ts";
 import { payDeltas } from "./pay-adjustments.ts";
 import {
-  ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandPayoutCents, type ErrandTierId,
+  CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, errandCardCostCents, errandFeeCents, errandIssuingCostCents, errandPayoutCents, type ErrandTierId,
 } from "./errand-tiers.ts";
 import { errandCreditFor, includedGrabAllowanceFor } from "./included-grabs.ts";
 import {
@@ -46,6 +46,8 @@ export interface PnlInputs {
   driverFareCents: number;
   /** Hospital days booked in a month: a caretaker stays with a patient for the day, charged and paid at the hospital-day rates. */
   hospitalDays: number;
+  /** Hours of armed bodyguard work booked in a month, at the armed rate: the client pays it, the bodyguard earns the armed pay. */
+  armedHours: number;
   /** Wingman Club members, and the share who go to light outings and to bigger days. */
   clubMembers: number;
   clubLightAttendance: number;
@@ -106,6 +108,7 @@ export const defaultPnlInputs = (): PnlInputs => ({
   extraAssistantHours: 0,
   paidErrands: 0,
   hospitalDays: 0,
+  armedHours: 0,
   assistantCount: 0,
   hoursPerAssistant: 80,
   driverTrips: 0,
@@ -252,6 +255,22 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
       id: "hospital-days", label: "Hospital caretaker days", revenueCents: hospitalDays * price,
       costCents: hospitalDays * (pay + processing), profitCents: hospitalDays * (price - pay - processing),
       note: `Each day the client pays ${(price / 100).toFixed(2)}, the caretaker is paid ${(pay / 100).toFixed(2)}, and Stripe's cut comes out.`,
+    });
+  }
+
+  const armedHours = whole(raw.armedHours);
+  if (armedHours > 0) {
+    // The same prices a booking uses (the owner's pay changes included). Stripe's fixed 30 cents is charged once
+    // per booking, so the hours are counted as bookings of 4 hours, the usual length of a protection job.
+    const hourlyPrice = serviceFeeFor("check-in-person", false, 1, 1, false, true);
+    const hourlyPay = assistantPayoutFor("check-in-person", false, 1, 1, false, true);
+    const bookings = Math.ceil(armedHours / 4);
+    const processing = Math.ceil(armedHours * hourlyPrice * CARD_FEE_RATE) + bookings * CARD_FEE_FIXED_CENTS;
+    const revenue = armedHours * hourlyPrice, pay = armedHours * hourlyPay;
+    payouts.assistantsCents += pay; payouts.cardFeesCents += processing;
+    lines.push({
+      id: "armed-bodyguard", label: "Armed bodyguard hours", revenueCents: revenue, costCents: pay + processing, profitCents: revenue - pay - processing,
+      note: `Each hour the client pays ${(hourlyPrice / 100).toFixed(2)} and the bodyguard is paid ${(hourlyPay / 100).toFixed(2)}, less Stripe's cut.`,
     });
   }
 

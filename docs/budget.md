@@ -40,7 +40,7 @@ At the planned headcount (`PRELAUNCH_HEADCOUNT`): **24 people across 10 roles.**
 | Physician (Elite medical advisor) | 1 | $150.00 | $0.00 | $10,800.00 | $10,950.00 |
 | Nurse (Elite tier coordination) | 1 | $150.00 | $0.00 | $2,970.00 | $3,120.00 |
 | Wingman Club coordinator | 1 | $150.00 | $0.00 | $7,200.00 | $7,350.00 |
-| Bodyguard | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
+| Armed bodyguard | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
 | Supervisor | 0 | $0.00 | $0.00 | $0.00 | $0.00 |
 | **Total** | **16** | **$600.00** | **$0.00** | **$24,930.00** | **$25,530.00** |
 
