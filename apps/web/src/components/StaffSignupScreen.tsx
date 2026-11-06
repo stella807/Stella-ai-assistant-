@@ -125,6 +125,30 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
   const ready = role && fullName.trim() && email.trim() && phone.trim() && city.trim()
     && state.trim() && experience.trim().length >= 20 && Number(hoursPerWeek) > 0 && consent;
 
+  // Said out loud under the button: a greyed-out "Apply" that never says what is missing reads as broken.
+  const es = lang === "es";
+  const credentialGaps = (label: string, c: ReturnType<typeof emptyCredential>) => [
+    ...(c.number.trim() ? [] : [`${label}: ${es ? "número" : "number"}`]),
+    ...(c.issuer.trim() ? [] : [`${label}: ${es ? "emitida por" : "issued by"}`]),
+    ...(c.expiresOn ? [] : [`${label}: ${es ? "fecha de vencimiento" : "expiry date"}`]),
+    ...(c.document ? [] : [`${label}: ${es ? "copia (PDF o foto)" : "a copy (PDF or photo)"}`]),
+  ];
+  const missing = [
+    ...(role ? [] : [es ? "el puesto" : "the job"]),
+    ...(fullName.trim() ? [] : [es ? "tu nombre" : "your name"]),
+    ...(email.trim() ? [] : [es ? "correo electrónico" : "email"]),
+    ...(phone.trim() ? [] : [es ? "teléfono" : "phone"]),
+    ...(city.trim() && state.trim() ? [] : [es ? "ciudad y estado" : "city and state"]),
+    ...(experience.trim().length >= 20 ? [] : [es ? "experiencia (al menos 20 letras)" : "experience (at least 20 characters)"]),
+    ...(Number(hoursPerWeek) > 0 ? [] : [es ? "horas a la semana" : "hours a week"]),
+    ...(needsInsurance ? credentialGaps(es ? "Seguro de responsabilidad civil" : "Liability insurance", insurance) : []),
+    ...(needsInsurance && armedLicences ? [
+      ...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms),
+      ...credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard),
+    ] : []),
+    ...(consent ? [] : [es ? "la casilla de verificación de antecedentes" : "the background check box"]),
+  ];
+
   return (
     <div className="stack">
       <button className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} onClick={onBack}>{w.back}</button>
@@ -260,6 +284,12 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         <button className="btn btn-primary btn-block" disabled={busy || !ready || !credentialsReady} onClick={submit}>
           {w.apply}
         </button>
+        {missing.length > 0 && (
+          <div className="banner" role="status">
+            <strong className="small">{es ? "Todavía falta:" : "Still needed:"}</strong>
+            <ul className="tiny" style={{ margin: "4px 0 0", paddingLeft: 18 }}>{missing.map((m) => <li key={m}>{m}</li>)}</ul>
+          </div>
+        )}
 
         {error && <div className="banner banner-danger">{error}</div>}
       </section>
