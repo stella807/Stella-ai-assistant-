@@ -1650,10 +1650,18 @@ const CHAT_TEXT_WINDOW_MS = 5 * 60_000;
 
 /** A new application is worth a text to whoever hires — `OWNER_ALERT_PHONE`,
  *  a single number set on the server, not anyone's account. */
-function textOwnerOfApplication(): void {
-  const ownerEmail = String(process.env.OWNER_ALERT_EMAIL ?? "").trim();
+function textOwnerOfApplication(details?: { role: string; fullName: string; email: string; phone: string; city: string; state: string; hoursPerWeek: number; experience: string; id: string; notes?: string[] }): void {
+  // The application itself goes to the owner's inbox: OWNER_ALERT_EMAIL, or contact@safehubby.com when that is unset.
+  const ownerEmail = String(process.env.OWNER_ALERT_EMAIL ?? "contact@safehubby.com").trim();
   if (ownerEmail && isValidNewsletterEmail(ownerEmail)) {
-    const { subject, body } = composeEmail("owner-application", {}, "en");
+    const generic = composeEmail("owner-application", {}, "en");
+    const subject = details ? `New application: ${details.fullName}, ${details.role}` : generic.subject;
+    const body = details ? [
+      `${details.fullName} applied for ${details.role}.`, "",
+      `Email: ${details.email}`, `Phone: ${details.phone}`, `Location: ${details.city}, ${details.state}`,
+      `Hours a week: ${details.hoursPerWeek}`, ...(details.notes ?? []), "", "Experience:", details.experience, "",
+      `Reference: ${details.id}`, "Review it in the management portal under Operations → Applications awaiting review.",
+    ].join("\n") : generic.body;
     sendEmails([{ to: ownerEmail, subject, body }]);
   }
   const phone = normalizePhone(process.env.OWNER_ALERT_PHONE ?? "");
@@ -6121,7 +6129,15 @@ export const routes: Record<string, Handler> = {
       now: ctx.now(),
     });
     ctx.store.update((db) => void db.staffApplications.push(app));
-    textOwnerOfApplication();
+    textOwnerOfApplication({
+      role: findRole(app.role).label, fullName: app.fullName, email: app.email, phone: app.phone, city: app.city, state: app.state,
+      hoursPerWeek: app.hoursPerWeek, experience: app.experience, id: app.id,
+      notes: [
+        `Firearms licence: ${app.firearmsLicenseConfirmed || app.credentials?.some((c) => c.kind === "firearms-license") ? "confirmed" : "not confirmed"}`,
+        ...(app.role === "bodyguard" ? [`Security-guard licence: ${app.guardLicenseConfirmed || app.credentials?.some((c) => c.kind === "guard-license") ? "confirmed" : "not confirmed"}`] : []),
+        `Résumé: ${app.resume ? "attached (open it in the portal)" : "none"}`,
+      ],
+    });
     emailApplicant(app.email, app.fullName, findRole(app.role).label, "received");
     return { id: app.id, role: app.role, status: app.status, submittedAt: app.submittedAt };
   },

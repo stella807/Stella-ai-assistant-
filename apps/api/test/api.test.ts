@@ -4032,6 +4032,33 @@ describe("hiring for the roles that do not drive", () => {
     }
   });
 
+  it("emails the application's details to contact@safehubby.com, or to OWNER_ALERT_EMAIL when set", async () => {
+    const realFetch = globalThis.fetch;
+    const sent: { to: string; subject: string; text?: string; body?: string }[] = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input).startsWith("https://api.cloudflare.com/")) {
+        sent.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    Object.assign(process.env, { CLOUDFLARE_ACCOUNT_ID: "acc", CLOUDFLARE_EMAIL_TOKEN: "tok", EMAIL_FROM: "hello@safehubby.com" });
+    try {
+      await call("POST", "/api/staff/apply", application());
+      await new Promise((r) => setTimeout(r, 20));
+      const mail = sent.find((m) => m.to === "contact@safehubby.com");
+      expect(mail?.subject).toMatch(/New application/);
+      expect(JSON.stringify(mail)).toMatch(/Firearms licence: confirmed/);
+      process.env.OWNER_ALERT_EMAIL = "boss@example.com";
+      await call("POST", "/api/staff/apply", application({ email: "second@example.com" }));
+      await new Promise((r) => setTimeout(r, 20));
+      expect(sent.some((m) => m.to === "boss@example.com" && /New application/.test(m.subject))).toBe(true);
+    } finally {
+      globalThis.fetch = realFetch;
+      for (const k of ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_EMAIL_TOKEN", "EMAIL_FROM", "OWNER_ALERT_EMAIL"]) delete process.env[k];
+    }
+  });
+
   it("takes an application and gives back an id to follow it up with", async () => {
     const res = await call("POST", "/api/staff/apply", application());
     expect(res.status).toBe(200);
