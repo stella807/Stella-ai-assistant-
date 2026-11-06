@@ -9,31 +9,27 @@ const NOW = new Date("2026-10-23T12:00:00Z");
 const pdf = { base64: Buffer.from("%PDF-1.4 x").toString("base64"), mimeType: "application/pdf", fileName: "doc.pdf", uploadedAt: NOW.toISOString() };
 const cred = (kind: Credential["kind"], expiresAt = "2027-06-01T00:00:00Z"): Credential =>
   ({ kind, number: "N-1", issuer: "Issuer", expiresAt, document: pdf });
+const withGun = (credentials: Credential[]) => (credentials.some((c) => c.kind === "firearms-license") ? credentials : [cred("firearms-license"), ...credentials]);
 const apply = (credentials: Credential[], role: "personal-assistant" | "bodyguard" = "personal-assistant") => submitStaffApplication({
   id: "s1", role, fullName: "Ana Ruiz", email: "ana@example.com", phone: "7875550142", city: "San Juan", state: "PR",
   experience: "Five years caring for elderly patients at home.", hoursPerWeek: 20, backgroundCheckConsent: true,
-  credentials, now: NOW,
+  credentials: withGun(credentials), now: NOW,
 });
 const approved = (credentials: Credential[]) => ({ ...apply(credentials), status: "approved" as const });
 
 describe("insurance and licences for field work", () => {
   it("does not require liability insurance to apply, but checks one that is attached", () => {
-    expect(apply([]).credentials ?? []).toHaveLength(0);
+    expect(apply([]).credentials).toHaveLength(1);
     expect(() => apply([cred("liability-insurance", "2026-01-01T00:00:00Z")])).toThrow(/expired/i);
     expect(() => apply([{ ...cred("liability-insurance"), document: { ...pdf, base64: "" } }])).toThrow(/attach a copy/i);
-    expect(apply([cred("liability-insurance")]).credentials).toHaveLength(1);
+    expect(apply([cred("liability-insurance")]).credentials).toHaveLength(2);
   });
 
-  it("requires both licences from a bodyguard applicant only", () => {
-    expect(() => apply([], "bodyguard")).toThrow(/both/i);
-    expect(() => apply([cred("firearms-license")], "bodyguard")).toThrow(/both/i);
-    expect(apply([cred("firearms-license"), cred("guard-license")], "bodyguard").credentials).toHaveLength(2);
-    expect(apply([]).credentials ?? []).toHaveLength(0);
-  });
-
-  it("asks for both the firearms and the guard licence, never one alone", () => {
-    expect(() => apply([cred("liability-insurance"), cred("firearms-license")])).toThrow(/both/i);
-    expect(apply([cred("liability-insurance"), cred("firearms-license"), cred("guard-license")]).credentials).toHaveLength(3);
+  it("requires a firearms licence from everyone, and the guard licence from a bodyguard only", () => {
+    expect(() => submitStaffApplication({ ...apply([]), id: "s2", credentials: [], now: NOW } as never)).toThrow(/firearms licence/i);
+    expect(() => apply([], "bodyguard")).toThrow(/security-guard licence/i);
+    expect(apply([cred("guard-license")], "bodyguard").credentials).toHaveLength(2);
+    expect(apply([]).credentials).toHaveLength(1);
   });
 
   it("clears only a bodyguard for armed work, until the earlier licence expires", () => {

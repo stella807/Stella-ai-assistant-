@@ -9,6 +9,7 @@ const INSURANCE = {
   kind: "liability-insurance" as const, number: "POL-1", issuer: "Triple-S", expiresAt: "2099-01-01T00:00:00.000Z",
   document: { base64: Buffer.from("%PDF-1.4 x").toString("base64"), mimeType: "application/pdf", fileName: "i.pdf", uploadedAt: "2026-10-01T00:00:00.000Z" },
 };
+const FIREARMS = { ...INSURANCE, kind: "firearms-license" as const, number: "F-1", issuer: "Policía de PR" };
 const input = (over: Partial<Parameters<typeof submitStaffApplication>[0]> = {}) => ({
   id: "sa1",
   role: "personal-assistant" as const,
@@ -20,7 +21,7 @@ const input = (over: Partial<Parameters<typeof submitStaffApplication>[0]> = {})
   experience: "Six years as a home health aide, plus weekend shifts at a community shelter.",
   hoursPerWeek: 20,
   backgroundCheckConsent: true,
-  credentials: [INSURANCE],
+  credentials: [FIREARMS],
   now,
   ...over,
 });
@@ -72,6 +73,14 @@ describe("what the form insists on", () => {
   it("requires background-check consent — this is in-person work with vulnerable people", () => {
     expect(() => submitStaffApplication(input({ backgroundCheckConsent: false })))
       .toThrow(/background check/i);
+  });
+});
+
+describe("licences", () => {
+  it("requires a firearms licence for every role, and the guard licence only for a bodyguard", () => {
+    expect(() => submitStaffApplication(input({ credentials: [] }))).toThrow(/firearms licence/i);
+    expect(() => submitStaffApplication(input({ role: "bodyguard" }))).toThrow(/security-guard licence/i);
+    expect(submitStaffApplication(input({ role: "bodyguard", credentials: [FIREARMS, { ...FIREARMS, kind: "guard-license" as const }] })).role).toBe("bodyguard");
   });
 });
 

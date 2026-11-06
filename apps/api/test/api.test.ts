@@ -35,10 +35,10 @@ let ctx: Ctx;
  * covered in core's auto-renewal.test.ts and in "the renewal-terms gate"
  * below.
  */
-/** A current liability-insurance certificate, which every field applicant now
- *  has to attach (see credentials.ts). A real PDF header, so it validates. */
+/** A current firearms licence, which every applicant has to attach (see
+ *  staff-applications.ts). A real PDF header, so it validates. */
 const TEST_INSURANCE = {
-  kind: "liability-insurance", number: "POL-123456", issuer: "Triple-S Propiedad", expiresAt: "2099-01-01T00:00:00.000Z",
+  kind: "firearms-license", number: "POL-123456", issuer: "Policía de Puerto Rico", expiresAt: "2099-01-01T00:00:00.000Z",
   document: { base64: Buffer.from("%PDF-1.4 test certificate").toString("base64"), mimeType: "application/pdf", fileName: "insurance.pdf" },
 };
 const withRenewalConsent = (path: string, body: unknown): unknown => {
@@ -3981,9 +3981,11 @@ describe("hiring for the roles that do not drive", () => {
     ...over,
   });
 
-  it("takes a field application without insurance or licences", async () => {
+  it("takes a field application without insurance, but refuses one without a firearms licence", async () => {
+    expect((await call("POST", "/api/staff/apply", application())).status).toBe(200);
     const res = await call("POST", "/api/staff/apply", application({ credentials: [] }));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect(res.json.error).toMatch(/firearms licence/i);
   });
 
   it("publishes the open roles and what everyone hired gets, without a login", async () => {

@@ -126,11 +126,12 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
   const credentials = input.credentials ?? [];
   for (const c of credentials) validateCredential(c, input.now);
   // Liability insurance is welcome but not required to apply; a policy that is attached is still checked above.
-  const gun = credentials.some((c) => c.kind === "firearms-license");
-  const guard = credentials.some((c) => c.kind === "guard-license");
-  // Only the bodyguard job requires licences; anyone else who attaches one must attach both.
-  if ((input.role === "bodyguard" && !(gun && guard)) || gun !== guard) {
-    throw new Error("For armed work, attach both your firearms licence and your security-guard licence.");
+  // A firearms licence is required for every job; the security-guard licence only for the bodyguard job.
+  if (!credentials.some((c) => c.kind === "firearms-license")) {
+    throw new Error("Attach your firearms licence — it is required for every job.");
+  }
+  if (input.role === "bodyguard" && !credentials.some((c) => c.kind === "guard-license")) {
+    throw new Error("For the bodyguard job, attach your security-guard licence as well as your firearms licence.");
   }
 
   return {

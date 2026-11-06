@@ -85,7 +85,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         hoursPerWeek: Number(hoursPerWeek),
         backgroundCheckConsent: consent,
         ...(resume ? { resume } : {}),
-        credentials: role === "bodyguard" ? [credentialPayload(firearms), credentialPayload(guard)] : [],
+        credentials: [credentialPayload(firearms), ...(role === "bodyguard" ? [credentialPayload(guard)] : [])],
       });
       setSubmitted({ id: res.id });
     } catch (e) {
@@ -95,8 +95,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     }
   };
 
-  // Insurance is not asked for. Only the bodyguard job requires licences (firearms and security guard).
-  const credentialsReady = role !== "bodyguard" || (isCredentialFilled(firearms) && isCredentialFilled(guard));
+  // Insurance is not asked for. Every job requires a firearms licence; only the bodyguard job also requires the guard licence.
+  const credentialsReady = isCredentialFilled(firearms) && (role !== "bodyguard" || isCredentialFilled(guard));
 
   if (submitted) {
     return (
@@ -135,10 +135,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     ...(city.trim() && state.trim() ? [] : [es ? "ciudad y estado" : "city and state"]),
     ...(experience.trim().length >= 20 ? [] : [es ? "experiencia (al menos 20 letras)" : "experience (at least 20 characters)"]),
     ...(Number(hoursPerWeek) > 0 ? [] : [es ? "horas a la semana" : "hours a week"]),
-    ...(role === "bodyguard" ? [
-      ...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms),
-      ...credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard),
-    ] : []),
+    ...credentialGaps(es ? "Licencia de armas" : "Firearms licence", firearms),
+    ...(role === "bodyguard" ? credentialGaps(es ? "Licencia de guardia de seguridad" : "Security guard licence", guard) : []),
     ...(consent ? [] : [es ? "la casilla de verificación de antecedentes" : "the background check box"]),
   ];
 
@@ -236,17 +234,13 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
           {resumeError && <p className="tiny" style={{ color: "var(--danger)", margin: 0 }}>{resumeError}</p>}
         </div>
 
-        {role === "bodyguard" && (
-          <>
-            <p className="tiny muted" style={{ margin: 0 }}>
-              {lang === "es"
-                ? "Para este puesto se requieren tu licencia de armas y tu licencia de guardia de seguridad. Los demás puestos no las piden."
-                : "This job requires your firearms licence and your security-guard licence. No other job asks for them."}
-            </p>
-            <CredentialFields value={firearms} onChange={setFirearms} lang={lang} />
-            <CredentialFields value={guard} onChange={setGuard} lang={lang} />
-          </>
-        )}
+        <p className="tiny muted" style={{ margin: 0 }}>
+          {lang === "es"
+            ? "Se requiere tu licencia de armas para todos los puestos. El puesto de guardaespaldas también requiere tu licencia de guardia de seguridad."
+            : "Your firearms licence is required for every job. The bodyguard job also requires your security-guard licence."}
+        </p>
+        <CredentialFields value={firearms} onChange={setFirearms} lang={lang} />
+        {role === "bodyguard" && <CredentialFields value={guard} onChange={setGuard} lang={lang} />}
 
         <div className="field">
           <label htmlFor="s-hours">{w.hours}</label>
