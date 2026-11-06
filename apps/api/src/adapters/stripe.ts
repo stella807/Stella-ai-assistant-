@@ -335,7 +335,6 @@ export async function createCheckoutSession(input: {
   const metadata = { travelerId: plan.travelerId, planId: plan.planId, cadence: plan.cadence };
   const coupon = plan.discount && plan.discount.months > 0
     ? await ensureLaunchCoupon(plan.discount.percentOff, plan.discount.months) : undefined;
-  const taxRates = await ivuTaxRateIds();
   const trialEnd = plan.trialEndsAt ? Math.floor(Date.parse(plan.trialEndsAt) / 1000) : undefined;
   const res = await fetch(`${api()}/v1/checkout/sessions`, {
     method: "POST",
@@ -353,8 +352,8 @@ export async function createCheckoutSession(input: {
       "line_items[0][price_data][product_data][name]": `Safehubby ${plan.name} (${plan.cadence === "annual" ? "yearly" : "monthly"})`,
       "line_items[0][price_data][recurring][interval]": plan.cadence === "annual" ? "year" : "month",
       "line_items[0][quantity]": 1,
-      // IVU, added only when the billing address is in Puerto Rico.
-      ...Object.fromEntries(taxRates.map((id, i) => [`line_items[0][dynamic_tax_rates][${i}]`, id])),
+      // No tax-rate line here: Stripe's current API version rejects `dynamic_tax_rates` outright, which broke every
+      // plan checkout. IVU by billing address needs Stripe Tax (automatic_tax) once a PR registration is set up.
       ...(trialEnd ? { "subscription_data[trial_end]": trialEnd } : {}),
       ...(coupon ? { "discounts[0][coupon]": coupon } : {}),
       // Read back by the fulfillment webhook to know whose plan to change.

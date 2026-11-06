@@ -140,11 +140,9 @@ describe("Stripe Checkout Session", () => {
     expect(session.headers["stripe-version"]).toBe(CHECKOUT_API_VERSION);
     expect([b.get("ui_mode"), b.get("mode"), b.get("payment_method_collection"), b.get("billing_address_collection")])
       .toEqual(["form", "subscription", "always", "required"]);
-    // IVU: the existing PR rate is reused and the US-PR one created once.
-    expect([b.get("line_items[0][dynamic_tax_rates][0]"), b.get("line_items[0][dynamic_tax_rates][1]")]).toEqual(["txr_pr", "txr_uspr"]);
-    const created = calls.find((c) => c.url.endsWith("/v1/tax_rates"))!.body;
-    expect([created.get("percentage"), created.get("inclusive"), created.get("country"), created.get("state"), created.get("display_name")])
-      .toEqual(["11.5", "false", "US", "PR", "IVU"]);
+    // The API rejects dynamic_tax_rates, so the session must not send it (or look up tax rates at all).
+    expect([...b.keys()].some((k) => k.includes("tax_rates"))).toBe(false);
+    expect(calls.some((c) => c.url.endsWith("/v1/tax_rates"))).toBe(false);
     expect(b.get("integration_identifier")).toBe("custom_embedded_web_0001");
     expect(b.get("saved_payment_method_options[payment_method_save]")).toBe("enabled");
     expect(b.get("automatic_tax[enabled]")).toBe("false");
