@@ -47,7 +47,9 @@ export interface PnlInputs {
   /** Hospital days booked in a month: a caretaker stays with a patient for the day, charged and paid at the hospital-day rates. */
   hospitalDays: number;
   /** Hours of armed bodyguard work booked in a month, at the armed rate: the client pays it, the bodyguard earns the armed pay. */
-  armedHours: number;
+  /** Clients who book armed bodyguards in a month, and the hours each books in total. */
+  armedClients: number;
+  armedHoursEach: number;
   /** What a client pays per armed hour, and what the bodyguard is paid for it, so the margin can be tried at other numbers. */
   armedRateCents: number;
   armedPayCents: number;
@@ -111,7 +113,8 @@ export const defaultPnlInputs = (): PnlInputs => ({
   extraAssistantHours: 0,
   paidErrands: 0,
   hospitalDays: 0,
-  armedHours: 0,
+  armedClients: 0,
+  armedHoursEach: 4,
   armedRateCents: 7_500,
   armedPayCents: 5_500,
   assistantCount: 0,
@@ -263,13 +266,14 @@ export function monthlyProfit(raw: PnlInputs): PnlResult {
     });
   }
 
-  const armedHours = whole(raw.armedHours);
+  const armedClients = whole(raw.armedClients);
+  const armedHours = armedClients * clamp(raw.armedHoursEach, 0, 300);
   if (armedHours > 0) {
     // The client rate and the bodyguard's pay are inputs so the margin can be tried at other numbers. Stripe's fixed
     // 30 cents is charged once per booking, so the hours are counted as bookings of 4 hours, the usual protection job.
     const hourlyPrice = whole(raw.armedRateCents);
     const hourlyPay = whole(raw.armedPayCents);
-    const bookings = Math.ceil(armedHours / 4);
+    const bookings = armedClients * Math.ceil(clamp(raw.armedHoursEach, 0, 300) / 4);
     const processing = Math.ceil(armedHours * hourlyPrice * CARD_FEE_RATE) + bookings * CARD_FEE_FIXED_CENTS;
     const revenue = armedHours * hourlyPrice, pay = armedHours * hourlyPay;
     payouts.assistantsCents += pay; payouts.cardFeesCents += processing;

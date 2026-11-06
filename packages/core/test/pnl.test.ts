@@ -124,7 +124,7 @@ describe("the monthly profit calculator", () => {
 
   describe("armed bodyguard hours", () => {
     it("counts the armed rate the client pays, less the bodyguard's pay and Stripe's cut", () => {
-      const r = monthlyProfit(base({ armedHours: 40 }));
+      const r = monthlyProfit(base({ armedClients: 10, armedHoursEach: 4 }));
       const line = r.lines.find((l) => l.id === "armed-bodyguard")!;
       expect(line.revenueCents).toBe(40 * 7_500);
       expect(r.payouts.assistantsCents).toBe(40 * 5_500);
@@ -134,13 +134,13 @@ describe("the monthly profit calculator", () => {
       expect(line.profitCents).toBeGreaterThan(0);
     });
     it("moves the margin with the rate charged and the pay entered", () => {
-      const at = (rate: number, pay: number) => monthlyProfit(base({ armedHours: 40, armedRateCents: rate, armedPayCents: pay })).lines.find((l) => l.id === "armed-bodyguard")!;
+      const at = (rate: number, pay: number) => monthlyProfit(base({ armedClients: 10, armedHoursEach: 4, armedRateCents: rate, armedPayCents: pay })).lines.find((l) => l.id === "armed-bodyguard")!;
       expect(at(7_500, 5_500).revenueCents).toBe(40 * 7_500);
       expect(at(7_000, 5_500).profitCents).toBeLessThan(at(7_500, 5_500).profitCents);
       expect(at(7_500, 6_000).profitCents).toBe(at(7_500, 5_500).profitCents - 40 * 500);
     });
     it("is nothing when no hours are booked", () => {
-      expect(monthlyProfit(base({ armedHours: 0 })).lines.find((l) => l.id === "armed-bodyguard")).toBeUndefined();
+      expect(monthlyProfit(base({ armedClients: 0 })).lines.find((l) => l.id === "armed-bodyguard")).toBeUndefined();
     });
   });
 

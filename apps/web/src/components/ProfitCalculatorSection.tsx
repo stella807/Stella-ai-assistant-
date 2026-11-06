@@ -51,7 +51,7 @@ export function ProfitCalculatorSection() {
       <input type="number" min={0} step={k === "errandCapCents" || k === "driverFareCents" || k === "driverPayPerTripCents" || k === "armedRateCents" || k === "armedPayCents" ? 1 : 50} style={{ width: 100 }} value={inputs[k] / 100} onChange={(e) => set(k, Math.round(num(e.target.value) * 100))} />
     </label>
   );
-  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "armedHours" | "driverTrips" | "assistantCount" | "hoursPerAssistant" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
+  const count = (k: "extraAssistantHours" | "paidErrands" | "hospitalDays" | "armedClients" | "armedHoursEach" | "driverTrips" | "assistantCount" | "hoursPerAssistant" | "clubMembers" | "insuredPeople" | "deskMinutes", label: string) => (
     <label className="row-between small">{label}
       <input type="number" min={0} step={1} style={{ width: 80 }} value={inputs[k]} onChange={(e) => set(k, num(e.target.value))} />
     </label>
@@ -84,7 +84,8 @@ export function ProfitCalculatorSection() {
       {count("clubMembers", "Wingman Club members ($99)")}
       {count("extraAssistantHours", "Extra assistant hours sold")}
       {count("hospitalDays", "Hospital caretaker days")}
-      {count("armedHours", "Armed bodyguard hours")}
+      {count("armedClients", "Clients using an armed bodyguard")}
+      {count("armedHoursEach", "Hours each books in a month")}
       {dollars("armedRateCents", "Client pays per armed hour ($)")}
       {dollars("armedPayCents", "Bodyguard is paid per hour ($)")}
       {count("paidErrands", "Errands with a fee")}
