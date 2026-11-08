@@ -43,6 +43,7 @@ export const Carousel = forwardRef<CarouselHandle, {
   labels, ariaLabel, autoAdvanceMs, prevLabel, nextLabel, showCaption, onEngage, onIndexChange, children,
 }, ref) {
   const track = useRef<HTMLDivElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [engaged, setEngaged] = useState(false);
 
@@ -65,7 +66,17 @@ export const Carousel = forwardRef<CarouselHandle, {
     setCurrent(clamped);
   };
 
-  useImperativeHandle(ref, () => ({ goTo }));
+  // Called from buttons elsewhere on the page (the hero's Get started and
+  // Plans): changing slide alone leaves the person staring at the hero, so
+  // bring the carousel to the top of the screen as well. The dots and arrows
+  // call goTo directly and must not move the page.
+  useImperativeHandle(ref, () => ({
+    goTo: (next: number) => {
+      goTo(next);
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      wrap.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    },
+  }));
 
   // Which slide is on screen, read from the scroll position rather than
   // tracked separately — a swipe moves the container, not our state.
@@ -110,7 +121,7 @@ export const Carousel = forwardRef<CarouselHandle, {
   }, [index, labels.length]);
 
   return (
-    <div className="stack" onPointerDown={engage} onKeyDown={engage} onFocus={engage}>
+    <div className="stack" ref={wrap} style={{ scrollMarginTop: 12 }} onPointerDown={engage} onKeyDown={engage} onFocus={engage}>
       <div className="slides" ref={track} aria-live="off">{children}</div>
 
       <div className="slide-nav">
