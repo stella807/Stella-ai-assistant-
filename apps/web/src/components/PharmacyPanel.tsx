@@ -84,8 +84,8 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
           {prepared && state.handoff && (
             <a className="btn btn-primary btn-block ride-link" href={state.handoff.url} target="_blank" rel="noreferrer">
               <span>
-                <strong>{w.orderAt(state.handoff.provider)}</strong>
-                <span className="tiny muted">{state.handoff.description}</span>
+                <strong>{w.orderAt()}</strong>
+                <span className="tiny muted">{w.orderNote}</span>
               </span>
             </a>
           )}
