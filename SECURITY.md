@@ -21,9 +21,10 @@ writes are detected and logged, not merged.
 **Rate limiting beyond auth.** Sign-up, sign-in, driver applications, code
 redemption and location lookups are limited per client ip; nothing else is. The limiter is in-process, so a multi-instance deployment needs
 a shared store (Redis or the platform's own limiter) or an attacker just spreads
-attempts across instances. Behind a proxy, `X-Forwarded-For` is trusted as the
-client ip — that is only safe when the proxy is the sole ingress and strips
-client-supplied values.
+attempts across instances. Behind a proxy, the client ip is the `X-Forwarded-For` entry the proxy itself
+appended, counted from the end (`TRUSTED_PROXY_HOPS`, default 1, as on Railway); the
+first entry is whatever the caller typed and is ignored. If a second proxy sits in front
+(for example Cloudflare), set `TRUSTED_PROXY_HOPS=2`.
 
 **Password reset.** There is no reset flow, so a forgotten password means a lost
 account. Adding one introduces the usual email-ownership attack surface and

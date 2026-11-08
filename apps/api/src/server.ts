@@ -129,6 +129,12 @@ export type CryptoRoutes = (req: IncomingMessage, res: ServerResponse, body: str
 
 export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    // No other site may frame this one (clickjacking), and a file is never guessed to be a different type.
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    if (SECURE_COOKIES) res.setHeader("Strict-Transport-Security", "max-age=31536000");
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
@@ -329,11 +335,17 @@ function resolveMasterActor(ctx: Ctx, token: string | null): string | null {
   return session.accountId;
 }
 
-/** Rate-limit key. Behind a proxy this needs the real client ip — see SECURITY.md. */
-function clientKey(req: IncomingMessage): string {
+/**
+ * Rate-limit key. A proxy appends the address it saw to `X-Forwarded-For`, after whatever the caller sent, so
+ * the first entry is the caller's own claim and anyone could vary it to dodge every limit. The entry the trusted
+ * proxy added is counted from the end: `TRUSTED_PROXY_HOPS` proxies in front (default 1, as on Railway).
+ */
+export function clientKey(req: IncomingMessage): string {
   const fwd = req.headers["x-forwarded-for"];
-  const first = Array.isArray(fwd) ? fwd[0] : fwd?.split(",")[0];
-  return (first ?? req.socket.remoteAddress ?? "unknown").trim();
+  const entries = (Array.isArray(fwd) ? fwd.join(",") : fwd ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+  const hops = Math.max(1, Number(process.env.TRUSTED_PROXY_HOPS ?? 1) || 1);
+  const seen = entries.length ? entries[Math.max(0, entries.length - hops)] : undefined;
+  return seen ?? req.socket.remoteAddress ?? "unknown";
 }
 
 function firstHeader(value: string | string[] | undefined): string | null {

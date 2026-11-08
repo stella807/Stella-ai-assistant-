@@ -3834,6 +3834,25 @@ describe("push to the assistant", () => {
   });
 });
 
+describe("limits and headers cannot be sidestepped", () => {
+  it("counts the address the proxy saw, not the one the caller typed first", async () => {
+    // Varying the first X-Forwarded-For entry used to give every request a fresh budget.
+    const results: number[] = [];
+    for (let i = 0; i < 14; i++) {
+      results.push((await call("POST", "/api/grants/claim", { inviteCode: `QQQ-${i}00` }, jordan, { "x-forwarded-for": `1.2.3.${i}, 9.9.9.9` })).status);
+    }
+    expect(results).toContain(429);
+  });
+
+  it("sends anti-framing and no-sniff headers on every response", async () => {
+    const res = await fetch(`${base}/api/catalog`);
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+  });
+});
+
 describe("codes cannot be brute forced", () => {
   it("rate limits invite-code attempts", async () => {
     // A six-character code is the only thing between a stranger and a named
