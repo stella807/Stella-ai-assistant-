@@ -41,7 +41,7 @@
 }
 /* The ring: the gradient shows only in a thin border-width frame. */
 .glow-border::before {
-  padding: 1px; z-index: 1;
+  padding: 1.3px; z-index: 1;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
