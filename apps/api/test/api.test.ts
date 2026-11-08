@@ -2716,6 +2716,17 @@ describe("biweekly payroll", () => {
       expect((await callAdmin("GET", "/api/master/vendors")).json.vendors).toHaveLength(first.length);
     });
 
+    it("lets the owner correct a vendor's name and details after saving it, and refuses a blank name", async () => {
+      const first = (await callAdmin("GET", "/api/master/vendors")).json.vendors[0];
+      const fixed = await callAdmin("POST", `/api/master/vendors/${first.id}`, { name: "  Infinito Productions  ", area: "San Juan", offers: "Live entertainment", sourceUrl: "https://www.infinitoproductions.com" });
+      expect(fixed.status).toBe(200);
+      expect(fixed.json.vendor).toMatchObject({ name: "Infinito Productions", area: "San Juan", offers: "Live entertainment", sourceUrl: "https://www.infinitoproductions.com/" });
+      expect((await callAdmin("POST", `/api/master/vendors/${first.id}`, { name: "   " })).status).toBe(400);
+      expect((await callAdmin("POST", `/api/master/vendors/${first.id}`, { category: "not-a-category" })).status).toBe(400);
+      const again = (await callAdmin("GET", "/api/master/vendors")).json.vendors.find((v: { id: string }) => v.id === first.id);
+      expect(again.name).toBe("Infinito Productions");
+    });
+
     it("lets the owner work a vendor: status, contact and notes, and refuses nonsense", async () => {
       const first = (await callAdmin("GET", "/api/master/vendors")).json.vendors[0];
       const bad = await callAdmin("POST", `/api/master/vendors/${first.id}`, { status: "maybe" });

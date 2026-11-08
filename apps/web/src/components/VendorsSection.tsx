@@ -21,6 +21,8 @@ export function VendorsSection() {
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: "", category: "event-planner" as VendorCategory, area: "", offers: "", sourceUrl: "" });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [edit, setEdit] = useState({ name: "", category: "event-planner" as VendorCategory, area: "", offers: "", sourceUrl: "" });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,6 +47,16 @@ export function VendorsSection() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "That did not save");
     }
+  };
+
+  const startEdit = (v: Vendor) => {
+    setEdit({ name: v.name, category: v.category, area: v.area ?? "", offers: v.offers ?? "", sourceUrl: v.sourceUrl ?? "" });
+    setEditing(v.id);
+  };
+
+  const saveEdit = async (v: Vendor) => {
+    await patch(v, edit);
+    setEditing(null);
   };
 
   const add = async () => {
@@ -102,7 +114,30 @@ export function VendorsSection() {
 
           {open === v.id && (
             <div className="stack" style={{ gap: 8 }}>
-              <p className="small" style={{ margin: 0 }}>{v.offers}</p>
+              {editing === v.id ? (
+                <div className="card card-quiet stack" style={{ gap: 8 }}>
+                  <div className="field"><label htmlFor={`en-${v.id}`}>Name</label>
+                    <input id={`en-${v.id}`} value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
+                  <div className="field"><label htmlFor={`ec-${v.id}`}>Type</label>
+                    <select id={`ec-${v.id}`} value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value as VendorCategory })}>
+                      {meta.categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></div>
+                  <div className="field"><label htmlFor={`ea-${v.id}`}>Where</label>
+                    <input id={`ea-${v.id}`} value={edit.area} onChange={(e) => setEdit({ ...edit, area: e.target.value })} /></div>
+                  <div className="field"><label htmlFor={`eo-${v.id}`}>What they do</label>
+                    <input id={`eo-${v.id}`} value={edit.offers} onChange={(e) => setEdit({ ...edit, offers: e.target.value })} /></div>
+                  <div className="field"><label htmlFor={`eu-${v.id}`}>Link (https)</label>
+                    <input id={`eu-${v.id}`} value={edit.sourceUrl} onChange={(e) => setEdit({ ...edit, sourceUrl: e.target.value })} /></div>
+                  <div className="row">
+                    <button className="btn grow" onClick={() => setEditing(null)}>Cancel</button>
+                    <button className="btn btn-primary grow" disabled={!edit.name.trim()} onClick={() => void saveEdit(v)}>Save changes</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="small" style={{ margin: 0 }}>{v.offers}</p>
+                  <button className="btn btn-sm btn-ghost" onClick={() => startEdit(v)}>Edit name and details</button>
+                </>
+              )}
               {v.notes && <p className="tiny muted" style={{ margin: 0 }}>{v.notes}</p>}
               {v.sourceUrl && <a className="tiny" href={v.sourceUrl} target="_blank" rel="noopener noreferrer">Where this was found ↗</a>}
 

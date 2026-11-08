@@ -894,7 +894,7 @@ export const api = {
       "GET", "/api/master/withholding"),
   masterVendors: () =>
     request<{ vendors: Vendor[]; categories: { id: VendorCategory; label: string }[]; statuses: VendorStatus[] }>("GET", "/api/master/vendors"),
-  masterUpdateVendor: (id: string, patch: Partial<Pick<Vendor, "status" | "contactName" | "phone" | "email" | "ownerNotes">>) =>
+  masterUpdateVendor: (id: string, patch: Partial<Pick<Vendor, "status" | "contactName" | "phone" | "email" | "ownerNotes" | "name" | "category" | "area" | "offers" | "sourceUrl">>) =>
     request<{ vendor: Vendor }>("POST", `/api/master/vendors/${id}`, patch),
   masterAddVendor: (v: { name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),

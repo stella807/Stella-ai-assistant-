@@ -6511,8 +6511,18 @@ export const routes: Record<string, Handler> = {
     if (!found) throw notFound("Vendor");
     const status = body?.status === undefined ? undefined : String(body.status) as VendorStatus;
     if (status !== undefined && !VENDOR_STATUSES.includes(status)) throw new HttpError(400, "That is not a status.");
+    // The details typed when a vendor was added can be corrected later, so a misspelt name is not stuck.
+    const name = body?.name === undefined ? undefined : cleanText(body.name, 120);
+    if (name !== undefined && !name) throw new HttpError(400, "A vendor needs a name.");
+    const category = body?.category === undefined ? undefined : String(body.category) as VendorCategory;
+    if (category !== undefined && !VENDOR_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Pick a category.");
     ctx.store.update((db) => {
       const v = (db.vendors ?? []).find((x) => x.id === id)!;
+      if (name !== undefined) v.name = name;
+      if (category !== undefined) v.category = category;
+      if (body?.area !== undefined) v.area = cleanText(body.area, 120);
+      if (body?.offers !== undefined) v.offers = cleanText(body.offers, 400);
+      if (body?.sourceUrl !== undefined) v.sourceUrl = cleanUrl(body.sourceUrl);
       if (status !== undefined) v.status = status;
       if (body?.contactName !== undefined) v.contactName = cleanText(body.contactName, 120) || undefined;
       if (body?.phone !== undefined) v.phone = cleanText(body.phone, 40) || undefined;
