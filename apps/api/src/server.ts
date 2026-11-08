@@ -131,7 +131,12 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // No other site may frame this one (clickjacking), and a file is never guessed to be a different type.
     res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    // Scripts may come only from this site, Stripe and PayPal: injected script, inline or from another host, does not run.
+    // Images, frames and connections are left open so payment forms, the map and photos keep working.
+    res.setHeader("Content-Security-Policy", [
+      "script-src 'self' https://js.stripe.com https://*.stripe.com https://www.paypal.com https://*.paypal.com https://*.paypalobjects.com",
+      "object-src 'none'", "base-uri 'self'", "frame-ancestors 'none'",
+    ].join("; "));
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     if (SECURE_COOKIES) res.setHeader("Strict-Transport-Security", "max-age=31536000");

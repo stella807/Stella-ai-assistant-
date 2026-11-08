@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AmountScale } from "@safehubby/core";
 import { api, type Basket, type CarePackageState } from "../api.ts";
+import { safeHttpUrl } from "../app/safe-url.ts";
 import { AmountStepper } from "./AmountStepper.tsx";
 
 import { money } from "../money.ts";
@@ -81,8 +82,8 @@ export function PharmacyPanel({ nightId, state, homeLabel, band, onChange }: {
               </li>
             ))}
           </ul>
-          {prepared && state.handoff && (
-            <a className="btn btn-primary btn-block ride-link" href={state.handoff.url} target="_blank" rel="noreferrer">
+          {prepared && state.handoff && safeHttpUrl(state.handoff.url) && (
+            <a className="btn btn-primary btn-block ride-link" href={safeHttpUrl(state.handoff.url)} target="_blank" rel="noreferrer">
               <span>
                 <strong>{w.orderAt()}</strong>
                 <span className="tiny muted">{w.orderNote}</span>

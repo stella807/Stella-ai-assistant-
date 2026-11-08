@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Vendor, VendorCategory, VendorStatus } from "@safehubby/core";
 import { api } from "../api.ts";
+import { safeHttpUrl } from "../app/safe-url.ts";
 
 type Meta = { categories: { id: VendorCategory; label: string }[]; statuses: VendorStatus[] };
 
@@ -139,7 +140,7 @@ export function VendorsSection() {
                 </>
               )}
               {v.notes && <p className="tiny muted" style={{ margin: 0 }}>{v.notes}</p>}
-              {v.sourceUrl && <a className="tiny" href={v.sourceUrl} target="_blank" rel="noopener noreferrer">Where this was found ↗</a>}
+              {safeHttpUrl(v.sourceUrl) && <a className="tiny" href={safeHttpUrl(v.sourceUrl)} target="_blank" rel="noopener noreferrer">Where this was found ↗</a>}
 
               <div className="field">
                 <label htmlFor={`st-${v.id}`}>Status</label>

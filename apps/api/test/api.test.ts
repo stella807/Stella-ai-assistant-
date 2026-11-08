@@ -3858,7 +3858,12 @@ describe("limits and headers cannot be sidestepped", () => {
   it("sends anti-framing and no-sniff headers on every response", async () => {
     const res = await fetch(`${base}/api/catalog`);
     expect(res.headers.get("x-frame-options")).toBe("DENY");
-    expect(res.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+    const csp = res.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toMatch(/script-src 'self' https:\/\/js\.stripe\.com/);
+    expect(csp).not.toContain("unsafe-inline");
+    expect(csp).not.toContain("unsafe-eval");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
   });

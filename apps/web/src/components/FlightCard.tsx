@@ -1,5 +1,6 @@
 import { bestTimeFor, describeFlightStatus, type FlightInfo } from "@safehubby/core";
 import { useEffect, useState } from "react";
+import { safeImageSrc } from "../app/safe-url.ts";
 import { LiveMap } from "./LiveMap.tsx";
 import { TripMapPopup } from "./TripMapPopup.tsx";
 import { useLanguage } from "../i18n.tsx";
@@ -45,7 +46,7 @@ export function FlightCard({ flight, showMap = true }: { flight: FlightInfo; sho
       <div className="row-between">
         <div className="row" style={{ gap: 10 }}>
           {flight.logoUrl ? (
-            <img src={flight.logoUrl} alt={flight.airlineName} style={{ height: 28, width: "auto" }} />
+            <img src={safeImageSrc(flight.logoUrl)} alt={flight.airlineName} style={{ height: 28, width: "auto" }} />
           ) : (
             <span className="pill">{flight.airlineIata || "—"}</span>
           )}

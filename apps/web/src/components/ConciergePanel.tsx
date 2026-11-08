@@ -20,6 +20,7 @@ import type {
   LaunchMarketId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
+import { safeImageSrc } from "../app/safe-url.ts";
 import { ConsentBox } from "./ConsentBox.tsx";
 import { consentCopy } from "../app/consent-copy.ts";
 import { currentFix, type Fix } from "../native/location.ts";
@@ -1012,7 +1013,7 @@ export function ConciergePanel({ account, kind = "concierge", extraTiles, extra,
               <button key={a.id} role="listitem" className="assistant-tile" disabled={!available}
                 aria-pressed={selected?.id === a.id} onClick={() => setSelected(a)}>
                 <div className="assistant-avatar assistant-avatar-lg assistant-photo">
-                  {a.photoUrl ? <img src={a.photoUrl} alt="" /> : a.name.slice(0, 1)}
+                  {safeImageSrc(a.photoUrl) ? <img src={safeImageSrc(a.photoUrl)} alt="" /> : a.name.slice(0, 1)}
                 </div>
                 <strong className="assistant-name">{a.name}</strong>
                 {/* The role, not just the person — an errand runner and a

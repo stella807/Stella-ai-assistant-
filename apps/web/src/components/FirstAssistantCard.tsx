@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
+import { safeImageSrc } from "../app/safe-url.ts";
 import { useLanguage } from "../i18n.tsx";
 
 type First = NonNullable<Awaited<ReturnType<typeof api.firstAssistant>>["assistant"]>;
@@ -30,7 +31,7 @@ export function FirstAssistantCard() {
     <section className="card stack" aria-label={heading}>
       <span className="section-label">{heading}</span>
       <div className="row" style={{ gap: 12, alignItems: "center" }}>
-        {who.photoUrl && <img src={who.photoUrl} alt={who.firstName} width={72} height={72} style={{ borderRadius: 18, objectFit: "cover" }} />}
+        {safeImageSrc(who.photoUrl) && <img src={safeImageSrc(who.photoUrl)} alt={who.firstName} width={72} height={72} style={{ borderRadius: 18, objectFit: "cover" }} />}
         <div className="stack" style={{ gap: 2 }}>
           <h3 style={{ margin: 0 }}>{who.firstName}</h3>
           {who.yearsExperience ? <span className="tiny muted">{es ? `${who.yearsExperience} años de experiencia` : `${who.yearsExperience} years of experience`}</span> : null}
