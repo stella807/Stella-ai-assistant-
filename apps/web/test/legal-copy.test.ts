@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { privacyCopy, refundCopy, termsCopy } from "../src/app/legal-copy.ts";
+import { cookiesCopy, privacyCopy, refundCopy, termsCopy } from "../src/app/legal-copy.ts";
 
 describe("the Terms of Service and Privacy Policy drafts", () => {
   const docs = [["terms", termsCopy("en", "$45.00"), termsCopy("es", "$45.00")], ["privacy", privacyCopy("en"), privacyCopy("es")], ["refunds", refundCopy("en"), refundCopy("es")]] as const;
@@ -56,5 +56,16 @@ describe("the Terms of Service and Privacy Policy drafts", () => {
       const text = privacyCopy(lang).sections.flatMap((x) => x.paragraphs).join("\n");
       for (const name of ["OpenStreetMap", "Google Places", "FlightAware"]) expect(text, `${lang} ${name}`).toContain(name);
     }
+  });
+
+  it("the cookies policy names every cookie the server sets, in both languages, and says no analytics are used", () => {
+    for (const lang of ["en", "es"] as const) {
+      const doc = cookiesCopy(lang);
+      const text = doc.sections.flatMap((x) => x.paragraphs).join("\n");
+      for (const name of ["sh_session", "sh_assistant_session", "sh_master_session", "safehubby-language", "safehubby-ref", "OpenStreetMap", "Stripe"]) {
+        expect(text, `${lang} ${name}`).toContain(name);
+      }
+    }
+    expect(cookiesCopy("es").sections.map((x) => x.paragraphs.length)).toEqual(cookiesCopy("en").sections.map((x) => x.paragraphs.length));
   });
 });

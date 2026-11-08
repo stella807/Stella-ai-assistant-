@@ -316,3 +316,79 @@ export function refundCopy(lang: "en" | "es"): LegalDocument {
     contact: "Safehubby · contact@safehubby.com",
   };
 }
+
+/** The cookies policy, written from what the app actually stores in a browser; a draft until counsel has read it. */
+export function cookiesCopy(lang: "en" | "es"): LegalDocument {
+  if (lang === "es") {
+    return {
+      title: "Política de cookies",
+      draftNotice: "Borrador en revisión legal. Esta política describe lo que la app guarda hoy en tu navegador y todavía no ha sido revisada por un abogado.",
+      updated: `Borrador de ${LEGAL_DRAFT_DATE}`,
+      intro: "Las cookies son archivos pequeños que un sitio guarda en tu navegador. Aquí explicamos cuáles usamos y para qué. Usamos solo lo necesario para que la app funcione.",
+      sections: [
+        { heading: "1. Las cookies que usamos", paragraphs: [
+          "sh_session: te mantiene con la sesión iniciada en la app. Dura hasta 30 días, o hasta que cierres sesión.",
+          "sh_assistant_session: mantiene la sesión de un asistente en el Portal de empleados. Dura 12 horas, o hasta que cierre sesión.",
+          "sh_master_session: mantiene la sesión del dueño y del personal en el Portal de gerencia. Dura 12 horas, o hasta que cierren sesión.",
+          "Estas cookies son necesarias para iniciar sesión. Solo se envían a nuestro servidor, los scripts de la página no pueden leerlas, y en producción solo viajan por conexiones seguras.",
+        ] },
+        { heading: "2. Lo que guardamos en tu navegador", paragraphs: [
+          "safehubby-language: el idioma que elegiste, inglés o español, para no preguntártelo cada vez.",
+          "safehubby-ref: el código de un amigo que te invitó, guardado solo mientras la pestaña esté abierta, para aplicarlo cuando te registres.",
+          "Una marca breve que evita que la página se recargue una y otra vez cuando publicamos una versión nueva.",
+          "En el Portal de gerencia, el dueño puede guardar en su navegador escenarios de la calculadora de ganancias.",
+        ] },
+        { heading: "3. Pagos y otros servicios", paragraphs: [
+          "Cuando aparece un formulario de pago, Stripe (y PayPal, si lo eliges) pueden poner sus propias cookies para procesar el pago y prevenir fraude. Se rigen por sus políticas, no por esta.",
+          "El mapa se carga desde los servidores de OpenStreetMap. Ellos ven tu dirección IP al cargarlo. Nosotros no agregamos cookies por eso.",
+        ] },
+        { heading: "4. Lo que no usamos", paragraphs: [
+          "No usamos cookies de publicidad, no usamos herramientas de análisis ni de seguimiento, y no grabamos lo que escribes ni lo que haces en pantalla.",
+        ] },
+        { heading: "5. Tus opciones", paragraphs: [
+          "Puedes borrar las cookies y el almacenamiento del sitio desde la configuración de tu navegador. Cerrar sesión en la app también borra tu cookie de sesión.",
+          "Si bloqueas las cookies necesarias, no podrás iniciar sesión.",
+        ] },
+        { heading: "6. Cambios", paragraphs: [
+          "Si algún día agregamos herramientas de análisis o publicidad, te lo diremos y te pediremos permiso antes de usarlas, y actualizaremos esta página.",
+        ] },
+      ],
+      contact: "Safehubby · contact@safehubby.com",
+    };
+  }
+  return {
+    title: "Cookies Policy",
+    draftNotice: "Draft under legal review. This policy describes what the app stores in your browser today and has not yet been reviewed by a lawyer.",
+    updated: `Draft of ${LEGAL_DRAFT_DATE}`,
+    intro: "Cookies are small files a site keeps in your browser. This page explains which ones we use and why. We use only what the app needs to work.",
+    sections: [
+      { heading: "1. The cookies we use", paragraphs: [
+        "sh_session: keeps you signed in to the app. It lasts up to 30 days, or until you sign out.",
+        "sh_assistant_session: keeps an assistant signed in to the Employee portal. It lasts 12 hours, or until they sign out.",
+        "sh_master_session: keeps the owner and staff signed in to the Management portal. It lasts 12 hours, or until they sign out.",
+        "These cookies are needed to sign in. They are sent only to our server, scripts on the page cannot read them, and in production they travel only over secure connections.",
+      ] },
+      { heading: "2. What we keep in your browser", paragraphs: [
+        "safehubby-language: the language you chose, English or Spanish, so we do not ask each time.",
+        "safehubby-ref: the code of a friend who invited you, kept only while the tab is open, so it can be applied when you sign up.",
+        "A short marker that stops the page from reloading again and again when we publish a new version.",
+        "In the Management portal, the owner can save profit calculator scenarios in their browser.",
+      ] },
+      { heading: "3. Payments and other services", paragraphs: [
+        "When a payment form appears, Stripe (and PayPal, if you choose it) may set their own cookies to process the payment and prevent fraud. Their own policies govern them, not this one.",
+        "The map loads from OpenStreetMap's servers. They see your IP address when it loads. We do not add cookies for that.",
+      ] },
+      { heading: "4. What we do not use", paragraphs: [
+        "We do not use advertising cookies, we do not use analytics or tracking tools, and we do not record what you type or do on screen.",
+      ] },
+      { heading: "5. Your choices", paragraphs: [
+        "You can clear cookies and site storage in your browser's settings. Signing out of the app also clears your session cookie.",
+        "If you block the necessary cookies, you will not be able to sign in.",
+      ] },
+      { heading: "6. Changes", paragraphs: [
+        "If we ever add analytics or advertising tools, we will tell you and ask your permission before using them, and we will update this page.",
+      ] },
+    ],
+    contact: "Safehubby · contact@safehubby.com",
+  };
+}

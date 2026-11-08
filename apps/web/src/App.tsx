@@ -22,7 +22,7 @@ import { LanguageToggle } from "./components/LanguageToggle.tsx";
 import { ClientDisclosures } from "./components/ClientDisclosures.tsx";
 import { LegalDocumentView } from "./components/LegalDocumentView.tsx";
 import { disclosureCopy } from "./app/disclosure-copy.ts";
-import { refundCopy } from "./app/legal-copy.ts";
+import { cookiesCopy, refundCopy } from "./app/legal-copy.ts";
 import { ScreenGuard } from "./components/ScreenGuard.tsx";
 import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
@@ -75,7 +75,7 @@ export function App() {
   // there for a specific thing. Cleared by HiringScreen's own tabs from then
   // on; it only decides where that screen starts.
   const [hiringTab, setHiringTab] = useState<HiringTab | undefined>(undefined);
-  const [legal, setLegal] = useState<"disclosures" | "terms" | "privacy" | "refunds" | null>(null);
+  const [legal, setLegal] = useState<"disclosures" | "terms" | "privacy" | "refunds" | "cookies" | null>(null);
   const [drinks, setDrinks] = useState<DrinkDefinition[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
   const [launch, setLaunch] = useState<LaunchStatus | null>(null);
@@ -204,12 +204,13 @@ export function App() {
               <button className="linklike" aria-expanded={legal === "terms"} onClick={() => setLegal((v) => (v === "terms" ? null : "terms"))}>{t("footer.terms")}</button>
               <button className="linklike" aria-expanded={legal === "refunds"} onClick={() => setLegal((v) => (v === "refunds" ? null : "refunds"))}>{refundCopy(language === "es" ? "es" : "en").title}</button>
               <button className="linklike" aria-expanded={legal === "privacy"} onClick={() => setLegal((v) => (v === "privacy" ? null : "privacy"))}>{t("footer.privacy")}</button>
+              <button className="linklike" aria-expanded={legal === "cookies"} onClick={() => setLegal((v) => (v === "cookies" ? null : "cookies"))}>{cookiesCopy(language === "es" ? "es" : "en").title}</button>
               <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
               {isEnabled("party-supply") && <button className="linklike" onClick={() => setRole("party")}>{t("nav.party")}</button>}
               <button className="linklike" onClick={() => api.logout().then(() => setAccount(null))}>{t("app.signOut")}</button>
             </nav>
             {legal === "disclosures" && <ClientDisclosures />}
-            {(legal === "terms" || legal === "privacy" || legal === "refunds") && <LegalDocumentView which={legal} />}
+            {(legal === "terms" || legal === "privacy" || legal === "refunds" || legal === "cookies") && <LegalDocumentView which={legal} />}
             <nav className="footer-links footer-portals" aria-label={language === "es" ? "Trabaja con nosotros" : "Work with us"}>
               <button className="linklike" onClick={() => setRole("work")}>{t("app.careers")}</button>
               <button className="linklike" onClick={() => setRole("drive")}>{t("app.drive")}</button>
