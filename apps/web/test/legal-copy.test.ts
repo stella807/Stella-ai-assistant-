@@ -50,4 +50,11 @@ describe("the Terms of Service and Privacy Policy drafts", () => {
     expect(text).toMatch(/Premium, Premium Plus and Family, the card processing fee/);
     expect(text).toMatch(/monthly dues are refunded in full/);
   });
+
+  it("names the map, place-search and flight providers, in both languages", () => {
+    for (const lang of ["en", "es"] as const) {
+      const text = privacyCopy(lang).sections.flatMap((x) => x.paragraphs).join("\n");
+      for (const name of ["OpenStreetMap", "Google Places", "FlightAware"]) expect(text, `${lang} ${name}`).toContain(name);
+    }
+  });
 });

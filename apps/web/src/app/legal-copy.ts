@@ -174,7 +174,7 @@ export function privacyCopy(lang: "en" | "es"): LegalDocument {
         { heading: "3. Con quién los compartimos", paragraphs: [
           "Con las personas que tú eliges: tus guardianes ven tu ubicación y tus chequeos según lo que les compartas.",
           "Con tu asistente, solo lo necesario para esa tarea: tu ubicación mientras dura la tarea y, para que cada parte confirme con quién se reúne, una selfie de cada uno.",
-          "Con los servicios que usamos para operar: Stripe (pagos y tarjetas de tarea), un proveedor de mensajes de texto, un proveedor de correo, servicios de mapas y búsqueda de lugares, notificaciones, seguimiento de vuelos y nuestro proveedor de alojamiento. Reciben solo lo que necesitan para su función.",
+          "Con los servicios que usamos para operar: Stripe (pagos y tarjetas de tarea), un proveedor de mensajes de texto, un proveedor de correo, OpenStreetMap (para mostrar el mapa; al cargar el mapa, tu navegador se conecta con sus servidores y ellos ven tu dirección IP), Google Places (para buscar tiendas y lugares), FlightAware (seguimiento de vuelos), notificaciones y nuestro proveedor de alojamiento. Reciben solo lo que necesitan para su función.",
           "Con las autoridades, cuando la ley lo exija o para proteger la seguridad de alguien. Si Safehubby se vendiera o se fusionara, los datos pasarían al nuevo dueño bajo estas mismas reglas.",
         ] },
         { heading: "4. Tu ubicación", paragraphs: [
@@ -220,7 +220,7 @@ export function privacyCopy(lang: "en" | "es"): LegalDocument {
       { heading: "3. Who we share it with", paragraphs: [
         "With the people you choose: your guardians see your location and check-ins according to what you share with them.",
         "With your assistant, only what that task needs: your location for the length of the task and, so each side can confirm who they are meeting, a selfie from each of you.",
-        "With the services we use to operate: Stripe (payments and task cards), a text-message provider, an email provider, map and place-search services, push notifications, flight tracking and our hosting provider. They receive only what they need to do their part.",
+        "With the services we use to operate: Stripe (payments and task cards), a text-message provider, an email provider, OpenStreetMap (to show the map: when the map loads, your browser connects to its servers and they see your IP address), Google Places (to search for stores and places), FlightAware (flight tracking), push notifications and our hosting provider. They receive only what they need to do their part.",
         "With authorities when the law requires it or to protect someone's safety. If Safehubby is sold or merged, the data would pass to the new owner under these same rules.",
       ] },
       { heading: "4. Your location", paragraphs: [
