@@ -33,7 +33,7 @@
 /* A "comet" border: two bright arcs race around a dim ring: the logo's blue and silver, and a short touch of orange opposite it. An angle that the browser can animate (@property) is
    all it takes, so there is no script. Add `glow-border` to anything with rounded corners. */
 @property --glow-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
-.glow-border { position: relative; isolation: isolate; --glow-dim: rgba(120, 150, 200, 0.28); --glow-blue: #2d6cf0; --glow-bright: #5fa0ff; --glow-silver: #eef2f8; --glow-orange: rgba(255, 122, 24, 0.7); --glow-amber: rgba(255, 196, 94, 0.85); }
+.glow-border { position: relative; isolation: isolate; --glow-dim: rgba(130, 165, 230, 0.34); --glow-blue: #2f7bff; --glow-bright: #86bbff; --glow-silver: #ffffff; --glow-orange: rgba(255, 128, 32, 0.85); --glow-amber: rgba(255, 210, 120, 1); }
 .glow-border::before, .glow-border::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: conic-gradient(from var(--glow-angle), var(--glow-dim) 0deg 130deg, var(--glow-orange) 158deg, var(--glow-amber) 180deg, var(--glow-dim) 180deg 250deg, var(--glow-blue) 295deg, var(--glow-bright) 335deg, var(--glow-silver) 360deg);
@@ -41,13 +41,13 @@
 }
 /* The ring: the gradient shows only in a thin border-width frame. */
 .glow-border::before {
-  padding: 1.5px; z-index: 1;
+  padding: 2px; z-index: 1;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 /* The glow: the same arc, blurred, behind the element. */
 .glow-border::after {
-  inset: -3px; padding: 12px; filter: blur(8px); opacity: 0.6;
+  inset: -5px; padding: 16px; filter: blur(14px) saturate(1.4) brightness(1.25); opacity: 1;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
