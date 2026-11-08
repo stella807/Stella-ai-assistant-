@@ -33,6 +33,23 @@ const WORDS = {
   },
 };
 
+interface Named { name: string; href?: string; offers: { en: string; es: string }; price: { en: string; es: string } }
+
+/** What each firm says on its own website (read November 2026), for people choosing between them. Not a ranking. */
+const NAMED: Named[] = [
+  { name: "Safehubby", offers: { en: "Assistants, errands, hospital companions, rides and bodyguards, with SOS and check-ins", es: "Asistentes, mandados, acompañantes de hospital, transporte y guardaespaldas, con SOS y chequeos" }, price: { en: "Published: extra assistant hours $45 an hour, plans from free", es: "Publicados: horas extra de asistente $45 la hora, planes desde gratis" } },
+  { name: "Luxplora", href: "https://luxplorapuertorico.com/luxplora-concierge-personal-assistant-service/", offers: { en: "Concierge and personal assistant: errands, paperwork, real estate, events", es: "Concierge y asistente personal: mandados, trámites, bienes raíces, eventos" }, price: { en: "$100 an hour, 2-hour minimum; $750 for 8 hours", es: "$100 la hora, mínimo 2 horas; $750 por 8 horas" } },
+  { name: "ETC Puerto Rico", href: "https://www.etcpuertorico.com/", offers: { en: "Chauffeur and airport transfers, concierge, personal assistant and grocery shopping", es: "Chofer y traslados al aeropuerto, concierge, asistente personal y compras de comestibles" }, price: { en: "Not published", es: "No publicados" } },
+  { name: "Bia Concierge", href: "https://www.biaconcierge.com/", offers: { en: "Personal and executive assistants, special projects, staffing, memberships", es: "Asistentes personales y ejecutivos, proyectos especiales, personal, membresías" }, price: { en: "Not published", es: "No publicados" } },
+  { name: "We Got This Puerto Rico", href: "https://wegotthisprrealty.com/our-services", offers: { en: "Lifestyle concierge and relocation, including eldercare referrals", es: "Concierge de estilo de vida y mudanzas, incluye referidos de cuidado de ancianos" }, price: { en: "Not published", es: "No publicados" } },
+  { name: "MD Concierge PR", href: "https://mdconciergepr.com/Membership/", offers: { en: "Doctor membership: visits, home visits, telemedicine (medical, not errands)", es: "Membresía médica: visitas, visitas a domicilio, telemedicina (médico, no mandados)" }, price: { en: "From $260 a month, or $2,800 a year", es: "Desde $260 al mes, o $2,800 al año" } },
+];
+
+const NAMED_WORDS = {
+  en: { heading: "Concierge services on the island, by name", cols: ["Company", "What it offers", "Price"], foot: "From each company's own website, read in November 2026. Details change, so check their sites. This is not a ranking." },
+  es: { heading: "Servicios de concierge en la isla, por nombre", cols: ["Compañía", "Qué ofrece", "Precio"], foot: "Del sitio web de cada compañía, leído en noviembre de 2026. Los detalles cambian, así que revisa sus sitios. No es un ranking." },
+};
+
 const MARK: Record<Cell, string> = { yes: "✓", some: "~", no: "—" };
 
 export function ComparisonSection() {
@@ -66,6 +83,25 @@ export function ComparisonSection() {
         </table>
       </div>
       <p className="tiny muted" style={{ margin: 0 }}>{w.foot}</p>
+
+      <h3 style={{ margin: "8px 0 0" }}>{NAMED_WORDS[lang].heading}</h3>
+      <div className="rival-scroll">
+        <table className="rival-table rival-named">
+          <thead>
+            <tr>{NAMED_WORDS[lang].cols.map((c) => <th key={c} scope="col">{c}</th>)}</tr>
+          </thead>
+          <tbody>
+            {NAMED.map((n, i) => (
+              <tr key={n.name} className={i === 0 ? "rival-us" : undefined}>
+                <th scope="row">{n.href ? <a href={n.href} target="_blank" rel="noopener noreferrer">{n.name}</a> : n.name}</th>
+                <td>{n.offers[lang]}</td>
+                <td>{n.price[lang]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="tiny muted" style={{ margin: 0 }}>{NAMED_WORDS[lang].foot}</p>
     </section>
   );
 }
