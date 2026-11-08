@@ -2742,6 +2742,11 @@ describe("biweekly payroll", () => {
       expect((await callAdmin("POST", `/api/master/vendors/${added.id}`, { listId: "nope" })).status).toBe(400);
       expect((await callAdmin("POST", `/api/master/vendor-lists/${texas.id}`, { name: "Texas and Oklahoma" })).json.list.name).toBe("Texas and Oklahoma");
       expect((await callAdmin("POST", `/api/master/vendor-lists/${texas.id}/delete`, {})).status).toBe(200);
+      const protectedDelete = await callAdmin("POST", `/api/master/vendor-lists/${got.lists[0].id}/delete`, {});
+      expect(protectedDelete.status).toBe(400);
+      expect(protectedDelete.json.error).toMatch(/Puerto Rico list stays/);
+      // It can be renamed, and stays protected under its new name.
+      expect((await callAdmin("POST", `/api/master/vendor-lists/${got.lists[0].id}`, { name: "Island vendors" })).json.list.name).toBe("Island vendors");
       expect((await callAdmin("POST", `/api/master/vendor-lists/${got.lists[0].id}/delete`, {})).status).toBe(400);
     });
 

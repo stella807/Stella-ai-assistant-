@@ -6525,6 +6525,8 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     const lists = ctx.store.data.vendorLists ?? [];
     if (!lists.some((l) => l.id === id)) throw notFound("List");
+    // The Puerto Rico list is where the researched vendors live, so it is never deleted (it can be renamed).
+    if (id === DEFAULT_VENDOR_LIST.id) throw new HttpError(400, "The Puerto Rico list stays. You can rename it, but not delete it.");
     if (lists.length <= 1) throw new HttpError(400, "Keep at least one list.");
     // Nothing is deleted with its list: the vendors have to be moved or removed first.
     if ((ctx.store.data.vendors ?? []).some((v) => v.listId === id)) throw new HttpError(400, "Move or remove this list's vendors first.");

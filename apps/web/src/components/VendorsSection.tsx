@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Vendor, VendorCategory, VendorList, VendorStatus } from "@safehubby/core";
+import { DEFAULT_VENDOR_LIST, type Vendor, type VendorCategory, type VendorList, type VendorStatus } from "@safehubby/core";
 import { api } from "../api.ts";
 import { safeHttpUrl } from "../app/safe-url.ts";
 
@@ -154,8 +154,8 @@ export function VendorsSection() {
         <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
           <button className="btn btn-sm" onClick={() => { setListForm("new"); setListName(""); }}>New list</button>
           <button className="btn btn-sm btn-ghost" disabled={!currentList} onClick={() => { setListForm("rename"); setListName(currentList?.name ?? ""); }}>Rename</button>
-          <button className="btn btn-sm btn-ghost" disabled={!currentList || inList.length > 0 || lists.length <= 1}
-            title={inList.length > 0 ? "Move or remove its vendors first" : undefined} onClick={() => void deleteList()}>Delete list</button>
+          <button className="btn btn-sm btn-ghost" disabled={!currentList || currentList.id === DEFAULT_VENDOR_LIST.id || inList.length > 0 || lists.length <= 1}
+            title={currentList?.id === DEFAULT_VENDOR_LIST.id ? "The Puerto Rico list stays" : inList.length > 0 ? "Move or remove its vendors first" : undefined} onClick={() => void deleteList()}>Delete list</button>
         </div>
       )}
       {inList.length === 0 && currentList && <p className="tiny muted" style={{ margin: 0 }}>{currentList.name} has no vendors yet. Add the first one below.</p>}
