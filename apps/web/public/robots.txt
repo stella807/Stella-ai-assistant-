@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /master
+Disallow: /employee
+Disallow: /api/
+Sitemap: https://safehubby.com/sitemap.xml
