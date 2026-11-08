@@ -29,3 +29,23 @@
 @keyframes lux-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 @media (min-width: 560px) { .lux-doors { grid-template-columns: repeat(3, 1fr); } .lux-doors li:nth-child(odd) { border-right: 0; } .lux-doors li:not(:nth-child(3n)) { border-right: 1px solid rgba(217, 178, 106, .16); } }
 @media (prefers-reduced-motion: reduce) { .lux-photo, .lux-copy, .lux-doors li { animation: none !important; } }
+
+/* A "comet" border: one bright gold arc races around a dim ring. An angle that the browser can animate (@property) is
+   all it takes, so there is no script. Add `glow-border` to anything with rounded corners. */
+@property --glow-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.glow-border { position: relative; isolation: isolate; --glow-dim: rgba(217, 178, 106, 0.22); --glow-bright: #f3dca0; }
+.glow-border::before, .glow-border::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: conic-gradient(from var(--glow-angle), var(--glow-dim) 0deg 270deg, var(--glow-bright) 345deg, #fff6da 360deg);
+  animation: glow-spin 2.4s linear infinite;
+}
+/* The ring: the gradient shows only in a thin border-width frame. */
+.glow-border::before {
+  padding: 1.5px; z-index: 1;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* The glow: the same arc, blurred, behind the element. */
+.glow-border::after { inset: -2px; filter: blur(9px); opacity: 0.55; }
+@keyframes glow-spin { to { --glow-angle: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .glow-border::before, .glow-border::after { animation: none; } }

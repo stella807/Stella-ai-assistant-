@@ -28,7 +28,7 @@ export function FirstAssistantCard() {
   if (!who) return null;
   const heading = firstAssistantHeading(who.gender, es);
   return (
-    <section className="card stack" aria-label={heading}>
+    <section className="card stack glow-border" aria-label={heading}>
       <span className="section-label">{heading}</span>
       <div className="row" style={{ gap: 12, alignItems: "center" }}>
         {safeImageSrc(who.photoUrl) && <img src={safeImageSrc(who.photoUrl)} alt={who.firstName} width={72} height={72} style={{ borderRadius: 18, objectFit: "cover" }} />}
