@@ -41,13 +41,13 @@
 }
 /* The ring: the gradient shows only in a thin border-width frame. */
 .glow-border::before {
-  padding: 1px; z-index: 1;
+  padding: 0.75px; z-index: 1;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 /* The glow: the same arc, blurred, behind the element. */
 .glow-border::after {
-  inset: -2px; padding: 3px; filter: blur(10px) saturate(1.4) brightness(1.25); opacity: 1;
+  inset: -1px; padding: 1.5px; filter: blur(5px) saturate(1.4) brightness(1.25); opacity: 1;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
