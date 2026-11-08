@@ -18,6 +18,8 @@
      canyon of empty space under their content. */
   transition: height 180ms ease;
   overflow-y: hidden;
+  /* Keeps a taller neighbouring slide from adding scroll height below the page on iOS. */
+  contain: paint;
 }
 .slides::-webkit-scrollbar { display: none; }
 

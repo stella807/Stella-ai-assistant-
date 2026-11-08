@@ -113,6 +113,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-x: clip;
 }
 
 /* Headlines are the loudest thing on the page: heavy, tight, left-aligned. */
