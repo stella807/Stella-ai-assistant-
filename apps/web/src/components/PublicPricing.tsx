@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   CONCIERGE_CATEGORIES, DRIVER_RATE_CARD, ELITE_ONLY, ERRAND_TIERS, PA_HOURLY_RATE_CENTS, errandPayoutCents,
   QUICK_TASK_CATEGORIES, defaultHoursFor, featureLabel,
-  DESK_COVERAGE, includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
+  includedConciergeHours, isElitePlan, isHourlyCategory, minutesFor, serviceFeeFor,
   type LaunchOffer, type Plan, type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
@@ -172,7 +172,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
               {/* Two different things, in two columns on purpose: the desk
                   answers around the clock, and an assistant's time on the
                   ground is an allowance. See DESK_COVERAGE in elite.ts. */}
-              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>{e.desk}</th><th>{e.hours}</th></tr>
+              <tr><th>{t("pricing.plan")}</th><th>{t("pricing.perMonth")}</th><th>{t("pricing.people")}</th><th>{e.hours}</th></tr>
             </thead>
             <tbody>
               {rungs.map((p) => (
@@ -183,10 +183,9 @@ function EliteShowcase({ plans, eliteUnlock }: {
                     {money(p.monthlyOffer?.discounted ? p.monthlyOffer.payCents : p.monthlyCents)}
                   </td>
                   <td>{p.seats}</td>
-                  <td>{DESK_COVERAGE}</td>
                   {/* On call at any hour; the number is the hours already
                       paid for, with more billed at the hourly rate. */}
-                  <td>{DESK_COVERAGE} · {includedConciergeHours(p.id)} {e.hrs}</td>
+                  <td>{includedConciergeHours(p.id)} {e.hrs}</td>
                 </tr>
               ))}
             </tbody>
@@ -212,7 +211,6 @@ const ELITE_COPY = {
     why: (multiple: number, low: number, high: number) =>
       `Elite includes a monthly spending allowance that Safehubby pays for. We're holding the plan until the business earns ${multiple}× what that allowance would cost if our first ${low}–${high} members on each plan all used it in full in the same month. We cover the commitment first, then sell the plan.`,
     progress: (have: string, need: string, pct: number) => `${have} of ${need} needed (${pct}%).`,
-    desk: "Desk",
     hours: "Assistant",
     hrs: "hrs/mo included",
     features: {
@@ -233,7 +231,6 @@ const ELITE_COPY = {
     why: (multiple: number, low: number, high: number) =>
       `Elite incluye un fondo mensual para gastos que paga Safehubby. Esperamos a abrir el plan hasta que el negocio genere ${multiple} veces lo que costaría ese fondo si nuestros primeros ${low} a ${high} miembros de cada plan lo usaran completo en el mismo mes. Primero cubrimos el compromiso, después vendemos el plan.`,
     progress: (have: string, need: string, pct: number) => `${have} de ${need} necesarios (${pct}%).`,
-    desk: "Servicio",
     hours: "Asistente",
     hrs: "h/mes incluidas",
     features: {
