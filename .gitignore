@@ -4,6 +4,11 @@ dist/
 *.log
 .DS_Store
 
+# Local secrets: never commit these. .env.example stays, with no real values.
+.env
+.env.*
+!.env.example
+
 # Capacitor native projects are COMMITTED: the manifest, permissions, signing
 # config and ProGuard rules are real source, and regenerating them on every
 # clone would lose all of it. Only the build output and local machine paths
