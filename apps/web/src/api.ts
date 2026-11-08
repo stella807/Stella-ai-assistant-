@@ -225,13 +225,11 @@ export interface DriverApplicationInput {
   backgroundCheckConsent: boolean;
 }
 
-/** How many times a read is retried when something in front of the server answers 429. */
+/** How many times a request is retried when something in front of the server answers 429. */
 const EDGE_RETRIES = 4;
 
 async function request<T>(
   method: string, path: string, body?: unknown, extraHeaders?: Record<string, string>,
-  /** For a write that is safe to repeat (setting a field to a value), so a host's 429 is waited out like a read's. */
-  repeatable = false,
 ): Promise<T> {
   let attempt = 0;
   for (;;) {
@@ -243,9 +241,10 @@ async function request<T>(
       body: body ? JSON.stringify(body) : undefined,
     });
     // A 429 with no message of ours came from something in front of the server (a proxy or the host),
-    // which is asking for a moment's quiet. Reads are safe to repeat, so wait as told and try again
-    // rather than putting an error on screen for something that clears itself. Writes are never repeated.
-    if (res.status === 429 && (method === "GET" || repeatable) && attempt < EDGE_RETRIES) {
+    // which is asking for a moment's quiet. That answer comes before the request reaches this app (every limit
+    // of ours says so in a message), so nothing was done and repeating is safe, a write included. Wait as told
+    // and try again rather than putting an error on screen for something that clears itself.
+    if (res.status === 429 && attempt < EDGE_RETRIES) {
       const peek = await res.clone().json().catch(() => null);
       if (typeof peek?.error !== "string") {
         attempt += 1;
@@ -928,7 +927,7 @@ export const api = {
   masterMarkLaunchStep: (id: LaunchStepId, done: boolean) =>
     request<{ ok: true }>("POST", `/api/master/launch/${id}`, { done }),
   masterSetAssistantGender: (id: string, gender: "female" | "male" | "") =>
-    request<{ assistantId: string; gender: string | null }>("POST", `/api/master/assistants/${id}/gender`, { gender }, undefined, true),
+    request<{ assistantId: string; gender: string | null }>("POST", `/api/master/assistants/${id}/gender`, { gender }),
   masterRefundCharges: (email: string) =>
     request<RefundCharges>("GET", `/api/master/refunds?email=${encodeURIComponent(email)}`),
   masterRefund: (chargeId: string) =>
