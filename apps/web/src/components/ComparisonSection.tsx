@@ -11,6 +11,7 @@ const ROWS: Row[] = [
   { label: { en: "Rides", es: "Transporte" }, values: ["yes", "no", "yes", "some"] },
   { label: { en: "Armed bodyguard, by the hour", es: "Guardaespaldas armado, por hora" }, values: ["yes", "no", "no", "yes"] },
   { label: { en: "SOS and check-ins", es: "SOS y chequeos" }, values: ["yes", "no", "no", "no"] },
+  { label: { en: "Book and schedule online", es: "Reserva y programa en línea" }, values: ["yes", "no", "yes", "some"] },
   { label: { en: "Prices shown up front", es: "Precios a la vista" }, values: ["yes", "some", "yes", "no"] },
   { label: { en: "Spanish and English", es: "Español e inglés" }, values: ["yes", "some", "yes", "some"] },
   { label: { en: "One account, one card", es: "Una cuenta, una tarjeta" }, values: ["yes", "no", "no", "no"] },
