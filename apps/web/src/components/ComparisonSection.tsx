@@ -8,7 +8,7 @@ interface Row { label: { en: string; es: string }; values: [Cell, Cell, Cell, Ce
 const ROWS: Row[] = [
   { label: { en: "Assistant and errands", es: "Asistente y mandados" }, values: ["yes", "some", "no", "no"] },
   { label: { en: "Hospital-day companion", es: "Acompañante en el hospital" }, values: ["yes", "yes", "no", "no"] },
-  { label: { en: "Rides", es: "Transporte" }, values: ["yes", "no", "yes", "some"], note: { en: "Armored SUVs", es: "SUV blindadas" } },
+  { label: { en: "Rides", es: "Transporte" }, values: ["yes", "no", "yes", "some"] },
   { label: { en: "Armed bodyguard, by the hour", es: "Guardaespaldas armado, por hora" }, values: ["yes", "no", "no", "yes"] },
   { label: { en: "SOS and check-ins", es: "SOS y chequeos" }, values: ["yes", "no", "no", "no"] },
   { label: { en: "Prices shown up front", es: "Precios a la vista" }, values: ["yes", "some", "yes", "no"] },
