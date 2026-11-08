@@ -2716,6 +2716,35 @@ describe("biweekly payroll", () => {
       expect((await callAdmin("GET", "/api/master/vendors")).json.vendors).toHaveLength(first.length);
     });
 
+    it("keeps vendors in named lists, one per area, that the owner creates, renames, moves between and deletes", async () => {
+      const got = (await callAdmin("GET", "/api/master/vendors")).json;
+      // The researched Puerto Rico vendors start in one default list.
+      expect(got.lists).toHaveLength(1);
+      expect(got.lists[0].name).toBe("Puerto Rico vendors");
+      expect(got.vendors.every((v: { listId: string }) => v.listId === got.lists[0].id)).toBe(true);
+
+      expect((await callAdmin("POST", "/api/master/vendor-lists", { name: "   " })).status).toBe(400);
+      expect((await callAdmin("POST", "/api/master/vendor-lists", { name: "puerto rico VENDORS" })).status).toBe(400);
+      const texas = (await callAdmin("POST", "/api/master/vendor-lists", { name: "Texas" })).json.list;
+      const machu = (await callAdmin("POST", "/api/master/vendor-lists", { name: "Machu Picchu" })).json.list;
+      expect((await callAdmin("GET", "/api/master/vendors")).json.lists.map((l: { name: string }) => l.name)).toEqual(["Puerto Rico vendors", "Texas", "Machu Picchu"]);
+
+      // A vendor saved under a list lives in that list only.
+      const added = (await callAdmin("POST", "/api/master/vendors", { name: "Austin Event Co", category: "event-planner", listId: texas.id })).json.vendor;
+      expect(added.listId).toBe(texas.id);
+      expect((await callAdmin("POST", "/api/master/vendors", { name: "Nowhere Co", category: "event-planner", listId: "nope" })).status).toBe(400);
+
+      // A list with vendors cannot be deleted; an empty one can, and the last list stays.
+      expect((await callAdmin("POST", `/api/master/vendor-lists/${texas.id}/delete`, {})).status).toBe(400);
+      expect((await callAdmin("POST", `/api/master/vendor-lists/${machu.id}/delete`, {})).status).toBe(200);
+      const moved = await callAdmin("POST", `/api/master/vendors/${added.id}`, { listId: got.lists[0].id });
+      expect(moved.json.vendor.listId).toBe(got.lists[0].id);
+      expect((await callAdmin("POST", `/api/master/vendors/${added.id}`, { listId: "nope" })).status).toBe(400);
+      expect((await callAdmin("POST", `/api/master/vendor-lists/${texas.id}`, { name: "Texas and Oklahoma" })).json.list.name).toBe("Texas and Oklahoma");
+      expect((await callAdmin("POST", `/api/master/vendor-lists/${texas.id}/delete`, {})).status).toBe(200);
+      expect((await callAdmin("POST", `/api/master/vendor-lists/${got.lists[0].id}/delete`, {})).status).toBe(400);
+    });
+
     it("lets the owner correct a vendor's name and details after saving it, and refuses a blank name", async () => {
       const first = (await callAdmin("GET", "/api/master/vendors")).json.vendors[0];
       const fixed = await callAdmin("POST", `/api/master/vendors/${first.id}`, { name: "  Infinito Productions  ", area: "San Juan", offers: "Live entertainment", sourceUrl: "https://www.infinitoproductions.com" });

@@ -35,8 +35,16 @@ export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
 export type VendorStatus = "lead" | "contacted" | "quoted" | "booked" | "declined";
 export const VENDOR_STATUSES: VendorStatus[] = ["lead", "contacted", "quoted", "booked", "declined"];
 
+/** A named list of vendors for one area the owner works in ("Puerto Rico vendors", "Texas"). */
+export interface VendorList { id: string; name: string }
+
+/** Where the researched Puerto Rico vendors, and any vendor with no list, live until the owner moves them. */
+export const DEFAULT_VENDOR_LIST: VendorList = { id: "list-puerto-rico", name: "Puerto Rico vendors" };
+
 export interface Vendor {
   id: string;
+  /** The list it is saved under. Absent on older records, which belong to the default list. */
+  listId?: string;
   name: string;
   category: VendorCategory;
   /** Where in Puerto Rico it works. */

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Vendor, VendorCategory, VendorStatus } from "@safehubby/core";
+import type { Vendor, VendorCategory, VendorList, VendorStatus } from "@safehubby/core";
 import { api } from "../api.ts";
 import { safeHttpUrl } from "../app/safe-url.ts";
 
@@ -18,25 +18,31 @@ const STATUS_LABEL: Record<VendorStatus, string> = {
 export function VendorsSection() {
   const [vendors, setVendors] = useState<Vendor[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
+  const [lists, setLists] = useState<VendorList[]>([]);
+  const [listId, setListId] = useState<string>("");
+  // "new": typing the name of a list to create; "rename": changing the selected list's name.
+  const [listForm, setListForm] = useState<"new" | "rename" | null>(null);
+  const [listName, setListName] = useState("");
   const [filter, setFilter] = useState<VendorCategory | "all">("all");
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: "", category: "event-planner" as VendorCategory, area: "", offers: "", sourceUrl: "" });
   const [editing, setEditing] = useState<string | null>(null);
-  const [edit, setEdit] = useState({ name: "", category: "event-planner" as VendorCategory, area: "", offers: "", sourceUrl: "" });
+  const [edit, setEdit] = useState({ name: "", listId: "", category: "event-planner" as VendorCategory, area: "", offers: "", sourceUrl: "" });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.masterVendors().then((r) => { setVendors(r.vendors); setMeta({ categories: r.categories, statuses: r.statuses }); })
+    api.masterVendors().then((r) => { setVendors(r.vendors); setLists(r.lists); setListId(r.lists[0]?.id ?? ""); setMeta({ categories: r.categories, statuses: r.statuses }); })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load the vendor list"));
   }, []);
 
-  const shown = useMemo(() => (vendors ?? []).filter((v) => filter === "all" || v.category === filter), [vendors, filter]);
+  const inList = useMemo(() => (vendors ?? []).filter((v) => v.listId === listId), [vendors, listId]);
+  const shown = useMemo(() => inList.filter((v) => filter === "all" || v.category === filter), [inList, filter]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const v of vendors ?? []) c[v.status] = (c[v.status] ?? 0) + 1;
+    for (const v of inList) c[v.status] = (c[v.status] ?? 0) + 1;
     return c;
-  }, [vendors]);
+  }, [inList]);
 
   if (!vendors || !meta) return error ? <p className="tiny" role="alert">{error}</p> : null;
 
@@ -51,7 +57,7 @@ export function VendorsSection() {
   };
 
   const startEdit = (v: Vendor) => {
-    setEdit({ name: v.name, category: v.category, area: v.area ?? "", offers: v.offers ?? "", sourceUrl: v.sourceUrl ?? "" });
+    setEdit({ name: v.name, listId: v.listId ?? listId, category: v.category, area: v.area ?? "", offers: v.offers ?? "", sourceUrl: v.sourceUrl ?? "" });
     setEditing(v.id);
   };
 
@@ -63,7 +69,7 @@ export function VendorsSection() {
   const add = async () => {
     setError(null);
     try {
-      const { vendor } = await api.masterAddVendor(draft);
+      const { vendor } = await api.masterAddVendor({ ...draft, listId });
       setVendors((all) => [...(all ?? []), vendor]);
       setDraft({ name: "", category: draft.category, area: "", offers: "", sourceUrl: "" });
       setAdding(false);
@@ -82,11 +88,43 @@ export function VendorsSection() {
     }
   };
 
+  const saveList = async () => {
+    setError(null);
+    try {
+      if (listForm === "new") {
+        const { list } = await api.masterAddVendorList(listName);
+        setLists((all) => [...all, list]);
+        setListId(list.id);
+        setFilter("all");
+      } else if (listForm === "rename") {
+        const { list } = await api.masterRenameVendorList(listId, listName);
+        setLists((all) => all.map((l) => (l.id === list.id ? list : l)));
+      }
+      setListForm(null);
+      setListName("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That list did not save");
+    }
+  };
+
+  const deleteList = async () => {
+    setError(null);
+    try {
+      await api.masterDeleteVendorList(listId);
+      const rest = lists.filter((l) => l.id !== listId);
+      setLists(rest);
+      setListId(rest[0]?.id ?? "");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete that list");
+    }
+  };
+
+  const currentList = lists.find((l) => l.id === listId);
   const label = (id: VendorCategory) => meta.categories.find((c) => c.id === id)?.label ?? id;
 
   return (
     <section className="card stack" aria-label="Event vendors">
-      <h3 style={{ margin: 0 }}>Event vendors</h3>
+      <h3 style={{ margin: 0 }}>Event vendors{currentList ? `: ${currentList.name}` : ""}</h3>
       <p className="tiny muted" style={{ margin: 0 }}>
         Businesses that could help put on the club's events. These are leads from research: nothing here was confirmed with
         the business, and prices come from listings that may be out of date. Add who you speak to and what was quoted.
@@ -96,10 +134,37 @@ export function VendorsSection() {
       </p>
 
       <div className="field">
+        <label htmlFor="vendor-list">Vendor list</label>
+        <select id="vendor-list" value={listId} onChange={(e) => { setListId(e.target.value); setFilter("all"); setListForm(null); setOpen(null); setEditing(null); }}>
+          {lists.map((l) => <option key={l.id} value={l.id}>{l.name} ({(vendors ?? []).filter((v) => v.listId === l.id).length})</option>)}
+        </select>
+      </div>
+      {listForm ? (
+        <div className="card card-quiet stack" style={{ gap: 8 }}>
+          <div className="field">
+            <label htmlFor="vendor-list-name">{listForm === "new" ? "Name the new list (an area, like Texas)" : "New name for this list"}</label>
+            <input id="vendor-list-name" value={listName} maxLength={80} onChange={(e) => setListName(e.target.value)} />
+          </div>
+          <div className="row">
+            <button className="btn grow" onClick={() => { setListForm(null); setListName(""); }}>Cancel</button>
+            <button className="btn btn-primary grow" disabled={!listName.trim()} onClick={() => void saveList()}>{listForm === "new" ? "Create list" : "Save name"}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          <button className="btn btn-sm" onClick={() => { setListForm("new"); setListName(""); }}>New list</button>
+          <button className="btn btn-sm btn-ghost" disabled={!currentList} onClick={() => { setListForm("rename"); setListName(currentList?.name ?? ""); }}>Rename</button>
+          <button className="btn btn-sm btn-ghost" disabled={!currentList || inList.length > 0 || lists.length <= 1}
+            title={inList.length > 0 ? "Move or remove its vendors first" : undefined} onClick={() => void deleteList()}>Delete list</button>
+        </div>
+      )}
+      {inList.length === 0 && currentList && <p className="tiny muted" style={{ margin: 0 }}>{currentList.name} has no vendors yet. Add the first one below.</p>}
+
+      <div className="field">
         <label htmlFor="vendor-filter">Show</label>
         <select id="vendor-filter" value={filter} onChange={(e) => setFilter(e.target.value as VendorCategory | "all")}>
-          <option value="all">Everything ({vendors.length})</option>
-          {meta.categories.map((c) => <option key={c.id} value={c.id}>{c.label} ({vendors.filter((v) => v.category === c.id).length})</option>)}
+          <option value="all">Everything in this list ({inList.length})</option>
+          {meta.categories.map((c) => <option key={c.id} value={c.id}>{c.label} ({inList.filter((v) => v.category === c.id).length})</option>)}
         </select>
       </div>
 
@@ -119,6 +184,9 @@ export function VendorsSection() {
                 <div className="card card-quiet stack" style={{ gap: 8 }}>
                   <div className="field"><label htmlFor={`en-${v.id}`}>Name</label>
                     <input id={`en-${v.id}`} value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></div>
+                  <div className="field"><label htmlFor={`el-${v.id}`}>List</label>
+                    <select id={`el-${v.id}`} value={edit.listId} onChange={(e) => setEdit({ ...edit, listId: e.target.value })}>
+                      {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
                   <div className="field"><label htmlFor={`ec-${v.id}`}>Type</label>
                     <select id={`ec-${v.id}`} value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value as VendorCategory })}>
                       {meta.categories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></div>

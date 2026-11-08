@@ -6,7 +6,7 @@ import type {
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
-  MonthlyFreebies, PayoutSheet, Vendor, VendorCategory, VendorStatus, RecoveryPlan, ShareGrant, SpendRequest,
+  MonthlyFreebies, PayoutSheet, Vendor, VendorList, VendorCategory, VendorStatus, RecoveryPlan, ShareGrant, SpendRequest,
   Statement, Subscription, Venue, VoiceMessage,
 } from "@safehubby/core";
 
@@ -893,10 +893,13 @@ export const api = {
     request<{ year: string; totalWithheldCents: number; workers: { assistantId: string; name: string; paidCents: number; withheldCents: number }[] }>(
       "GET", "/api/master/withholding"),
   masterVendors: () =>
-    request<{ vendors: Vendor[]; categories: { id: VendorCategory; label: string }[]; statuses: VendorStatus[] }>("GET", "/api/master/vendors"),
-  masterUpdateVendor: (id: string, patch: Partial<Pick<Vendor, "status" | "contactName" | "phone" | "email" | "ownerNotes" | "name" | "category" | "area" | "offers" | "sourceUrl">>) =>
+    request<{ vendors: Vendor[]; lists: VendorList[]; categories: { id: VendorCategory; label: string }[]; statuses: VendorStatus[] }>("GET", "/api/master/vendors"),
+  masterAddVendorList: (name: string) => request<{ list: VendorList }>("POST", "/api/master/vendor-lists", { name }),
+  masterRenameVendorList: (id: string, name: string) => request<{ list: VendorList }>("POST", `/api/master/vendor-lists/${id}`, { name }),
+  masterDeleteVendorList: (id: string) => request<{ ok: true }>("POST", `/api/master/vendor-lists/${id}/delete`, {}),
+  masterUpdateVendor: (id: string, patch: Partial<Pick<Vendor, "status" | "contactName" | "phone" | "email" | "ownerNotes" | "name" | "category" | "area" | "offers" | "sourceUrl" | "listId">>) =>
     request<{ vendor: Vendor }>("POST", `/api/master/vendors/${id}`, patch),
-  masterAddVendor: (v: { name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
+  masterAddVendor: (v: { listId?: string; name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
   masterFreebies: () =>

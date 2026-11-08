@@ -71,7 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, jobPayRates, JOB_PAY_ROLES, jobPayUnit, defaultJobPayCents, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
-  SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorCategory, type VendorStatus,
+  DEFAULT_VENDOR_LIST, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
@@ -6485,7 +6485,51 @@ export const routes: Record<string, Handler> = {
         db.vendorSeedsOffered = SUGGESTED_VENDORS.map((v) => v.id);
       });
     }
-    return { vendors: ctx.store.data.vendors ?? [], categories: VENDOR_CATEGORIES, statuses: VENDOR_STATUSES };
+    // Every vendor sits in a list. The first time through, the researched Puerto Rico vendors go to the default list.
+    const lists = ctx.store.data.vendorLists;
+    const fallbackId = (lists?.[0] ?? DEFAULT_VENDOR_LIST).id;
+    if (!lists?.length || (ctx.store.data.vendors ?? []).some((v) => !v.listId)) {
+      ctx.store.update((db) => {
+        if (!db.vendorLists?.length) db.vendorLists = [DEFAULT_VENDOR_LIST];
+        for (const v of db.vendors ?? []) if (!v.listId) v.listId = fallbackId;
+      });
+    }
+    return { vendors: ctx.store.data.vendors ?? [], lists: ctx.store.data.vendorLists ?? [], categories: VENDOR_CATEGORIES, statuses: VENDOR_STATUSES };
+  },
+
+  "POST /api/master/vendor-lists": (ctx, _p, body) => {
+    requireAdmin(ctx, "write");
+    const name = cleanText(body?.name, 80);
+    if (!name) throw new HttpError(400, "Give the list a name.");
+    const lists = ctx.store.data.vendorLists?.length ? ctx.store.data.vendorLists : [DEFAULT_VENDOR_LIST];
+    if (lists.some((l) => l.name.toLowerCase() === name.toLowerCase())) throw new HttpError(400, "There is already a list with that name.");
+    const list: VendorList = { id: newId("vls"), name };
+    ctx.store.update((db) => { db.vendorLists = [...(db.vendorLists?.length ? db.vendorLists : [DEFAULT_VENDOR_LIST]), list]; });
+    return { list };
+  },
+
+  "POST /api/master/vendor-lists/:id": (ctx, p, body) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const lists = ctx.store.data.vendorLists ?? [];
+    if (!lists.some((l) => l.id === id)) throw notFound("List");
+    const name = cleanText(body?.name, 80);
+    if (!name) throw new HttpError(400, "Give the list a name.");
+    if (lists.some((l) => l.id !== id && l.name.toLowerCase() === name.toLowerCase())) throw new HttpError(400, "There is already a list with that name.");
+    ctx.store.update((db) => { const l = (db.vendorLists ?? []).find((x) => x.id === id)!; l.name = name; });
+    return { list: (ctx.store.data.vendorLists ?? []).find((l) => l.id === id)! };
+  },
+
+  "POST /api/master/vendor-lists/:id/delete": (ctx, p) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const lists = ctx.store.data.vendorLists ?? [];
+    if (!lists.some((l) => l.id === id)) throw notFound("List");
+    if (lists.length <= 1) throw new HttpError(400, "Keep at least one list.");
+    // Nothing is deleted with its list: the vendors have to be moved or removed first.
+    if ((ctx.store.data.vendors ?? []).some((v) => v.listId === id)) throw new HttpError(400, "Move or remove this list's vendors first.");
+    ctx.store.update((db) => { db.vendorLists = (db.vendorLists ?? []).filter((l) => l.id !== id); });
+    return { ok: true };
   },
 
   "POST /api/master/vendors": (ctx, _p, body) => {
@@ -6494,8 +6538,11 @@ export const routes: Record<string, Handler> = {
     const category = String(body?.category ?? "") as VendorCategory;
     if (!name) throw new HttpError(400, "A vendor needs a name.");
     if (!VENDOR_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Pick a category.");
+    const lists = ctx.store.data.vendorLists?.length ? ctx.store.data.vendorLists : [DEFAULT_VENDOR_LIST];
+    const listId = body?.listId === undefined ? lists[0]!.id : String(body.listId);
+    if (!lists.some((l) => l.id === listId)) throw new HttpError(400, "Pick one of your lists.");
     const vendor: Vendor = {
-      id: newId("vnd"), name, category, area: cleanText(body?.area, 120), offers: cleanText(body?.offers, 400),
+      id: newId("vnd"), listId, name, category, area: cleanText(body?.area, 120), offers: cleanText(body?.offers, 400),
       notes: cleanText(body?.notes, 600), sourceUrl: cleanUrl(body?.sourceUrl), status: "lead",
       contactName: cleanText(body?.contactName, 120) || undefined, phone: cleanText(body?.phone, 40) || undefined,
       email: cleanText(body?.email, 160) || undefined, updatedAt: ctx.now().toISOString(),
@@ -6516,9 +6563,12 @@ export const routes: Record<string, Handler> = {
     if (name !== undefined && !name) throw new HttpError(400, "A vendor needs a name.");
     const category = body?.category === undefined ? undefined : String(body.category) as VendorCategory;
     if (category !== undefined && !VENDOR_CATEGORIES.some((c) => c.id === category)) throw new HttpError(400, "Pick a category.");
+    const listId = body?.listId === undefined ? undefined : String(body.listId);
+    if (listId !== undefined && !(ctx.store.data.vendorLists ?? []).some((l) => l.id === listId)) throw new HttpError(400, "Pick one of your lists.");
     ctx.store.update((db) => {
       const v = (db.vendors ?? []).find((x) => x.id === id)!;
       if (name !== undefined) v.name = name;
+      if (listId !== undefined) v.listId = listId;
       if (category !== undefined) v.category = category;
       if (body?.area !== undefined) v.area = cleanText(body.area, 120);
       if (body?.offers !== undefined) v.offers = cleanText(body.offers, 400);
