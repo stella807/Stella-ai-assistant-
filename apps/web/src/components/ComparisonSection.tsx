@@ -57,7 +57,7 @@ export function ComparisonSection() {
   const lang = useLanguage().language === "es" ? "es" : "en";
   const w = WORDS[lang];
   return (
-    <section className="card stack rival-section" aria-label={w.heading}>
+    <section className="card stack rival-section glow-border" aria-label={w.heading}>
       <h2>{w.heading}</h2>
       <p className="small muted" style={{ margin: 0 }}>{w.lead}</p>
       <div className="rival-scroll">

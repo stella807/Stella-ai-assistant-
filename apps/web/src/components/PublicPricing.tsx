@@ -46,7 +46,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
 
   return (
     <>
-      <section className="card card-lead stack">
+      <section className="card card-lead stack glow-border">
         <h2>{t("pricing.heading")}</h2>
         <p className="small muted" style={{ margin: 0 }}>{t("pricing.subtitle")}</p>
 
@@ -139,7 +139,7 @@ function EliteShowcase({ plans, eliteUnlock }: {
   const locked = rungs.some((p) => (p as unknown as { locked?: boolean }).locked);
 
   return (
-    <section className="card stack" aria-label="Elite">
+    <section className="card stack glow-border" aria-label="Elite">
       <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
         aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <h3 style={{ margin: 0 }}>

@@ -65,7 +65,7 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
       : <span className="compare-text">{c.text}</span>;
 
   return (
-    <section className="card stack">
+    <section className="card stack glow-border">
       <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
         aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <h3 style={{ margin: 0 }}>{t("compare.heading")}</h3>

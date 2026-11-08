@@ -185,7 +185,7 @@ export function PlanPicker({ currentPlanId, busy, onChoose }: {
           unless somebody is on it or goes looking — discoverable, but not in
           the way of the decision most people are actually making. */}
       {elite.length > 0 && (
-        <section className="card stack">
+        <section className="card stack glow-border">
           <div className="row-between">
             <div className="stack" style={{ gap: 2 }}>
               <h3>{t("plans.conciergeMemberships")}</h3>

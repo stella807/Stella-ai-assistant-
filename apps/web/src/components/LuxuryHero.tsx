@@ -27,7 +27,7 @@ export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrice
   ];
   return (
     <section className="lux" aria-label="Safehubby">
-      <div className="lux-hero">
+      <div className="lux-hero glow-border">
         <img className="lux-photo" src="/img/hero-luxury.jpg" alt="" width={976} height={560} />
         <div className="lux-shade" />
         <div className="lux-copy">
