@@ -30,13 +30,13 @@
 @media (min-width: 560px) { .lux-doors { grid-template-columns: repeat(3, 1fr); } .lux-doors li:nth-child(odd) { border-right: 0; } .lux-doors li:not(:nth-child(3n)) { border-right: 1px solid rgba(217, 178, 106, .16); } }
 @media (prefers-reduced-motion: reduce) { .lux-photo, .lux-copy, .lux-doors li { animation: none !important; } }
 
-/* A "comet" border: two bright arcs race around a dim ring: the logo's blue and silver, and orange opposite it. An angle that the browser can animate (@property) is
+/* A "comet" border: two bright arcs race around a dim ring: the logo's blue and silver, and a short touch of orange opposite it. An angle that the browser can animate (@property) is
    all it takes, so there is no script. Add `glow-border` to anything with rounded corners. */
 @property --glow-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
-.glow-border { position: relative; isolation: isolate; --glow-dim: rgba(120, 150, 200, 0.28); --glow-blue: #2d6cf0; --glow-bright: #5fa0ff; --glow-silver: #eef2f8; --glow-orange: #ff7a18; --glow-amber: #ffc45e; }
+.glow-border { position: relative; isolation: isolate; --glow-dim: rgba(120, 150, 200, 0.28); --glow-blue: #2d6cf0; --glow-bright: #5fa0ff; --glow-silver: #eef2f8; --glow-orange: rgba(255, 122, 24, 0.7); --glow-amber: rgba(255, 196, 94, 0.85); }
 .glow-border::before, .glow-border::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
-  background: conic-gradient(from var(--glow-angle), var(--glow-dim) 0deg 70deg, var(--glow-orange) 125deg, var(--glow-amber) 180deg, var(--glow-dim) 180deg 250deg, var(--glow-blue) 295deg, var(--glow-bright) 335deg, var(--glow-silver) 360deg);
+  background: conic-gradient(from var(--glow-angle), var(--glow-dim) 0deg 130deg, var(--glow-orange) 158deg, var(--glow-amber) 180deg, var(--glow-dim) 180deg 250deg, var(--glow-blue) 295deg, var(--glow-bright) 335deg, var(--glow-silver) 360deg);
   animation: glow-spin 2.4s linear infinite;
 }
 /* The ring: the gradient shows only in a thin border-width frame. */
