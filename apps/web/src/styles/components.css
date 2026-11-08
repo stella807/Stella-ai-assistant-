@@ -1323,3 +1323,21 @@ label:has(> input[type="checkbox"]) {
 
 /* File pickers size to their filename; keep them inside narrow forms. */
 input[type="file"] { max-width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* The comparison table on the landing page: a wide table scrolls sideways on a phone rather than squeezing. */
+.rival-section { min-width: 0; max-width: 100%; }
+.rival-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; max-width: 100%; min-width: 0; }
+.rival-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.rival-table tbody th { width: 30%; font-size: 12.5px; }
+.rival-table thead th { font-size: 10px; letter-spacing: -0.01em; }
+.rival-table th, .rival-table td { padding: 8px 2px; }
+.rival-table tbody th { padding-right: 6px; }
+.rival-table th, .rival-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: center; vertical-align: middle; }
+.rival-table thead th { color: var(--muted); font-weight: 650; font-size: 12px; }
+.rival-table tbody th { text-align: left; font-weight: 600; }
+.rival-table .rival-us { background: rgba(212, 175, 90, 0.10); }
+.rival-table thead th.rival-us { color: var(--text, inherit); }
+.rival-yes { color: #3ecf8e; font-weight: 700; font-size: 16px; }
+.rival-some { color: var(--muted); font-weight: 700; }
+.rival-no { color: var(--muted); opacity: 0.6; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

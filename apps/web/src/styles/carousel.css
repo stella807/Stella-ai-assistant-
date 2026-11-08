@@ -23,6 +23,9 @@
 
 .slide {
   flex: 0 0 100%;
+  /* A flex item will not shrink below its content, so one wide table made the whole slide wider than the
+     screen. Zero lets the slide stay one screen wide and the table scroll inside its own box. */
+  min-width: 0;
   /* `start`, not `center`: centering inside a full-width track leaves the
      neighbouring slides peeking through the gutter, which reads as a
      rendering fault rather than an affordance. */

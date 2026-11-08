@@ -7,6 +7,7 @@ import { NewsletterSignup } from "./NewsletterSignup.tsx";
 import { PublicPricing } from "./PublicPricing.tsx";
 import { Footer } from "./Footer.tsx";
 import { FirstAssistantCard } from "./FirstAssistantCard.tsx";
+import { ComparisonSection } from "./ComparisonSection.tsx";
 import { LuxuryHero } from "./LuxuryHero.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
@@ -108,6 +109,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           <MissionSection />
           <WhatWeDoSection />
           <FirstAssistantCard />
+          <ComparisonSection />
           <button className="btn btn-primary btn-block" onClick={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}>
             {t("landing.getStarted")}
           </button>
