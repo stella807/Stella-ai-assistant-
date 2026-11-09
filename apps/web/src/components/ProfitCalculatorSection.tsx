@@ -72,6 +72,12 @@ export function ProfitCalculatorSection() {
         Uses today's prices and your free-each-month settings. Usage and attendance are guesses: change them and watch the bottom line. A planning tool, not a forecast.
       </p>
 
+      {/* Stays on screen while the inputs below are changed, so the answer is never a scroll away. */}
+      <div className="calc-live" role="status" aria-live="polite">
+        <span className="tiny muted">Net per month</span>
+        <strong className={result.netCents < 0 ? "is-negative" : ""}>{money(result.netCents)}</strong>
+      </div>
+
       <strong className="tiny muted">Members</strong>
       {CALCULATOR_PLANS.map((p: CalculatorPlan) => (
         <label key={p} className="row-between small">{findPlan(p).name} ({money(findPlan(p).monthlyCents)}/mo)

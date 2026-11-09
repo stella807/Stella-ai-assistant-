@@ -78,7 +78,7 @@
 .master-bar-track > span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #c99a4c, #f3e2b3); }
 
 /* Folding sections: a tab reads as a list of titles, each opens in place. */
-.master-fold { border-radius: var(--r-card, 16px); border: 1px solid rgba(201, 154, 76, 0.22); background: linear-gradient(180deg, rgba(26, 36, 56, .92), rgba(18, 26, 44, .96)); overflow: hidden; }
+.master-fold { border-radius: var(--r-card, 16px); border: 1px solid rgba(201, 154, 76, 0.22); background: linear-gradient(180deg, rgba(26, 36, 56, .92), rgba(18, 26, 44, .96)); overflow: clip; }
 .master-fold > summary { list-style: none; cursor: pointer; padding: 16px; min-height: 52px; display: flex; align-items: center; justify-content: space-between; font-family: Georgia, serif; font-size: 18px; color: #f3e2b3; }
 .master-fold > summary::-webkit-details-marker { display: none; }
 .master-fold > summary::after { content: "+"; font-family: inherit; font-size: 20px; color: #c99a4c; transition: transform 160ms ease; }
@@ -114,3 +114,10 @@
 .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .gauge-svg { width: 100%; max-width: 170px; margin: 0 auto; display: block; }
 .gauge-num { font: 700 22px/1 var(--font, system-ui); fill: #f3e2b3; }
+
+/* The calculator's answer stays in view while its inputs change. */
+.calc-live { position: sticky; top: 64px; z-index: 4; display: flex; align-items: baseline; justify-content: space-between; padding: 10px 14px; border-radius: 14px; background: rgba(18, 26, 44, 0.92); border: 1px solid rgba(201, 154, 76, 0.4); backdrop-filter: blur(10px); }
+.calc-live strong { font-size: 24px; letter-spacing: -0.02em; color: #8fe0a6; }
+.calc-live strong.is-negative { color: #ff8a8d; }
+.master-fold-body input[type="number"] { text-align: right; }
+.master-fold-body .row-between.small { gap: 12px; }

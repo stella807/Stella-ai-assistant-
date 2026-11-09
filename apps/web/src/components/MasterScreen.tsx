@@ -421,17 +421,21 @@ function TeamAccessSection({ currentAccountId }: { currentAccountId: string }) {
 }
 
 function CustomersSection({ customers }: { customers: NonNullable<MasterOverview["customers"]> }) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = q ? customers.filter((c) => `${c.name} ${c.email} ${c.planId}`.toLowerCase().includes(q)) : customers;
   return (
     <section className="card stack">
       <h3>Customers</h3>
-      <p className="tiny muted" style={{ margin: 0 }}>{customers.length} total</p>
+      <p className="tiny muted" style={{ margin: 0 }}>{q ? `${shown.length} of ${customers.length}` : `${customers.length} total`}</p>
+      <input type="search" aria-label="Search customers" placeholder="Search name, email or plan" value={query} onChange={(e) => setQuery(e.target.value)} />
       <div style={{ overflowX: "auto" }}>
         <table className="pay-table">
           <thead>
             <tr><th>Name</th><th>Email</th><th>Plan</th><th>Wingman</th></tr>
           </thead>
           <tbody>
-            {customers.map((c) => (
+            {shown.map((c) => (
               <tr key={c.id}>
                 <td>{c.name}</td>
                 <td className="tiny muted">{c.email}</td>
