@@ -153,7 +153,7 @@ const EN = {
   "pricing.errandsBlurb": "Short and specific: one thing fetched, one errand run. Priced for a quick job, at a spend cap you set — no ceiling at all on an errand — and included with every paid plan.",
   "pricing.conciergeTitle": "Personal concierge — a personal assistant",
   "pricing.conciergeBlurb": "Someone comes to you and stays: sitting with a friend who should not be alone, or going in person to check somebody is actually okay. Only a trained personal assistant is sent to these — never an errand runner.",
-  "pricing.includedNote": "Every paid plan includes assistant hours each month ({hours}). Those hours are used first for these bookings, so you pay the prices above only once your plan's hours run out. On the Free and Basic plans there are no included hours, so these prices apply from the start.",
+  "pricing.includedNote": "Every paid plan includes assistant hours each month ({hours}). The prices above are for extra hours: they apply only after your plan's included hours run out, because those hours are used first. On the Free and Basic plans there are no included hours, so these prices apply from the start.",
   "pricing.capNote": "On top of this you set a spend cap for anything they buy for you. The cap is a ceiling, not a price — you are charged for what is actually spent, and never a cent over it.",
 
   "compare.heading": "Compare what's included",
