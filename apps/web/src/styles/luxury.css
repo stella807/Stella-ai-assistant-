@@ -54,3 +54,7 @@
 }
 @keyframes glow-spin { to { --glow-angle: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .glow-border::before, .landing .card::before, .landing .banner::before, .landing .slide-nav .btn::before, .landing .slide > .btn-primary::before, .glow-border::after, .landing .card::after, .landing .banner::after, .landing .slide-nav .btn::after, .landing .slide > .btn-primary::after { animation: none; } }
+
+/* The logo's own gold ring gives way to the glowing line. */
+.brand-logo { display: inline-flex; flex: none; border-radius: 14px; }
+.brand-mark .brand-logo img { box-shadow: none; border-radius: 14px; display: block; }

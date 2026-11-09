@@ -103,7 +103,7 @@ export function App() {
     <div className="app app-customer stack">
       <header className="row-between">
         <h1 className="brand-mark">
-          <img src="/favicon.png" alt="" width={38} height={38} />
+          <span className="glow-border brand-logo"><img src="/favicon.png" alt="" width={38} height={38} /></span>
           Safehubby
         </h1>
         <div className="row" style={{ gap: 6, alignItems: "center" }}>
