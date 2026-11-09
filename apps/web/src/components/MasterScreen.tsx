@@ -273,9 +273,29 @@ function BootstrapPanel() {
   );
 }
 
+type MasterTab = "overview" | "people" | "money" | "setup";
+// Every section the portal has lives under one of these; nothing is dropped, only grouped.
+const MASTER_TABS: { id: MasterTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "people", label: "People" },
+  { id: "money", label: "Money" },
+  { id: "setup", label: "Setup" },
+];
+
 function Dashboard({ overview, onRefresh, onSignedOut }: {
   overview: MasterOverview; onRefresh: () => void; onSignedOut: () => void;
 }) {
+  const [tab, setTab] = useState<MasterTab>(() => {
+    // A refresh should not throw the owner back to the first tab.
+    try {
+      const saved = sessionStorage.getItem("sh_master_tab");
+      return MASTER_TABS.some((t) => t.id === saved) ? (saved as MasterTab) : "overview";
+    } catch { return "overview"; }
+  });
+  const pickTab = (next: MasterTab) => {
+    setTab(next);
+    try { sessionStorage.setItem("sh_master_tab", next); } catch { /* the tab still switches */ }
+  };
   const [showAudit, setShowAudit] = useState(false);
   const [audit, setAudit] = useState<MasterAuditEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -307,38 +327,45 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onRefresh}>Refresh</button>
       </div>
 
-      <MasterSummary overview={overview} />
+      <nav className="master-tabs" role="tablist" aria-label="Portal sections">
+        {MASTER_TABS.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""}
+            onClick={() => pickTab(t.id)}>{t.label}</button>
+        ))}
+      </nav>
 
-      {overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
+      {tab === "overview" && <MasterSummary overview={overview} />}
 
-      {overview.scopes.includes("club") && <ClubDeskSection />}
+      {tab === "people" && overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
+      {tab === "people" && overview.scopes.includes("club") && <ClubDeskSection />}
+      {tab === "people" && overview.customers && <CustomersSection customers={overview.customers} />}
 
-      {overview.customers && <CustomersSection customers={overview.customers} />}
-      {overview.operations && (
+      {tab === "overview" && overview.operations && (
         <ApplicationsSection operations={overview.operations} canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
       )}
-      {overview.operations && <TeamActivitySection team={overview.operations.team} canWrite={overview.scopes.includes("write")} />}
-      {overview.operations && (
+      {tab === "people" && overview.operations && <TeamActivitySection team={overview.operations.team} canWrite={overview.scopes.includes("write")} />}
+      {tab === "overview" && overview.operations && (
         <OperationsSection operations={overview.operations} />
       )}
-      {overview.money && (
+
+      {tab === "money" && overview.money && (
         <LaunchSection launch={overview.money.launch}
           canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
       )}
-      {overview.money && <MoneySection money={overview.money} />}
-      {overview.money && <PayoutSheetSection />}
-      {overview.account.role === "owner" && <FreebiesSection />}
-      {overview.account.role === "owner" && <ProfitCalculatorSection />}
-      {overview.account.role === "owner" && <VendorsSection />}
+      {tab === "money" && overview.money && <MoneySection money={overview.money} />}
+      {tab === "money" && overview.money && <PayoutSheetSection />}
+      {tab === "setup" && overview.account.role === "owner" && <FreebiesSection />}
+      {tab === "money" && overview.account.role === "owner" && <ProfitCalculatorSection />}
+      {tab === "setup" && overview.account.role === "owner" && <VendorsSection />}
 
-      {overview.account.role === "owner" && <PlansOnOfferSection />}
-      {overview.account.role === "owner" && <RefundsSection />}
-      {overview.account.role === "owner" && <ExtraHoursSection />}
-      {overview.account.role === "owner" && <IncludedHoursSection />}
-      {overview.account.role === "owner" && <HiringSection />}
-      {overview.account.role === "owner" && <PricingSection />}
+      {tab === "setup" && overview.account.role === "owner" && <PlansOnOfferSection />}
+      {tab === "money" && overview.account.role === "owner" && <RefundsSection />}
+      {tab === "money" && overview.account.role === "owner" && <ExtraHoursSection />}
+      {tab === "money" && overview.account.role === "owner" && <IncludedHoursSection />}
+      {tab === "people" && overview.account.role === "owner" && <HiringSection />}
+      {tab === "setup" && overview.account.role === "owner" && <PricingSection />}
 
-      <section className="card stack">
+      {tab === "setup" && <section className="card stack">
         <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
           aria-expanded={showAudit} onClick={toggleAudit}>
           <h3 style={{ margin: 0 }}>Access log</h3>
@@ -358,7 +385,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
             ))}
           </ul>
         )}
-      </section>
+      </section>}
     </Shell>
   );
 }

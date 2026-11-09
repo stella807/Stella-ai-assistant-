@@ -63,3 +63,13 @@
 .master-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .master-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(201, 154, 76, 0.18); }
 .master-tile-value { font-size: 22px; letter-spacing: -0.02em; }
+
+/* Owner portal: pill navigation and a bento summary. */
+.master-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(201, 154, 76, 0.2); position: sticky; top: 8px; z-index: 5; backdrop-filter: blur(10px); }
+.master-tabs button { flex: 1; min-height: 40px; border: 0; border-radius: 999px; background: transparent; color: var(--muted, #9aa7c2); font: inherit; font-weight: 650; font-size: 14px; cursor: pointer; transition: background 160ms ease, color 160ms ease; }
+.master-tabs button.on { background: linear-gradient(135deg, #f3e2b3, #c99a4c); color: #17130a; }
+.master-tiles .master-tile:first-child { background: linear-gradient(135deg, rgba(243, 226, 179, 0.16), rgba(201, 154, 76, 0.08)); }
+.master-tile-value { font-size: 24px; }
+.master-tile { transition: transform 160ms ease; }
+@media (hover: hover) { .master-tile:hover { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .master-tile, .master-tabs button { transition: none; } .master-tile:hover { transform: none; } }
