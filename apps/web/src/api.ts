@@ -1032,6 +1032,8 @@ export interface MasterOverview {
     pendingChargesCents: number;
     pendingChargeCount: number;
     byKind: Record<string, number>;
+    /** Last 30 days of settled revenue, zero-filled; absent from an older server. */
+    revenueByDay?: { day: string; cents: number }[];
     unpaidPayoutsCents: number;
     eliteUnlock: {
       thresholdCents: number; trailingRevenueCents: number; unlocked: boolean; percent: number;

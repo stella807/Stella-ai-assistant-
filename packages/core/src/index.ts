@@ -32,6 +32,7 @@ export * from "./credentials.ts";
 export * from "./team-activity.ts";
 export * from "./newsletter.ts";
 export * from "./wallet.ts";
+export * from "./revenue-series.ts";
 export * from "./auto-renewal.ts";
 export * from "./launch-plan.ts";
 export * from "./subscription.ts";

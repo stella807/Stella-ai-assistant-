@@ -50,7 +50,7 @@ import {
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
-  eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
+  revenueByDay, eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
   validatePickupRequest, ARRANGE_RIDE_FEE_CENTS, recordRideCost,
   validateAiDraftInstruction,
@@ -4429,6 +4429,7 @@ export const routes: Record<string, Handler> = {
         pendingChargesCents: pending.reduce((sum, c) => sum + c.amountCents, 0),
         pendingChargeCount: pending.length,
         byKind,
+        revenueByDay: revenueByDay(ctx.store.data.charges, now),
         unpaidPayoutsCents: ctx.store.data.assistants.reduce(
           (sum, a) => sum + unpaidEarningsCents(ctx.store.data.conciergeTasks, a.id), 0,
         ),

@@ -1,4 +1,5 @@
 import type { MasterOverview } from "../api.ts";
+import { Gauge, RevenueChart } from "./MasterCharts.tsx";
 import { attentionItems, summaryTiles } from "../app/master-summary.ts";
 
 /** The top of the owner portal: the numbers first, then what needs doing, before the long list of controls. */
@@ -18,6 +19,20 @@ export function MasterSummary({ overview }: { overview: MasterOverview }) {
               {t.hint && <span className="tiny muted">{t.hint}</span>}
             </div>
           ))}
+        </div>
+      )}
+      {overview.money?.revenueByDay && (
+        <div className="stack" style={{ gap: 8 }}>
+          <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>Revenue, last 30 days</strong>
+          <RevenueChart series={overview.money.revenueByDay} />
+        </div>
+      )}
+      {overview.money && (
+        <div className="chart-row">
+          <Gauge percent={overview.money.eliteUnlock.percent} label="Elite unlock"
+            caption={overview.money.eliteUnlock.unlocked ? "Unlocked" : "of the cushion earned"} />
+          <Gauge percent={overview.money.launch.total > 0 ? (overview.money.launch.done / overview.money.launch.total) * 100 : 0}
+            label="Launch plan" caption={`${overview.money.launch.done} of ${overview.money.launch.total} steps`} />
         </div>
       )}
       {byKind.length > 0 && (
