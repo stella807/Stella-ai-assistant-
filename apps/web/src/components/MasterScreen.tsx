@@ -358,6 +358,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         <OperationsSection operations={overview.operations} />
       )}
 
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Profit calculator" open><ProfitCalculatorSection /></Fold>}
       {tab === "money" && overview.money && (
         <Fold title="Launch plan">
           <LaunchSection launch={overview.money.launch}
@@ -367,7 +368,6 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {tab === "money" && overview.money && <Fold title="Money"><MoneySection money={overview.money} /></Fold>}
       {tab === "money" && overview.money && <Fold title="Payout sheet"><PayoutSheetSection /></Fold>}
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Free each month"><FreebiesSection /></Fold>}
-      {tab === "money" && overview.account.role === "owner" && <Fold title="Profit calculator"><ProfitCalculatorSection /></Fold>}
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Event vendors"><VendorsSection /></Fold>}
 
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Free and Basic plans"><PlansOnOfferSection /></Fold>}
