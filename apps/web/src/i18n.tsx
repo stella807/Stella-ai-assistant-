@@ -472,7 +472,7 @@ const ES: Record<TranslationKey, string> = {
   "pricing.errandsBlurb": "Corto y específico: recoger una cosa, hacer un encargo. Con precio de trabajo rápido y el límite de gasto que tú fijes — un encargo no tiene techo alguno — e incluido en todos los planes de pago.",
   "pricing.conciergeTitle": "Concierge personal — un asistente personal",
   "pricing.conciergeBlurb": "Alguien viene y se queda contigo: acompañar a un amigo que no debería estar solo, o ir en persona a comprobar que alguien está bien. A estas solo enviamos a un asistente personal capacitado — nunca a un mensajero.",
-  "pricing.includedNote": "Cada plan de pago incluye horas de asistente al mes ({hours}). Esas horas se usan primero en estas diligencias, así que pagas los precios de arriba solo cuando se te acaban las horas de tu plan. En los planes Gratis y Básico no hay horas incluidas, así que estos precios aplican desde el principio.",
+  "pricing.includedNote": "Cada plan de pago incluye horas de asistente al mes ({hours}). Los precios de arriba son para las horas extras: aplican solo después de que se acaban las horas incluidas de tu plan, porque esas horas se usan primero. En los planes Gratis y Básico no hay horas incluidas, así que estos precios aplican desde el principio.",
   "pricing.capNote": "Además, tú fijas un límite de gasto para lo que compren por ti. El límite es un techo, no un precio — se te cobra lo que realmente se gaste, y nunca un centavo más.",
 
   "compare.heading": "Compara lo que incluye cada plan",
