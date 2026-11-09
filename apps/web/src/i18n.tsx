@@ -153,6 +153,7 @@ const EN = {
   "pricing.errandsBlurb": "Short and specific: one thing fetched, one errand run. Priced for a quick job, at a spend cap you set — no ceiling at all on an errand — and included with every paid plan.",
   "pricing.conciergeTitle": "Personal concierge — a personal assistant",
   "pricing.conciergeBlurb": "Someone comes to you and stays: sitting with a friend who should not be alone, or going in person to check somebody is actually okay. Only a trained personal assistant is sent to these — never an errand runner.",
+  "pricing.includedNote": "Premium and every plan above it include assistant hours each month. Those are used first, so you pay these prices only once they run out, or on the Free and Basic plans.",
   "pricing.capNote": "On top of this you set a spend cap for anything they buy for you. The cap is a ceiling, not a price — you are charged for what is actually spent, and never a cent over it.",
 
   "compare.heading": "Compare what's included",
@@ -471,6 +472,7 @@ const ES: Record<TranslationKey, string> = {
   "pricing.errandsBlurb": "Corto y específico: recoger una cosa, hacer un encargo. Con precio de trabajo rápido y el límite de gasto que tú fijes — un encargo no tiene techo alguno — e incluido en todos los planes de pago.",
   "pricing.conciergeTitle": "Concierge personal — un asistente personal",
   "pricing.conciergeBlurb": "Alguien viene y se queda contigo: acompañar a un amigo que no debería estar solo, o ir en persona a comprobar que alguien está bien. A estas solo enviamos a un asistente personal capacitado — nunca a un mensajero.",
+  "pricing.includedNote": "Premium y todos los planes superiores incluyen horas de asistente cada mes. Esas se usan primero, así que pagas estos precios solo cuando se acaban, o en los planes Gratis y Básico.",
   "pricing.capNote": "Además, tú fijas un límite de gasto para lo que compren por ti. El límite es un techo, no un precio — se te cobra lo que realmente se gaste, y nunca un centavo más.",
 
   "compare.heading": "Compara lo que incluye cada plan",

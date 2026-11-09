@@ -103,6 +103,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
         <TaskPrices categories={concierge} />
 
+        <p className="tiny muted" style={{ margin: 0 }}>{t("pricing.includedNote")}</p>
         <p className="tiny muted" style={{ margin: 0 }}>{t("pricing.capNote")}</p>
       </section>
 
