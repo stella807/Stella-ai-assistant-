@@ -5,6 +5,7 @@ import { attentionItems, summaryTiles } from "../app/master-summary.ts";
 export function MasterSummary({ overview }: { overview: MasterOverview }) {
   const tiles = summaryTiles(overview);
   const items = attentionItems(overview);
+  const byKind = Object.entries(overview.money?.byKind ?? {}).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]).slice(0, 5);
   return (
     <section className="card stack master-summary glow-border" aria-label="Today at a glance">
       <h3 style={{ margin: 0 }}>Today at a glance</h3>
@@ -15,6 +16,18 @@ export function MasterSummary({ overview }: { overview: MasterOverview }) {
               <span className="tiny muted">{t.label}</span>
               <strong className="master-tile-value">{t.value}</strong>
               {t.hint && <span className="tiny muted">{t.hint}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {byKind.length > 0 && (
+        <div className="stack" style={{ gap: 8 }}>
+          <strong className="tiny muted" style={{ textTransform: "uppercase", letterSpacing: "0.04em" }}>Where the money comes from</strong>
+          {byKind.map(([kind, cents]) => (
+            <div key={kind} className="master-bar">
+              <span className="tiny">{kind}</span>
+              <span className="master-bar-track"><span style={{ width: `${Math.max(4, (cents / byKind[0]![1]) * 100)}%` }} /></span>
+              <span className="tiny muted">${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
             </div>
           ))}
         </div>

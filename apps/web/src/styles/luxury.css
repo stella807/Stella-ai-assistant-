@@ -73,3 +73,6 @@
 .master-tile { transition: transform 160ms ease; }
 @media (hover: hover) { .master-tile:hover { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .master-tile, .master-tabs button { transition: none; } .master-tile:hover { transform: none; } }
+.master-bar { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; }
+.master-bar-track { height: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.master-bar-track > span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #c99a4c, #f3e2b3); }
