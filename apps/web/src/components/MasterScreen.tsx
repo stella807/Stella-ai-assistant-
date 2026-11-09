@@ -4,6 +4,7 @@ import { photoToDataUrl } from "../app/profile-photo.ts";
 import { useEffect, useState } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
+import { MasterSummary } from "./MasterSummary.tsx";
 import { api, type RefundCharges, type ExtraHoursReport, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
@@ -305,6 +306,8 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
         </div>
         <button className="btn btn-sm btn-ghost" disabled={busy} onClick={onRefresh}>Refresh</button>
       </div>
+
+      <MasterSummary overview={overview} />
 
       {overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
 

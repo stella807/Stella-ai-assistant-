@@ -58,3 +58,8 @@
 /* The logo's own gold ring gives way to the glowing line. */
 .brand-logo { display: inline-flex; flex: none; border-radius: 14px; }
 .brand-mark .brand-logo img { box-shadow: none; border-radius: 14px; display: block; }
+
+/* Owner portal summary tiles. */
+.master-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.master-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(201, 154, 76, 0.18); }
+.master-tile-value { font-size: 22px; letter-spacing: -0.02em; }
