@@ -121,3 +121,11 @@
 .calc-live strong.is-negative { color: #ff8a8d; }
 .master-fold-body input[type="number"] { text-align: right; }
 .master-fold-body .row-between.small { gap: 12px; }
+
+/* The plan on/off switch reads as a switch: a track with a knob, plus its word. */
+.plan-switch { position: relative; min-width: 96px; padding-left: 40px; justify-content: flex-end; }
+.plan-switch::before { content: ""; position: absolute; left: 10px; top: 50%; width: 22px; height: 12px; margin-top: -6px; border-radius: 12px; background: rgba(255, 255, 255, 0.2); }
+.plan-switch::after { content: ""; position: absolute; left: 12px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 8px; background: #fff; transition: transform 160ms ease; }
+.plan-switch[aria-checked="true"]::before { background: rgba(23, 19, 10, 0.35); }
+.plan-switch[aria-checked="true"]::after { transform: translateX(10px); background: #17130a; }
+@media (prefers-reduced-motion: reduce) { .plan-switch::after { transition: none; } }

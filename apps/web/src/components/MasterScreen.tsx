@@ -370,7 +370,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Free each month"><FreebiesSection /></Fold>}
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Event vendors"><VendorsSection /></Fold>}
 
-      {tab === "setup" && overview.account.role === "owner" && <Fold title="Free and Basic plans"><PlansOnOfferSection /></Fold>}
+      {tab === "setup" && overview.account.role === "owner" && <Fold title="Free and Basic plans" open><PlansOnOfferSection /></Fold>}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Refunds"><RefundsSection /></Fold>}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Extra assistant hours"><ExtraHoursSection /></Fold>}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Included assistant hours"><IncludedHoursSection /></Fold>}
@@ -1161,7 +1161,7 @@ function PlansOnOfferSection() {
       {plans?.map((p) => (
         <div key={p.id} className="row-between small" style={{ gap: 8 }}>
           <span>{p.name} <span className="tiny muted">({p.members} {p.members === 1 ? "member" : "members"})</span></span>
-          <button className={`btn ${p.on ? "btn-primary" : ""}`} role="switch" aria-checked={p.on} aria-label={`${p.name} plan`}
+          <button className={`btn plan-switch ${p.on ? "btn-primary" : ""}`} role="switch" aria-checked={p.on} aria-label={`${p.name} plan`}
             disabled={busy !== null} onClick={() => void flip(p)}>
             {busy === p.id ? "Saving..." : p.on ? "On" : "Off"}
           </button>
