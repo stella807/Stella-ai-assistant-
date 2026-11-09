@@ -33,13 +33,19 @@ import { PlanName } from "../app/plan-name.tsx";
  * second (see roster.ts).
  */
 export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [plans, setPlans] = useState<any[]>([]);
   const [eliteUnlock, setEliteUnlock] = useState<Awaited<ReturnType<typeof api.catalog>>["eliteUnlock"] | null>(null);
 
   useEffect(() => {
     api.catalog().then((c) => { setPlans(c.plans); setEliteUnlock(c.eliteUnlock); }).catch(() => {});
   }, []);
+
+  // The hours each paid plan includes, read from the same numbers the app bills against.
+  const hoursList = plans
+    .filter((p) => p.monthlyCents > 0 && (p.includedConciergeHours ?? includedConciergeHours(p.id as PlanId)) > 0)
+    .map((p) => `${p.name}: ${p.includedConciergeHours ?? includedConciergeHours(p.id as PlanId)} ${language === "es" ? "h" : "hrs"}`)
+    .join(" · ");
 
   const errands = CONCIERGE_CATEGORIES.filter((c) => QUICK_TASK_CATEGORIES.includes(c.id));
   const concierge = CONCIERGE_CATEGORIES.filter((c) => !QUICK_TASK_CATEGORIES.includes(c.id));
@@ -103,7 +109,7 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
         </div>
         <TaskPrices categories={concierge} />
 
-        <p className="tiny muted" style={{ margin: 0 }}>{t("pricing.includedNote")}</p>
+        <p className="tiny muted" style={{ margin: 0 }}>{t("pricing.includedNote").replace("{hours}", hoursList)}</p>
         <p className="tiny muted" style={{ margin: 0 }}>{t("pricing.capNote")}</p>
       </section>
 
