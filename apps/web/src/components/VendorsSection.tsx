@@ -24,6 +24,7 @@ export function VendorsSection() {
   const [listForm, setListForm] = useState<"new" | "rename" | null>(null);
   const [listName, setListName] = useState("");
   const [filter, setFilter] = useState<VendorCategory | "all">("all");
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: "", category: "event-planner" as VendorCategory, area: "", offers: "", sourceUrl: "" });
@@ -37,7 +38,11 @@ export function VendorsSection() {
   }, []);
 
   const inList = useMemo(() => (vendors ?? []).filter((v) => v.listId === listId), [vendors, listId]);
-  const shown = useMemo(() => inList.filter((v) => filter === "all" || v.category === filter), [inList, filter]);
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return inList.filter((v) => (filter === "all" || v.category === filter)
+      && (!q || `${v.name} ${v.area ?? ""} ${v.offers ?? ""}`.toLowerCase().includes(q)));
+  }, [inList, filter, query]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     for (const v of inList) c[v.status] = (c[v.status] ?? 0) + 1;
@@ -129,9 +134,13 @@ export function VendorsSection() {
         Businesses that could help put on the club's events. These are leads from research: nothing here was confirmed with
         the business, and prices come from listings that may be out of date. Add who you speak to and what was quoted.
       </p>
-      <p className="tiny" style={{ margin: 0 }}>
-        {meta.statuses.map((s) => `${STATUS_LABEL[s]} ${counts[s] ?? 0}`).join(" · ")}
-      </p>
+      <div className="vendor-counts">
+        {meta.statuses.map((s) => (
+          <span key={s} className={`vendor-count${s === "booked" ? " is-booked" : ""}`}>
+            <strong>{counts[s] ?? 0}</strong> {STATUS_LABEL[s]}
+          </span>
+        ))}
+      </div>
 
       <div className="field">
         <label htmlFor="vendor-list">Vendor list</label>
@@ -168,15 +177,20 @@ export function VendorsSection() {
         </select>
       </div>
 
+      <div className="field">
+        <label htmlFor="vendor-search">Search</label>
+        <input id="vendor-search" type="search" placeholder="Name, place or what they do" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+
       {shown.map((v) => (
-        <div key={v.id} className="card card-quiet stack" style={{ gap: 6 }}>
-          <button className="btn btn-ghost btn-block" aria-expanded={open === v.id} onClick={() => setOpen(open === v.id ? null : v.id)}>
-            <span className="row-between" style={{ width: "100%" }}>
-              <span className="small"><strong>{v.name}</strong></span>
-              <span className={`pill${v.status === "booked" ? " pill-safe" : ""}`}>{STATUS_LABEL[v.status]}</span>
+        <div key={v.id} className={`vendor-row stack${open === v.id ? " is-open" : ""}`} style={{ gap: 6 }}>
+          <button className="vendor-head" aria-expanded={open === v.id} onClick={() => setOpen(open === v.id ? null : v.id)}>
+            <span className="vendor-name">
+              <strong>{v.name}</strong>
+              <span className="tiny muted">{label(v.category)}{v.area ? ` · ${v.area}` : ""}</span>
             </span>
+            <span className={`pill${v.status === "booked" ? " pill-safe" : ""}`}>{STATUS_LABEL[v.status]}</span>
           </button>
-          <span className="tiny muted">{label(v.category)}{v.area ? ` · ${v.area}` : ""}</span>
 
           {open === v.id && (
             <div className="stack" style={{ gap: 8 }}>
