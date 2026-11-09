@@ -76,3 +76,13 @@
 .master-bar { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; }
 .master-bar-track { height: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
 .master-bar-track > span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, #c99a4c, #f3e2b3); }
+
+/* Folding sections: a tab reads as a list of titles, each opens in place. */
+.master-fold { border-radius: var(--r-card, 16px); border: 1px solid rgba(201, 154, 76, 0.22); background: linear-gradient(180deg, rgba(26, 36, 56, .92), rgba(18, 26, 44, .96)); overflow: hidden; }
+.master-fold > summary { list-style: none; cursor: pointer; padding: 16px; min-height: 52px; display: flex; align-items: center; justify-content: space-between; font-family: Georgia, serif; font-size: 18px; color: #f3e2b3; }
+.master-fold > summary::-webkit-details-marker { display: none; }
+.master-fold > summary::after { content: "+"; font-family: inherit; font-size: 20px; color: #c99a4c; transition: transform 160ms ease; }
+.master-fold[open] > summary::after { content: "–"; }
+.master-fold-body { padding: 0 8px 8px; }
+.master-fold-body > section.card { border: 0; box-shadow: none; background: transparent; }
+.master-fold-body > section.card > h3:first-child { display: none; }

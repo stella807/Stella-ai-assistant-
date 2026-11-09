@@ -1,7 +1,7 @@
 import { ScreenCover } from "./ScreenCover.tsx";
 import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
 import { MasterSummary } from "./MasterSummary.tsx";
@@ -273,6 +273,16 @@ function BootstrapPanel() {
   );
 }
 
+/** A section that opens and closes, so a long tab reads as a list of titles instead of a wall. */
+function Fold({ title, children, open = false }: { title: string; children: ReactNode; open?: boolean }) {
+  return (
+    <details className="master-fold" open={open}>
+      <summary>{title}</summary>
+      <div className="master-fold-body">{children}</div>
+    </details>
+  );
+}
+
 type MasterTab = "overview" | "people" | "money" | "setup";
 // Every section the portal has lives under one of these; nothing is dropped, only grouped.
 const MASTER_TABS: { id: MasterTab; label: string }[] = [
@@ -336,34 +346,36 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
 
       {tab === "overview" && <MasterSummary overview={overview} />}
 
-      {tab === "people" && overview.account.role === "owner" && <TeamAccessSection currentAccountId={overview.account.id} />}
-      {tab === "people" && overview.scopes.includes("club") && <ClubDeskSection />}
-      {tab === "people" && overview.customers && <CustomersSection customers={overview.customers} />}
+      {tab === "people" && overview.account.role === "owner" && <Fold title="Team access"><TeamAccessSection currentAccountId={overview.account.id} /></Fold>}
+      {tab === "people" && overview.scopes.includes("club") && <Fold title="Club desk"><ClubDeskSection /></Fold>}
+      {tab === "people" && overview.customers && <Fold title="Customers"><CustomersSection customers={overview.customers} /></Fold>}
 
       {tab === "overview" && overview.operations && (
         <ApplicationsSection operations={overview.operations} canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
       )}
-      {tab === "people" && overview.operations && <TeamActivitySection team={overview.operations.team} canWrite={overview.scopes.includes("write")} />}
+      {tab === "people" && overview.operations && <Fold title="Team activity"><TeamActivitySection team={overview.operations.team} canWrite={overview.scopes.includes("write")} /></Fold>}
       {tab === "overview" && overview.operations && (
         <OperationsSection operations={overview.operations} />
       )}
 
       {tab === "money" && overview.money && (
-        <LaunchSection launch={overview.money.launch}
-          canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
+        <Fold title="Launch plan">
+          <LaunchSection launch={overview.money.launch}
+            canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
+        </Fold>
       )}
-      {tab === "money" && overview.money && <MoneySection money={overview.money} />}
-      {tab === "money" && overview.money && <PayoutSheetSection />}
-      {tab === "setup" && overview.account.role === "owner" && <FreebiesSection />}
-      {tab === "money" && overview.account.role === "owner" && <ProfitCalculatorSection />}
-      {tab === "setup" && overview.account.role === "owner" && <VendorsSection />}
+      {tab === "money" && overview.money && <Fold title="Money"><MoneySection money={overview.money} /></Fold>}
+      {tab === "money" && overview.money && <Fold title="Payout sheet"><PayoutSheetSection /></Fold>}
+      {tab === "setup" && overview.account.role === "owner" && <Fold title="Free each month"><FreebiesSection /></Fold>}
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Profit calculator"><ProfitCalculatorSection /></Fold>}
+      {tab === "setup" && overview.account.role === "owner" && <Fold title="Event vendors"><VendorsSection /></Fold>}
 
-      {tab === "setup" && overview.account.role === "owner" && <PlansOnOfferSection />}
-      {tab === "money" && overview.account.role === "owner" && <RefundsSection />}
-      {tab === "money" && overview.account.role === "owner" && <ExtraHoursSection />}
-      {tab === "money" && overview.account.role === "owner" && <IncludedHoursSection />}
-      {tab === "people" && overview.account.role === "owner" && <HiringSection />}
-      {tab === "setup" && overview.account.role === "owner" && <PricingSection />}
+      {tab === "setup" && overview.account.role === "owner" && <Fold title="Free and Basic plans"><PlansOnOfferSection /></Fold>}
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Refunds"><RefundsSection /></Fold>}
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Extra assistant hours"><ExtraHoursSection /></Fold>}
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Included assistant hours"><IncludedHoursSection /></Fold>}
+      {tab === "people" && overview.account.role === "owner" && <Fold title="Hiring"><HiringSection /></Fold>}
+      {tab === "setup" && overview.account.role === "owner" && <Fold title="Pricing controls"><PricingSection /></Fold>}
 
       {tab === "setup" && <section className="card stack">
         <button className="row-between" style={{ width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
