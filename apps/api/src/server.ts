@@ -6,6 +6,7 @@ import { HttpError, makeLimiters, routes, type Ctx } from "./routes.ts";
 import { Store, type StoreLike } from "./store.ts";
 import { applySeo, seoPageFor, sitemapXml, type SeoFacts } from "./seo.ts";
 import { seoFactsFor } from "./seo-facts.ts";
+import { blogPageFor, blogSitemapUrls, isBlogPath } from "./blog.ts";
 import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
 import { cancelStripeSubscription } from "./adapters/stripe.ts";
 import {
@@ -223,10 +224,19 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       // Unmatched GET/HEAD falls through to the built web app; unmatched API
       // paths stay a JSON 404 rather than handing an HTML page to a fetch().
       const isRead = method === "GET" || method === "HEAD";
+      if (isRead && isBlogPath(url.pathname)) {
+        // The blog's pages are whole documents the server writes itself (blog.ts), not the app.
+        const page = blogPageFor(url.pathname, seoFactsFor(base));
+        if (page) {
+          res.writeHead(page.status, { "content-type": MIME[".html"]!, "content-language": page.lang, "cache-control": "public, max-age=300" });
+          return void res.end(method === "HEAD" ? undefined : page.html);
+        }
+      }
       if (isRead && WEB_ROOT && url.pathname === "/sitemap.xml") {
         // Built per request: a job page is listed only while that job has a seat open.
+        const facts = seoFactsFor(base);
         res.writeHead(200, { "content-type": MIME[".xml"]!, "cache-control": "public, max-age=3600" });
-        return void res.end(method === "HEAD" ? undefined : sitemapXml(seoFactsFor(base)));
+        return void res.end(method === "HEAD" ? undefined : sitemapXml(facts, blogSitemapUrls(facts.origin)));
       }
       if (isRead && !url.pathname.startsWith("/api/") && serveStatic(res, url.pathname, method === "HEAD", () => seoFactsFor(base))) return;
       return send(res, 404, { error: "Not found" });

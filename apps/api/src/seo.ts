@@ -69,13 +69,13 @@ export interface SeoPage {
 const HERO_IMAGE = "/img/hero-luxury.jpg";
 const CONTACT_EMAIL = "contact@safehubby.com";
 
-const escapeHtml = (text: string): string =>
+export const escapeHtml = (text: string): string =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /** JSON for a script tag: a "<" inside a string must not be able to close the tag. */
-const jsonForScript = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c");
+export const jsonForScript = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c");
 
-const money = (cents: number): string =>
+export const money = (cents: number): string =>
   `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
 
 /** "A, B and C" / "A, B y C". */
@@ -321,7 +321,7 @@ function homeBody(f: SeoFacts, route: SiteRoute): string {
     `<h2>${escapeHtml(w.whereHeading)}</h2>`,
     `<p>${escapeHtml(w.where(markets))}</p>`,
     `<h2>${escapeHtml(w.workHeading)}</h2>`,
-    `<p>${link(sitePathFor("careers", route.lang), w.workLink)} · ${link(sitePathFor("drive", route.lang), w.driveLink)}</p>`,
+    `<p>${link(sitePathFor("careers", route.lang), w.workLink)} · ${link(sitePathFor("drive", route.lang), w.driveLink)} · ${link(route.lang === "es" ? "/es/blog" : "/blog", "Blog")}</p>`,
     `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)}</p>`,
     `<p class="seo-small">${escapeHtml(w.disclaimer)}</p>`,
   ].join(""));
@@ -482,12 +482,14 @@ export function applySeo(template: string, page: SeoPage, origin: string): strin
 }
 
 /** Every indexable address, each with its twin in the other language. */
-export function sitemapXml(f: SeoFacts): string {
+export function sitemapXml(f: SeoFacts, more: { loc: string; alternates: SeoPage["alternates"] }[] = []): string {
   const open = f.roles.filter((r) => r.openings > 0).map((r) => r.id);
-  const urls = indexableSiteRoutes(open).map((route) => {
-    const alternates = alternatesFor(f, route)
+  const pages = indexableSiteRoutes(open).map((route) => ({ loc: `${f.origin}${route.path}`, alternates: alternatesFor(f, route) }));
+  // `more` is the blog's pages: they are not part of the app, so the blog lists its own.
+  const urls = [...pages, ...more].map((page) => {
+    const alternates = page.alternates
       .map((a) => `<xhtml:link rel="alternate" hreflang="${a.hreflang}" href="${escapeHtml(a.href)}"/>`).join("");
-    return `<url><loc>${escapeHtml(`${f.origin}${route.path}`)}</loc>${alternates}</url>`;
+    return `<url><loc>${escapeHtml(page.loc)}</loc>${alternates}</url>`;
   });
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

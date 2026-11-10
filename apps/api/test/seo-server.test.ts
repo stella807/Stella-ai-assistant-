@@ -111,6 +111,23 @@ describe("the app's HTML, as the server sends it", () => {
     expect(xml).not.toContain("/master");
   });
 
+  it("serves the blog as whole pages of its own, and lists them in the sitemap", async () => {
+    const index = await fetch(`${base}/es/blog`);
+    expect(index.status).toBe(200);
+    expect(index.headers.get("content-language")).toBe("es");
+    const html = await index.text();
+    expect(html).toContain("El blog de Safehubby");
+    // Not the app: no app script, and it reads without JavaScript.
+    expect(html).not.toContain("/assets/app-AbCd1234.js");
+    const link = /<a href="(\/es\/blog\/[^"]+)"/.exec(html)?.[1];
+    expect(link).toBeTruthy();
+    const article = await fetch(`${base}${link}`);
+    expect(article.status).toBe(200);
+    expect(await article.text()).toContain(`"@type":"BlogPosting"`);
+    expect((await fetch(`${base}/blog/no-such-article`)).status).toBe(404);
+    expect(await (await fetch(`${base}/sitemap.xml`)).text()).toContain(`<loc>https://safehubby.com${link}</loc>`);
+  });
+
   it("leaves the API's own not-found as JSON", async () => {
     const res = await fetch(`${base}/api/nope`);
     expect(res.status).toBe(404);
