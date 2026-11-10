@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, includedConciergeHours, includedGrabAllowanceFor, includedHoursSplit, serviceFeeFor,
+  PHARMACY_RUN_FEE_CENTS, currentMonthlyFreebies, errandCreditFor, hasUnlimitedHours, includedConciergeHours, includedGrabAllowanceFor, includedHoursSplit, serviceFeeFor,
 } from "@safehubby/core";
 import type { Feature, Plan } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
@@ -42,6 +42,7 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
     {
       label: "compare.hoursIncluded",
       cell: (p) => {
+        if (hasUnlimitedHours(p.id)) return { kind: "text", text: t("compare.unlimited") };
         const h = includedConciergeHours(p.id);
         if (h <= 0) return { kind: "no" };
         const split = includedHoursSplit(p.id);

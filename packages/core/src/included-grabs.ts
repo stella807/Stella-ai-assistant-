@@ -1,4 +1,4 @@
-import { includedConciergeHours, isElitePlan, type PlanId } from "./billing.ts";
+import { hasUnlimitedHours, includedConciergeHours, isElitePlan, type PlanId } from "./billing.ts";
 import { isEnabled } from "./features.ts";
 import {
   isHourlyCategory, isQuickTaskEligible, serviceFeeFor, type ConciergeCategory, type ConciergeTask,
@@ -315,6 +315,8 @@ export function hourlyServiceFee(input: {
   // Included hours are ordinary assistant time; armed work is never covered by them.
   if (input.armed) return { serviceFeeCents: full, includedHoursUsed: 0 };
   if (!input.hours || !isHourlyCategory(input.category)) return { serviceFeeCents: full, includedHoursUsed: 0 };
+  // Elite's dues cover every assistant hour, so nothing is left to bill however many are booked.
+  if (hasUnlimitedHours(input.planId)) return { serviceFeeCents: 0, includedHoursUsed: input.hours };
   const split = input.usedByKind && input.now ? includedHoursSplit(input.planId) : null;
   if (split && !split.pooled && input.usedByKind && input.now) {
     // A booking draws on one pool only: planned if it starts far enough ahead, otherwise on-demand.

@@ -568,6 +568,11 @@ export function deskTaskAllowanceFor(id: PlanId): number {
   return hasFeature(id, "desk-tasks") ? DESK_TASK_ALLOWANCE[id] : 0;
 }
 
+/** Elite has no monthly cap on assistant hours: its dues cover all of them. Armed work is still billed on its own. */
+export function hasUnlimitedHours(id: PlanId): boolean {
+  return isElitePlan(id);
+}
+
 /** The hours a plan's price already covers each month. Zero on Free. */
 export function includedConciergeHours(id: PlanId): number {
   return includedHoursOverride(id) ?? findPlan(id).includedConciergeHours ?? 0;

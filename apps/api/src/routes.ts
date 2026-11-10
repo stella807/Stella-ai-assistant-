@@ -50,7 +50,7 @@ import {
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
-  revenueByDay, eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
+  revenueByDay, hasUnlimitedHours, eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
   validatePickupRequest, ARRANGE_RIDE_FEE_CENTS, recordRideCost,
   validateAiDraftInstruction,
@@ -1204,7 +1204,8 @@ function extraHoursReport(ctx: Ctx, start: Date, end: Date) {
 /** Each plan with included hours: the number, and what it costs if a member uses every one. */
 function includedHoursRows(ctx: Ctx) {
   void ctx;
-  return PLANS.filter((p) => p.includedConciergeHours !== undefined).map((p) => {
+  // Elite has no hour cap to set, so it is not offered here.
+  return PLANS.filter((p) => p.includedConciergeHours !== undefined && !hasUnlimitedHours(p.id)).map((p) => {
     const hours = includedConciergeHours(p.id);
     const costCents = hours * livePaHourlyPayCents();
     const feeCents = Math.round(p.monthlyCents * PROCESSOR_FEE_RATE + PROCESSOR_FEE_FIXED_CENTS);
@@ -3342,6 +3343,7 @@ export const routes: Record<string, Handler> = {
       errandCreditCents: creditCents,
       includedHoursUsed: hourly.includedHoursUsed,
       includedHoursRemaining: Math.max(0, includedConciergeHours(planId) - includedHoursUsed(ctx, me)),
+      ...(hasUnlimitedHours(planId) ? { unlimitedHours: true } : {}),
       ...(() => {
         const split = includedHoursSplit(planId);
         const used = includedHoursUsedByKind(ctx, me);

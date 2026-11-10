@@ -153,7 +153,7 @@ const EN = {
   "pricing.errandsBlurb": "Short and specific: one thing fetched, one errand run. Priced for a quick job, at a spend cap you set — no ceiling at all on an errand — and included with every paid plan.",
   "pricing.conciergeTitle": "Personal concierge — a personal assistant",
   "pricing.conciergeBlurb": "Someone comes to you and stays: sitting with a friend who should not be alone, or going in person to check somebody is actually okay. Only a trained personal assistant is sent to these — never an errand runner.",
-  "pricing.includedNote": "Every paid plan includes assistant hours each month ({hours}). The prices above are for extra hours: they apply only after your plan's included hours run out, because those hours are used first. On the Free and Basic plans there are no included hours, so these prices apply from the start.",
+  "pricing.includedNote": "Paid plans include assistant hours each month ({hours}), and Elite has no hour limit at all. The prices above are for extra hours: they apply only after your plan's included hours run out, because those hours are used first. On the Free and Basic plans there are no included hours, so these prices apply from the start.",
   "pricing.capNote": "On top of this you set a spend cap for anything they buy for you. The cap is a ceiling, not a price — you are charged for what is actually spent, and never a cent over it.",
 
   "compare.heading": "Compare what's included",
@@ -183,6 +183,7 @@ const EN = {
   "compare.perMonth": "{n} a month",
   "compare.hoursIncluded": "Concierge hours / month",
   "compare.hours": "{n} hrs",
+  "compare.unlimited": "Unlimited",
   "compare.hoursSplit": "{n} hrs ({planned} planned + {onDemand} on-demand)",
   "compare.hoursNote": "How included hours work: planned hours are for bookings that start 24 or more hours ahead, and on-demand hours are for anything that comes up sooner. Each booking uses one of the two, and any hours beyond what is left are billed at {rate} an hour. Elite's hours are one pool.",
   "compare.pharmacy": "Pharmacy pickup",
@@ -472,7 +473,7 @@ const ES: Record<TranslationKey, string> = {
   "pricing.errandsBlurb": "Corto y específico: recoger una cosa, hacer un encargo. Con precio de trabajo rápido y el límite de gasto que tú fijes — un encargo no tiene techo alguno — e incluido en todos los planes de pago.",
   "pricing.conciergeTitle": "Concierge personal — un asistente personal",
   "pricing.conciergeBlurb": "Alguien viene y se queda contigo: acompañar a un amigo que no debería estar solo, o ir en persona a comprobar que alguien está bien. A estas solo enviamos a un asistente personal capacitado — nunca a un mensajero.",
-  "pricing.includedNote": "Cada plan de pago incluye horas de asistente al mes ({hours}). Los precios de arriba son para las horas extras: aplican solo después de que se acaban las horas incluidas de tu plan, porque esas horas se usan primero. En los planes Gratis y Básico no hay horas incluidas, así que estos precios aplican desde el principio.",
+  "pricing.includedNote": "Los planes de pago incluyen horas de asistente al mes ({hours}), y Elite no tiene límite de horas. Los precios de arriba son para las horas extras: aplican solo después de que se acaban las horas incluidas de tu plan, porque esas horas se usan primero. En los planes Gratis y Básico no hay horas incluidas, así que estos precios aplican desde el principio.",
   "pricing.capNote": "Además, tú fijas un límite de gasto para lo que compren por ti. El límite es un techo, no un precio — se te cobra lo que realmente se gaste, y nunca un centavo más.",
 
   "compare.heading": "Compara lo que incluye cada plan",
@@ -502,6 +503,7 @@ const ES: Record<TranslationKey, string> = {
   "compare.perMonth": "{n} al mes",
   "compare.hoursIncluded": "Horas de concierge / mes",
   "compare.hours": "{n} h",
+  "compare.unlimited": "Ilimitadas",
   "compare.hoursSplit": "{n} h ({planned} planificadas + {onDemand} a demanda)",
   "compare.hoursNote": "Cómo funcionan las horas incluidas: las horas planificadas son para reservas que empiezan con 24 horas o más de anticipación, y las horas a demanda son para lo que surja antes. Cada reserva usa una de las dos, y las horas que pasen de lo que queda se cobran a {rate} la hora. Las horas de Elite son un solo grupo.",
   "compare.pharmacy": "Recogido en farmacia",

@@ -2,7 +2,7 @@ import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
 import {
   ARRANGE_RIDE_FEE_CENTS, ERRAND_TIERS, deskTaskAllowanceFor, errandFeeCents, hasFeature,
-  errandCreditFor, includedConciergeHours, includedHoursSplit, includedGrabAllowanceFor, serviceFeeFor, type PlanId,
+  errandCreditFor, hasUnlimitedHours, includedConciergeHours, includedHoursSplit, includedGrabAllowanceFor, serviceFeeFor, type PlanId,
 } from "@safehubby/core";
 import { api } from "../api.ts";
 import { money } from "../money.ts";
@@ -99,8 +99,8 @@ function PlanPricing({ plan, onOpenPlans }: { plan: CatalogPlan; onOpenPlans: ()
   ];
   if (hasAssistant) rows.push({
     label: w.hourly,
-    value: w.perHour(money(hourlyFee)),
-    note: hours > 0 ? w.hoursPaid(hours, split.planned, split.onDemand, split.pooled) : w.plusCap,
+    value: hasUnlimitedHours(id) ? w.noLimit : w.perHour(money(hourlyFee)),
+    note: hasUnlimitedHours(id) ? undefined : hours > 0 ? w.hoursPaid(hours, split.planned, split.onDemand, split.pooled) : w.plusCap,
   });
   const credit = errandCreditFor(id);
   if (credit > 0) rows.push({ label: w.foodTitle, value: w.foodValue(money(credit)), note: w.foodNote });

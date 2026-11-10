@@ -162,6 +162,19 @@ describe("included assistant hours", () => {
     expect(elite).toEqual({ serviceFeeCents: 0, includedHoursUsed: 3 });
   });
 
+  it("has no monthly cap on Elite: every hour is covered however many were already used", () => {
+    for (const planId of ["elite", "elite-signature", "elite-private"] as const) {
+      const used = includedConciergeHours(planId) + 500;
+      expect(hourlyServiceFee({ ...base, planId, hours: 40, includedHoursUsedThisMonth: used })).toEqual({ serviceFeeCents: 0, includedHoursUsed: 40 });
+    }
+    // Armed work stays billed on its own, Elite or not.
+    const armed = hourlyServiceFee({ ...base, planId: "elite", hours: 2, armed: true });
+    expect(armed.includedHoursUsed).toBe(0);
+    expect(armed.serviceFeeCents).toBeGreaterThan(0);
+    // Premium is still capped.
+    expect(hourlyServiceFee({ ...base, planId: "premium-plus", hours: 2, includedHoursUsedThisMonth: 99 }).serviceFeeCents).toBeGreaterThan(0);
+  });
+
   it("stops covering once the month's hours are used", () => {
     const r = hourlyServiceFee({ ...base, planId: "premium-plus", hours: 2, includedHoursUsedThisMonth: includedConciergeHours("premium-plus") });
     expect(r).toEqual({ serviceFeeCents: serviceFeeFor("wait-with-someone", false, 1, 2), includedHoursUsed: 0 });
