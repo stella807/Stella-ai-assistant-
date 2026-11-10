@@ -1,9 +1,11 @@
 import { setIncludedHours, setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { HttpError, makeLimiters, routes, type Ctx } from "./routes.ts";
 import { Store, type StoreLike } from "./store.ts";
+import { applySeo, seoPageFor, sitemapXml, type SeoFacts } from "./seo.ts";
+import { seoFactsFor } from "./seo-facts.ts";
 import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
 import { cancelStripeSubscription } from "./adapters/stripe.ts";
 import {
@@ -42,12 +44,28 @@ const MIME: Record<string, string> = {
   ".xml": "application/xml; charset=utf-8",
 };
 
+/** The app's HTML, read once per build: the file only changes when a deploy replaces it. */
+let indexTemplate: { path: string; mtimeMs: number; html: string } | null = null;
+function readIndexTemplate(path: string): string {
+  const mtimeMs = statSync(path).mtimeMs;
+  if (!indexTemplate || indexTemplate.path !== path || indexTemplate.mtimeMs !== mtimeMs) {
+    indexTemplate = { path, mtimeMs, html: readFileSync(path, "utf8") };
+  }
+  return indexTemplate.html;
+}
+
 /**
- * Serves a built file, falling back to index.html so client-side routes work.
- * Paths are normalised and confined to WEB_ROOT — a static handler that joins
- * user input onto a directory is the classic way to serve /etc/passwd.
+ * Serves a built file, or the app itself for any other address so
+ * client-side routes work. Paths are normalised and confined to WEB_ROOT — a
+ * static handler that joins user input onto a directory is the classic way to
+ * serve /etc/passwd.
+ *
+ * The app's HTML goes out with that address's own title, description and
+ * readable content (see seo.ts), and an address the site does not have is
+ * answered 404: the app still loads for a person, but a search engine is not
+ * told that every mistyped link is a page.
  */
-function serveStatic(res: ServerResponse, pathname: string, headOnly = false): boolean {
+function serveStatic(res: ServerResponse, pathname: string, headOnly: boolean, seoFacts: () => SeoFacts): boolean {
   if (!WEB_ROOT) return false;
 
   const relative = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
@@ -56,14 +74,32 @@ function serveStatic(res: ServerResponse, pathname: string, headOnly = false): b
   const file = isAsset ? candidate : join(WEB_ROOT, "index.html");
   if (!existsSync(file)) return false;
 
+  if (!isAsset) {
+    let status = 200;
+    let lang = "en";
+    let html = readIndexTemplate(file);
+    try {
+      const facts = seoFacts();
+      const page = seoPageFor(pathname, facts);
+      html = applySeo(html, page, facts.origin);
+      status = page.status;
+      lang = page.lang;
+    } catch (err) {
+      // The page matters more than its search listing: serve the plain app.
+      console.error("[safehubby] SEO tags not applied:", err instanceof Error ? err.message : err);
+    }
+    // index.html must never be cached or a deploy strands people on the old bundle.
+    res.writeHead(status, { "content-type": MIME[".html"]!, "content-language": lang, "cache-control": "no-cache" });
+    res.end(headOnly ? undefined : html);
+    return true;
+  }
+
   const ext = extname(file);
   res.writeHead(200, {
     // The Apple Pay domain file has no extension and Apple wants plain text.
     "content-type": MIME[ext] ?? (file.includes("/.well-known/") ? "text/plain; charset=utf-8" : "application/octet-stream"),
-    // Content-hashed filenames are immutable (Vite emits base64url hashes, not
-    // hex); index.html must never be cached or a deploy strands people on the
-    // old bundle.
-    "cache-control": isAsset && /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(file)
+    // Content-hashed filenames are immutable (Vite emits base64url hashes, not hex).
+    "cache-control": /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(file)
       ? "public, max-age=31536000, immutable"
       : "no-cache",
   });
@@ -187,7 +223,12 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       // Unmatched GET/HEAD falls through to the built web app; unmatched API
       // paths stay a JSON 404 rather than handing an HTML page to a fetch().
       const isRead = method === "GET" || method === "HEAD";
-      if (isRead && !url.pathname.startsWith("/api/") && serveStatic(res, url.pathname, method === "HEAD")) return;
+      if (isRead && WEB_ROOT && url.pathname === "/sitemap.xml") {
+        // Built per request: a job page is listed only while that job has a seat open.
+        res.writeHead(200, { "content-type": MIME[".xml"]!, "cache-control": "public, max-age=3600" });
+        return void res.end(method === "HEAD" ? undefined : sitemapXml(seoFactsFor(base)));
+      }
+      if (isRead && !url.pathname.startsWith("/api/") && serveStatic(res, url.pathname, method === "HEAD", () => seoFactsFor(base))) return;
       return send(res, 404, { error: "Not found" });
     }
 

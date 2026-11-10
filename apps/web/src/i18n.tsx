@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { sitePathInLanguage } from "@safehubby/core";
+import { chooseLanguage } from "./app/language-choice.ts";
 
 /**
  * English/Spanish for the landing page, the sign-in gate, the navigation and
@@ -665,14 +667,17 @@ export function currentLanguage(): Language {
 }
 
 function detectLanguage(): Language {
+  let stored: string | null = null;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "en" || stored === "es") return stored;
+    stored = window.localStorage.getItem(STORAGE_KEY);
   } catch {
-    // Private browsing or a blocked store — fall through to the browser's own language.
+    // Private browsing or a blocked store — fall through to the address and the browser's own language.
   }
-  if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("es")) return "es";
-  return "en";
+  return chooseLanguage({
+    pathname: window.location.pathname,
+    stored,
+    browser: typeof navigator !== "undefined" ? navigator.language : undefined,
+  });
 }
 
 interface LanguageContextValue {
@@ -688,6 +693,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   active = language;
 
   useEffect(() => {
+    // Screen readers and search engines read the page's language from here.
+    document.documentElement.lang = language;
     try {
       window.localStorage.setItem(STORAGE_KEY, language);
     } catch {
@@ -697,7 +704,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<LanguageContextValue>(() => ({
     language,
-    setLanguage: setLanguageState,
+    setLanguage: (next) => {
+      setLanguageState(next);
+      // Each public page has an address per language (/ and /es): keep the
+      // address bar on the one being read, so a refresh or a shared link
+      // opens in the same language.
+      const path = sitePathInLanguage(window.location.pathname, next);
+      if (path) window.history.replaceState(window.history.state, "", `${path}${window.location.search}${window.location.hash}`);
+    },
     t: (key) => DICTS[language][key],
   }), [language]);
 

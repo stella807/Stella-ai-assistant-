@@ -1,9 +1,7 @@
-import { StrictMode } from "react";
-import { reloadOnceForNewVersion } from "./app/lazy-import.ts";
+import { StrictMode, Suspense } from "react";
+import { lazyWithReload, reloadOnceForNewVersion } from "./app/lazy-import.ts";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
-import { EmployeePortal } from "./components/EmployeePortal.tsx";
-import { MasterScreen } from "./components/MasterScreen.tsx";
 import { LanguageProvider } from "./i18n.tsx";
 import "./styles/base.css";
 import "./styles/components.css";
@@ -26,6 +24,12 @@ import "./styles/desktop.css";
 // hooks exist, rather than as a conditional early return inside one of them
 // (which would run afoul of React's rule that hooks execute unconditionally,
 // in the same order, every render).
+// The employee portal and the owner dashboard are loaded only at their own
+// addresses. A customer's phone should not download two back offices to read
+// the home page; it is most of what made the first load heavy.
+const EmployeePortal = lazyWithReload(() => import("./components/EmployeePortal.tsx").then((m) => ({ default: m.EmployeePortal })));
+const MasterScreen = lazyWithReload(() => import("./components/MasterScreen.tsx").then((m) => ({ default: m.MasterScreen })));
+
 const path = window.location.pathname.replace(/\/$/, "");
 const isEmployeeArea = path === "/employee";
 const isMasterArea = path === "/master";
@@ -39,10 +43,13 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* The owner dashboard is English-only; the assistants' portal and the
         customer app each carry the EN/ES toggle. */}
-    {isMasterArea ? <MasterScreen /> : (
-      <LanguageProvider>
-        {isEmployeeArea ? <EmployeePortal /> : <App />}
-      </LanguageProvider>
-    )}
+    {/* Nothing is drawn for the instant a portal's code is arriving; the page is already the app's dark background. */}
+    <Suspense fallback={null}>
+      {isMasterArea ? <MasterScreen /> : (
+        <LanguageProvider>
+          {isEmployeeArea ? <EmployeePortal /> : <App />}
+        </LanguageProvider>
+      )}
+    </Suspense>
   </StrictMode>,
 );

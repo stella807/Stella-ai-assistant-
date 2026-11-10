@@ -71,6 +71,16 @@ describe("opening the app from a plain address, not just a hash", () => {
       expect(entryRouteFromUrl({ pathname: p, hash: "" }), p).toBe("out");
     }
   });
+  it("opens a job's own page on the application with that job chosen", () => {
+    expect(entryRouteFromUrl({ pathname: "/careers/personal-assistant", hash: "" })).toBe("work");
+    expect(entryRoleFromUrl({ pathname: "/careers/personal-assistant", hash: "", search: "" })).toBe("personal-assistant");
+    expect(entryRoleFromUrl({ pathname: "/es/trabajo/bodyguard/", hash: "", search: "" })).toBe("bodyguard");
+    // A job that does not exist is not a page.
+    expect(entryRouteFromUrl({ pathname: "/careers/ceo", hash: "" })).toBe("out");
+  });
+  it("opens the driver application from its Spanish address", () => {
+    expect(entryRouteFromUrl({ pathname: "/es/chofer", hash: "" })).toBe("drive");
+  });
   it("still honours the hash on the home page", () => {
     expect(entryRouteFromUrl({ pathname: "/", hash: "#careers" })).toBe("work");
   });
@@ -81,7 +91,10 @@ describe("opening the app from a plain address, not just a hash", () => {
   });
   it("sends a person back to the home address when they leave the form", () => {
     expect(pathAfterLeaving("/work")).toBe("/");
-    expect(pathAfterLeaving("/es/trabajo/")).toBe("/");
+    // Leaving the Spanish form lands on the Spanish home page, not the English one.
+    expect(pathAfterLeaving("/es/trabajo/")).toBe("/es");
+    expect(pathAfterLeaving("/careers/nurse")).toBe("/");
+    expect(pathAfterLeaving("/es/chofer")).toBe("/es");
     expect(pathAfterLeaving("/")).toBe("/");
     expect(pathAfterLeaving("/master")).toBe("/master");
   });

@@ -1201,6 +1201,20 @@ function extraHoursReport(ctx: Ctx, start: Date, end: Date) {
   };
 }
 
+/**
+ * Every job with what it pays and how many seats are open. One list for the
+ * careers page and for what search engines are told (seo-facts.ts), so a job
+ * cannot be advertised as open in one place and closed in the other.
+ */
+export function staffRoleListing(ctx: Ctx) {
+  const rates = jobPayRates(ctx.store.data.priceOverrides);
+  return STAFF_ROLES.map((r) => {
+    const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
+    const openings = openingsFor(r.id, hired, ctx.store.data.hiringTargets);
+    return { ...r, pay: payLabelFor(r.id, "en", rates), payEs: payLabelFor(r.id, "es", rates), openings, hiring: openings > 0 };
+  });
+}
+
 /** Each plan with included hours: the number, and what it costs if a member uses every one. */
 function includedHoursRows(ctx: Ctx) {
   void ctx;
@@ -6141,12 +6155,7 @@ export const routes: Record<string, Handler> = {
     // here from the same constants the money moves with. `openings` is the
     // target minus who is already on the roster, so it falls as people are
     // hired and a role that is full says so instead of advertising a job.
-    roles: STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => {
-      const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
-      const openings = openingsFor(r.id, hired, ctx.store.data.hiringTargets);
-      const rates = jobPayRates(ctx.store.data.priceOverrides);
-      return { ...r, pay: payLabelFor(r.id, "en", rates), payEs: payLabelFor(r.id, "es", rates), openings, hiring: openings > 0 };
-    })
+    roles: staffRoleListing(ctx).filter((r) => r.id !== "driver")
       // The jobs that are open come first. The sort is stable, so within each
       // group the roles keep the order the owner set them in.
       .sort((a, b) => Number(b.hiring) - Number(a.hiring)),

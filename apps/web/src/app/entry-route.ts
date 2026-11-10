@@ -1,3 +1,5 @@
+import { siteRouteFor, sitePathFor } from "@safehubby/core";
+
 /**
  * Which screen a link opens the app on.
  *
@@ -50,23 +52,27 @@ export function entryRoleFromHash(hash: string): string | undefined {
  * `safehubby.com/work` is what gets printed on a flyer or typed into a bio, so
  * it has to open the application — the server already answers every unknown
  * path with the app, this only teaches the app what to do with it.
+ *
+ * The addresses themselves are core's (site-routes.ts), shared with the server
+ * so the pages it lists for search engines are pages the app really opens:
+ * /careers and /es/trabajo, one page per job under each, and the driver form.
  */
-const PATHS: Record<string, Exclude<EntryRoute, "out">> = {
-  "/work": "work",
-  "/careers": "work",
-  "/trabajo": "work",
-  "/es/trabajo": "work",
-  "/drive": "drive",
-};
-
-const entryPathKey = (pathname: string) => pathname.toLowerCase().replace(/\/+$/, "");
+function entryRouteFromPath(pathname: string): Exclude<EntryRoute, "out"> | undefined {
+  const page = siteRouteFor(pathname)?.page;
+  if (page === "careers" || page === "job") return "work";
+  if (page === "drive") return "drive";
+  return undefined;
+}
 
 export function entryRouteFromUrl(loc: { pathname: string; hash: string }): EntryRoute {
-  return PATHS[entryPathKey(loc.pathname)] ?? entryRouteFromHash(loc.hash);
+  return entryRouteFromPath(loc.pathname) ?? entryRouteFromHash(loc.hash);
 }
 
 export function entryRoleFromUrl(loc: { pathname: string; hash: string; search: string }): string | undefined {
   if (entryRouteFromUrl(loc) !== "work") return undefined;
+  // A job's own page names the job in its address.
+  const fromPath = siteRouteFor(loc.pathname)?.role;
+  if (fromPath) return fromPath;
   const fromHash = entryRoleFromHash(loc.hash);
   if (fromHash) return fromHash;
   const value = new URLSearchParams(loc.search).get("role")?.trim().toLowerCase();
@@ -74,7 +80,9 @@ export function entryRoleFromUrl(loc: { pathname: string; hash: string; search: 
 }
 
 /** Once the form is closed, a plain-address link goes back to the home
- *  address, so a refresh does not reopen a form somebody already left. */
+ *  address in the same language, so a refresh does not reopen a form somebody
+ *  already left. */
 export function pathAfterLeaving(pathname: string): string {
-  return entryPathKey(pathname) in PATHS ? "/" : pathname;
+  const route = siteRouteFor(pathname);
+  return route && entryRouteFromPath(pathname) ? sitePathFor("home", route.lang) : pathname;
 }

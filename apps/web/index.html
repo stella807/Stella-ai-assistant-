@@ -6,6 +6,9 @@
     <meta name="theme-color" content="#0b1020" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Each address gets its own title, description and content from the server (apps/api/src/seo.ts),
+         which rewrites what is between the seo markers. What is here is the English home page, for local development. -->
+    <!--seo:head-->
     <title>Safehubby — get home safe, never alone</title>
     <meta name="description" content="Someone checks on the people you love. An errand run, a ride arranged, a person who comes and stays. Serving Puerto Rico, Texas and Los Angeles." />
     <link rel="canonical" href="https://safehubby.com/" />
@@ -19,9 +22,23 @@
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"Organization","name":"Safehubby","url":"https://safehubby.com/","logo":"https://safehubby.com/apple-touch-icon.png","email":"contact@safehubby.com","areaServed":["Puerto Rico","Texas","Los Angeles"]}
     </script>
+    <!--/seo:head-->
+    <!-- How the page reads for the moment before the app starts, and for anything that does not run JavaScript. -->
+    <style>
+      .seo-shell{max-width:448px;margin:0 auto;padding:18px 16px 40px;color:#e7ecf7;font:400 17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+      .seo-shell h1{display:block;font:700 30px/1.15 Georgia,"Times New Roman",serif;margin:8px 0 12px;color:#fff}
+      .seo-shell h1::after{content:none}
+      .seo-shell h2,.seo-shell h3{font:700 20px/1.2 Georgia,"Times New Roman",serif;color:#f3e2b3;margin:26px 0 8px}
+      .seo-shell p{margin:0 0 12px}
+      .seo-shell a{color:#f3e2b3}
+      .seo-shell ul{padding-left:20px}
+      .seo-shell .seo-brand{font-family:Georgia,serif;letter-spacing:.08em;text-transform:uppercase;margin:0}
+      .seo-shell .seo-eyebrow{letter-spacing:.2em;text-transform:uppercase;font-size:12px;color:#c99a4c;margin:18px 0 0}
+      .seo-shell .seo-small{font-size:13px;color:#9aa7c2}
+    </style>
   </head>
   <body style="background:#0a0e1a">
-    <div id="root"></div>
+    <div id="root"><!--seo:body--><!--/seo:body--></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

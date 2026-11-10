@@ -37,6 +37,13 @@ export const OPEN_POSITIONS: Record<StaffRole, number> = {
   supervisor: 2,
 };
 
+/**
+ * The day every role above was opened to applicants. A job listing has to say
+ * when it was posted, and a search engine drops one that changes its date on
+ * every visit, so this is a fixed day and moves only when hiring is reopened.
+ */
+export const HIRING_OPENED_ON = "2026-10-28";
+
 /** How many openings remain once some are filled. Never negative. */
 export function openingsFor(role: StaffRole, hired: number, targets: Partial<Record<StaffRole, number>> = {}): number {
   return Math.max(0, (targets[role] ?? OPEN_POSITIONS[role]) - hired);
