@@ -356,6 +356,32 @@ describe("consent gating", () => {
 });
 
 describe("authentication", () => {
+  it("emails a welcome to a new member, and a failing mail provider never blocks sign-up", async () => {
+    const sent: { to?: { email: string }[]; subject?: string }[] = [];
+    const realFetch = globalThis.fetch;
+    const saved = { key: process.env.BREVO_API_KEY, from: process.env.EMAIL_FROM };
+    process.env.BREVO_API_KEY = "xkeysib-test"; process.env.EMAIL_FROM = "hello@safehubby.com";
+    globalThis.fetch = (async (url: unknown, init?: RequestInit) => {
+      if (String(url).includes("api.brevo.com")) { sent.push(JSON.parse(String(init?.body))); return new Response("{}", { status: 201 }); }
+      return realFetch(url as never, init);
+    }) as typeof fetch;
+    try {
+      const r = await signup("welcome-test@example.com", "Ana Perez");
+      expect(r.res.status).toBe(200);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const mail = sent.find((m) => m.to?.[0]?.email === "welcome-test@example.com");
+      expect(mail?.subject).toContain("Welcome to Safehubby");
+      // A provider that errors out must not break creating the account.
+      globalThis.fetch = (async (url: unknown, init?: RequestInit) =>
+        String(url).includes("api.brevo.com") ? new Response("no", { status: 500 }) : realFetch(url as never, init)) as typeof fetch;
+      expect((await signup("welcome-test2@example.com", "Bo Diaz")).res.status).toBe(200);
+    } finally {
+      globalThis.fetch = realFetch;
+      if (saved.key === undefined) delete process.env.BREVO_API_KEY; else process.env.BREVO_API_KEY = saved.key;
+      if (saved.from === undefined) delete process.env.EMAIL_FROM; else process.env.EMAIL_FROM = saved.from;
+    }
+  });
+
   it("rejects a weak password and a malformed email", async () => {
     expect((await call("POST", "/api/auth/signup", { email: "a@b.co", password: "short", displayName: "X" })).status).toBe(400);
     expect((await call("POST", "/api/auth/signup", { email: "nope", password: "a-long-enough-passphrase", displayName: "X" })).status).toBe(400);

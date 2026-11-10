@@ -50,7 +50,7 @@ import {
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
-  revenueByDay, hasUnlimitedHours, eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
+  revenueByDay, welcomeEmail, hasUnlimitedHours, eliteSpendingAllowanceCents, includedConciergeHours, eliteUnlockThresholdCents, eliteUnlockedByRevenue, eliteUnlockProgressPercent,
   ELITE_UNLOCK_TARGET_CLIENTS_LOW, ELITE_UNLOCK_TARGET_CLIENTS_HIGH, ELITE_UNLOCK_SAFETY_MULTIPLE,
   validatePickupRequest, ARRANGE_RIDE_FEE_CENTS, recordRideCost,
   validateAiDraftInstruction,
@@ -1887,6 +1887,11 @@ export const routes: Record<string, Handler> = {
       });
     });
     ctx.setSession?.(token);
+    // A welcome in the new member's inbox; sending never holds up or fails the sign-up.
+    if (isValidNewsletterEmail(email)) {
+      const welcome = welcomeEmail({ name: displayName, siteUrl: process.env.SAFEHUBBY_PUBLIC_URL ?? "https://safehubby.com" });
+      sendEmails([{ to: email, subject: welcome.subject, body: welcome.body }]);
+    }
     return { traveler: publicTraveler(traveler) };
   },
 
