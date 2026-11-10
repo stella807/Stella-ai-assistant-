@@ -65,6 +65,12 @@ describe("every published article follows the rules in docs/blog.md", () => {
           // The company it cites is one it actually talks about.
           expect(textOf(a, "en").join(" "), c.name).toContain(c.name);
         }
+        // A page by someone else that is quoted: linked, dated, and named in both languages.
+        for (const x of a.sources ?? []) {
+          expect(x.url, x.name.en).toMatch(/^https:\/\//);
+          expect(x.checked, x.name.en).toMatch(/^\d{4}-(0[1-9]|1[0-2])$/);
+          expect(x.name.en.trim().length > 0 && x.name.es.trim().length > 0, x.url).toBe(true);
+        }
       });
 
       it("renders in both languages with every price filled in and every link going somewhere allowed", () => {
@@ -95,6 +101,7 @@ describe("the blog's pages", () => {
     ],
     faq: [{ q: { en: "Why?", es: "¿Por qué?" }, a: { en: "Because {{errandFrom}}.", es: "Porque {{errandFrom}}." } }],
     companies: [{ name: "Example Co", source: "https://example.com/pricing", checked: "2026-11" }],
+    sources: [{ name: { en: "A review site: Example Co", es: "Un sitio de reseñas: Example Co" }, url: "https://reviews.example.com/example-co", checked: "2026-10" }],
   };
 
   it("fills in live prices, allows only safe links and escapes everything else", () => {
@@ -109,6 +116,8 @@ describe("the blog's pages", () => {
     expect(html).toContain("Because $12.34.");
     expect(html).toContain(`"@type":"FAQPage"`);
     expect(html).toContain("Example Co: its own website, read in November 2026.");
+    expect(html).toContain(`<a href="https://reviews.example.com/example-co" rel="nofollow noopener">A review site: Example Co, read in October 2026.</a>`);
+    expect(html).toContain("We have not verified them");
     expect(html).toContain("Published November 3, 2026 · Updated November 5, 2026");
   });
 

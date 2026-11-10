@@ -36,6 +36,8 @@ export interface Article {
   faq?: { q: Words; a: Words }[];
   /** Every other company the article names: its own page the facts were read from, and the month they were read (YYYY-MM). */
   companies?: { name: string; source: string; checked: string }[];
+  /** Pages by someone else that the article quotes, such as a review site or a complaints board: what the page is, its address, and the month it was read. */
+  sources?: { name: Words; url: string; checked: string }[];
 }
 
 const BLOG: Record<SiteLang, string> = { en: "/blog", es: "/es/blog" };
@@ -49,6 +51,8 @@ const UI = {
     blogDescription: "Straight talk about concierge services, personal assistants and getting help you can trust, in Puerto Rico and beyond. A new article every week.",
     otherLanguage: "Español", published: "Published", updated: "Updated", questions: "Questions people ask", sources: "Where the facts come from",
     read: (name: string, when: string) => `${name}: its own website, read in ${when}.`,
+    readPage: (name: string, when: string) => `${name}, read in ${when}.`,
+    reviewsNote: "Reviews and complaints are the customers' own accounts. We have not verified them, and the companies may see things differently.",
     fairness: "What we say about other companies comes from their own websites on the dates shown. Prices and services change, so check with them. The opinions are ours.",
     ctaTitle: "Someone you trust, wherever they're needed.",
     ctaText: "Safehubby sends a personal assistant, an errand runner or a ride. Check-ins, location sharing and SOS are free.",
@@ -60,6 +64,8 @@ const UI = {
     blogDescription: "Hablamos claro sobre servicios de concierge, asistentes personales y cómo conseguir ayuda de confianza, en Puerto Rico y más allá. Un artículo nuevo cada semana.",
     otherLanguage: "English", published: "Publicado", updated: "Actualizado", questions: "Preguntas frecuentes", sources: "De dónde salen los datos",
     read: (name: string, when: string) => `${name}: su propia página web, leída en ${when}.`,
+    readPage: (name: string, when: string) => `${name}, leída en ${when}.`,
+    reviewsNote: "Las reseñas y quejas son relatos de los propios clientes. No las hemos verificado, y las compañías pueden verlo de otra manera.",
     fairness: "Lo que decimos de otras compañías sale de sus propias páginas web en las fechas indicadas. Los precios y servicios cambian, así que confírmalos con ellas. Las opiniones son nuestras.",
     ctaTitle: "Alguien de confianza, donde más lo necesitas.",
     ctaText: "Safehubby te envía un asistente personal, un mensajero o un viaje. Los chequeos, la ubicación y el SOS son gratis.",
@@ -191,8 +197,13 @@ function articlePage(f: SeoFacts, lang: SiteLang, a: Article): string {
   const description = fill(a.description[lang], f);
   const faq = a.faq?.length
     ? `<h2>${w.questions}</h2>${a.faq.map((x) => `<h3>${inline(x.q[lang], f)}</h3><p>${inline(x.a[lang], f)}</p>`).join("")}` : "";
-  const sources = a.companies?.length
-    ? `<h2>${w.sources}</h2><ul>${a.companies.map((c) => `<li><a href="${escapeHtml(c.source)}" rel="nofollow noopener">${escapeHtml(w.read(c.name, monthName(c.checked, lang)))}</a></li>`).join("")}</ul><p class="small">${w.fairness}</p>` : "";
+  const cited = [
+    ...(a.companies ?? []).map((c) => ({ href: c.source, text: w.read(c.name, monthName(c.checked, lang)) })),
+    ...(a.sources ?? []).map((x) => ({ href: x.url, text: w.readPage(x.name[lang], monthName(x.checked, lang)) })),
+  ];
+  const notes = [...(a.sources?.length ? [w.reviewsNote] : []), ...(a.companies?.length ? [w.fairness] : [])].join(" ");
+  const sources = cited.length
+    ? `<h2>${w.sources}</h2><ul>${cited.map((c) => `<li><a href="${escapeHtml(c.href)}" rel="nofollow noopener">${escapeHtml(c.text)}</a></li>`).join("")}</ul><p class="small">${escapeHtml(notes)}</p>` : "";
   const dates = `${w.published} ${longDate(a.publishedOn, lang)}${a.updatedOn ? ` · ${w.updated} ${longDate(a.updatedOn, lang)}` : ""}`;
   const main = [
     `<article><p class="eyebrow">Blog · ${dates}</p>`,

@@ -30,6 +30,11 @@ and stays believable, by being blunt only about things that can be checked.
 2. **No fact that was not read.** If a price is not published, the article
    says "not published". It does not guess, repeat rumours, or quote reviews
    it cannot link to.
+2a. **A review or complaint is quoted only from a public page**, linked in
+   the article's `sources` with the month it was read. It is given as the
+   customer's account, not as fact, with its date, the company's reply if one
+   is shown, and the page's overall rating if it has one. A private person is
+   never named.
 3. **Opinions are written as ours** ("we think", "that is a bad deal for the
    customer"), about what a company publishes or charges. Never about the
    people who run it, and never an insult.
