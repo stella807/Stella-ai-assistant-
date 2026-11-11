@@ -61,6 +61,7 @@ export function Footer() {
       <p className="tiny muted" style={{ textAlign: "center" }}>
         {t("footer.copyright").replace("{year}", String(new Date().getFullYear()))}
       </p>
+      <p className="tiny muted" style={{ textAlign: "center", margin: 0, opacity: .7 }}>{t("show.photos")}</p>
     </footer>
   );
 }

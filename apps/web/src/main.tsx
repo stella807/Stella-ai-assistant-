@@ -23,6 +23,7 @@ import "./styles/theme.css";
 import "./styles/atmosphere.css";
 import "./styles/deck.css";
 import "./styles/jet.css";
+import "./styles/showcase.css";
 import "./styles/intro.css";
 
 // Three distinct areas of one app, split by path rather than by a query

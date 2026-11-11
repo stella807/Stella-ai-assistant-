@@ -9,6 +9,7 @@ import { Footer } from "./Footer.tsx";
 import { FirstAssistantCard } from "./FirstAssistantCard.tsx";
 import { ComparisonSection } from "./ComparisonSection.tsx";
 import { LuxuryHero } from "./LuxuryHero.tsx";
+import { LandingShowcase } from "./LandingShowcase.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
@@ -73,6 +74,8 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
         onStart={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}
         onPrices={() => carousel.current?.goTo(2)}
       />
+
+      <LandingShowcase />
 
       {/* The launch party, and only while it is actually on: the API owns
           whether the window is open (see launchStatus in routes.ts) so the

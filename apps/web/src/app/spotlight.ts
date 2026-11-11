@@ -10,7 +10,7 @@ export function tiltFor(fx: number, fy: number, maxDeg: number): { rx: number; r
   return { rx: Math.round(-c(fy) * 2 * maxDeg * 100) / 100 + 0, ry: Math.round(c(fx) * 2 * maxDeg * 100) / 100 + 0 };
 }
 
-const CARDS = ".landing .card, .app-customer .card, .lux-hero";
+const CARDS = ".landing .card, .app-customer .card, .lux-hero, .show-spot";
 const MAGNETS = ".lux-btn";
 
 /**

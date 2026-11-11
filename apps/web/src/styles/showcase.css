@@ -1,0 +1,66 @@
+/* The landing's showcase (components/LandingShowcase.tsx): ticker, photo cards, trust tiles.
+   Photographs and their captions stay light on dark in either theme, as the hero does. */
+.show { display: grid; gap: 8px; }
+
+.show-marq { overflow: hidden; border-block: 1px solid var(--line); -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+.show-marq-track { display: flex; width: max-content; animation: show-marq 46s linear infinite; }
+.show-marq span { display: flex; align-items: center; gap: 44px; padding: 18px 22px; font: italic 400 clamp(16px, 1.5vw, 21px)/1 Georgia, "Times New Roman", serif; color: var(--muted); white-space: nowrap; }
+.show-marq span::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-bright); box-shadow: 0 0 10px var(--accent-bright); }
+@keyframes show-marq { to { transform: translateX(-50%); } }
+
+.show-section { padding: 36px 0 8px; }
+.show-kicker { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: var(--accent-bright); }
+.show-title { margin: 12px 0 0; font: 400 clamp(30px, 4.2vw, 56px)/1.04 Georgia, "Times New Roman", serif; letter-spacing: -.02em; max-width: 20ch; }
+.show-title::after { display: none; }
+
+.show-grid { margin-top: 26px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.show-card { position: relative; overflow: hidden; border-radius: 16px; aspect-ratio: 3 / 4; background: #0b0e17; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); transition: transform .5s cubic-bezier(.16, 1, .3, 1), box-shadow .4s; animation: show-rise .9s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--i) * 70ms); }
+.show-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.4s cubic-bezier(.16, 1, .3, 1); }
+.show-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6, 8, 14, .28) 0%, transparent 32%, rgba(6, 8, 14, .94) 100%); }
+.show-tag { position: absolute; z-index: 2; left: 10px; top: 10px; padding: 6px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: .05em; color: #f1dba4; background: rgba(10, 12, 20, .62); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.show-card-text { position: absolute; z-index: 2; left: 14px; right: 14px; bottom: 14px; color: #f6f0e4; }
+.show-card-text h3 { margin: 0; font: 400 clamp(18px, 1.8vw, 26px)/1.1 Georgia, "Times New Roman", serif; letter-spacing: -.01em; color: #fff; }
+.show-card-text p { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: #d9d3c6; }
+@keyframes show-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+
+.show-bento { margin-top: 26px; display: grid; grid-template-columns: 1fr; gap: 10px; }
+.show-tile { position: relative; overflow: hidden; border-radius: 18px; padding: 22px; min-height: 200px; display: flex; flex-direction: column; justify-content: flex-end; background: var(--surface); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 0 1px var(--line); }
+.show-tile h3 { margin: 0; font: 400 clamp(19px, 1.7vw, 25px)/1.12 Georgia, "Times New Roman", serif; }
+.show-tile p { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--muted); max-width: 38ch; }
+.show-fig { position: absolute; left: 0; right: 0; top: 20px; text-align: center; font: 400 clamp(46px, 5vw, 74px)/1 Georgia, "Times New Roman", serif; color: var(--accent-bright); }
+.show-langs { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; border-radius: 999px; background: var(--fill); box-shadow: inset 0 0 0 1px var(--line); }
+.show-langs span { padding: 11px 20px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); animation: show-lang 4.4s steps(1) infinite; }
+.show-langs span:nth-child(2) { animation-name: show-lang-b; }
+@keyframes show-lang { 0%, 100% { background: linear-gradient(100deg, #c9a05a, #f1dba4); color: #1a1208; } 50% { background: none; color: var(--muted); } }
+@keyframes show-lang-b { 0%, 100% { background: none; color: var(--muted); } 50% { background: linear-gradient(100deg, #c9a05a, #f1dba4); color: #1a1208; } }
+.show-sos { position: absolute; top: 26px; left: 50%; width: 112px; height: 112px; margin-left: -56px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; letter-spacing: .2em; color: #fff; background: radial-gradient(circle at 35% 30%, #ff6b60, #b5231d); box-shadow: 0 0 0 7px rgba(224, 52, 44, .14), 0 16px 44px -8px rgba(224, 52, 44, .6); }
+.show-sos::before, .show-sos::after { content: ""; position: absolute; inset: -12px; border-radius: 50%; border: 1.5px solid rgba(255, 110, 100, .5); animation: show-ring 3s ease-out infinite; }
+.show-sos::after { animation-delay: 1.5s; }
+@keyframes show-ring { from { transform: scale(.8); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+.show-tile-big { min-height: 260px; }
+
+/* A faint light follows the pointer across a card (set by app/spotlight.ts through --mx and --my). */
+.show-spot::before { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .45s; background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 236, 190, .14), transparent 62%); }
+@media (hover: hover) {
+  .show-spot:hover::before { opacity: 1; }
+  .show-card:hover { transform: translateY(-4px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), 0 30px 60px -30px #000; }
+  .show-card:hover img { transform: scale(1.06); }
+}
+
+@media (min-width: 900px) {
+  .show-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .show-card { aspect-ratio: 4 / 5; }
+  .show-section { padding-top: 56px; }
+  .show-bento { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .show-tile-big { grid-column: span 2; grid-row: span 2; min-height: 0; }
+  .show-tile { min-height: 230px; }
+  .show-sos { width: 150px; height: 150px; margin-left: -75px; top: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .show-marq-track, .show-card, .show-langs span, .show-sos::before, .show-sos::after { animation: none !important; }
+  .show-langs span:first-child { background: linear-gradient(100deg, #c9a05a, #f1dba4); color: #1a1208; }
+}
+
+/* Titles on photographs stay white in light mode too (the light theme turns plain h3s gold). */
+:root .show .show-card-text h3 { color: #fff; }
+:root .show .show-card-text p { color: #d9d3c6; }
