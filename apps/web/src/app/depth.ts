@@ -20,7 +20,10 @@ export function installDepth(): void {
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const near = new Set<HTMLElement>();
   const io = new IntersectionObserver((entries) => {
-    for (const e of entries) (e.isIntersecting ? near.add(e.target as HTMLElement) : near.delete(e.target as HTMLElement));
+    for (const e of entries) {
+      if (e.isIntersecting) near.add(e.target as HTMLElement);
+      else near.delete(e.target as HTMLElement);
+    }
   }, { rootMargin: "20% 0px" });
   const seen = new WeakSet<Element>();
   const watch = () => document.querySelectorAll<HTMLElement>(TARGETS).forEach((el) => { if (!seen.has(el)) { seen.add(el); io.observe(el); } });
