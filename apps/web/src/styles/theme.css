@@ -1,0 +1,68 @@
+/* Light mode: warm ivory ground, ink type, the same champagne gold. Dark is the
+   default and lives in base.css; everything here applies only when someone has
+   switched the page to light. Loaded last. */
+:root[data-theme="light"] {
+  --ground: #f6f1e7;
+  --surface: #fffdf8;
+  --fill: #efe8d9;
+  --fill-strong: #e4dac5;
+  --line: #dcd2bd;
+  --line-strong: #c4b697;
+  --text: #17130a;
+  --muted: #5d5646;
+  --faint: #857d6a;
+
+  --primary: #b88a3e;
+  --on-primary: #1a1208;
+  --accent: #8a6420;
+  --accent-bright: #b88a3e;
+  --accent-soft: #f1e6cd;
+
+  --ok: #12804f;
+  --ok-fill: #dff3e8;
+  --warn: #8a5a00;
+  --warn-fill: #fbecc8;
+  --danger: #b3261e;
+  --danger-fill: #fbe0de;
+
+  --shadow-sm: 0 1px 2px rgba(60, 45, 15, .12);
+  --shadow: 0 1px 2px rgba(60, 45, 15, .12), 0 10px 24px -14px rgba(60, 45, 15, .3);
+  --shadow-lg: 0 2px 4px rgba(60, 45, 15, .14), 0 20px 44px -22px rgba(60, 45, 15, .4);
+  color-scheme: light;
+}
+
+/* Things that were written in dark colours directly rather than through the
+   variables above. The hero and the Wingman Club stay dark on purpose: they are
+   photographs and a cigar lounge, and they read best that way. */
+:root[data-theme="light"] .card { background: var(--surface); border-color: rgba(184, 138, 62, .35); }
+:root[data-theme="light"] .tabs-bottom { background: rgba(246, 241, 231, .96); border-top-color: rgba(184, 138, 62, .5); }
+:root[data-theme="light"] h3 { color: var(--accent); }
+:root[data-theme="light"] .lux { color: var(--text); }
+:root[data-theme="light"] .lux-hero { color: #f3ecdf; }
+:root[data-theme="light"] .lux-doors strong { color: var(--text); }
+:root[data-theme="light"] .lux-doors li > span:last-child { color: var(--muted); }
+:root[data-theme="light"] .lux-doors li,
+:root[data-theme="light"] .lux-doors { border-color: rgba(138, 100, 32, .25); }
+:root[data-theme="light"] .lux-tagline, :root[data-theme="light"] .lux-eyebrow { color: var(--accent); }
+:root[data-theme="light"] .lux-hero .lux-eyebrow { color: #d9b26a; }
+:root[data-theme="light"] .lux-doors .lux-icon { color: var(--accent); }
+:root[data-theme="light"] .banner-launch { background: var(--accent-soft); color: var(--text); }
+:root[data-theme="light"] .mission-lead { color: var(--text); }
+:root[data-theme="light"] .btn-ghost { color: var(--text); }
+:root[data-theme="light"] .brand-mark { color: var(--text); }
+
+/* Owner portal. */
+:root[data-theme="light"] .master-tile,
+:root[data-theme="light"] .vendor-row,
+:root[data-theme="light"] .vendor-count,
+:root[data-theme="light"] .master-tabs,
+:root[data-theme="light"] .master-fold-body .card-quiet { background: rgba(255, 253, 248, .8); border-color: rgba(138, 100, 32, .25); }
+:root[data-theme="light"] .master-fold { background: var(--surface); border-color: rgba(138, 100, 32, .3); }
+:root[data-theme="light"] .master-fold > summary { color: var(--accent); }
+:root[data-theme="light"] .master-bar-track { background: rgba(60, 45, 15, .1); }
+:root[data-theme="light"] .calc-live { background: rgba(255, 253, 248, .96); }
+:root[data-theme="light"] .master-fold-body .timeline > li { border-bottom-color: rgba(60, 45, 15, .12); }
+:root[data-theme="light"] .footer-links a, :root[data-theme="light"] .footer-links .linklike { color: var(--accent); }
+:root[data-theme="light"] .footer-payments::before, :root[data-theme="light"] .footer-payments::after { color: var(--accent); }
+/* Cover photographs keep light type: the picture is dark under it in either theme. */
+:root[data-theme="light"] .screen-cover, :root[data-theme="light"] .screen-cover h2, :root[data-theme="light"] .screen-cover p { color: #fff; }

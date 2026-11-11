@@ -1,4 +1,5 @@
 import { useLanguage } from "../i18n.tsx";
+import { ThemeToggle } from "./ThemeToggle.tsx";
 
 /** EN | ES, for the customer app's header and the assistants' portal alike. */
 export function LanguageToggle() {
@@ -21,6 +22,7 @@ export function LanguageToggle() {
       >
         ES
       </button>
+      <ThemeToggle />
     </div>
   );
 }
