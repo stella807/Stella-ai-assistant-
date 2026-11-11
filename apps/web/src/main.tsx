@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { LanguageProvider } from "./i18n.tsx";
 import { installSpotlight } from "./app/spotlight.ts";
+import { installDepth } from "./app/depth.ts";
+import { installScramble } from "./app/scramble.ts";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/map.css";
@@ -43,6 +45,8 @@ window.addEventListener("vite:preloadError", (e) => {
 });
 
 installSpotlight();
+installDepth();
+installScramble();
 // After the page is up, so the effect never delays the first paint.
 const later = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 600));
 later(() => { void import("./app/particles.ts").then((m) => m.startParticles()); });

@@ -142,7 +142,6 @@ html::after {
     linear-gradient(180deg, rgba(255, 253, 248, .72), rgba(255, 250, 240, .6));
 }
 
-@keyframes lux-arrive { from { opacity: 0; scale: .965; } to { opacity: 1; scale: 1; } }
 @keyframes lux-hero-slide { to { translate: 0 28px; } }
 @keyframes lux-breathe { from { scale: 1; opacity: .85; } to { scale: 1.12; opacity: 1; } }
 
@@ -150,14 +149,6 @@ html::after {
 .lux-doors li:nth-child(2n) .lux-icon svg { animation-duration: 5.5s; animation-delay: -1.5s; }
 .lux-doors li:nth-child(3n) .lux-icon svg { animation-duration: 6.5s; animation-delay: -3s; }
 
-@supports (animation-timeline: view()) {
-  .landing .card, .landing .banner {
-    animation: card-float 7s ease-in-out infinite alternate, lux-arrive linear both;
-    animation-timeline: auto, view();
-    animation-range: normal, entry 0% entry 40%;
-  }
-  .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-hero-slide linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 60vh; }
-}
 @media (prefers-reduced-motion: reduce) {
   .lux-icon svg, .lux-photo { animation: none !important; }
 }
@@ -166,29 +157,65 @@ html::after {
    When the WebGL particle field is running it takes over from the CSS orbs. */
 html.webgl-on::after { display: none; }
 
-/* The glass panels lean in space as they pass through the screen: tipped back as
-   they arrive, level in the middle, tipped forward as they leave. */
-@keyframes card-tilt {
-  from { transform: perspective(1100px) rotateX(7deg) translateZ(-30px); }
-  45%, 55% { transform: perspective(1100px) rotateX(0deg) translateZ(0); }
-  to   { transform: perspective(1100px) rotateX(-5deg) translateZ(-20px); }
-}
-
-/* Headlines arrive the way the reference's text does: smeared and split in
-   colour, then they come into focus. */
+/* ---- Choreography, taken from the reference ------------------------------
+   Its pieces arrive through blur and a split of colour, glass panels swing in
+   space, and scenes hand over to each other through a smear. Here each part of
+   the site gets its own version of that:
+   - hero: the photograph resolves out of a colour-smeared blur, the headline focuses in
+   - feature tiles: flip up from below, one after another
+   - cards: tip back as they come up the screen, level in the middle, and fade at the edges
+   - carousel: slides swing like glass panels as you swipe
+   - buttons: a quick split of colour on hover
+   Where a position on screen is needed it comes from app/depth.ts, which sets --p
+   on each element: 0 when it is centred, 1 below the screen, -1 above. */
 @keyframes focus-in {
   from { opacity: 0; filter: blur(10px); letter-spacing: .08em;
          text-shadow: -6px 0 rgba(255, 90, 120, .55), 6px 0 rgba(70, 200, 255, .55); }
   to   { opacity: 1; filter: blur(0); letter-spacing: inherit; text-shadow: none; }
 }
+@keyframes lux-resolve {
+  from { filter: blur(16px) saturate(1.8) hue-rotate(-25deg); scale: 1.12; }
+  to   { filter: none; scale: 1; }
+}
+@keyframes tile-flip { from { opacity: 0; rotate: 1 0 0 38deg; } to { opacity: 1; rotate: 1 0 0 0deg; } }
+@keyframes split-flash {
+  0%, 100% { text-shadow: none; }
+  30% { text-shadow: -3px 0 rgba(255, 90, 120, .7), 3px 0 rgba(70, 200, 255, .7); }
+  60% { text-shadow: 2px 0 rgba(255, 90, 120, .5), -2px 0 rgba(70, 200, 255, .5); }
+}
+@keyframes slide-glass {
+  0%   { opacity: .2; rotate: 0 1 0 28deg; scale: .9; }
+  40%, 60% { opacity: 1; rotate: 0 1 0 0deg; scale: 1; }
+  100% { opacity: .2; rotate: 0 1 0 -28deg; scale: .9; }
+}
+
 .lux-title { animation: focus-in 1.1s .15s cubic-bezier(.2, .7, .2, 1) both; }
+.lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both; }
+.lux-doors li { animation: tile-flip .9s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 110ms + .35s); transform-origin: 50% 100%; }
+
+/* Position-driven: tipped back and faded as a card comes up from below or leaves above. */
+.landing .card, .landing .banner {
+  transform: perspective(1100px) rotateX(calc(var(--p, 0) * 7deg)) translateZ(calc(var(--p, 0) * var(--p, 0) * -34px));
+  opacity: clamp(0, calc(1 - (var(--p, 0) * var(--p, 0) - .55) * 3), 1);
+}
+.landing .card > h2, .landing .card > h3 {
+  filter: blur(calc(max(0, var(--p, 0) * var(--p, 0) - .45) * 16px));
+}
+
+.lux-btn:hover, .landing .btn:hover { animation: split-flash .5s ease; }
 
 @supports (animation-timeline: view()) {
-  .landing .card, .landing .banner {
-    animation: card-float 7s ease-in-out infinite alternate, lux-arrive linear both, card-tilt linear both;
-    animation-timeline: auto, view(), view();
-    animation-range: normal, entry 0% entry 40%, cover 0% cover 100%;
-  }
-  .landing .card > h2, .landing .card > h3 { animation: focus-in linear both; animation-timeline: view(); animation-range: entry 5% entry 55%; }
+  .slide { animation: slide-glass linear both; animation-timeline: view(inline); animation-range: cover 0% cover 100%; }
+  .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both, lux-hero-slide linear both; animation-timeline: auto, auto, scroll(root); animation-range: normal, normal, 0 60vh; }
 }
-@media (prefers-reduced-motion: reduce) { .lux-title, .landing .card > h2, .landing .card > h3 { animation: none !important; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lux-title, .lux-photo, .lux-doors li, .slide, .lux-btn:hover, .landing .btn:hover { animation: none !important; }
+  .landing .card, .landing .banner { transform: none; opacity: 1; }
+  .landing .card > h2, .landing .card > h3 { filter: none; }
+}
+
+/* The copy laid over a line while it scrambles; the real text underneath is hidden until it settles. */
+.scrambling { position: relative; color: transparent !important; text-shadow: none !important; }
+.scramble-overlay { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--gold, #d9b26a); }
+:root[data-theme="light"] .scramble-overlay { color: var(--accent); }
