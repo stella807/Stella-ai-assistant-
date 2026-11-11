@@ -173,6 +173,12 @@ html.webgl-on::after { display: none; }
          text-shadow: -6px 0 rgba(255, 90, 120, .55), 6px 0 rgba(70, 200, 255, .55); }
   to   { opacity: 1; filter: blur(0); letter-spacing: inherit; text-shadow: none; }
 }
+/* The hero leans toward the pointer; its words and button follow it a little. */
+.lux-hero { transform: perspective(1400px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .45s cubic-bezier(.16, 1, .3, 1); }
+.lux-btn { translate: var(--bx, 0px) var(--by, 0px); transition: background-position .6s, transform .2s, translate .3s cubic-bezier(.16, 1, .3, 1); }
+html.fog-on body::before { display: none; }
+@keyframes lux-copy-rise { to { translate: 0 -26px; } }
+
 @keyframes lux-resolve {
   from { filter: blur(16px) saturate(1.8) hue-rotate(-25deg); scale: 1.12; }
   to   { filter: none; scale: 1; }
@@ -189,13 +195,20 @@ html.webgl-on::after { display: none; }
   100% { opacity: .2; rotate: 0 1 0 -28deg; scale: .9; }
 }
 
-.lux-title { animation: focus-in 1.1s .15s cubic-bezier(.2, .7, .2, 1) both; }
+.lux-title { animation: none; }
+@keyframes word-rise {
+  from { opacity: 0; transform: translateY(.45em) rotateX(55deg); filter: blur(9px);
+         text-shadow: -5px 0 rgba(255, 90, 120, .5), 5px 0 rgba(70, 200, 255, .5); }
+  to   { opacity: 1; transform: none; filter: blur(0); text-shadow: none; }
+}
+.lux-word { display: inline-block; transform-origin: 50% 100%; animation: word-rise 1s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--w, 0) * 80ms + .2s); }
 .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both; }
 .lux-doors li { animation: tile-flip .9s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 110ms + .35s); transform-origin: 50% 100%; }
 
 /* Position-driven: tipped back and faded as a card comes up from below or leaves above. */
 .landing .card, .landing .banner {
-  transform: perspective(1100px) rotateX(calc(var(--p, 0) * 7deg)) translateZ(calc(var(--p, 0) * var(--p, 0) * -34px));
+  transform: perspective(1100px) rotateX(calc(var(--p, 0) * 7deg + var(--rx, 0deg))) rotateY(var(--ry, 0deg)) translateZ(calc(var(--p, 0) * var(--p, 0) * -34px));
+  transition: transform .35s cubic-bezier(.16, 1, .3, 1);
   opacity: clamp(0, calc(1 - (var(--p, 0) * var(--p, 0) - .55) * 3), 1);
 }
 .landing .card > h2, .landing .card > h3 {
@@ -205,12 +218,13 @@ html.webgl-on::after { display: none; }
 .lux-btn:hover, .landing .btn:hover { animation: split-flash .5s ease; }
 
 @supports (animation-timeline: view()) {
+  .lux-copy { animation: lux-up 1s .15s ease both, lux-copy-rise linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 60vh; }
   .slide { animation: slide-glass linear both; animation-timeline: view(inline); animation-range: cover 0% cover 100%; }
   .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both, lux-hero-slide linear both; animation-timeline: auto, auto, scroll(root); animation-range: normal, normal, 0 60vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lux-title, .lux-photo, .lux-doors li, .slide, .lux-btn:hover, .landing .btn:hover { animation: none !important; }
+  .lux-word, .lux-photo, .lux-doors li, .slide, .lux-btn:hover, .landing .btn:hover { animation: none !important; }
   .landing .card, .landing .banner { transform: none; opacity: 1; }
   .landing .card > h2, .landing .card > h3 { filter: none; }
 }

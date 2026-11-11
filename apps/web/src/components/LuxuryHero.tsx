@@ -1,4 +1,10 @@
+import type { CSSProperties } from "react";
 import { useLanguage } from "../i18n.tsx";
+
+/** A line cut into words, each rising in a beat after the last. The words stay ordinary text, so reading and searching work as before. */
+function Words({ text, from }: { text: string; from: number }) {
+  return <>{text.split(" ").map((w, i) => <span key={`${i}-${w}`}><span className="lux-word" style={{ "--w": from + i } as CSSProperties}>{w}</span>{" "}</span>)}</>;
+}
 
 /** Thin gold line icons, one per door — the same stroke weight as the nav. */
 const base = { width: 30, height: 30, viewBox: "0 0 32 32", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -32,7 +38,7 @@ export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrice
         <div className="lux-shade" />
         <div className="lux-copy">
           <span className="lux-eyebrow">{t("lux.eyebrow")}</span>
-          <h1 className="lux-title">{t("lux.title1")}<br />{t("lux.title2")}</h1>
+          <h1 className="lux-title"><span><Words text={t("lux.title1")} from={0} /><br /><Words text={t("lux.title2")} from={3} /></span></h1>
           <p className="lux-sub">{t("lux.sub")}</p>
           <div className="lux-cta">
             <button className="lux-btn glow-border" onClick={onStart}>{t("lux.cta")} <span aria-hidden="true">→</span></button>

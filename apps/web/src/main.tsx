@@ -49,7 +49,10 @@ installDepth();
 installScramble();
 // After the page is up, so the effect never delays the first paint.
 const later = window.requestIdleCallback ?? ((f: () => void) => window.setTimeout(f, 600));
-later(() => { void import("./app/particles.ts").then((m) => m.startParticles()); });
+later(() => {
+  void import("./app/fog.ts").then((m) => m.startFog());
+  void import("./app/particles.ts").then((m) => m.startParticles());
+});
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* The owner dashboard is English-only; the assistants' portal and the
