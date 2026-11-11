@@ -81,11 +81,13 @@ body::after {
    the drift. */
 html::after {
   content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  /* closest-side keeps each sphere inside its own tile; the default sizing lets the
+     circle run past the tile and the edges show up as squares. */
   background:
-    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .34), rgba(167, 139, 250, .2) 42%, rgba(40, 168, 178, .07) 68%, transparent 70%) 84% 14% / 110px 110px no-repeat,
-    radial-gradient(circle at 35% 30%, rgba(255, 244, 220, .36), rgba(217, 178, 106, .2) 42%, rgba(217, 178, 106, .05) 68%, transparent 70%) 6% 46% / 72px 72px no-repeat,
-    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .26), rgba(40, 168, 178, .16) 42%, rgba(124, 92, 214, .05) 68%, transparent 70%) 92% 72% / 170px 170px no-repeat,
-    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .3), rgba(214, 96, 160, .15) 42%, transparent 70%) 14% 90% / 90px 90px no-repeat;
+    radial-gradient(circle closest-side at 50% 50%, rgba(255, 255, 255, .32), rgba(167, 139, 250, .2) 45%, rgba(40, 168, 178, .07) 80%, transparent 100%) 84% 14% / 110px 110px no-repeat,
+    radial-gradient(circle closest-side at 50% 50%, rgba(255, 244, 220, .34), rgba(217, 178, 106, .2) 45%, rgba(217, 178, 106, .05) 80%, transparent 100%) 6% 46% / 72px 72px no-repeat,
+    radial-gradient(circle closest-side at 50% 50%, rgba(255, 255, 255, .24), rgba(40, 168, 178, .16) 45%, rgba(124, 92, 214, .05) 80%, transparent 100%) 92% 72% / 170px 170px no-repeat,
+    radial-gradient(circle closest-side at 50% 50%, rgba(255, 255, 255, .28), rgba(214, 96, 160, .15) 45%, transparent 100%) 14% 90% / 90px 90px no-repeat;
   filter: blur(1.2px);
   animation: orb-float 16s ease-in-out infinite alternate;
   will-change: transform;
@@ -122,4 +124,40 @@ html::after {
 
 @media (prefers-reduced-motion: reduce) {
   html::after, body::before, body::after, .landing .card, .landing .banner { animation: none !important; }
+}
+
+/* ---- More motion ---------------------------------------------------------
+   A faint light follows the pointer across a card; sections fade and settle
+   into place as they arrive; the hero photograph slides slower than the page;
+   the small gold icons breathe. The reveal uses the `scale` and `opacity`
+   properties so it does not clash with the floating, which uses `translate`. */
+.landing .card, .app-customer .card {
+  background:
+    radial-gradient(260px circle at var(--mx, -400px) var(--my, -400px), rgba(255, 244, 220, .11), transparent 62%),
+    linear-gradient(180deg, rgba(26, 36, 70, .62), rgba(16, 22, 46, .72));
+}
+:root[data-theme="light"] .landing .card, :root[data-theme="light"] .app-customer .card {
+  background:
+    radial-gradient(260px circle at var(--mx, -400px) var(--my, -400px), rgba(217, 178, 106, .2), transparent 62%),
+    linear-gradient(180deg, rgba(255, 253, 248, .72), rgba(255, 250, 240, .6));
+}
+
+@keyframes lux-arrive { from { opacity: 0; scale: .965; } to { opacity: 1; scale: 1; } }
+@keyframes lux-hero-slide { to { translate: 0 28px; } }
+@keyframes lux-breathe { from { scale: 1; opacity: .85; } to { scale: 1.12; opacity: 1; } }
+
+.lux-icon svg { animation: lux-breathe 4.5s ease-in-out infinite alternate; }
+.lux-doors li:nth-child(2n) .lux-icon svg { animation-duration: 5.5s; animation-delay: -1.5s; }
+.lux-doors li:nth-child(3n) .lux-icon svg { animation-duration: 6.5s; animation-delay: -3s; }
+
+@supports (animation-timeline: view()) {
+  .landing .card, .landing .banner {
+    animation: card-float 7s ease-in-out infinite alternate, lux-arrive linear both;
+    animation-timeline: auto, view();
+    animation-range: normal, entry 0% entry 40%;
+  }
+  .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-hero-slide linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 60vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lux-icon svg, .lux-photo { animation: none !important; }
 }

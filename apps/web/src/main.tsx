@@ -3,6 +3,7 @@ import { lazyWithReload, reloadOnceForNewVersion } from "./app/lazy-import.ts";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import { LanguageProvider } from "./i18n.tsx";
+import { installSpotlight } from "./app/spotlight.ts";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/map.css";
@@ -41,6 +42,7 @@ window.addEventListener("vite:preloadError", (e) => {
   if (reloadOnceForNewVersion(sessionStorage, () => window.location.reload())) e.preventDefault();
 });
 
+installSpotlight();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* The owner dashboard is English-only; the assistants' portal and the
