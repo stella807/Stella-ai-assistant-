@@ -1,43 +1,15 @@
 /* Landing carousel -----------------------------------------------------
-   Native scroll-snap rather than a JS gesture handler: swiping on a phone
-   is the browser's job, and reimplementing it badly is how carousels end up
-   fighting the scroll. The dots and arrows just scroll the same container
-   programmatically. */
-
-.slides {
-  display: flex;
-  gap: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  align-items: flex-start;
-  scrollbar-width: none;
-  /* Height follows the slide actually on screen, set from JS — otherwise the
-     track stands as tall as the tallest slide and the short ones open a
-     canyon of empty space under their content. */
-  transition: height 180ms ease;
-  overflow-y: hidden;
-  /* Keeps a taller neighbouring slide from adding scroll height below the page on iOS. */
-  contain: paint;
-}
-.slides::-webkit-scrollbar { display: none; }
+   The deck itself (how slides fly in and out) lives in deck.css. A slide is a
+   column of cards; on a wide screen desktop.css lays it out in two. */
 
 .slide {
-  flex: 0 0 100%;
-  /* A flex item will not shrink below its content, so one wide table made the whole slide wider than the
-     screen. Zero lets the slide stay one screen wide and the table scroll inside its own box. */
-  min-width: 0;
-  /* `start`, not `center`: centering inside a full-width track leaves the
-     neighbouring slides peeking through the gutter, which reads as a
-     rendering fault rather than an affordance. */
-  scroll-snap-align: start;
   /* Cards on a slide sit further apart than elements inside one, so the
      grouping is visible: at a uniform gap, a stack of same-coloured cards
      reads as a single long panel rather than as separate things. */
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
   padding-inline: 2px;
 }
 
@@ -77,7 +49,6 @@
    component too — a carousel that moves on its own is exactly what this
    setting is asking us not to do. */
 @media (prefers-reduced-motion: reduce) {
-  .slides { scroll-behavior: auto; transition: none; }
   .slide-dots button { transition: none; }
 }
 

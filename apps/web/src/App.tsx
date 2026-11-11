@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { DrinkDefinition } from "@safehubby/core";
 import { api, type Account, type LaunchStatus } from "./api.ts";
 import { configError } from "./native/platform.ts";
@@ -24,6 +24,7 @@ import { LegalDocumentView } from "./components/LegalDocumentView.tsx";
 import { disclosureCopy } from "./app/disclosure-copy.ts";
 import { cookiesCopy, refundCopy } from "./app/legal-copy.ts";
 import { ScreenGuard } from "./components/ScreenGuard.tsx";
+import { emitWarp } from "./app/warp.ts";
 import { BackButton } from "./components/BackButton.tsx";
 import { IconBriefcase, IconCard, IconEye, IconMoon } from "./components/NavIcons.tsx";
 
@@ -34,6 +35,13 @@ type Role =
 export function App() {
   // A link can open the job application directly — see entry-route.ts.
   const [role, setRoleState] = useState<Role>(() => entryRouteFromUrl(window.location));
+  // Every move to another screen sends the background rushing past with it,
+  // except the first, which is the page arriving rather than moving.
+  const firstRole = useRef(true);
+  useEffect(() => {
+    if (firstRole.current) { firstRole.current = false; return; }
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) emitWarp(1);
+  }, [role]);
   // Read once, at load: which role an ad asked the form to start on.
   const [initialRole] = useState(() => entryRoleFromUrl(window.location));
   // Every move between screens is a browser history entry, so the phone's or
@@ -162,6 +170,7 @@ export function App() {
               loaded in the old language is loaded again in the new one. */}
           <Fragment key={language}>
           <ScreenGuard key={role}>
+          <div className="warp-in">
           {role === "out" && (
             <TravelerScreen drinks={drinks} account={account}
               onOpenHiring={(tab) => { setHiringTab(tab); setRole("hiring"); }}
@@ -185,6 +194,7 @@ export function App() {
           {role === "hiring" && <HiringScreen account={account} initialTab={hiringTab} />}
           {role === "about" && <AboutScreen />}
           {role === "how" && <HowItWorks onOpenPlans={() => setRole("plans")} />}
+          </div>
           </ScreenGuard>
           </Fragment>
         </>

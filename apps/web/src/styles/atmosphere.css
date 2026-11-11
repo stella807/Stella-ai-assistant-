@@ -189,11 +189,6 @@ html.fog-on body::before { display: none; }
   30% { text-shadow: -3px 0 rgba(255, 90, 120, .7), 3px 0 rgba(70, 200, 255, .7); }
   60% { text-shadow: 2px 0 rgba(255, 90, 120, .5), -2px 0 rgba(70, 200, 255, .5); }
 }
-@keyframes slide-glass {
-  0%   { opacity: .2; rotate: 0 1 0 28deg; scale: .9; }
-  40%, 60% { opacity: 1; rotate: 0 1 0 0deg; scale: 1; }
-  100% { opacity: .2; rotate: 0 1 0 -28deg; scale: .9; }
-}
 
 .lux-title { animation: none; }
 @keyframes word-rise {
@@ -219,12 +214,11 @@ html.fog-on body::before { display: none; }
 
 @supports (animation-timeline: view()) {
   .lux-copy { animation: lux-up 1s .15s ease both, lux-copy-rise linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 60vh; }
-  .slide { animation: slide-glass linear both; animation-timeline: view(inline); animation-range: cover 0% cover 100%; }
   .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both, lux-hero-slide linear both; animation-timeline: auto, auto, scroll(root); animation-range: normal, normal, 0 60vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lux-word, .lux-photo, .lux-doors li, .slide, .lux-btn:hover, .landing .btn:hover { animation: none !important; }
+  .lux-word, .lux-photo, .lux-doors li, .lux-btn:hover, .landing .btn:hover { animation: none !important; }
   .landing .card, .landing .banner { transform: none; opacity: 1; }
   .landing .card > h2, .landing .card > h3 { filter: none; }
 }

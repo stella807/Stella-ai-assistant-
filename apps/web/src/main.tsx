@@ -6,6 +6,7 @@ import { LanguageProvider } from "./i18n.tsx";
 import { installSpotlight } from "./app/spotlight.ts";
 import { installDepth } from "./app/depth.ts";
 import { installScramble } from "./app/scramble.ts";
+import { playIntro } from "./app/intro.ts";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/map.css";
@@ -20,6 +21,8 @@ import "./styles/luxe.css";
 import "./styles/desktop.css";
 import "./styles/theme.css";
 import "./styles/atmosphere.css";
+import "./styles/deck.css";
+import "./styles/intro.css";
 
 // Three distinct areas of one app, split by path rather than by a query
 // param carried on a link: /employee is the employee portal and /master is
@@ -44,6 +47,7 @@ window.addEventListener("vite:preloadError", (e) => {
   if (reloadOnceForNewVersion(sessionStorage, () => window.location.reload())) e.preventDefault();
 });
 
+playIntro();
 installSpotlight();
 installDepth();
 installScramble();

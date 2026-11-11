@@ -1,3 +1,5 @@
+import { followWarp } from "./warp.ts";
+
 /** x, y, depth, hue for each particle, every value in 0..1. Depth 0 is far away, 1 is close. */
 export function makeParticles(count: number, rand: () => number = Math.random): Float32Array {
   const out = new Float32Array(count * 4);
@@ -17,7 +19,7 @@ export function particleCount(width: number, height: number): number {
 }
 
 const VERT = `
-attribute vec4 aP; uniform float uTime, uScroll, uPx; uniform vec2 uPointer;
+attribute vec4 aP; uniform float uTime, uScroll, uPx, uWarp, uTravel; uniform vec2 uPointer;
 varying vec3 vCol; varying float vA;
 void main(){
   float d = aP.z;
@@ -25,9 +27,13 @@ void main(){
   float x = aP.x + sin(uTime * .2 + aP.y * 20.) * .012 * d + uPointer.x * .04 * d;
   vec2 p = vec2(x, y) * 2. - 1.;
   p.y += uPointer.y * .04 * d;
+  // A move through the site: every point streams out from the centre past the
+  // camera, the near ones fastest, and is born again small in the middle.
+  float s = fract(aP.w * 7.13 + aP.z * 3.1 + uTravel * (.6 + 1.4 * d));
+  p *= mix(1., mix(.08, 2.6, s * s), uWarp);
   gl_Position = vec4(p, 0., 1.);
-  gl_PointSize = (2. + 11. * d * d) * uPx;
-  vA = mix(.22, .9, d) * smoothstep(0., .08, y) * smoothstep(1., .92, y);
+  gl_PointSize = (2. + 11. * d * d) * uPx * (1. + uWarp * 2.4 * d * s);
+  vA = mix(.22, .9, d) * mix(smoothstep(0., .08, y) * smoothstep(1., .92, y), 1.4, uWarp);
   vec3 gold = vec3(.85, .70, .42), violet = vec3(.55, .42, .95), teal = vec3(.16, .70, .72);
   vCol = mix(mix(gold, violet, step(.4, aP.w)), teal, step(.75, aP.w));
 }`;
@@ -72,6 +78,9 @@ export function startParticles(): void {
   gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 0, 0);
   const u = (n: string) => gl.getUniformLocation(prog, n);
   const uTime = u("uTime"), uScroll = u("uScroll"), uPx = u("uPx"), uPointer = u("uPointer"), uLight = u("uLight");
+  const uWarp = u("uWarp"), uTravel = u("uTravel");
+  const warp = followWarp();
+  let travel = 0, lastT = 0;
 
   document.body.prepend(canvas);
   document.documentElement.classList.add("webgl-on");
@@ -101,6 +110,11 @@ export function startParticles(): void {
     else gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
     pointer.x += (pointer.tx - pointer.x) * 0.06; pointer.y += (pointer.ty - pointer.y) * 0.06;
     gl.uniform1f(uTime, t / 1000);
+    const { strength } = warp.read();
+    travel += Math.min(0.05, (t - lastT) / 1000) * strength * 2.4;
+    lastT = t;
+    gl.uniform1f(uWarp, strength);
+    gl.uniform1f(uTravel, travel);
     gl.uniform1f(uScroll, window.scrollY / Math.max(1, window.innerHeight));
     gl.uniform2f(uPointer, pointer.x, pointer.y);
     gl.uniform1f(uLight, light ? 1 : 0);

@@ -1,0 +1,141 @@
+/* The deck: moving between the parts of the site as a flight through depth.
+
+   Forward: the slide on screen rushes at the camera, swelling, brightening and
+   smearing out of focus as it passes, while the next comes up out of the
+   distance, turned a little on its side, and settles square in front of you.
+   Its cards then swing in one after another like panels of glass, alternating
+   sides, and its headings tear in on a glitch before they hold still.
+   Back: the same flight in reverse; the slide on screen falls away into the
+   distance and the earlier one arrives from behind the camera.
+
+   The timing adds up to MOVE_MS in Carousel.tsx (1000 ms). Individual
+   transform properties (translate, rotate, scale) are kept for things that
+   must compose with the cards' own transforms in atmosphere.css. */
+
+.deck {
+  position: relative;
+  perspective: 1400px;
+  perspective-origin: 50% 22%;
+  /* Vertical scrolling stays with the page; sideways drags come to us. */
+  touch-action: pan-y;
+  transition: height .75s cubic-bezier(.16, 1, .3, 1);
+}
+
+.deck-slide { display: none; }
+.deck-slide[data-state="active"] {
+  display: block;
+  position: relative;
+  transform-origin: 50% 18%;
+  /* Following a finger while it drags: a lean toward where the slide will go. */
+  translate: calc(var(--pull, 0) * 46px) 0;
+  rotate: 0 1 0 calc(var(--pull, 0) * 9deg);
+  transition: translate .5s cubic-bezier(.16, 1, .3, 1), rotate .5s cubic-bezier(.16, 1, .3, 1);
+}
+.deck.dragging .deck-slide[data-state="active"] { transition: none; }
+.deck-slide[data-state="leaving"] {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto 0;
+  pointer-events: none;
+  transform-origin: 50% 18%;
+  z-index: 1;
+}
+
+/* ---- The two slides ---- */
+@keyframes deck-out-fwd {
+  0%   { opacity: 1; transform: none; filter: none; }
+  35%  { opacity: .9; filter: blur(2px) brightness(1.25); }
+  100% { opacity: 0; transform: translateZ(420px) rotateX(-5deg); filter: blur(18px) brightness(1.9) saturate(1.6); }
+}
+@keyframes deck-in-fwd {
+  0%   { opacity: 0; transform: translateZ(-1100px) translateY(60px) rotateY(-16deg) rotateX(8deg); filter: blur(18px) brightness(1.8) saturate(1.8); }
+  45%  { opacity: 1; filter: blur(3px) brightness(1.2); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+@keyframes deck-out-back {
+  0%   { opacity: 1; transform: none; filter: none; }
+  100% { opacity: 0; transform: translateZ(-900px) translateY(40px) rotateY(16deg); filter: blur(16px) brightness(.6); }
+}
+@keyframes deck-in-back {
+  0%   { opacity: 0; transform: translateZ(380px) rotateX(-4deg); filter: blur(18px) brightness(1.8); }
+  50%  { opacity: 1; filter: blur(3px) brightness(1.15); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+.deck.fwd  .deck-slide[data-state="leaving"] { animation: deck-out-fwd .62s cubic-bezier(.55, 0, .9, .4) both; }
+.deck.back .deck-slide[data-state="leaving"] { animation: deck-out-back .62s cubic-bezier(.55, 0, .9, .4) both; }
+.deck.moving.fwd  .deck-slide[data-state="active"] { animation: deck-in-fwd .95s .08s cubic-bezier(.16, 1, .3, 1) both; }
+.deck.moving.back .deck-slide[data-state="active"] { animation: deck-in-back .95s .08s cubic-bezier(.16, 1, .3, 1) both; }
+
+/* ---- The panels on the arriving slide ----
+   Each child of the slide swings in on its own beat, alternating sides like
+   the glass panels in a corridor. The cards keep floating afterwards: their
+   float is listed second so it takes over once the entrance is done. */
+@keyframes panel-in {
+  from { opacity: 0; translate: 0 46px; rotate: 0 1 0 var(--swing, 24deg); scale: .84; }
+  to   { opacity: 1; translate: 0 0; rotate: 0 1 0 0deg; scale: 1; }
+}
+.deck.moving .deck-slide[data-state="active"] > .slide > * {
+  --swing: 26deg;
+  transform-origin: 100% 50%;
+  animation: panel-in .9s cubic-bezier(.16, 1, .3, 1) both, card-float 7s ease-in-out 1s infinite alternate;
+  animation-delay: calc(.22s + var(--k, 0) * 95ms), 1s;
+}
+.deck.moving .deck-slide[data-state="active"] > .slide > :nth-child(even) { --swing: -26deg; transform-origin: 0% 50%; }
+.deck.back.moving .deck-slide[data-state="active"] > .slide > * { --swing: -20deg; }
+.deck.back.moving .deck-slide[data-state="active"] > .slide > :nth-child(even) { --swing: 20deg; }
+.deck-slide > .slide > :nth-child(2) { --k: 1; }
+.deck-slide > .slide > :nth-child(3) { --k: 2; }
+.deck-slide > .slide > :nth-child(4) { --k: 3; }
+.deck-slide > .slide > :nth-child(5) { --k: 4; }
+.deck-slide > .slide > :nth-child(n+6) { --k: 5; }
+
+/* ---- Headings tear in ---- */
+@keyframes deck-glitch {
+  0%   { clip-path: inset(0 0 82% 0); translate: -10px 0; text-shadow: -5px 0 rgba(255, 60, 110, .85), 5px 0 rgba(60, 200, 255, .85); opacity: 1; }
+  12%  { clip-path: inset(38% 0 36% 0); translate: 8px 0; }
+  24%  { clip-path: inset(8% 0 62% 0); translate: -6px 0; }
+  36%  { clip-path: inset(66% 0 4% 0); translate: 5px 0; }
+  48%  { clip-path: inset(20% 0 30% 0); translate: -3px 0; }
+  62%  { clip-path: inset(0); translate: 0 0; text-shadow: -2px 0 rgba(255, 60, 110, .6), 2px 0 rgba(60, 200, 255, .6); }
+  100% { clip-path: inset(0); translate: 0 0; text-shadow: none; }
+}
+.deck.moving .deck-slide[data-state="active"] :is(h2, h3) {
+  animation: deck-glitch .6s steps(1, end) both;
+  animation-delay: calc(.4s + var(--k, 0) * 95ms);
+}
+
+/* ---- A flash of light where the camera passes through ---- */
+@keyframes deck-flash {
+  0%   { opacity: 0; transform: scale(.4); }
+  22%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+.deck.moving::before {
+  content: ""; position: absolute; left: 50%; top: 22%; width: 120vmax; height: 120vmax; margin: -60vmax 0 0 -60vmax;
+  border-radius: 50%; pointer-events: none; z-index: 2;
+  background: radial-gradient(closest-side, rgba(255, 244, 222, .5), rgba(217, 178, 106, .18) 35%, rgba(124, 92, 214, .08) 60%, transparent 72%);
+  mix-blend-mode: screen;
+  animation: deck-flash .8s .05s ease-out both;
+}
+:root[data-theme="light"] .deck.moving::before { mix-blend-mode: normal; opacity: .6; }
+
+/* The caption under the dots tears in with the slide. */
+.deck-caption { animation: deck-glitch .5s .3s steps(1, end) both; }
+
+/* ---- Screens and tabs inside the app arrive the same way ---- */
+@keyframes warp-in {
+  0%   { opacity: 0; transform: perspective(1400px) translateZ(-700px) rotateX(7deg); filter: blur(14px) brightness(1.6); }
+  50%  { opacity: 1; filter: blur(2px); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+.warp-in { animation: warp-in .8s cubic-bezier(.16, 1, .3, 1) both; transform-origin: 50% 10%; }
+.warp-in > * > .card, .master-fold, .master-summary { animation: panel-in .85s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(.12s + var(--k, 0) * 80ms); }
+.warp-in > * > .card:nth-child(2), .master-fold:nth-of-type(2) { --k: 1; }
+.warp-in > * > .card:nth-child(3), .master-fold:nth-of-type(3) { --k: 2; }
+.warp-in > * > .card:nth-child(n+4), .master-fold:nth-of-type(n+4) { --k: 3; }
+
+@media (prefers-reduced-motion: reduce) {
+  .deck, .deck-slide[data-state="active"] { transition: none; }
+  .deck-slide, .deck-slide *, .deck::before, .deck-caption, .warp-in, .warp-in *, .master-fold, .master-summary { animation: none !important; }
+}

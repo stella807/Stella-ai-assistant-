@@ -1,7 +1,9 @@
+import { followWarp } from "./warp.ts";
+
 const VERT = `attribute vec2 aP; void main(){ gl_Position = vec4(aP, 0., 1.); }`;
 const FRAG = `
 precision mediump float;
-uniform vec2 uRes, uPointer; uniform float uTime, uScroll, uLight;
+uniform vec2 uRes, uPointer; uniform float uTime, uScroll, uLight, uWarp;
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   return mix(mix(h(i), h(i + vec2(1., 0.)), f.x), mix(h(i + vec2(0., 1.)), h(i + vec2(1., 1.)), f.x), f.y); }
@@ -10,13 +12,16 @@ void main(){
   vec2 uv = gl_FragCoord.xy / uRes;
   vec2 p = uv * vec2(uRes.x / uRes.y, 1.) * 1.7;
   p.y += uScroll * .3; p += uPointer * .18;
+  // During a move the light is pulled toward the centre, as if flown into.
+  vec2 mid = vec2(uRes.x / uRes.y, 1.) * .85;
+  p = mid + (p - mid) * (1. - uWarp * .45);
   float t = uTime * .035;
   vec2 q = vec2(fbm(p + t), fbm(p + vec2(5.2, 1.3) - t));
   float f = fbm(p + 2.3 * q + t);
   vec3 c = mix(vec3(.30, .18, .66), vec3(.08, .56, .62), smoothstep(.3, .8, q.x));
   c = mix(c, vec3(.88, .68, .32), smoothstep(.55, .95, f) * .85);
   c = mix(c, vec3(1.), uLight * .5);
-  float a = smoothstep(.32, .85, f) * mix(.34, .3, uLight);
+  float a = smoothstep(.32, .85, f) * mix(.34, .3, uLight) * (1. + uWarp * .9);
   gl_FragColor = vec4(c, a);
 }`;
 
@@ -46,7 +51,10 @@ export function startFog(): void {
   const loc = gl.getAttribLocation(prog, "aP");
   gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = (n: string) => gl.getUniformLocation(prog, n);
-  const uRes = U("uRes"), uTime = U("uTime"), uScroll = U("uScroll"), uPointer = U("uPointer"), uLight = U("uLight");
+  const uRes = U("uRes"), uTime = U("uTime"), uScroll = U("uScroll"), uPointer = U("uPointer"), uLight = U("uLight"), uWarp = U("uWarp");
+  const warp = followWarp();
+  // Time runs faster during a move, so the light visibly rushes.
+  let clock = 0;
 
   document.body.prepend(canvas);
   document.documentElement.classList.add("fog-on");
@@ -66,10 +74,14 @@ export function startFog(): void {
   let raf = 0, last = 0, slow = 0, frames = 0;
   const loop = (t: number) => {
     // Average over 90 frames; if each takes over 30 ms the device is struggling, so stop.
-    if (last) { slow += t - last; frames++; if (frames === 90) { if (slow / frames > 30) { stop(); return; } slow = 0; frames = 0; } }
+    const dt = last ? t - last : 0;
+    if (last) { slow += dt; frames++; if (frames === 90) { if (slow / frames > 30) { stop(); return; } slow = 0; frames = 0; } }
     last = t;
     pointer.x += (pointer.tx - pointer.x) * 0.05; pointer.y += (pointer.ty - pointer.y) * 0.05;
-    gl.uniform1f(uTime, t / 1000);
+    const { strength } = warp.read();
+    clock += Math.min(0.05, dt / 1000) * (1 + strength * 14);
+    gl.uniform1f(uTime, clock);
+    gl.uniform1f(uWarp, strength);
     gl.uniform1f(uScroll, window.scrollY / Math.max(1, window.innerHeight));
     gl.uniform2f(uPointer, pointer.x, pointer.y);
     gl.uniform1f(uLight, document.documentElement.dataset.theme === "light" ? 1 : 0);

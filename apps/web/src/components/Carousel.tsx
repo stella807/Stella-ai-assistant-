@@ -1,17 +1,24 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
+import { Children, forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ownsHorizontalDrag, stepFor, swipeIntent } from "../app/deck.ts";
+import { emitWarp } from "../app/warp.ts";
 
 /**
- * A scroll-snap carousel: track, dots, arrows, and the two bits of bookkeeping
- * that a naive version always gets wrong.
+ * A deck of slides that the reader travels through in depth: moving forward,
+ * the slide on screen flies past the camera while the next one comes up out of
+ * the distance, its cards swinging in like panels of glass one after another;
+ * moving back runs the same flight in reverse. The whole background (particles
+ * and liquid light, see app/warp.ts) rushes past with it.
  *
- * Native scroll-snap rather than a gesture handler — swiping on a phone is the
- * browser's job, and reimplementing it badly is how carousels end up fighting
- * the scroll. The arrows and dots just scroll the same container.
+ * Swiping still works: a sideways drag pulls the slide toward the direction it
+ * will go and lets go past a threshold. Vertical drags are left to the page, and
+ * drags that start on something that scrolls sideways itself (a wide table) or on
+ * a form field belong to that thing, not to the deck.
  *
- * Lifted out of LandingIntro, which had the only copy, when the plans screen
- * needed the same thing. Both use it now: a second implementation would have
- * been the money-formatter problem again, where two near-identical helpers
- * drift until one of them is subtly wrong.
+ * Every slide stays mounted, hidden when not on screen, so a half-filled form
+ * on the signup slide survives a trip to the prices and back.
+ *
+ * Used by LandingIntro and the plans screen. A second implementation would drift
+ * from this one, which is why both share it.
  */
 /** Imperative handle for a parent that needs to jump the carousel itself —
  *  the landing page's "Get started" buttons send the reader to the signup
@@ -21,6 +28,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Reac
 export interface CarouselHandle {
   goTo(index: number): void;
 }
+
+/** How long a move takes, start to settled; the CSS in deck.css is timed to match. */
+const MOVE_MS = 1000;
+
+const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 export const Carousel = forwardRef<CarouselHandle, {
   /** One per slide, used for the dot's accessible name and the caption. */
@@ -42,29 +54,48 @@ export const Carousel = forwardRef<CarouselHandle, {
 }>(function Carousel({
   labels, ariaLabel, autoAdvanceMs, prevLabel, nextLabel, showCaption, onEngage, onIndexChange, children,
 }, ref) {
-  const track = useRef<HTMLDivElement>(null);
+  const slides = Children.toArray(children);
+  const stage = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  const current = useRef(0);
   const [index, setIndex] = useState(0);
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [move, setMove] = useState(0);
   const [engaged, setEngaged] = useState(false);
+  const settle = useRef<number | undefined>(undefined);
 
   const engage = () => { setEngaged(true); onEngage?.(); };
 
-  const setCurrent = (next: number) => {
-    setIndex(next);
-    onIndexChange?.(next);
+  /** `towards` overrides the direction of travel: the auto-advance wraps from the last slide to the first and should still fly forward. */
+  const travel = (target: number, towards?: 1 | -1) => {
+    const from = current.current;
+    const to = stepFor(0, target, labels.length);
+    if (to === from) return;
+    const dir = towards ?? (to > from ? 1 : -1);
+    const still = reducedMotion();
+    // Hold the stage at its present height so the page does not jump while the
+    // two slides change places; the layout effect below eases it to the new one.
+    if (stage.current && !still) {
+      stage.current.style.height = `${stage.current.offsetHeight}px`;
+      // Read it back so the browser registers this height before the new one is
+      // set; otherwise both land in the same frame and the height jumps instead of easing.
+      void stage.current.offsetHeight;
+    }
+    current.current = to;
+    setDirection(dir);
+    setLeaving(still ? null : from);
+    setIndex(to);
+    setMove((m) => m + 1);
+    onIndexChange?.(to);
+    if (!still) emitWarp(dir);
+    // If the reader was down at the bottom of a long slide, bring the top of the
+    // new one up to them rather than leaving them looking at its middle.
+    const top = wrap.current?.getBoundingClientRect().top ?? 0;
+    if (top < 0) wrap.current?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
   };
 
-  const goTo = (next: number) => {
-    const el = track.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(next, labels.length - 1));
-    engage();
-    // The slide's own offset, not clientWidth * index: the product drifts a
-    // sub-pixel and leaves a sliver of the neighbour showing at the edge.
-    const slide = el.children[clamped] as HTMLElement | undefined;
-    el.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: "smooth" });
-    setCurrent(clamped);
-  };
+  const goTo = (next: number) => { engage(); travel(next); };
 
   // Called from buttons elsewhere on the page (the hero's Get started and
   // Plans): changing slide alone leaves the person staring at the hero, so
@@ -73,56 +104,83 @@ export const Carousel = forwardRef<CarouselHandle, {
   useImperativeHandle(ref, () => ({
     goTo: (next: number) => {
       goTo(next);
-      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      wrap.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      wrap.current?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" });
     },
   }));
 
-  // Which slide is on screen, read from the scroll position rather than
-  // tracked separately — a swipe moves the container, not our state.
-  useEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const onScroll = () => setCurrent(Math.round(el.scrollLeft / (el.clientWidth || 1)));
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+  // Ease the stage from the old slide's height to the new one's, then let it go
+  // back to following its content.
+  useLayoutEffect(() => {
+    const el = stage.current;
+    if (!el || move === 0) return;
+    const active = el.querySelector<HTMLElement>(':scope > [data-state="active"]');
+    if (active && el.style.height) el.style.height = `${active.offsetHeight}px`;
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => {
+      el.style.height = "";
+      setLeaving(null);
+    }, MOVE_MS);
+  }, [move]);
+
+  useEffect(() => () => window.clearTimeout(settle.current), []);
 
   useEffect(() => {
     if (!autoAdvanceMs || engaged) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion()) return;
     const timer = setInterval(() => {
-      const el = track.current;
-      if (!el) return;
-      const current = Math.round(el.scrollLeft / (el.clientWidth || 1));
-      const next = (current + 1) % labels.length;
-      const slide = el.children[next] as HTMLElement | undefined;
-      el.scrollTo({ left: slide?.offsetLeft ?? 0, behavior: "smooth" });
-      setCurrent(next);
+      travel((current.current + 1) % labels.length, 1);
     }, autoAdvanceMs);
     return () => clearInterval(timer);
   }, [autoAdvanceMs, engaged, labels.length]);
 
-  // The track is a flex row, so its natural height is the tallest slide —
-  // which would leave the short ones sitting above a canyon of empty space.
-  // Measure whichever slide is on screen and size the track to it.
-  useEffect(() => {
-    const el = track.current;
-    if (!el) return;
-    const fit = () => {
-      const slide = el.children[index] as HTMLElement | undefined;
-      if (slide) el.style.height = `${slide.offsetHeight}px`;
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    for (const child of Array.from(el.children)) observer.observe(child);
-    window.addEventListener("resize", fit);
-    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
-  }, [index, labels.length]);
+  // Sideways drag. Only touch and pen: a mouse dragging across a page is
+  // selecting text, and has the arrows and dots.
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const setPull = (v: number) => stage.current?.style.setProperty("--pull", v.toFixed(3));
+  const endDrag = () => {
+    drag.current = null;
+    stage.current?.classList.remove("dragging");
+    setPull(0);
+  };
 
   return (
     <div className="stack" ref={wrap} style={{ scrollMarginTop: 12 }} onPointerDown={engage} onKeyDown={engage} onFocus={engage}>
-      <div className="slides" ref={track} aria-live="off">{children}</div>
+      <div
+        className={`deck ${direction > 0 ? "fwd" : "back"}${leaving !== null ? " moving" : ""}`}
+        ref={stage}
+        aria-live="off"
+        onPointerDown={(e) => {
+          if (e.pointerType === "mouse" || !stage.current) return;
+          if (ownsHorizontalDrag(e.target as Element, stage.current)) return;
+          drag.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d || !stage.current) return;
+          const dx = e.clientX - d.x, dy = e.clientY - d.y;
+          // Mostly vertical: the person is scrolling, so stop watching.
+          if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx) * 1.2) { endDrag(); return; }
+          if (Math.abs(dx) > 6) stage.current.classList.add("dragging");
+          setPull(Math.max(-1, Math.min(1, dx / (stage.current.clientWidth || 1))));
+        }}
+        onPointerUp={(e) => {
+          const d = drag.current;
+          endDrag();
+          if (!d) return;
+          const intent = swipeIntent(e.clientX - d.x, e.clientY - d.y);
+          if (intent !== 0) goTo(current.current + intent);
+        }}
+        onPointerCancel={endDrag}
+      >
+        {slides.map((slide, i) => {
+          const state = i === index ? "active" : i === leaving ? "leaving" : "idle";
+          return (
+            <div key={i} className="deck-slide" data-state={state} aria-hidden={state === "active" ? undefined : true}>
+              {slide}
+            </div>
+          );
+        })}
+      </div>
 
       <div className="slide-nav">
         <button className="btn btn-sm btn-ghost" disabled={index === 0}
@@ -144,7 +202,7 @@ export const Carousel = forwardRef<CarouselHandle, {
       </div>
 
       {showCaption && (
-        <p className="tiny muted" style={{ textAlign: "center", margin: 0 }}>{labels[index]}</p>
+        <p key={index} className="tiny muted deck-caption" style={{ textAlign: "center", margin: 0 }}>{labels[index]}</p>
       )}
     </div>
   );

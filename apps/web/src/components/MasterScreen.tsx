@@ -1,3 +1,4 @@
+import { emitWarp } from "../app/warp.ts";
 import { ScreenCover } from "./ScreenCover.tsx";
 import { ClubDeskSection } from "./ClubDesk.tsx";
 import { photoToDataUrl } from "../app/profile-photo.ts";
@@ -303,6 +304,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
     } catch { return "overview"; }
   });
   const pickTab = (next: MasterTab) => {
+    if (next !== tab && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) emitWarp(1);
     setTab(next);
     try { sessionStorage.setItem("sh_master_tab", next); } catch { /* the tab still switches */ }
   };
