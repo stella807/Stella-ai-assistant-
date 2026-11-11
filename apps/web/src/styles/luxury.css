@@ -8,7 +8,7 @@
 .lux-shade { display: none; position: absolute; left: 0; right: 0; top: 0; aspect-ratio: 976 / 560; background: linear-gradient(180deg, rgba(8, 6, 5, .1) 0%, rgba(8, 6, 5, 0) 55%, rgba(8, 6, 5, .9) 100%); pointer-events: none; }
 .lux-copy { position: relative; margin-top: -46px; background: transparent; padding: 0 22px 26px; display: grid; gap: 12px; animation: lux-up 1s .15s ease both; }
 .lux-eyebrow { text-shadow: 0 1px 8px rgba(0,0,0,.7); font-size: .7rem; letter-spacing: .38em; text-transform: uppercase; color: var(--gold); }
-.lux-title { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 2.35rem; line-height: 1.08; letter-spacing: .005em; color: #fff; text-align: left; }
+.lux-title { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 2.6rem; line-height: 1.04; letter-spacing: .005em; color: #fff; text-align: left; }
 .lux-sub { margin: 0; font-size: .98rem; line-height: 1.5; color: #e7dfcf; max-width: 34ch; }
 .lux-cta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 4px; }
 .lux-btn { cursor: pointer; padding: 14px 22px; font-size: .78rem; letter-spacing: .24em; text-transform: uppercase; color: #1a1208; border: 0;
@@ -79,7 +79,7 @@
 
 /* Folding sections: a tab reads as a list of titles, each opens in place. */
 .master-fold { border-radius: var(--r-card, 16px); border: 1px solid rgba(201, 154, 76, 0.22); background: linear-gradient(180deg, rgba(26, 36, 56, .92), rgba(18, 26, 44, .96)); overflow: clip; }
-.master-fold > summary { list-style: none; cursor: pointer; padding: 16px; min-height: 52px; display: flex; align-items: center; justify-content: space-between; font-family: Georgia, serif; font-size: 18px; color: #f3e2b3; }
+.master-fold > summary { list-style: none; cursor: pointer; padding: 16px; min-height: 52px; display: flex; align-items: center; justify-content: space-between; font-family: var(--serif); font-size: 18px; color: #f3e2b3; }
 .master-fold > summary::-webkit-details-marker { display: none; }
 .master-fold > summary::after { content: "+"; font-family: inherit; font-size: 20px; color: #c99a4c; transition: transform 160ms ease; }
 .master-fold[open] > summary::after { content: "–"; }

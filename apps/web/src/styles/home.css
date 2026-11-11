@@ -85,7 +85,7 @@
   background-size: cover; background-position: center; border-radius: var(--r-card);
   border: 1px solid var(--line);
 }
-.home-cover h2 { font-size: 32px; font-family: Georgia, "Times New Roman", serif; font-weight: 600; }
+.home-cover h2 { font-size: 32px; font-family: var(--serif); font-weight: 600; }
 .home-cover p { margin: 0; color: var(--muted); }
 .home-cover-kicker { letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
 .home-speak {
