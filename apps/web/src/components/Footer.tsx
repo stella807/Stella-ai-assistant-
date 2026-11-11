@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLanguage } from "../i18n.tsx";
 import { ClientDisclosures } from "./ClientDisclosures.tsx";
 import { LegalDocumentView } from "./LegalDocumentView.tsx";
+import { PartnerForm } from "./PartnerForm.tsx";
 import { disclosureCopy } from "../app/disclosure-copy.ts";
 import { cookiesCopy, refundCopy } from "../app/legal-copy.ts";
 
@@ -21,6 +22,7 @@ import { cookiesCopy, refundCopy } from "../app/legal-copy.ts";
 export function Footer() {
   const { t, language } = useLanguage();
   const [open, setOpen] = useState<"terms" | "privacy" | "refunds" | "cookies" | "press" | "disclosures" | null>(null);
+  const [partnering, setPartnering] = useState(false);
 
   return (
     <footer className="stack" style={{ marginTop: 24 }}>
@@ -28,7 +30,9 @@ export function Footer() {
         <h2>{t("invest.heading")}</h2>
         <p className="small">{t("invest.body")}</p>
         <a className="btn btn-ghost btn-block" href="mailto:contact@safehubby.com?subject=Investing">{t("invest.cta")}</a>
+        <button className="btn btn-ghost btn-block" onClick={() => setPartnering(true)}>{t("partner.cta")}</button>
       </section>
+      {partnering && <PartnerForm onClose={() => setPartnering(false)} />}
 
       {/* Plain links rather than a wall of buttons: the people who need these
           know to look for them, and nobody else should have to read past them. */}

@@ -1,4 +1,5 @@
 import { useLanguage } from "../i18n.tsx";
+import { JetTracker } from "./JetTracker.tsx";
 import { askWords } from "../app/ask-copy.ts";
 import { ScreenCover } from "./ScreenCover.tsx";
 import { useEffect, useState } from "react";
@@ -115,7 +116,11 @@ export function HiringScreen({ account, initialTab }: { account: Account; initia
       {kind === "desk"
         ? <DeskTasksPanel account={account} />
         : kind === "ride"
-        ? <GetHomePanel pickup={fix} homeLabel={account.homeLabel || (language === "es" ? "casa" : "home")} planId={planId} />
+        ? <>
+            <GetHomePanel pickup={fix} homeLabel={account.homeLabel || (language === "es" ? "casa" : "home")} planId={planId} />
+            {/* A ride on the ground, then the jet in the air: the private jet tracker sits under the ride map. */}
+            <JetTracker />
+          </>
         : kind === "club"
         ? <WingmanClub />
         : kind === "elite"

@@ -41,25 +41,9 @@ L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, 
 /** Default export so this module can be `React.lazy`-loaded from LiveMap.tsx
  *  — Leaflet is ~50KB gzipped, not worth paying on every app launch for a
  *  map that most screens never show. */
-/** A small top-down aircraft, nose up (north); rotated to the heading it is flying. */
-function planeIcon(headingDeg: number): L.DivIcon {
-  return L.divIcon({
-    className: "map-plane",
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -14],
-    html: `<svg viewBox="0 0 24 24" width="34" height="34" style="transform:rotate(${Math.round(headingDeg)}deg)" aria-hidden="true"><path d="M12 1.6c.8 0 1.4.9 1.4 2.1v5.3l7.8 4.7v2.1l-7.8-2.4v4.5l2.3 1.7v1.6L12 20.2l-3.7 1v-1.6l2.3-1.7v-4.5l-7.8 2.4v-2.1l7.8-4.7V3.7c0-1.2.6-2.1 1.4-2.1z" fill="#e8c27a" stroke="#1a1208" stroke-width=".7" stroke-linejoin="round"/></svg>`,
-  });
-}
-
-export default function LiveMapImpl({ points, height = 200, onPick, onLocate, zoom, follow }: {
-  /** `icon: "plane"` draws an aircraft turned to `headingDeg` instead of a pin. */
-  points: { lat: number; lng: number; label?: string; icon?: "plane"; headingDeg?: number }[];
+export default function LiveMapImpl({ points, height = 200, onPick, onLocate }: {
+  points: { lat: number; lng: number; label?: string }[];
   height?: number;
-  /** How close to start on a single point; 15 (a few streets) unless said otherwise. A jet over the sea wants to be seen from much further out. */
-  zoom?: number;
-  /** Keep the first point in view as it moves (a tracked aircraft), rather than leaving the view where it was. */
-  follow?: boolean;
   /**
    * Turns the *first* point into a pickup pin the rider can move — dragged,
    * or moved by tapping anywhere else on the map — instead of trusting the
@@ -112,7 +96,7 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate, zo
     });
     // Picking a spot means seeing the spot: close in on the pickup rather
     // than zooming out far enough to fit home in too.
-    if (points.length === 1 || pickable) map.setView([points[0]!.lat, points[0]!.lng], pickable ? 17 : zoom ?? 15);
+    if (points.length === 1 || pickable) map.setView([points[0]!.lat, points[0]!.lng], pickable ? 17 : 15);
     else map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), { padding: [24, 24] });
     return () => {
       markersRef.current.forEach((m) => m.remove());
@@ -131,13 +115,9 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate, zo
       if (existing) {
         existing.setLatLng([p.lat, p.lng]);
         existing.setPopupContent(p.label ?? "");
-        if (p.icon === "plane") existing.setIcon(planeIcon(p.headingDeg ?? 0));
         return;
       }
-      const m = L.marker([p.lat, p.lng], {
-        draggable: pickable && i === 0,
-        ...(p.icon === "plane" ? { icon: planeIcon(p.headingDeg ?? 0) } : {}),
-      }).addTo(map).bindPopup(p.label ?? "");
+      const m = L.marker([p.lat, p.lng], { draggable: pickable && i === 0 }).addTo(map).bindPopup(p.label ?? "");
       if (pickable && i === 0) {
         m.on("dragend", () => {
           const { lat, lng } = m.getLatLng();
@@ -154,8 +134,6 @@ export default function LiveMapImpl({ points, height = 200, onPick, onLocate, zo
     const c = map.getCenter();
     if (pickable && (Math.abs(c.lat - first.lat) > 0.01 || Math.abs(c.lng - first.lng) > 0.01)) {
       map.setView([first.lat, first.lng], Math.max(map.getZoom(), 16));
-    } else if (follow && !pickable) {
-      map.panTo([first.lat, first.lng], { animate: true, duration: 1 });
     }
   }, [JSON.stringify(points), pickable]);
 

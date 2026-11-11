@@ -72,7 +72,7 @@ import {
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, jobPayRates, JOB_PAY_ROLES, jobPayUnit, defaultJobPayCents, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
   DEFAULT_VENDOR_LIST, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
-  currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, type TextAlertKind, optOutEmail, registerEmailContact,
+  currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, readPartnerInquiry, type PartnerInquiry, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
 import type {
@@ -173,7 +173,7 @@ export interface Ctx {
    *  another's, and tests need isolation between instances. */
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
-    applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter;
+    applications: RateLimiter; partners: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1402,6 +1402,7 @@ export function makeLimiters() {
     // Public and unauthenticated — a driver application needs no account —
     // so it gets its own budget rather than borrowing signup's.
     applications: new RateLimiter(10, 60 * 60_000),
+    partners: new RateLimiter(5, 60 * 60_000),
     /**
      * Redeeming a code — a share invite or a crew join.
      *
@@ -4374,6 +4375,12 @@ export const routes: Record<string, Handler> = {
       record("customers", `traveler roster (${customers.length})`);
     }
 
+    if (account.role === "owner") {
+      // Newest first; the people who asked are waiting on an answer.
+      overview.partnerInquiries = [...ctx.store.data.partnerInquiries].reverse();
+      record("customers", `partner inquiries (${ctx.store.data.partnerInquiries.length})`);
+    }
+
     if (canAccess(account, "operations", now)) {
       // Approved-but-not-yet-hired belongs in this queue too. It used to
       // stop at "under-review", which meant approving somebody removed them
@@ -6460,6 +6467,45 @@ export const routes: Record<string, Handler> = {
    * Answers `delivered: false` whenever no mail provider is configured, rather
    * than implying a confirmation email is on its way. See `newsletter.ts`.
    */
+  /**
+   * The website's "Become a partner" form. No account needed: a charter
+   * operator or a hotel asking to work with us has none. Kept in the store and
+   * emailed to the owner (OWNER_ALERT_EMAIL, else contact@safehubby.com), so it
+   * is not lost if email is not set up yet; the owner portal lists them too.
+   * `website` is a field people never see: a bot that fills it in is told
+   * "received" and nothing is kept.
+   */
+  "POST /api/partners/inquiry": (ctx, _p, body) => {
+    if (ctx.limiters.partners.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many requests from this connection. Try again later.");
+    }
+    if (typeof body?.website === "string" && body.website.trim()) return { received: true };
+    const read = readPartnerInquiry(body);
+    if (!read.ok) {
+      const what = { company: "your company's name", name: "your name", email: "an email we can answer", about: "a few words about what your company does" }[read.field];
+      throw new HttpError(400, `Please add ${what}.`);
+    }
+    const inquiry: PartnerInquiry = {
+      id: newId("ptn"), ...read.value,
+      language: body?.language === "es" ? "es" : "en",
+      receivedAt: ctx.now().toISOString(),
+    };
+    ctx.store.update((db) => { db.partnerInquiries.push(inquiry); });
+    const ownerEmail = String(process.env.OWNER_ALERT_EMAIL ?? "contact@safehubby.com").trim();
+    if (ownerEmail && isValidNewsletterEmail(ownerEmail)) {
+      sendEmails([{
+        to: ownerEmail,
+        subject: `Partnership inquiry: ${inquiry.company}`,
+        body: [
+          `${inquiry.name} from ${inquiry.company} would like to partner with Safehubby.`, "",
+          `Email: ${inquiry.email}`, "", "What they do:", inquiry.about, "",
+          `Reference: ${inquiry.id}`, "It is also listed in the management portal under People → Partner inquiries.",
+        ].join("\n"),
+      }]);
+    }
+    return { received: true };
+  },
+
   "POST /api/newsletter": (ctx, _p, body) => {
     if (ctx.limiters.applications.hit(ctx.clientKey)) {
       throw new HttpError(429, "Too many sign-ups from this connection. Try again later.");

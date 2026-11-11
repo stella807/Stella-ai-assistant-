@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   Alert, AssistantAdjustment, AssistantPayout, CarePackageAuth, CarePackageOrder, Charge, ConciergeTask, Crew,
-  DeskTask, DriverApplication, GameRound, MasterAccount, MasterAuditEntry, NewsletterSubscriber, NightOut,
+  DeskTask, DriverApplication, GameRound, MasterAccount, MasterAuditEntry, NewsletterSubscriber, NightOut, PartnerInquiry,
   PaymentMethodOnFile, PendingOrder,
   HiredAssistant, PreAuthorization, PushDevice, StaffApplication, TextMessage,
   ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor, VendorList, ClubSubscription, ClubRsvp, ClubMonthState,
@@ -240,6 +240,8 @@ export interface Db {
   /** The launch mailing list. Kept whole, opt-outs included, so a re-import
    *  cannot quietly resubscribe somebody who left. */
   newsletterSubscribers: NewsletterSubscriber[];
+  /** Companies that asked to partner, from the website's "Become a partner" form. */
+  partnerInquiries: PartnerInquiry[];
   pushDevices: PushDevice[];
   /** Who has master (owner/secretary) access — see master-access.ts and the
    *  `POST /api/admin/master-accounts` bootstrap. Provisioned by whoever
@@ -300,7 +302,7 @@ const EMPTY: Db = {
   paymentMethods: {}, stripeCustomers: {}, launchStepsMarkedAt: {}, holds: [], charges: [], subscriptions: {}, conciergeTasks: [], deskTasks: [], eliteBookings: [], eliteEventRsvps: [], eliteSpendingCards: [], pickupRequests: [], referrals: [], voiceMessages: [], textMessages: [],
   assistantCredentials: {}, assistantSessions: [],
   assistantPayoutDestinations: {}, payouts: [], assistantAdjustments: [],
-  driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
+  driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], partnerInquiries: [], pushDevices: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
   priceOverrides: [], balanceEntries: [], textContacts: {},
 };

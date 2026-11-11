@@ -38,7 +38,7 @@ export const SEED: Db = {
   pickupRequests: [],
   referrals: [],
   holds: [],
-  driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], pushDevices: [],
+  driverApplications: [], staffApplications: [], assistants: [], newsletterSubscribers: [], partnerInquiries: [], pushDevices: [],
   deskTasks: [],
   masterAccounts: [], masterCredentials: {}, masterSessions: [], masterAuditLog: [],
   priceOverrides: [],

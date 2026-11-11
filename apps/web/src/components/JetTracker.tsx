@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { aircraftState, knotsToMph, normalizeTailNumber, type AircraftFix } from "@safehubby/core";
+import { aircraftState, normalizeTailNumber, type AircraftFix } from "@safehubby/core";
 import { api } from "../api.ts";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
-import { LiveMap } from "./LiveMap.tsx";
+import { JetMap } from "./JetMap.tsx";
 
 type Result = Awaited<ReturnType<typeof api.aircraftTrack>>;
 
@@ -23,6 +23,9 @@ export function JetTracker() {
   const [input, setInput] = useState(readSaved);
   const [tail, setTail] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [receivedAt, setReceivedAt] = useState(0);
+  /** Where the jet has been seen while this screen has watched it, oldest first. */
+  const [trail, setTrail] = useState<{ lat: number; lng: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const latest = useRef(0);
@@ -34,6 +37,13 @@ export function JetTracker() {
       const res = await api.aircraftTrack(which);
       if (ticket !== latest.current) return; // a newer lookup has started
       setResult(res);
+      setReceivedAt(Date.now());
+      const p = res.aircraft?.position;
+      if (p) setTrail((tr) => {
+        const lastPoint = tr.at(-1);
+        if (lastPoint && lastPoint.lat === p.lat && lastPoint.lng === p.lng) return tr;
+        return [...tr, { lat: p.lat, lng: p.lng }].slice(-240);
+      });
       setError(null);
     } catch {
       if (ticket === latest.current && !quiet) setError(t("jet.error"));
@@ -59,6 +69,7 @@ export function JetTracker() {
     save(clean);
     setTail(clean);
     setResult(null);
+    setTrail([]);
     void load(clean);
   };
 
@@ -79,7 +90,7 @@ export function JetTracker() {
       </form>
 
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
-      {result && <JetStatus result={result} language={language} t={t} />}
+      {result && <JetStatus result={result} language={language} t={t} trail={trail} receivedAt={receivedAt} />}
 
       <p className="small" style={{ margin: 0 }}>
         {t("jet.charter")}{" "}
@@ -89,14 +100,16 @@ export function JetTracker() {
       <details className="tiny muted">
         <summary>{t("jet.about")}</summary>
         <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-          <li>{t("jet.d1")}</li><li>{t("jet.d2")}</li><li>{t("jet.d3")}</li><li>{t("jet.d4")}</li>
+          <li>{t("jet.d1")}</li><li>{t("jet.d5")}</li><li>{t("jet.d2")}</li><li>{t("jet.d3")}</li><li>{t("jet.d4")}</li>
         </ul>
       </details>
     </section>
   );
 }
 
-function JetStatus({ result, language, t: tr }: { result: Result; language: string; t: (k: TranslationKey) => string }) {
+function JetStatus({ result, language, t: tr, trail, receivedAt }: {
+  result: Result; language: string; t: (k: TranslationKey) => string; trail: { lat: number; lng: number }[]; receivedAt: number;
+}) {
   const fix: AircraftFix | null = result.aircraft;
   const source = (
     <p className="tiny muted" style={{ margin: 0 }}>
@@ -109,18 +122,10 @@ function JetStatus({ result, language, t: tr }: { result: Result; language: stri
   const state = aircraftState(fix);
   if (state === "private") return <><p className="small" style={{ margin: 0 }}>{tr("jet.private").replace("{tail}", fix.tailNumber)}</p>{source}</>;
 
-  const n = (v: number) => v.toLocaleString(language === "es" ? "es-PR" : "en-US");
-  const pos = fix.position;
   const label = state === "airborne" ? tr("jet.airborne")
     : state === "on-ground" ? tr("jet.onGround")
     : tr("jet.lastSeen").replace("{min}", String(Math.max(1, Math.round(fix.seenSecondsAgo / 60))));
-  const stats: { label: string; value: string }[] = [];
-  if (pos?.altitudeFt !== undefined && !fix.onGround) stats.push({ label: tr("jet.altitude"), value: `${n(pos.altitudeFt)} ft` });
-  if (pos?.groundSpeedKts !== undefined) stats.push({ label: tr("jet.speed"), value: `${n(knotsToMph(pos.groundSpeedKts))} mph · ${n(Math.round(pos.groundSpeedKts))} kt` });
-  if (pos?.headingDeg !== undefined) stats.push({ label: tr("jet.heading"), value: `${Math.round(pos.headingDeg)}°` });
-  if (fix.verticalRateFpm !== undefined && !fix.onGround) stats.push({ label: tr("jet.climb"), value: `${fix.verticalRateFpm > 0 ? "+" : ""}${n(fix.verticalRateFpm)} ft/min` });
-  if (fix.typeCode) stats.push({ label: tr("jet.type"), value: fix.typeCode });
-  if (fix.callsign) stats.push({ label: tr("jet.callsign"), value: fix.callsign });
+  const locale = language === "es" ? "es-PR" : "en-US";
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -129,14 +134,13 @@ function JetStatus({ result, language, t: tr }: { result: Result; language: stri
         <span className={state === "airborne" ? "pill pill-safe" : "pill"}>{label}</span>
       </div>
       {fix.emergency && <div className="banner banner-danger" role="alert">{tr("jet.emergency")} ({fix.emergency})</div>}
-      {pos && (
-        <LiveMap height={240} zoom={fix.onGround ? 12 : 7} follow
-          points={[{ lat: pos.lat, lng: pos.lng, label: fix.tailNumber, icon: "plane", headingDeg: pos.headingDeg ?? 0 }]} />
-      )}
-      {stats.length > 0 && (
-        <div className="jet-stats">
-          {stats.map((s) => <div key={s.label} className="jet-stat"><span className="tiny muted">{s.label}</span><strong>{s.value}</strong></div>)}
-        </div>
+      {fix.position && (
+        <JetMap fix={fix} trail={trail} receivedAt={receivedAt} language={locale}
+          labels={{
+            altitude: tr("jet.altitude"), speed: tr("jet.speed"), heading: tr("jet.heading"), climb: tr("jet.climb"),
+            updated: tr("jet.updated"), zoomHint: tr("jet.zoomHint"), type: tr("jet.type"), callsign: tr("jet.callsign"),
+            onGround: tr("jet.onGround"),
+          }} />
       )}
       <p className="tiny muted" style={{ margin: 0 }}>{tr("jet.refresh")}</p>
       {source}

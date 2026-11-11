@@ -385,6 +385,9 @@ export const api = {
 
   /** Public: no account, because the person this is for cannot use the app
    *  yet. `delivered` is false while no mail provider is configured. */
+  /** Public: a company asking to partner. Saved and emailed to the owner. `website` is the hidden field a person never fills in. */
+  partnerInquiry: (input: { company: string; name: string; email: string; about: string; language: "en" | "es"; website?: string }) =>
+    request<{ received: true }>("POST", "/api/partners/inquiry", input),
   joinNewsletter: (input: { email: string; source?: string }) =>
     request<{
       subscribed: true; alreadyOnList: boolean; delivered: boolean; note: string; launch: LaunchStatus;
@@ -1010,6 +1013,8 @@ export interface MasterOverview {
   scopes: string[];
   generatedAt: string;
   customers?: { id: string; name: string; email: string; planId: string; clubMember: boolean }[];
+  /** Owner only, newest first. */
+  partnerInquiries?: { id: string; company: string; name: string; email: string; about: string; language: "en" | "es"; receivedAt: string }[];
   operations?: {
     activeConciergeTasks: number;
     openDeskTasks: number;

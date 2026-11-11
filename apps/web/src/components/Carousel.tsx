@@ -89,10 +89,13 @@ export const Carousel = forwardRef<CarouselHandle, {
     setMove((m) => m + 1);
     onIndexChange?.(to);
     if (!still) emitWarp(dir);
-    // If the reader was down at the bottom of a long slide, bring the top of the
-    // new one up to them rather than leaving them looking at its middle.
+    // If the reader was down at the bottom of a long slide, cut straight to the
+    // top of the new one so the flight plays where they are looking. Scrolling
+    // smoothly here meant the page raced thousands of pixels upward at the same
+    // moment as the flight, and the new slide never arrived in the middle of the screen.
     const top = wrap.current?.getBoundingClientRect().top ?? 0;
-    if (top < 0) wrap.current?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+    // "auto" is an instant jump here (the site sets no smooth scrolling), and unlike "instant" every Safari accepts it.
+    if (top < 0) wrap.current?.scrollIntoView({ behavior: "auto", block: "start" });
   };
 
   const goTo = (next: number) => { engage(); travel(next); };

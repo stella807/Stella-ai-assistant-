@@ -1671,6 +1671,32 @@ describe("personal concierge", () => {
     });
   });
 
+  describe("POST /api/partners/inquiry", () => {
+    const form = { company: "Island Yacht Charters", name: "Ana Rivera", email: "ana@islandyachts.com", about: "Day charters out of Fajardo for your members." };
+
+    it("takes an inquiry from someone with no account, keeps it, and shows it to the owner", async () => {
+      const res = await call("POST", "/api/partners/inquiry", { ...form, language: "es" });
+      expect(res.status).toBe(200);
+      expect(res.json.received).toBe(true);
+      const saved = store.data.partnerInquiries.at(-1)!;
+      expect(saved).toMatchObject({ company: "Island Yacht Charters", email: "ana@islandyachts.com", language: "es" });
+      expect(saved.id).toMatch(/^ptn/);
+    });
+
+    it("says which field is missing", async () => {
+      const res = await call("POST", "/api/partners/inquiry", { ...form, email: "nope" });
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/email/i);
+    });
+
+    it("quietly drops a bot that fills in the hidden field", async () => {
+      const before = store.data.partnerInquiries.length;
+      const res = await call("POST", "/api/partners/inquiry", { ...form, website: "http://spam.example" });
+      expect(res.status).toBe(200);
+      expect(store.data.partnerInquiries.length).toBe(before);
+    });
+  });
+
   describe("GET /api/flights/aircraft", () => {
     it("requires a session", async () => {
       expect((await call("GET", "/api/flights/aircraft?tail=N650GX")).status).toBe(401);

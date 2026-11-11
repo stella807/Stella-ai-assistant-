@@ -351,6 +351,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {tab === "people" && overview.account.role === "owner" && <Fold title="Team access"><TeamAccessSection currentAccountId={overview.account.id} /></Fold>}
       {tab === "people" && overview.scopes.includes("club") && <Fold title="Club desk"><ClubDeskSection /></Fold>}
       {tab === "people" && overview.customers && <Fold title="Customers"><CustomersSection customers={overview.customers} /></Fold>}
+      {tab === "people" && overview.partnerInquiries && <Fold title={`Partner inquiries (${overview.partnerInquiries.length})`}><PartnerInquiriesSection inquiries={overview.partnerInquiries} /></Fold>}
 
       {tab === "overview" && overview.operations && (
         <ApplicationsSection operations={overview.operations} canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
@@ -419,6 +420,22 @@ function TeamAccessSection({ currentAccountId }: { currentAccountId: string }) {
         <AccountsManager list={api.masterListAccounts} revoke={api.masterRevokeAccount} currentAccountId={currentAccountId} />
       )}
     </section>
+  );
+}
+
+/** Companies that asked to partner, from the website form; newest first. Reply goes to their email. */
+function PartnerInquiriesSection({ inquiries }: { inquiries: NonNullable<MasterOverview["partnerInquiries"]> }) {
+  if (inquiries.length === 0) return <p className="small muted">No partner requests yet. They arrive here and by email.</p>;
+  return (
+    <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0, gap: 10 }}>
+      {inquiries.map((q) => (
+        <li key={q.id} className="card-quiet stack" style={{ padding: 12, gap: 4 }}>
+          <div className="row-between"><strong>{q.company}</strong><span className="tiny muted">{new Date(q.receivedAt).toLocaleDateString()}</span></div>
+          <span className="small">{q.name} · <a href={`mailto:${q.email}?subject=${encodeURIComponent(`Partnering with Safehubby: ${q.company}`)}`}>{q.email}</a>{q.language === "es" ? " · ES" : ""}</span>
+          <p className="small muted" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{q.about}</p>
+        </li>
+      ))}
+    </ul>
   );
 }
 

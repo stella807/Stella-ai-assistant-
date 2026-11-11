@@ -70,3 +70,43 @@ export function aircraftState(fix: AircraftFix): AircraftState {
 export function knotsToMph(knots: number): number {
   return Math.round(knots * 1.15078);
 }
+
+/**
+ * Where something moving on a steady heading and speed will be after a number
+ * of seconds, along a great circle. Used to keep a plane moving on the map
+ * between position reports, the way the moving maps on board do; the next
+ * report always corrects it.
+ */
+export function projectPosition(lat: number, lng: number, headingDeg: number, speedKts: number, seconds: number): { lat: number; lng: number } {
+  const rad = Math.PI / 180;
+  const d = (speedKts * seconds) / 3600 / 3440.065; // nautical miles over the earth's radius in nautical miles
+  const p1 = lat * rad, l1 = lng * rad, th = headingDeg * rad;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(th));
+  const l2 = l1 + Math.atan2(Math.sin(th) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+  return { lat: p2 / rad, lng: ((l2 / rad + 540) % 360) - 180 };
+}
+
+/**
+ * Plain names for the ICAO type designators of the aircraft most often seen on
+ * private and charter flights, plus a few airliners. Anything not listed is
+ * shown as its code.
+ */
+const TYPE_NAMES: Record<string, string> = {
+  GLF4: "Gulfstream IV", GLF5: "Gulfstream V / G550", GLF6: "Gulfstream G650", GA5C: "Gulfstream G500", GA6C: "Gulfstream G600",
+  GA7C: "Gulfstream G700", G280: "Gulfstream G280", GALX: "Gulfstream G200",
+  CL30: "Challenger 300", CL35: "Challenger 350", CL60: "Challenger 600 series", GL5T: "Global 5000 / 5500",
+  GLEX: "Global Express / 6000", GL7T: "Global 7500",
+  F2TH: "Falcon 2000", FA50: "Falcon 50", F900: "Falcon 900", FA7X: "Falcon 7X", FA8X: "Falcon 8X", FA6X: "Falcon 6X",
+  C510: "Citation Mustang", C525: "CitationJet", C25A: "Citation CJ2", C25B: "Citation CJ3", C25C: "Citation CJ4",
+  C560: "Citation V / Ultra / Encore", C56X: "Citation Excel / XLS", C680: "Citation Sovereign", C68A: "Citation Latitude",
+  C700: "Citation Longitude", C750: "Citation X",
+  E50P: "Phenom 100", E55P: "Phenom 300", E545: "Praetor 500 / Legacy 450", E550: "Praetor 600 / Legacy 500", E35L: "Legacy 600 / 650",
+  LJ45: "Learjet 45", LJ60: "Learjet 60", LJ75: "Learjet 75", HDJT: "HondaJet", PC12: "Pilatus PC-12", PC24: "Pilatus PC-24",
+  BE40: "Beechjet 400 / Hawker 400", H25B: "Hawker 800 series", B350: "King Air 350",
+  A320: "Airbus A320", A321: "Airbus A321", B738: "Boeing 737-800", B38M: "Boeing 737 MAX 8", E75L: "Embraer 175",
+};
+
+export function aircraftTypeName(code: string | undefined): string | undefined {
+  if (!code) return undefined;
+  return TYPE_NAMES[code.toUpperCase()] ?? code.toUpperCase();
+}
