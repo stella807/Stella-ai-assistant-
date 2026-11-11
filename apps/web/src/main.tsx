@@ -18,7 +18,6 @@ import "./styles/luxury.css";
 import "./styles/luxe.css";
 // Last, so its wide-screen overrides win; it changes nothing below 1024px.
 import "./styles/desktop.css";
-import "./styles/motion.css";
 
 // Three distinct areas of one app, split by path rather than by a query
 // param carried on a link: /employee is the employee portal and /master is
