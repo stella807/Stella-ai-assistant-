@@ -18,6 +18,8 @@ export function JetMap(props: {
   receivedAt: number;
   labels: JetMapLabels;
   language: string;
+  /** "SJU → TEB", shown on the name plate when known. */
+  route?: string;
 }) {
   return (
     <Suspense fallback={<div className="jet-map-shell" style={{ height: 320 }} />}>

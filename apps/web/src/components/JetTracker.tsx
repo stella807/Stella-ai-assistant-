@@ -5,6 +5,11 @@ import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { JetMap } from "./JetMap.tsx";
 
 type Result = Awaited<ReturnType<typeof api.aircraftTrack>>;
+type SharedFlight = Awaited<ReturnType<typeof api.myFlights>>["flights"][number];
+
+/** "Thu, Nov 12, 3:40 PM" in the reader's own time zone. */
+const whenLabel = (iso: string, language: string) =>
+  new Date(iso).toLocaleString(language === "es" ? "es-PR" : "en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 const REFRESH_MS = 20_000;
 const SAVED_KEY = "sh_jet_tail";
@@ -28,6 +33,8 @@ export function JetTracker() {
   const [trail, setTrail] = useState<{ lat: number; lng: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Flights the client's assistant has put on this map, newest first. */
+  const [shared, setShared] = useState<SharedFlight[]>([]);
   const latest = useRef(0);
 
   const load = async (which: string, quiet = false) => {
@@ -61,10 +68,7 @@ export function JetTracker() {
     return () => window.clearInterval(id);
   }, [tail]);
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const clean = normalizeTailNumber(input);
-    if (!clean) { setError(t("jet.badTail")); setResult(null); setTail(null); return; }
+  const follow = (clean: string) => {
     setInput(clean);
     save(clean);
     setTail(clean);
@@ -73,10 +77,48 @@ export function JetTracker() {
     void load(clean);
   };
 
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const clean = normalizeTailNumber(input);
+    if (!clean) { setError(t("jet.badTail")); setResult(null); setTail(null); return; }
+    follow(clean);
+  };
+
+  // A flight the assistant booked is already on the map: start following the
+  // newest one straight away, so the client never has to type a tail number.
+  useEffect(() => {
+    let cancelled = false;
+    api.myFlights().then(({ flights }) => {
+      if (cancelled) return;
+      setShared(flights);
+      if (flights[0]) follow(flights[0].tailNumber);
+    }).catch(() => { /* no shared flights is the normal case */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const current = shared.find((s) => s.tailNumber === tail);
+  const route = current?.from && current?.to ? `${current.from} → ${current.to}` : undefined;
+
   return (
     <section className="card stack jet-tracker">
       <h3>{t("jet.title")}</h3>
       <p className="small muted" style={{ margin: 0 }}>{t("jet.blurb")}</p>
+
+      {shared.length > 0 && (
+        <div className="stack" style={{ gap: 6 }}>
+          <span className="tiny muted">{t("jet.shared")}</span>
+          <div className="jet-shared">
+            {shared.map((s) => (
+              <button key={s.taskId} type="button" className={`jet-chip${s.tailNumber === tail ? " on" : ""}`}
+                aria-pressed={s.tailNumber === tail} onClick={() => follow(s.tailNumber)}>
+                <strong>{s.tailNumber}</strong>
+                {s.from && s.to && <span>{s.from} → {s.to}</span>}
+                {s.departsAt && <span>{t("jet.leaves").replace("{time}", whenLabel(s.departsAt, language))}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <form className="jet-form" onSubmit={submit}>
         <div className="field" style={{ flex: 1, margin: 0 }}>
@@ -90,7 +132,7 @@ export function JetTracker() {
       </form>
 
       {error && <div className="banner banner-danger" role="alert">{error}</div>}
-      {result && <JetStatus result={result} language={language} t={t} trail={trail} receivedAt={receivedAt} />}
+      {result && <JetStatus result={result} language={language} t={t} trail={trail} receivedAt={receivedAt} route={route} />}
 
       <p className="small" style={{ margin: 0 }}>
         {t("jet.charter")}{" "}
@@ -107,8 +149,10 @@ export function JetTracker() {
   );
 }
 
-function JetStatus({ result, language, t: tr, trail, receivedAt }: {
+function JetStatus({ result, language, t: tr, trail, receivedAt, route }: {
   result: Result; language: string; t: (k: TranslationKey) => string; trail: { lat: number; lng: number }[]; receivedAt: number;
+  /** "SJU → TEB", when the assistant who shared this flight said where it goes. */
+  route?: string;
 }) {
   const fix: AircraftFix | null = result.aircraft;
   const source = (
@@ -135,7 +179,7 @@ function JetStatus({ result, language, t: tr, trail, receivedAt }: {
       </div>
       {fix.emergency && <div className="banner banner-danger" role="alert">{tr("jet.emergency")} ({fix.emergency})</div>}
       {fix.position && (
-        <JetMap fix={fix} trail={trail} receivedAt={receivedAt} language={locale}
+        <JetMap fix={fix} trail={trail} receivedAt={receivedAt} language={locale} route={route}
           labels={{
             altitude: tr("jet.altitude"), speed: tr("jet.speed"), heading: tr("jet.heading"), climb: tr("jet.climb"),
             updated: tr("jet.updated"), zoomHint: tr("jet.zoomHint"), type: tr("jet.type"), callsign: tr("jet.callsign"),
@@ -145,5 +189,34 @@ function JetStatus({ result, language, t: tr, trail, receivedAt }: {
       <p className="tiny muted" style={{ margin: 0 }}>{tr("jet.refresh")}</p>
       {source}
     </div>
+  );
+}
+
+/**
+ * On the home screen, only when the client's assistant has put a flight on
+ * their map: says so, and opens the tracker under Help → Rides.
+ */
+export function SharedFlightBanner({ onOpen }: { onOpen: () => void }) {
+  const { t, language } = useLanguage();
+  const [flight, setFlight] = useState<SharedFlight | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.myFlights().then(({ flights }) => { if (!cancelled) setFlight(flights[0] ?? null); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  if (!flight) return null;
+  return (
+    <section className="card stack jet-banner">
+      <div className="row-between" style={{ gap: 12 }}>
+        <div className="stack" style={{ gap: 2 }}>
+          <strong>{t("jet.homeTitle")}</strong>
+          <span className="small muted">
+            {flight.tailNumber}{flight.from && flight.to ? ` · ${flight.from} → ${flight.to}` : ""}
+            {flight.departsAt ? ` · ${t("jet.leaves").replace("{time}", whenLabel(flight.departsAt, language))}` : ""}
+          </span>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={onOpen}>{t("jet.homeOpen")}</button>
+      </div>
+    </section>
   );
 }

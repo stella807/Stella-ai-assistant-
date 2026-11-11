@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SharedFlightBanner } from "./JetTracker.tsx";
 import type { DrinkDefinition, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
 import { hasMovedVenue } from "@safehubby/core";
 import type { HiringTab } from "./HiringScreen.tsx";
@@ -145,6 +146,7 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
   if (!summary) {
     return (
       <div className="stack">
+        <SharedFlightBanner onOpen={() => onOpenHiring("ride")} />
         <HomeHelp account={account} onOpenHelp={onOpenHiring} onOpenPlans={onOpenPlans} onOpenHow={onOpenHow} onOpenGames={onOpenGames} />
 
         {/* The night out is still here — it is just no longer the first thing

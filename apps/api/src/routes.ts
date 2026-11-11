@@ -31,7 +31,7 @@ import {
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
   isEnabled, flagNote, ridesFor, featureLabel,
-  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES, diffFlight, hasLanded, normalizeTailNumber,
+  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES, diffFlight, hasLanded, normalizeTailNumber, readTrackedAircraft, isSharedFlightCurrent,
   buildManualFlightInfo,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
@@ -3198,6 +3198,21 @@ export const routes: Record<string, Handler> = {
    * a volunteer network that should not be hammered, hence the limit and the
    * adapter's short cache. "Nothing heard" is a normal answer, not an error.
    */
+  /**
+   * The private flights the signed-in client's assistants have put on their
+   * map, newest first: open tasks always, finished ones for two days after the
+   * flight (see `isSharedFlightCurrent`), cancelled ones never.
+   */
+  "GET /api/flights/mine": (ctx) => {
+    const me = actor(ctx);
+    const now = ctx.now();
+    const flights = ctx.store.data.conciergeTasks
+      .filter((t) => t.travelerId === me && t.trackedAircraft && isSharedFlightCurrent(t.trackedAircraft, t.status, now))
+      .map((t) => ({ taskId: t.id, ...t.trackedAircraft! }))
+      .sort((a, b) => b.sharedAt.localeCompare(a.sharedAt));
+    return { flights };
+  },
+
   "GET /api/flights/aircraft": async (ctx, p) => {
     actor(ctx);
     if (ctx.limiters.aircraft.hit(ctx.clientKey)) {
@@ -4662,6 +4677,52 @@ export const routes: Record<string, Handler> = {
    * component whether the flight was looked up automatically at booking or
    * entered here after the fact.
    */
+  /**
+   * The assistant booked the client a private jet (through Jettly, say) and
+   * puts it on the client's tracker map: tail number, and optionally where it
+   * goes and when it leaves. The client's phone is told; the jet then shows
+   * on their map under Help → Rides without anyone typing anything.
+   */
+  "POST /api/assistant/tasks/:taskId/tracked-aircraft": (ctx, p, body) => {
+    const assistantId = assistantActor(ctx);
+    const id = req(p, "taskId");
+    const task = ctx.store.data.conciergeTasks.find((t) => t.id === id);
+    if (!task || task.assistantId !== assistantId) throw notFound("Task");
+    if (task.status === "canceled") throw new HttpError(409, "This task was cancelled, so there is no one to send the flight to.");
+    const read = readTrackedAircraft(body, ctx.now());
+    if (!read.ok) throw new HttpError(400, read.error);
+    const shared = read.value;
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === id);
+      if (t) t.trackedAircraft = shared;
+    });
+    const route = shared.from && shared.to ? ` · ${shared.from} → ${shared.to}` : "";
+    const messages: PushMessage[] = devicesFor(ctx.store.data.pushDevices, task.travelerId).map((d) => ({
+      token: d.token,
+      platform: d.platform,
+      title: "Your flight is on your map",
+      body: `${shared.tailNumber}${route}. Open Help → Rides to follow it.`,
+      interruption: "active",
+      alertId: `shared-flight:${task.id}`,
+      taskId: task.id,
+    }));
+    if (messages.length > 0) void push.send(messages).catch((err) => console.error("[safehubby] Shared flight push failed:", err));
+    return { trackedAircraft: shared };
+  },
+
+  /** Takes a shared flight back off the client's map (the wrong jet, or plans changed). */
+  "POST /api/assistant/tasks/:taskId/tracked-aircraft/remove": (ctx, p) => {
+    const assistantId = assistantActor(ctx);
+    const id = req(p, "taskId");
+    const task = ctx.store.data.conciergeTasks.find((t) => t.id === id);
+    if (!task || task.assistantId !== assistantId) throw notFound("Task");
+    ctx.store.update((db) => {
+      const t = db.conciergeTasks.find((x) => x.id === id);
+      if (t) delete t.trackedAircraft;
+    });
+    return { removed: true };
+  },
+
   "POST /api/assistant/tasks/:taskId/flight": (ctx, p, body) => {
     const assistantId = assistantActor(ctx);
     const id = req(p, "taskId");

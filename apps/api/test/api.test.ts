@@ -2201,6 +2201,33 @@ describe("assistant portal", () => {
     otherCookie = (await assistantLogin(otherAssistantId)).cookie;
   });
 
+  it("puts a booked jet on the client's map, and only from the assistant's own task", async () => {
+    const res = await call("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft`,
+      { tailNumber: "n650gx", from: "sju", to: "TEB", departsAt: "2027-01-02T15:00:00Z" }, null, cookie);
+    expect(res.status).toBe(200);
+    expect(res.json.trackedAircraft).toMatchObject({ tailNumber: "N650GX", from: "SJU", to: "TEB", departsAt: "2027-01-02T15:00:00.000Z" });
+    const mine = await call("GET", "/api/flights/mine", undefined, sam);
+    expect(mine.status).toBe(200);
+    expect(mine.json.flights).toEqual([expect.objectContaining({ taskId, tailNumber: "N650GX", from: "SJU", to: "TEB" })]);
+    // Sam's flight is not on Jordan's map.
+    expect((await call("GET", "/api/flights/mine", undefined, jordan)).json.flights).toEqual([]);
+    // Nor can another assistant write on a task that is not theirs.
+    expect((await call("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft`, { tailNumber: "N1AB" }, null, otherCookie)).status).toBe(404);
+  });
+
+  it("says what is wrong with the form, and can take a flight back off the map", async () => {
+    const bad = await call("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft`, { tailNumber: "12" }, null, cookie);
+    expect(bad.status).toBe(400);
+    expect(bad.json.error).toMatch(/tail number/i);
+    await call("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft`, { tailNumber: "N650GX" }, null, cookie);
+    expect((await call("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft/remove`, {}, null, cookie)).status).toBe(200);
+    expect((await call("GET", "/api/flights/mine", undefined, sam)).json.flights).toEqual([]);
+  });
+
+  it("lists shared flights only for a signed-in client", async () => {
+    expect((await call("GET", "/api/flights/mine")).status).toBe(401);
+  });
+
   it("requires a valid employee session, not a token or a traveler session", async () => {
     expect((await call("GET", "/api/assistant/portal")).status).toBe(401);
     expect((await call("GET", "/api/assistant/portal", undefined, null, { Cookie: "sh_assistant_session=bogus" })).status).toBe(401);

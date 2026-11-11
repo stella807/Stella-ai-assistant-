@@ -763,6 +763,78 @@ function RunnerPanel({ task, onChanged }: { task: PortalTask; onChanged: () => v
   );
 }
 
+/**
+ * Puts a private jet the assistant booked for this client on the client's
+ * tracker map. Departure time is typed in the assistant's local time and sent
+ * as an exact moment, so the client sees it in theirs.
+ */
+function ShareFlightPanel({ task, onChanged }: { task: PortalTask; onChanged: () => void }) {
+  const { language } = useLanguage();
+  const w = portalWords(language).jetShare;
+  const shared = task.trackedAircraft;
+  const [form, setForm] = useState({ tailNumber: "", from: "", to: "", departs: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const send = async () => {
+    setBusy(true); setError(null);
+    try {
+      const departsAt = form.departs ? new Date(form.departs).toISOString() : undefined;
+      await api.assistantShareAircraft(task.id, { tailNumber: form.tailNumber, from: form.from, to: form.to, departsAt });
+      setForm({ tailNumber: "", from: "", to: "", departs: "" });
+      onChanged();
+    } catch (err) {
+      setError(language === "es" || !(err instanceof Error) ? w.error : err.message);
+    } finally { setBusy(false); }
+  };
+  const remove = async () => {
+    setBusy(true); setError(null);
+    try { await api.assistantRemoveAircraft(task.id); onChanged(); } catch { setError(w.error); } finally { setBusy(false); }
+  };
+
+  return (
+    <section className="card stack">
+      <h3>{w.title}</h3>
+      {shared ? (
+        <div className="row-between" style={{ gap: 10, alignItems: "flex-start" }}>
+          <p className="small" style={{ margin: 0 }}>
+            {w.onMap} <strong>{shared.tailNumber}</strong>
+            {shared.from && shared.to ? ` · ${shared.from} → ${shared.to}` : ""}
+            {shared.departsAt ? ` · ${new Date(shared.departsAt).toLocaleString(language === "es" ? "es-PR" : "en-US", { dateStyle: "medium", timeStyle: "short" })}` : ""}
+          </p>
+          <button className="btn btn-sm btn-ghost" disabled={busy} onClick={remove}>{w.remove}</button>
+        </div>
+      ) : (
+        <p className="small muted" style={{ margin: 0 }}>{w.intro}</p>
+      )}
+      <div className="field">
+        <label htmlFor={`jet-tail-${task.id}`}>{w.tail}</label>
+        <input id={`jet-tail-${task.id}`} placeholder="N123AB" autoCapitalize="characters" autoComplete="off" spellCheck={false}
+          maxLength={12} value={form.tailNumber} onChange={set("tailNumber")} />
+      </div>
+      <div className="row" style={{ gap: 10 }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor={`jet-from-${task.id}`}>{w.from}</label>
+          <input id={`jet-from-${task.id}`} placeholder="SJU" maxLength={40} value={form.from} onChange={set("from")} />
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor={`jet-to-${task.id}`}>{w.to}</label>
+          <input id={`jet-to-${task.id}`} placeholder="TEB" maxLength={40} value={form.to} onChange={set("to")} />
+        </div>
+      </div>
+      <div className="field">
+        <label htmlFor={`jet-dep-${task.id}`}>{w.departs}</label>
+        <input id={`jet-dep-${task.id}`} type="datetime-local" value={form.departs} onChange={set("departs")} />
+      </div>
+      {error && <p className="tiny" role="alert">{error}</p>}
+      <button className="btn btn-primary btn-block" disabled={busy || !form.tailNumber.trim()} onClick={send}>
+        {busy ? w.sending : w.send}
+      </button>
+    </section>
+  );
+}
+
 function TaskDetail({ task, onBack, onChanged, aiAssist }: {
   task: PortalTask; onBack: () => void; onChanged: () => void;
   aiAssist: { mode: "automatic" | "handoff" | "unavailable"; requires: string };
@@ -954,6 +1026,8 @@ function TaskDetail({ task, onBack, onChanged, aiAssist }: {
       )}
 
       {task.status === "in-progress" && <RunnerPanel task={task} onChanged={onChanged} />}
+
+      {task.status !== "canceled" && task.role !== "runner" && <ShareFlightPanel task={task} onChanged={onChanged} />}
 
       <section className="card stack">
         <div className="row-between">

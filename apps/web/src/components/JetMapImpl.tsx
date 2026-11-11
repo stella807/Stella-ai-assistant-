@@ -32,8 +32,8 @@ function planeIcon(headingDeg: number): L.DivIcon {
  * Text that came from the aircraft data (tail, callsign, type) is only ever
  * set as text, never as HTML.
  */
-export default function JetMapImpl({ fix, trail, receivedAt, labels, language }: {
-  fix: AircraftFix; trail: { lat: number; lng: number }[]; receivedAt: number; labels: JetMapLabels; language: string;
+export default function JetMapImpl({ fix, trail, receivedAt, labels, language, route }: {
+  fix: AircraftFix; trail: { lat: number; lng: number }[]; receivedAt: number; labels: JetMapLabels; language: string; route?: string;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -141,6 +141,7 @@ export default function JetMapImpl({ fix, trail, receivedAt, labels, language }:
       <div className="jet-hud-top" aria-hidden="true">
         <strong>{fix.tailNumber}</strong>
         {type && <span>{type}</span>}
+        {route && <span className="jet-hud-route">{route}</span>}
       </div>
       {!zoomedIn && <div className="jet-hud-hint">{labels.zoomHint}</div>}
       <dl className="jet-hud">

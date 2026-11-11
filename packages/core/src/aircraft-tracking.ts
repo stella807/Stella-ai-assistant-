@@ -110,3 +110,67 @@ export function aircraftTypeName(code: string | undefined): string | undefined {
   if (!code) return undefined;
   return TYPE_NAMES[code.toUpperCase()] ?? code.toUpperCase();
 }
+
+/**
+ * A private flight an assistant has put on a client's tracker map, once it is
+ * booked: the jet's tail number, and where and when it goes, as the assistant
+ * wrote them. Kept on the concierge task the booking belongs to.
+ */
+export interface TrackedAircraft {
+  tailNumber: string;
+  /** Where it leaves from and where it goes: an airport code ("SJU", "KTEB") or a short name. */
+  from?: string;
+  to?: string;
+  /** When it is due to leave, ISO 8601. */
+  departsAt?: string;
+  sharedAt: string;
+}
+
+const PLACE = /^[\p{L}\p{N} .,'()/-]{2,40}$/u;
+
+/** An assistant's form, checked and tidied into a `TrackedAircraft`, or what to fix. */
+export function readTrackedAircraft(input: unknown, now: Date):
+  | { ok: true; value: TrackedAircraft }
+  | { ok: false; error: string } {
+  const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const tailNumber = normalizeTailNumber(typeof raw.tailNumber === "string" ? raw.tailNumber : "");
+  if (!tailNumber) return { ok: false, error: "Enter the jet's tail number, like N123AB." };
+  const place = (key: "from" | "to"): string | undefined | null => {
+    const v = typeof raw[key] === "string" ? (raw[key] as string).trim().replace(/\s+/g, " ") : "";
+    if (!v) return undefined;
+    if (!PLACE.test(v)) return null;
+    // An airport code reads in capitals; a place name is left as written.
+    return /^[A-Za-z]{3,4}$/.test(v) ? v.toUpperCase() : v;
+  };
+  const from = place("from");
+  if (from === null) return { ok: false, error: "Write where it leaves from as an airport code or a short place name." };
+  const to = place("to");
+  if (to === null) return { ok: false, error: "Write where it lands as an airport code or a short place name." };
+  let departsAt: string | undefined;
+  if (typeof raw.departsAt === "string" && raw.departsAt.trim()) {
+    const t = Date.parse(raw.departsAt);
+    if (!Number.isFinite(t)) return { ok: false, error: "The departure time is not a date and time." };
+    departsAt = new Date(t).toISOString();
+  }
+  return {
+    ok: true,
+    value: {
+      tailNumber,
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+      ...(departsAt ? { departsAt } : {}),
+      sharedAt: now.toISOString(),
+    },
+  };
+}
+
+/** How long a shared flight stays on the client's map after its departure (or after it was shared, if later) once the task is finished. */
+export const SHARED_FLIGHT_KEEP_HOURS = 48;
+
+/** Whether a shared flight still belongs on the client's map: always while the task is open, never once it is cancelled, and for a while after it is done. */
+export function isSharedFlightCurrent(shared: TrackedAircraft, taskStatus: string, now: Date): boolean {
+  if (taskStatus === "canceled") return false;
+  if (taskStatus === "in-progress") return true;
+  const since = Math.max(Date.parse(shared.sharedAt), shared.departsAt ? Date.parse(shared.departsAt) : 0);
+  return now.getTime() - since < SHARED_FLIGHT_KEEP_HOURS * 3_600_000;
+}

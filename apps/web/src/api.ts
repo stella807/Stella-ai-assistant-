@@ -4,6 +4,7 @@ import { localized, localizeDeep } from "./app/server-es.ts";
 import { setMonthlyFreebies } from "@safehubby/core";
 import type {
   AircraftFix,
+  TrackedAircraft,
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
@@ -570,6 +571,13 @@ export const api = {
   /** A flight's schedule, status and (while airborne) position — the
    *  preview before booking an airport pickup, and the same call a booked
    *  task's detail screen makes again to refresh. See FlightTrackingPort. */
+  /** The private flights the client's assistants have put on their tracker map, newest first. */
+  myFlights: () => request<{ flights: (TrackedAircraft & { taskId: string })[] }>("GET", "/api/flights/mine"),
+  /** Assistant: put a booked private jet on the client's tracker map. `departsAt` is ISO 8601. */
+  assistantShareAircraft: (taskId: string, input: { tailNumber: string; from?: string; to?: string; departsAt?: string }) =>
+    request<{ trackedAircraft: TrackedAircraft }>("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft`, input),
+  assistantRemoveAircraft: (taskId: string) =>
+    request<{ removed: true }>("POST", `/api/assistant/tasks/${taskId}/tracked-aircraft/remove`, {}),
   /** Where a private aircraft is right now, by tail number. `aircraft` is null when nothing with that registration is being heard. */
   aircraftTrack: (tail: string) =>
     request<{ tail: string; aircraft: AircraftFix | null; attribution: { name: string; url: string; license: string } }>(

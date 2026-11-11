@@ -63,3 +63,34 @@ describe("aircraftTypeName", () => {
     expect(aircraftTypeName(undefined)).toBeUndefined();
   });
 });
+
+import { isSharedFlightCurrent, readTrackedAircraft } from "../src/aircraft-tracking.ts";
+
+describe("readTrackedAircraft", () => {
+  const now = new Date("2026-11-11T20:00:00Z");
+  it("tidies what an assistant typed", () => {
+    const r = readTrackedAircraft({ tailNumber: " n650gx ", from: "sju", to: "Teterboro, NJ", departsAt: "2026-11-12T19:40:00Z" }, now);
+    expect(r).toEqual({ ok: true, value: { tailNumber: "N650GX", from: "SJU", to: "Teterboro, NJ", departsAt: "2026-11-12T19:40:00.000Z", sharedAt: now.toISOString() } });
+  });
+  it("needs only the tail number", () => {
+    expect(readTrackedAircraft({ tailNumber: "N650GX" }, now)).toEqual({ ok: true, value: { tailNumber: "N650GX", sharedAt: now.toISOString() } });
+  });
+  it("says what to fix", () => {
+    expect(readTrackedAircraft({ tailNumber: "123" }, now)).toMatchObject({ ok: false, error: expect.stringMatching(/tail number/) });
+    expect(readTrackedAircraft({ tailNumber: "N1", from: "<script>" }, now)).toMatchObject({ ok: false, error: expect.stringMatching(/leaves from/) });
+    expect(readTrackedAircraft({ tailNumber: "N1", departsAt: "tomorrow-ish" }, now)).toMatchObject({ ok: false, error: expect.stringMatching(/date and time/) });
+    expect(readTrackedAircraft(null, now).ok).toBe(false);
+  });
+});
+
+describe("isSharedFlightCurrent", () => {
+  const shared = { tailNumber: "N1", sharedAt: "2026-11-10T12:00:00Z", departsAt: "2026-11-11T12:00:00Z" };
+  it("shows it while the task is open and never once it is cancelled", () => {
+    expect(isSharedFlightCurrent(shared, "in-progress", new Date("2027-01-01T00:00:00Z"))).toBe(true);
+    expect(isSharedFlightCurrent(shared, "canceled", new Date("2026-11-11T13:00:00Z"))).toBe(false);
+  });
+  it("keeps it for two days after departure once the task is done", () => {
+    expect(isSharedFlightCurrent(shared, "completed", new Date("2026-11-13T11:00:00Z"))).toBe(true);
+    expect(isSharedFlightCurrent(shared, "completed", new Date("2026-11-13T13:00:00Z"))).toBe(false);
+  });
+});

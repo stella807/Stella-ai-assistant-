@@ -189,6 +189,19 @@ const EN = {
     done: "Mark done",
     decline: "Decline — unsafe, illegal, or not what I agreed to",
   },
+  jetShare: {
+    title: "Private flight for the client's map",
+    intro: "Booked them a jet? Put it on their tracker map: they will see it live under Help → Rides, and their phone gets a notice.",
+    tail: "Tail number",
+    from: "From (airport code or place)",
+    to: "To (airport code or place)",
+    departs: "Departure (your local time)",
+    send: "Send to client's map",
+    sending: "Sending…",
+    onMap: "On the client's map:",
+    remove: "Take it off the map",
+    error: "That did not go through. Check the tail number and try again.",
+  },
 };
 
 const ES: typeof EN = {
@@ -371,6 +384,19 @@ const ES: typeof EN = {
     unaccountedBody: " Añade uno abajo, o di qué cambió si no lo pudiste comprar; si no, se descuenta de tu pago cuando se cierre.",
     done: "Marcar como terminada",
     decline: "Rechazar: es peligroso, ilegal o no es lo que acordé",
+  },
+  jetShare: {
+    title: "Vuelo privado para el mapa del cliente",
+    intro: "¿Le reservaste un jet? Ponlo en su mapa de seguimiento: lo verá en vivo en Ayuda → Viajes y le llegará un aviso al teléfono.",
+    tail: "Matrícula",
+    from: "Desde (código de aeropuerto o lugar)",
+    to: "Hasta (código de aeropuerto o lugar)",
+    departs: "Salida (tu hora local)",
+    send: "Enviar al mapa del cliente",
+    sending: "Enviando…",
+    onMap: "En el mapa del cliente:",
+    remove: "Quitarlo del mapa",
+    error: "No se pudo enviar. Revisa la matrícula e intenta de nuevo.",
   },
 };
 

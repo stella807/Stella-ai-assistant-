@@ -42,6 +42,7 @@
  * pay instead of a silent pay cut for the person doing the work.
  */
 
+import type { TrackedAircraft } from "./aircraft-tracking.ts";
 import { payDeltas } from "./pay-adjustments.ts";
 import type { AmountScale } from "./amount-steps.ts";
 import { approximateDecodedBytes } from "./voice-messages.ts";
@@ -893,6 +894,9 @@ export interface ConciergeTask {
   hospitalStay?: boolean;
   /** Booked as armed work, for an assistant cleared for it. */
   armed?: boolean;
+  /** A private flight the assistant booked for this client and put on their
+   *  tracker map — see `TrackedAircraft` and `GET /api/flights/mine`. */
+  trackedAircraft?: TrackedAircraft;
   /** Purchases the assistant has documented, each with a photo — see
    *  `SpendRequest`. Absent means none yet, which is why the card cannot be
    *  revealed on a task nobody has documented a purchase for. */
