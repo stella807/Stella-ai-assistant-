@@ -1,3 +1,4 @@
+import { JetTracker } from "./JetTracker.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DrinkDefinition, PlanId, RecoveryPlan, ShareGrant, Venue } from "@safehubby/core";
 import { hasMovedVenue } from "@safehubby/core";
@@ -146,6 +147,8 @@ export function TravelerScreen({ drinks, account, onOpenHiring, onOpenPlans, onO
     return (
       <div className="stack">
         <HomeHelp account={account} onOpenHelp={onOpenHiring} onOpenPlans={onOpenPlans} onOpenHow={onOpenHow} onOpenGames={onOpenGames} />
+
+        <JetTracker />
 
         {/* The night out is still here — it is just no longer the first thing
             somebody who came for help has to scroll past. */}

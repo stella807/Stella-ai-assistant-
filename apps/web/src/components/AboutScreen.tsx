@@ -58,6 +58,7 @@ const FEATURES: { id: string; titleKey: TranslationKey; blurbKey: TranslationKey
   { id: "ride-home", titleKey: "what.rideHome.title", blurbKey: "what.rideHome.blurb" },
   { id: "errands", titleKey: "what.errands.title", blurbKey: "what.errands.blurb" },
   { id: "concierge", titleKey: "what.concierge.title", blurbKey: "what.concierge.blurb" },
+  { id: "jets", titleKey: "what.jets.title", blurbKey: "what.jets.blurb" },
   { id: "emergency", titleKey: "what.emergency.title", blurbKey: "what.emergency.blurb" },
   { id: "games", titleKey: "what.games.title", blurbKey: "what.games.blurb" },
 ];

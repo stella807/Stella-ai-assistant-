@@ -10,9 +10,12 @@ import { lazyWithReload } from "../app/lazy-import.ts";
  */
 const LiveMapImpl = lazyWithReload(() => import("./LiveMapImpl.tsx"));
 
-export function LiveMap({ points, height = 200, onPick, onLocate }: {
-  points: { lat: number; lng: number; label?: string }[];
+export function LiveMap({ points, height = 200, onPick, onLocate, zoom, follow }: {
+  points: { lat: number; lng: number; label?: string; icon?: "plane"; headingDeg?: number }[];
   height?: number;
+  /** See LiveMapImpl.tsx. */
+  zoom?: number;
+  follow?: boolean;
   /** See the doc on `onPick` in LiveMapImpl.tsx — lets the rider drag or
    *  tap to move the first point instead of trusting a GPS fix outright. */
   onPick?: (point: { lat: number; lng: number }) => void;
@@ -21,7 +24,7 @@ export function LiveMap({ points, height = 200, onPick, onLocate }: {
   if (points.length === 0) return null;
   return (
     <Suspense fallback={<div style={{ height, borderRadius: "var(--r-btn)", background: "var(--fill)" }} />}>
-      <LiveMapImpl points={points} height={height} onPick={onPick} onLocate={onLocate} />
+      <LiveMapImpl points={points} height={height} onPick={onPick} onLocate={onLocate} zoom={zoom} follow={follow} />
     </Suspense>
   );
 }

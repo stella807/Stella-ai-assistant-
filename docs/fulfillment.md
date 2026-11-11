@@ -321,6 +321,36 @@ function (`mapFlight` in `apps/api/src/adapters/flight-tracking.ts`), the
 same "verify before going live, then it's a few lines" caveat every other
 adapter in this file carries.
 
+### Private jets, by tail number
+
+Airline flights above are looked up by flight number and date. A private jet
+is followed by its registration instead, from the jet's own ADS-B broadcasts:
+`GET /api/flights/aircraft?tail=N123AB` (any signed-in customer; 360 calls an
+hour per client), shown on the customer home screen as "Track a private jet".
+
+- **Source:** [adsb.lol](https://adsb.lol), a volunteer receiver network whose
+  data is under the Open Database License (ODbL 1.0), which allows commercial
+  use with attribution. The attribution is returned with every answer and
+  shown on screen. No key is needed today; adsb.lol says one earned by feeding
+  the network may be required later. `ADSB_API_BASE` points the adapter at any
+  other ADSBExchange-compatible host.
+- **Not chosen:** OpenSky's free API (research and non-commercial use only),
+  ADS-B Exchange (commercial licence required), FlightAware AeroAPI (billed per call).
+- **Call:** `GET {base}/v2/reg/{registration}` returns `{ ac: [...], now }` in
+  the readsb format; the mapping is `mapReadsbAircraft` in
+  `apps/api/src/adapters/aircraft-tracking.ts`. Answers are cached 10 s.
+- **Privacy:** aircraft on the FAA's LADD list (readsb `dbFlags & 8`) are shown
+  as present but with no position or callsign.
+- **Coverage:** there are few receivers over open water, so a jet between
+  islands can drop off; the screen says so rather than guessing.
+- **Not yet run against the live service from here**: the sandbox this was
+  built in cannot reach api.adsb.lol. It was tested against a stand-in serving
+  the same response shape. Check one real tail number after deploying.
+
+Private jet charters themselves are booked by the concierge through
+[Jettly](https://jettly.com); the app says so on the tracker and in "What
+Safehubby does". That is a booking channel, not a partnership.
+
 **Never blocks dispatch.** A miss — no key configured, or the provider
 doesn't recognize the flight — still lets the task book; the assistant is
 told which flight to meet either way, just without a tracked status until

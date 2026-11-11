@@ -31,7 +31,7 @@ import {
   PARTY_CATALOG, PARTY_CATEGORIES, suggestForGuests, summarizeCart,
   askableOrders, confirmOrder, declineOrder, queueOrder, sweepExpired,
   isEnabled, flagNote, ridesFor, featureLabel,
-  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES, diffFlight, hasLanded,
+  isAutomatic, SECURE_TRANSPORT_DISCLOSURES, FLIGHT_TRACKING_DISCLOSURES, diffFlight, hasLanded, normalizeTailNumber,
   buildManualFlightInfo,
   RED_FLAGS, assess, assessNonEmergency, dispatcherScript, emergencyNumberFor,
   shouldPromptEmergencyCheck, totalStandardDrinks as sumStandardDrinks,
@@ -92,6 +92,7 @@ import {
   uberForBusiness,
 } from "./adapters/fulfillment.ts";
 import { flightTracking } from "./adapters/flight-tracking.ts";
+import { aircraftTracking } from "./adapters/aircraft-tracking.ts";
 import { cardViewFor, taskCards } from "./adapters/cards.ts";
 import { assistantPayouts } from "./adapters/payouts.ts";
 import { captureHeld, chargeSaved, chargingReady, holdSaved, paySavedNow, processorReady, refundPaid, releaseHeld } from "./adapters/charging.ts";
@@ -172,7 +173,7 @@ export interface Ctx {
    *  another's, and tests need isolation between instances. */
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
-    applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter;
+    applications: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1420,6 +1421,8 @@ export function makeLimiters() {
     /** Flight lookups bill per call the same way places do. Generous enough
      *  to check a delayed flight every few minutes while waiting on it. */
     flights: new RateLimiter(30, 60 * 60_000),
+    // A tracker screen refreshes every 20 s; this allows two of them open for an hour.
+    aircraft: new RateLimiter(360, 60 * 60_000),
   };
 }
 
@@ -3187,6 +3190,29 @@ export const routes: Record<string, Handler> = {
    * booked task's detail screen makes again to refresh. Rate limited the
    * same as the place picker: a configured key is billed per call.
    */
+  /**
+   * Where a private aircraft is right now, by its tail number: position,
+   * altitude, speed and heading while it is being heard over ADS-B. Any
+   * signed-in customer can use it; there is no per-call cost behind it, only
+   * a volunteer network that should not be hammered, hence the limit and the
+   * adapter's short cache. "Nothing heard" is a normal answer, not an error.
+   */
+  "GET /api/flights/aircraft": async (ctx, p) => {
+    actor(ctx);
+    if (ctx.limiters.aircraft.hit(ctx.clientKey)) {
+      throw new HttpError(429, "Too many lookups. Try again in a few minutes.");
+    }
+    const tail = normalizeTailNumber(String(p.tail ?? ""));
+    if (!tail) throw new HttpError(400, "Enter a tail number, like N123AB.");
+    let aircraft;
+    try {
+      aircraft = await aircraftTracking.findByTail(tail);
+    } catch {
+      throw new HttpError(502, "The flight data service did not answer. Try again in a minute.");
+    }
+    return { tail, aircraft, attribution: aircraftTracking.attribution };
+  },
+
   "GET /api/flights/lookup": async (ctx, p) => {
     const me = actor(ctx);
     requireFeature(ctx, me, "personal-concierge");

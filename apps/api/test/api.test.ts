@@ -1671,6 +1671,19 @@ describe("personal concierge", () => {
     });
   });
 
+  describe("GET /api/flights/aircraft", () => {
+    it("requires a session", async () => {
+      expect((await call("GET", "/api/flights/aircraft?tail=N650GX")).status).toBe(401);
+    });
+
+    it("turns away something that cannot be a tail number before asking anyone", async () => {
+      const res = await call("GET", "/api/flights/aircraft?tail=%3Cscript%3E", undefined, sam);
+      expect(res.status).toBe(400);
+      expect(res.json.error).toMatch(/tail number/i);
+      expect((await call("GET", "/api/flights/aircraft", undefined, jordan)).status).toBe(400);
+    });
+  });
+
   describe("the flight sweep", () => {
     it("does nothing at all, quietly, with no provider configured", async () => {
       // It runs on a five-minute timer in main.ts, so the unconfigured case is

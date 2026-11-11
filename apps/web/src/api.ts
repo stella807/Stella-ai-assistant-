@@ -3,6 +3,7 @@ import { currentLanguage } from "./i18n.tsx";
 import { localized, localizeDeep } from "./app/server-es.ts";
 import { setMonthlyFreebies } from "@safehubby/core";
 import type {
+  AircraftFix,
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
   EliteBooking, EliteService, EliteServiceId, ErrandTierId, FlightInfo, OnBehalfOf,
   IdentityPhoto, LaunchProgress, LaunchStepId, LocationPing, MasterAccount, MasterAuditEntry, NearbyStore, NightOut, PickupRequest, Plan, ProviderStatus, TeamActivity,
@@ -566,6 +567,10 @@ export const api = {
   /** A flight's schedule, status and (while airborne) position — the
    *  preview before booking an airport pickup, and the same call a booked
    *  task's detail screen makes again to refresh. See FlightTrackingPort. */
+  /** Where a private aircraft is right now, by tail number. `aircraft` is null when nothing with that registration is being heard. */
+  aircraftTrack: (tail: string) =>
+    request<{ tail: string; aircraft: AircraftFix | null; attribution: { name: string; url: string; license: string } }>(
+      "GET", `/api/flights/aircraft?tail=${encodeURIComponent(tail)}`),
   flightLookup: (flightNumber: string, date: string) =>
     request<{ flight: FlightInfo; disclosures: string[] }>(
       "GET", `/api/flights/lookup?flightNumber=${encodeURIComponent(flightNumber)}&date=${encodeURIComponent(date)}`),
