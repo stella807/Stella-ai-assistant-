@@ -71,3 +71,55 @@ body::after {
 :root[data-theme="light"] .lux-title { text-shadow: 0 0 36px rgba(217, 178, 106, .3); }
 
 @media (prefers-reduced-motion: reduce) { body::before, body::after { animation: none; } }
+
+/* ---- Floating glass and depth ------------------------------------------
+   Three layers sit at different distances. The far one (aurora) barely moves
+   as the page scrolls, the middle one (stars) a little more, the near one
+   (glass orbs) the most, so the page seems to have depth. The scroll movement
+   uses the separate `translate` property, so it adds to the slow drift above
+   instead of fighting it. Browsers without scroll-driven animation just keep
+   the drift. */
+html::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .34), rgba(167, 139, 250, .2) 42%, rgba(40, 168, 178, .07) 68%, transparent 70%) 84% 14% / 110px 110px no-repeat,
+    radial-gradient(circle at 35% 30%, rgba(255, 244, 220, .36), rgba(217, 178, 106, .2) 42%, rgba(217, 178, 106, .05) 68%, transparent 70%) 6% 46% / 72px 72px no-repeat,
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .26), rgba(40, 168, 178, .16) 42%, rgba(124, 92, 214, .05) 68%, transparent 70%) 92% 72% / 170px 170px no-repeat,
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .3), rgba(214, 96, 160, .15) 42%, transparent 70%) 14% 90% / 90px 90px no-repeat;
+  filter: blur(1.2px);
+  animation: orb-float 16s ease-in-out infinite alternate;
+  will-change: transform;
+}
+:root[data-theme="light"] html::after, html[data-theme="light"]::after { opacity: .7; }
+@keyframes orb-float {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-10px, 22px, 0); }
+}
+
+@supports (animation-timeline: scroll()) {
+  body::before { animation: atm-drift 38s ease-in-out infinite alternate, atm-far linear both; animation-timeline: auto, scroll(root); }
+  body::after  { animation: atm-twinkle 7s ease-in-out infinite alternate, atm-mid linear both; animation-timeline: auto, scroll(root); }
+  html::after  { animation: orb-float 16s ease-in-out infinite alternate, atm-near linear both; animation-timeline: auto, scroll(root); }
+}
+@keyframes atm-far  { to { translate: 0 -8vh; } }
+@keyframes atm-mid  { to { translate: 0 -22vh; } }
+@keyframes atm-near { to { translate: 0 -55vh; } }
+
+/* Glass cards that hover a few pixels off the page, each on its own slow beat. */
+.landing .card, .app-customer .card {
+  border-color: rgba(255, 255, 255, .16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45); backdrop-filter: blur(18px) saturate(1.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 36px rgba(255, 255, 255, .035), 0 22px 44px -22px rgba(0, 0, 0, .7);
+}
+:root[data-theme="light"] .landing .card, :root[data-theme="light"] .app-customer .card {
+  border-color: rgba(255, 255, 255, .7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 22px 44px -24px rgba(90, 64, 20, .35);
+}
+.landing .card, .landing .banner { animation: card-float 7s ease-in-out infinite alternate; }
+.landing > :nth-child(2n) .card, .landing > .card:nth-child(2n), .landing > .banner:nth-child(2n) { animation-duration: 8.5s; animation-delay: -2s; }
+.landing > :nth-child(3n) .card, .landing > .card:nth-child(3n) { animation-duration: 10s; animation-delay: -5s; }
+@keyframes card-float { from { translate: 0 0; } to { translate: 0 -5px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html::after, body::before, body::after, .landing .card, .landing .banner { animation: none !important; }
+}
