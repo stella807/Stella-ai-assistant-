@@ -166,6 +166,7 @@ const TIER_WORDS: Record<Lang, Record<ErrandTierId, { label: string; example: st
     "grocery-pickup": { label: "Grocery drop-off", example: "Groceries you ordered for store pickup, collected and brought to you" },
     "wait-in-line": { label: "Wait in line", example: "A restaurant or takeout order" },
     pharmacy: { label: "Pharmacy pickup", example: "A prescription or medicine — one flat fee, plus the medication" },
+    "lounge-pass": { label: "Lounge pass", example: "A private airport lounge pass, bought for you through LoungePair — the pass costs extra" },
   },
   es: {
     "in-building": { label: "Dentro del edificio", example: "Un refresco o un bocadillo de la cafetería o la tienda" },
@@ -174,10 +175,11 @@ const TIER_WORDS: Record<Lang, Record<ErrandTierId, { label: string; example: st
     "grocery-pickup": { label: "Entrega de compra", example: "La compra que pediste para recoger en la tienda, recogida y llevada a ti" },
     "wait-in-line": { label: "Hacer fila", example: "Un pedido de restaurante o para llevar" },
     pharmacy: { label: "Recogido en farmacia", example: "Una receta o medicina — una tarifa fija, más la medicina" },
+    "lounge-pass": { label: "Pase de sala VIP", example: "Un pase de sala VIP de aeropuerto, comprado para ti a través de LoungePair — el pase se paga aparte" },
   },
 };
 
-/** The four errand sizes with their fees, from the same functions the app
+/** The errand sizes with their fees, from the same functions the app
  *  charges with — never typed in here. */
 export function errandTierRows(lang: Lang): TierRow[] {
   return ERRAND_TIERS.map((t) => ({

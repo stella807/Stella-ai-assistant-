@@ -8,7 +8,8 @@ afterEach(() => resetFlags());
 import {
   CARD_FEE_FIXED_CENTS, CARD_FEE_RATE, ERRAND_RATE_PER_HOUR_CENTS, ISSUING_CARD_FEE_CENTS, errandIssuingCostCents,
   ERRAND_TIERS, errandCardCostCents, errandMarginCents, errandFeeCents, errandPayoutCents, errandProfitCents,
-  FOOD_ERRAND_TIERS, PHARMACY_RUN_FEE_CENTS, findErrandTier, validateErrandTier,
+  FOOD_ERRAND_TIERS, LOUNGE_PASS_FEE_CENTS, PHARMACY_RUN_FEE_CENTS, findErrandTier, validateErrandTier,
+  customerServiceFeeFor, isGrabIncluded,
 } from "../src/index.ts";
 
 const CAPS = [500, 1_000, 2_000, 4_000, 8_000, 10_000, 25_000, 100_000];
@@ -54,7 +55,7 @@ describe("errand tiers", () => {
 
   it("is not wildly over the floor either — the fee is the smallest that works", () => {
     // Pharmacy is a flat fee by design; see its own test.
-    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
+    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy" && x.id !== "lounge-pass")) {
       for (const cap of CAPS) {
         expect(errandProfitCents(t.id, cap), `${t.id} at ${cap}`)
           .toBeLessThan(errandMarginCents(t.id) + 3);
@@ -64,7 +65,7 @@ describe("errand tiers", () => {
 
   it("charges the client for the virtual task card, so it does not come out of the margin", () => {
     expect(ISSUING_CARD_FEE_CENTS).toBe(10);
-    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
+    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy" && x.id !== "lounge-pass")) {
       for (const cap of CAPS) {
         const fee = errandFeeCents(t.id, cap);
         const kept = fee - errandPayoutCents(t.id) - errandCardCostCents(cap + fee) - errandIssuingCostCents(cap);
@@ -76,7 +77,7 @@ describe("errand tiers", () => {
   });
 
   it("charges more fee for a bigger item, because the card charges more", () => {
-    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy")) {
+    for (const t of ERRAND_TIERS.filter((x) => x.id !== "pharmacy" && x.id !== "lounge-pass")) {
       expect(errandFeeCents(t.id, 10_000)).toBeGreaterThan(errandFeeCents(t.id, 1_000));
     }
   });
@@ -149,5 +150,38 @@ describe("grocery drop-off", () => {
     expect(fee("grocery-pickup", 1_000)).toBeLessThanOrEqual(1_500);
     expect(profit("grocery-pickup", 1_000)).toBeGreaterThanOrEqual(100);
     expect(food).toContain("grocery-pickup");
+  });
+});
+
+describe("the lounge pass", () => {
+  it("is billed on top of the pass, at no less than $20, at any price of pass", () => {
+    for (const cap of [2_000, 4_500, 6_000, 20_000, 75_000]) {
+      expect(errandFeeCents("lounge-pass", cap), `cap ${cap}`).toBeGreaterThanOrEqual(LOUNGE_PASS_FEE_CENTS);
+    }
+  });
+
+  it("keeps real money on a typical pass, after the runner and the card processor", () => {
+    const profit = errandProfitCents("lounge-pass", 4_500);
+    expect(profit).toBeGreaterThan(600);
+    expect(profit).toBeLessThan(900);
+  });
+
+  it("never loses money on a big one", () => {
+    for (const cap of [2_000, 20_000, 75_000]) {
+      expect(errandProfitCents("lounge-pass", cap), `cap ${cap}`).toBeGreaterThanOrEqual(errandMarginCents("lounge-pass"));
+    }
+  });
+
+  it("is never included in a plan, and never covered by the errand credit", () => {
+    for (const planId of ["free", "basic", "premium", "premium-plus", "family"] as const) {
+      expect(isGrabIncluded({ planId, category: "run-errand", quickTask: true, errandTier: "lounge-pass", usedThisMonth: 0 }), planId).toBe(false);
+      expect(customerServiceFeeFor({ planId, category: "run-errand", quickTask: true, errandTier: "lounge-pass", spendCapCents: 4_500, usedThisMonth: 0 }), planId)
+        .toBeGreaterThanOrEqual(LOUNGE_PASS_FEE_CENTS);
+    }
+  });
+
+  it("is booked as an errand, and nothing else", () => {
+    expect(() => validateErrandTier("lounge-pass", "run-errand")).not.toThrow();
+    expect(() => validateErrandTier("lounge-pass", "book-and-buy")).toThrow();
   });
 });

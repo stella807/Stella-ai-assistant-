@@ -252,6 +252,8 @@ export const CORE_ES: Record<string, string> = {
   "A restaurant or takeout order": "Un pedido de restaurante o para llevar",
   "Pharmacy pickup": "Recogido en farmacia",
   "A prescription or medicine from the pharmacy": "Una receta o medicina de la farmacia",
+  "Lounge pass": "Pase de sala VIP",
+  "A private airport lounge pass, bought for you through LoungePair": "Un pase de sala VIP de aeropuerto, comprado para ti a través de LoungePair",
   "An errand tier applies only to grabbing something or running an errand.": "El tamaño de mandado solo aplica a traer algo o hacer un mandado.",
   "Paid plans open as soon as payments are live. Check-ins, location sharing and SOS work in the meantime.": "Los planes pagos abren en cuanto los pagos estén activos. Mientras tanto funcionan los chequeos, compartir ubicación y SOS.",
   "Elite opens once revenue covers its spending allowance for our first members.": "Elite abre cuando los ingresos cubran el fondo de gastos de nuestros primeros socios.",

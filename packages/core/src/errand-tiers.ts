@@ -70,7 +70,7 @@ export const errandMarginCents = (id: ErrandTierId): number =>
  *  website and the app quote the same floor. */
 export const ERRAND_REFERENCE_CAP_CENTS = 2_000;
 
-export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "grocery-pickup" | "wait-in-line" | "pharmacy";
+export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "grocery-pickup" | "wait-in-line" | "pharmacy" | "lounge-pass";
 
 /**
  * A pharmacy pickup is one flat fee, not priced on the minutes and miles —
@@ -84,6 +84,19 @@ export type ErrandTierId = "in-building" | "nearby-store" | "shopping-trip" | "g
  * than losing money.
  */
 export const PHARMACY_RUN_FEE_CENTS = 2_999;
+
+/**
+ * The least a lounge pass costs the client on top of the pass itself: $20.
+ *
+ * A pass is bought online in a few minutes, so the errand formula alone would
+ * price it near $13, leaving about a dollar. Passes are paid for separately,
+ * by everyone, never bundled into a plan, so this fee is the only thing the
+ * service earns on one. At $20 a $45 pass leaves roughly $7 after the runner
+ * and the card processor. It is a floor, not a flat price: a larger pass still
+ * pays the card-processing share the formula adds (see `errandFeeCents`).
+ * Change this one number to change it everywhere.
+ */
+export const LOUNGE_PASS_FEE_CENTS = 2_000;
 
 /** The tiers that are food: a snack in the building, a restaurant or takeout
  *  order, a grocery run. Basic's errand credit covers only these. */
@@ -113,6 +126,8 @@ export const ERRAND_TIERS: ErrandTier[] = [
   { id: "grocery-pickup", label: "Grocery drop-off", example: "Groceries you ordered for store pickup, collected and brought to you", minutes: 20, miles: 4, suggestedCapCents: 1000 },
   { id: "wait-in-line", label: "Wait in line", example: "A restaurant or takeout order", minutes: 50, miles: 6, suggestedCapCents: 4000 },
   { id: "pharmacy", label: "Pharmacy pickup", example: "A prescription or medicine from the pharmacy", minutes: 50, miles: 6, suggestedCapCents: 4000 },
+  // Bought online, no trip. The limit is the pass's price, which changes with the lounge and how busy it is.
+  { id: "lounge-pass", label: "Lounge pass", example: "A private airport lounge pass, bought for you through LoungePair", minutes: 15, miles: 0, suggestedCapCents: 6000 },
 ];
 
 export function findErrandTier(id: string): ErrandTier {
@@ -160,6 +175,7 @@ export function errandFeeCents(id: ErrandTierId, spendCapCents: number): number 
   const need = payout + CARD_FEE_FIXED_CENTS + margin + issuing + CARD_FEE_RATE * spendCapCents;
   let fee = Math.ceil(need / (1 - CARD_FEE_RATE));
   if (id === "pharmacy") fee = Math.max(fee, PHARMACY_RUN_FEE_CENTS);
+  if (id === "lounge-pass") fee = Math.max(fee, LOUNGE_PASS_FEE_CENTS);
   while (fee - payout - errandCardCostCents(spendCapCents + fee) - issuing < margin) fee += 1;
   return fee;
 }

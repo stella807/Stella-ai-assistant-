@@ -4723,6 +4723,21 @@ describe("hiring somebody and actually sending them to a job", () => {
       expect(task.location.lat).toBeCloseTo(18.225, 2);
     });
 
+    it("charges a lounge pass on top of the pass, as its own errand, outside the plan", async () => {
+      const kit = await runner();
+      await withCard(sam);
+      const res = await order(sam, kit, {
+        category: "run-errand", errandTier: "lounge-pass", spendCapCents: 4_500,
+        note: "A LoungePair pass for SJU on Friday.", onBehalfOf: FOR_RAMON,
+      });
+      expect(res.status, JSON.stringify(res.json)).toBe(200);
+      const task = res.json.task;
+      // The pass itself is the spend limit; the service fee is on top and never below $20.
+      expect(task.spendCapCents).toBe(4_500);
+      expect(task.serviceFeeCents).toBeGreaterThanOrEqual(2_000);
+      expect(task.errandTier).toBe("lounge-pass");
+    });
+
     it("never trusts coordinates the client sent for somebody else's order", async () => {
       // A destination outside every launch market, typed as coordinates, must
       // not get a dispatch. The market named decides, and an unknown one fails.
