@@ -1,0 +1,73 @@
+/* A dreamlike atmosphere behind the whole app: slow drifting washes of violet,
+   teal and gold light with faint stars, and cards turned to frosted glass so the
+   light shows through. All CSS, nothing to load; it stops for people who ask for
+   reduced motion. The body goes transparent so the page colour on <html> is the
+   ground the light sits on. */
+:root {
+  --atm-a: rgba(124, 92, 214, .40);
+  --atm-b: rgba(40, 168, 178, .28);
+  --atm-c: rgba(217, 178, 106, .30);
+  --atm-d: rgba(214, 96, 160, .20);
+  --atm-star: rgba(255, 244, 220, .85);
+  --atm-stars: 1;
+}
+:root[data-theme="light"] {
+  --atm-a: rgba(170, 140, 235, .30);
+  --atm-b: rgba(120, 200, 210, .26);
+  --atm-c: rgba(240, 190, 120, .34);
+  --atm-d: rgba(240, 150, 190, .22);
+  --atm-stars: 0;
+}
+
+body { background: transparent; }
+body::before, body::after { content: ""; position: fixed; pointer-events: none; z-index: -1; }
+
+body::before {
+  inset: -25%;
+  background:
+    radial-gradient(38% 32% at 18% 12%, var(--atm-a), transparent 70%),
+    radial-gradient(34% 30% at 88% 28%, var(--atm-b), transparent 70%),
+    radial-gradient(44% 34% at 50% 98%, var(--atm-c), transparent 72%),
+    radial-gradient(26% 24% at 8% 70%, var(--atm-d), transparent 70%);
+  filter: blur(36px);
+  animation: atm-drift 38s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+body::after {
+  inset: 0;
+  opacity: var(--atm-stars);
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 18%, var(--atm-star), transparent 60%),
+    radial-gradient(1px 1px at 34% 62%, var(--atm-star), transparent 60%),
+    radial-gradient(1.4px 1.4px at 58% 14%, var(--atm-star), transparent 60%),
+    radial-gradient(1px 1px at 76% 48%, var(--atm-star), transparent 60%),
+    radial-gradient(1.2px 1.2px at 90% 82%, var(--atm-star), transparent 60%),
+    radial-gradient(1px 1px at 22% 90%, var(--atm-star), transparent 60%),
+    radial-gradient(1.2px 1.2px at 66% 76%, var(--atm-star), transparent 60%);
+  background-size: 340px 340px;
+  animation: atm-twinkle 7s ease-in-out infinite alternate;
+}
+
+@keyframes atm-drift {
+  0%   { transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1); }
+  50%  { transform: translate3d(2%, 3%, 0) rotate(6deg) scale(1.08); }
+  100% { transform: translate3d(4%, -3%, 0) rotate(-4deg) scale(1.03); }
+}
+@keyframes atm-twinkle { from { opacity: calc(var(--atm-stars) * .35); } to { opacity: calc(var(--atm-stars) * .9); } }
+
+/* Frosted glass: the cards let the light through. */
+.landing .card, .app-customer .card {
+  background: linear-gradient(180deg, rgba(26, 36, 70, .62), rgba(16, 22, 46, .72));
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+}
+:root[data-theme="light"] .landing .card, :root[data-theme="light"] .app-customer .card {
+  background: linear-gradient(180deg, rgba(255, 253, 248, .72), rgba(255, 250, 240, .6));
+}
+
+/* The hero throws a little light of its own, and the headline glows faintly. */
+.lux-hero { box-shadow: 0 30px 90px -24px rgba(217, 178, 106, .35), 0 0 0 1px rgba(217, 178, 106, .28); }
+.lux-title { text-shadow: 0 0 36px rgba(217, 178, 106, .38); }
+:root[data-theme="light"] .lux-title { text-shadow: 0 0 36px rgba(217, 178, 106, .3); }
+
+@media (prefers-reduced-motion: reduce) { body::before, body::after { animation: none; } }
