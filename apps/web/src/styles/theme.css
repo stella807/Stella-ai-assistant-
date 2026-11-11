@@ -66,3 +66,24 @@
 :root[data-theme="light"] .footer-payments::before, :root[data-theme="light"] .footer-payments::after { color: var(--accent); }
 /* Cover photographs keep light type: the picture is dark under it in either theme. */
 :root[data-theme="light"] .screen-cover, :root[data-theme="light"] .screen-cover h2, :root[data-theme="light"] .screen-cover p { color: #fff; }
+
+/* Contrast pass. Text that dark mode writes in --faint, --accent-bright or a
+   bright green is too pale on ivory (3:1 or less), so light mode steps it down
+   to --muted / --accent / --ok, which all clear 4.5:1 on the card and ground. */
+:root[data-theme="light"] .tabs-bottom button:not([aria-selected="true"]),
+:root[data-theme="light"] .tabs-bottom button:not([aria-selected="true"]):hover,
+:root[data-theme="light"] .compare-no,
+:root[data-theme="light"] .plan-was,
+:root[data-theme="light"] .card th,
+:root[data-theme="light"] .chip .tiny,
+:root[data-theme="light"] .rule,
+:root[data-theme="light"] .rival-no { color: var(--muted); }
+:root[data-theme="light"] .tabs-bottom button[aria-selected="true"],
+:root[data-theme="light"] .mission-eyebrow,
+:root[data-theme="light"] .rival-named a { color: var(--accent); }
+:root[data-theme="light"] .rival-yes,
+:root[data-theme="light"] .compare-yes { color: var(--ok); }
+:root[data-theme="light"] .pill-safe { color: color-mix(in srgb, var(--ok) 82%, #000); }
+/* The "no" marks and the footer portal links were dimmed with opacity on top of an already soft colour. */
+:root[data-theme="light"] .rival-no,
+:root[data-theme="light"] .footer-portals { opacity: 1; }
