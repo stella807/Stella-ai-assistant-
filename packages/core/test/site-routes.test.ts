@@ -81,6 +81,8 @@ describe("what goes in the sitemap", () => {
     expect(paths).toEqual([
       "/", "/es", "/careers", "/es/trabajo", "/drive", "/es/chofer",
       "/private-jets-puerto-rico", "/es/jets-privados-puerto-rico", "/airport-lounge-passes", "/es/pases-salas-vip",
+      "/errand-service-puerto-rico", "/es/mandados-puerto-rico", "/personal-assistant-puerto-rico", "/es/asistente-personal-puerto-rico",
+      "/safe-ride-home-puerto-rico", "/es/transporte-seguro-puerto-rico",
       "/careers/personal-assistant", "/es/trabajo/personal-assistant",
     ]);
     expect(indexableSiteRoutes([]).some((r) => r.page === "job")).toBe(false);
@@ -94,6 +96,9 @@ describe("service pages", () => {
     expect(siteRouteFor("/private-jets-puerto-rico")).toMatchObject({ page: "service", lang: "en", service: "jets" });
     expect(siteRouteFor("/Airport-Lounge-Passes/")).toMatchObject({ page: "service", lang: "en", service: "lounges" });
     expect(siteRouteFor("/es/jets-privados-puerto-rico")).toMatchObject({ page: "service", lang: "es", service: "jets" });
+    expect(siteRouteFor("/es/mandados-puerto-rico")).toMatchObject({ service: "errands", lang: "es" });
+    expect(siteRouteFor("/personal-assistant-puerto-rico")).toMatchObject({ service: "concierge", lang: "en" });
+    expect(siteRouteFor("/safe-ride-home-puerto-rico")).toMatchObject({ service: "rides", lang: "en" });
     const es = alternateSiteRoute(siteRouteFor("/airport-lounge-passes")!, "es");
     expect(es.path).toBe("/es/pases-salas-vip");
     expect(alternateSiteRoute(es, "en").path).toBe("/airport-lounge-passes");

@@ -78,6 +78,8 @@ for (const [path, needle] of [
   ["/es", 'lang="es"'], ["/careers", "<h1>"], ["/es/trabajo", "<h1>"], ["/drive", "<h1>"],
   ["/private-jets-puerto-rico", "Jettly"], ["/airport-lounge-passes", "LoungePair"],
   ["/es/jets-privados-puerto-rico", "Jettly"], ["/es/pases-salas-vip", "LoungePair"],
+  ["/errand-service-puerto-rico", "spending limit"], ["/personal-assistant-puerto-rico", "911"], ["/safe-ride-home-puerto-rico", "<h1>"],
+  ["/es/mandados-puerto-rico", "límite de gasto"], ["/es/asistente-personal-puerto-rico", "911"], ["/es/transporte-seguro-puerto-rico", "<h1>"],
 ]) {
   const p = await get(path);
   check(`${path} answers 200 with its own content`, p.status === 200 && p.text.includes(needle), `${p.status}`);

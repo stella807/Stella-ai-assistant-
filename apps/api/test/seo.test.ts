@@ -217,6 +217,20 @@ describe("the service pages", () => {
     expect(seoPageFor("/es/pases-salas-vip", facts).body).toContain("al menos $20");
   });
 
+  it("describe errands, assistants and safe rides from the live prices, each with a twin and a picture", () => {
+    const errands = seoPageFor("/errand-service-puerto-rico", facts);
+    expect(errands.body).toContain("never used");
+    expect(errands.image?.path).toBe("/img/showcase-venue.jpg");
+    const assistant = seoPageFor("/personal-assistant-puerto-rico", facts);
+    expect(assistant.body).toContain("$45 an hour");
+    expect(assistant.body).toContain("call 911");
+    expect(seoPageFor("/safe-ride-home-puerto-rico", facts).body.match(/<h1>/g)).toHaveLength(1);
+    const es = seoPageFor("/es/transporte-seguro-puerto-rico", facts);
+    expect(es).toMatchObject({ lang: "es", status: 200 });
+    expect(es.alternates).toContainEqual({ hreflang: "en", href: "https://safehubby.com/safe-ride-home-puerto-rico" });
+    expect(seoPageFor("/", facts).body).toContain('href="/errand-service-puerto-rico"');
+  });
+
   it("describe the service as structured data with a breadcrumb", () => {
     const [graph] = seoPageFor("/airport-lounge-passes", facts).jsonLd as { "@graph": { "@type": string }[] }[];
     expect(graph!["@graph"].map((n) => n["@type"])).toEqual(["Organization", "Service", "BreadcrumbList"]);

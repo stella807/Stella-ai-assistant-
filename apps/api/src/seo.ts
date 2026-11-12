@@ -1,5 +1,5 @@
 import {
-  STAFF_ROLE_ES, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
+  SITE_SERVICES, STAFF_ROLE_ES, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
   type ServiceId, type SiteLang, type SiteRoute, type StaffRole,
 } from "@safehubby/core";
 
@@ -191,6 +191,57 @@ const WORDS = {
         ],
         related: "Also: ",
       },
+      errands: {
+        title: "Errand service in Puerto Rico, with a spending limit | Safehubby",
+        description: (f: SeoFacts) => `Someone runs one errand and brings it to you, from ${money(f.errandFromCents)} plus what is bought, under a spending limit you set that is never exceeded.`,
+        h1: "A small errand, run for you",
+        name: "Errand running with a spending cap",
+        paragraphs: (f: SeoFacts) => [
+          "Ask your Safehubby assistant to fetch one thing or run one errand and bring it to you.",
+          `What it costs: from ${money(f.errandFromCents)} plus what is bought. Before you send the request you pick a spending limit, the most that can be spent on purchases, and the price is shown before you confirm.`,
+          "How the money is held: when you send the request, the limit plus the service fee is held on your card. The assistant pays with a card issued for that task alone and limited to your cap, so your own card is never used. When the task is done, what applies is charged and anything unspent is released.",
+        ],
+        aboutHeading: "Good to know",
+        about: [
+          "An errand is a different job from sitting with someone. An errand runner is never sent to check on a person; that is done by a personal assistant.",
+          "Check-ins, location sharing and SOS stay free on every plan.",
+        ],
+        related: "Also: ",
+      },
+      concierge: {
+        title: "Personal assistant in Puerto Rico who comes to you | Safehubby",
+        description: (f: SeoFacts) => `A trained Safehubby assistant comes in person to sit with someone, run a task with you or check on a person. ${money(f.hourlyCents)} an hour once your plan's hours are used.`,
+        h1: "Someone who comes and stays",
+        name: "In-person personal assistant",
+        paragraphs: (f: SeoFacts) => [
+          "A trained personal assistant sits with a friend who should not be alone, goes with you to do a task, or goes in person to check that somebody is actually okay.",
+          `What it costs: your plan includes some assistant hours. After that it is ${money(f.hourlyCents)} an hour, and a full hospital day with a caretaker is ${money(f.hospitalDayCents)}. You see the price before you send the request.`,
+          "Your assistant is an independent, vetted professional, not a Safehubby employee. Safehubby connects and coordinates the service.",
+        ],
+        aboutHeading: "Good to know",
+        about: [
+          "This is not an emergency service. In an emergency, call 911 first.",
+          "Our assistants do not give medical, legal or financial advice.",
+        ],
+        related: "Also: ",
+      },
+      rides: {
+        title: "A safe ride home in Puerto Rico | Safehubby",
+        description: () => "One tap orders a ride, a delivery or a secure-transport driver, and friends and family are alerted right away if a check-in is missed.",
+        h1: "A sober way home",
+        name: "Safe ride home and check-in alerts",
+        paragraphs: () => [
+          "One tap in the Safehubby app orders a ride, a delivery or a secure-transport driver, so no one has to choose between a bad decision and no way home.",
+          "Friends and family can follow your night. A missed check-in alerts them right away, not the next morning, and you can share your location and send an SOS.",
+          "If someone should not be alone, you can ask for a personal assistant to come and stay with them.",
+        ],
+        aboutHeading: "Good to know",
+        about: [
+          "Check-ins, location sharing and SOS stay free on every plan.",
+          "This is not an emergency service. In an emergency, call 911 first.",
+        ],
+        related: "Also: ",
+      },
     },
     notFoundTitle: "Page not found | Safehubby",
     notFound: "This page does not exist.",
@@ -280,6 +331,57 @@ const WORDS = {
         about: [
           "El precio de las salas cambia según la sala y lo llena que esté, así que el pase se cotiza cuando se compra, no por adelantado.",
           "Los chequeos, la ubicación y el SOS siguen siendo gratis en todos los planes.",
+        ],
+        related: "También: ",
+      },
+      errands: {
+        title: "Servicio de mandados en Puerto Rico, con límite de gasto | Safehubby",
+        description: (f: SeoFacts) => `Alguien hace un mandado y te lo trae, desde ${money(f.errandFromCents)} más lo que se compre, con un límite de gasto que tú fijas y que nunca se excede.`,
+        h1: "Un mandado pequeño, hecho por ti",
+        name: "Mandados con límite de gasto",
+        paragraphs: (f: SeoFacts) => [
+          "Pídele a tu asistente de Safehubby que busque una cosa o haga un mandado y te lo traiga.",
+          `Lo que cuesta: desde ${money(f.errandFromCents)} más lo que se compre. Antes de enviar la solicitud eliges un límite de gasto, lo máximo que se puede gastar en compras, y el precio se ve antes de confirmar.`,
+          "Cómo se retiene el dinero: al enviar la solicitud se retiene en tu tarjeta el límite más la tarifa de servicio. El asistente paga con una tarjeta emitida solo para esa tarea y limitada a tu tope, así que nunca usa tu propia tarjeta. Al terminar, se cobra lo que corresponda y lo que no se gastó se libera.",
+        ],
+        aboutHeading: "Bueno saber",
+        about: [
+          "Un mandado es un trabajo distinto a acompañar a alguien. A un mandadero nunca se le envía a ver cómo está una persona; eso lo hace un asistente personal.",
+          "Los chequeos, la ubicación y el SOS siguen siendo gratis en todos los planes.",
+        ],
+        related: "También: ",
+      },
+      concierge: {
+        title: "Asistente personal en Puerto Rico que va a donde estás | Safehubby",
+        description: (f: SeoFacts) => `Un asistente capacitado de Safehubby va en persona a acompañar a alguien, hacer una tarea contigo o ver cómo está una persona. ${money(f.hourlyCents)} la hora cuando se acaban las horas de tu plan.`,
+        h1: "Alguien que viene y se queda",
+        name: "Asistente personal en persona",
+        paragraphs: (f: SeoFacts) => [
+          "Un asistente personal capacitado acompaña a un amigo que no debería estar solo, va contigo a hacer una tarea, o va en persona a comprobar que alguien de verdad está bien.",
+          `Lo que cuesta: tu plan incluye algunas horas de asistente. Después son ${money(f.hourlyCents)} la hora, y un día completo de hospital con un cuidador cuesta ${money(f.hospitalDayCents)}. Ves el precio antes de enviar la solicitud.`,
+          "Tu asistente es un profesional independiente y verificado, no un empleado de Safehubby. Safehubby conecta y coordina el servicio.",
+        ],
+        aboutHeading: "Bueno saber",
+        about: [
+          "Este no es un servicio de emergencia. En una emergencia, llama primero al 911.",
+          "Nuestros asistentes no dan consejos médicos, legales ni financieros.",
+        ],
+        related: "También: ",
+      },
+      rides: {
+        title: "Un transporte seguro a casa en Puerto Rico | Safehubby",
+        description: () => "Un toque pide un viaje, una entrega o un chofer de transporte seguro, y tus amigos y familia reciben una alerta enseguida si falta un chequeo.",
+        h1: "Una forma sobria de llegar a casa",
+        name: "Transporte seguro a casa y alertas de chequeo",
+        paragraphs: () => [
+          "Un toque en la app de Safehubby pide un viaje, una entrega o un chofer de transporte seguro, para que nadie tenga que escoger entre una mala decisión y no tener cómo llegar a casa.",
+          "Tus amigos y familia pueden seguir tu noche. Un chequeo que falta los alerta enseguida, no a la mañana siguiente, y puedes compartir tu ubicación y enviar un SOS.",
+          "Si alguien no debería estar solo, puedes pedir que un asistente personal vaya y se quede con esa persona.",
+        ],
+        aboutHeading: "Bueno saber",
+        about: [
+          "Los chequeos, la ubicación y el SOS siguen siendo gratis en todos los planes.",
+          "Este no es un servicio de emergencia. En una emergencia, llama primero al 911.",
         ],
         related: "También: ",
       },
@@ -400,7 +502,7 @@ function homeBody(f: SeoFacts, route: SiteRoute): string {
     items(w.doors.map(([name, text]) => `<strong>${escapeHtml(name)}</strong>: ${escapeHtml(text)}`)),
     `<h2>${escapeHtml(w.pricesHeading)}</h2>`,
     items([...plans, ...w.servicePrices(f).map(escapeHtml)]),
-    `<p>${link(sitePathFor("service", route.lang, undefined, "jets"), w.services.jets.h1)} · ${link(sitePathFor("service", route.lang, undefined, "lounges"), w.services.lounges.h1)}</p>`,
+    `<p>${SITE_SERVICES.map((id) => link(sitePathFor("service", route.lang, undefined, id), w.services[id].h1)).join(" · ")}</p>`,
     `<h2>${escapeHtml(w.whereHeading)}</h2>`,
     `<p>${escapeHtml(w.where(markets))}</p>`,
     `<h2>${escapeHtml(w.workHeading)}</h2>`,
@@ -410,16 +512,18 @@ function homeBody(f: SeoFacts, route: SiteRoute): string {
   ].join(""));
 }
 
+const SERVICE_PHOTOS: Record<ServiceId, string> = { jets: "jet", lounges: "lounge", errands: "venue", concierge: "hotel", rides: "ride" };
+
 function serviceBody(f: SeoFacts, route: SiteRoute, id: ServiceId): string {
   const w = WORDS[route.lang];
   const sv = w.services[id];
-  const other: ServiceId = id === "jets" ? "lounges" : "jets";
+  const others = SITE_SERVICES.filter((x) => x !== id).map((x) => link(sitePathFor("service", route.lang, undefined, x), w.services[x].h1)).join(" · ");
   return shell(route.lang, alternateSiteRoute(route, route.lang === "en" ? "es" : "en").path, [
     `<h1>${escapeHtml(sv.h1)}</h1>`,
     ...sv.paragraphs(f).map((p) => `<p>${escapeHtml(p)}</p>`),
     `<h2>${escapeHtml(sv.aboutHeading)}</h2>`,
     items(sv.about.map(escapeHtml)),
-    `<p>${escapeHtml(sv.related)}${link(sitePathFor("service", route.lang, undefined, other), w.services[other].h1)} · ${link(sitePathFor("home", route.lang), w.home)}</p>`,
+    `<p>${escapeHtml(sv.related)}${others} · ${link(sitePathFor("home", route.lang), w.home)}</p>`,
     `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)}</p>`,
     `<p class="seo-small">${escapeHtml(w.disclaimer)}</p>`,
   ].join(""));
@@ -526,7 +630,7 @@ export function seoPageFor(pathname: string, f: SeoFacts): SeoPage {
     const description = w.services[id].description(f);
     return {
       ...base, title: w.services[id].title, description, jsonLd: serviceJsonLd(f, route, id, description),
-      body: serviceBody(f, route, id), image: { path: `/img/showcase-${id === "jets" ? "jet" : "lounge"}.jpg`, width: 1100, height: 825 },
+      body: serviceBody(f, route, id), image: { path: `/img/showcase-${SERVICE_PHOTOS[id]}.jpg`, width: 1100, height: 825 },
     };
   }
   if (route.page === "careers") {

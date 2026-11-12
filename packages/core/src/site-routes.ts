@@ -17,8 +17,8 @@ export type SiteLang = "en" | "es";
 export const SITE_LANGS: SiteLang[] = ["en", "es"];
 
 /** The services that have a page of their own, because people search for them by name. */
-export type ServiceId = "jets" | "lounges";
-export const SITE_SERVICES: ServiceId[] = ["jets", "lounges"];
+export type ServiceId = "jets" | "lounges" | "errands" | "concierge" | "rides";
+export const SITE_SERVICES: ServiceId[] = ["jets", "lounges", "errands", "concierge", "rides"];
 
 /** home: the landing page. careers: every open job. job: one job. drive: the driver application. service: one service. */
 export type SitePage = "home" | "careers" | "job" | "drive" | "service";
@@ -40,6 +40,9 @@ const DRIVE: Record<SiteLang, string> = { en: "/drive", es: "/es/chofer" };
 const SERVICE_PATHS: Record<ServiceId, Record<SiteLang, string>> = {
   jets: { en: "/private-jets-puerto-rico", es: "/es/jets-privados-puerto-rico" },
   lounges: { en: "/airport-lounge-passes", es: "/es/pases-salas-vip" },
+  errands: { en: "/errand-service-puerto-rico", es: "/es/mandados-puerto-rico" },
+  concierge: { en: "/personal-assistant-puerto-rico", es: "/es/asistente-personal-puerto-rico" },
+  rides: { en: "/safe-ride-home-puerto-rico", es: "/es/transporte-seguro-puerto-rico" },
 };
 
 /** Older and printed addresses that still have to open the right page. */
