@@ -1,5 +1,5 @@
 import {
-  ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, HIRING_OPENED_ON, LAUNCH_MARKETS, errandFeeCents, isElitePlan,
+  ERRAND_REFERENCE_CAP_CENTS, ERRAND_TIERS, HIRING_OPENED_ON, LAUNCH_MARKETS, LOUNGE_PASS_FEE_CENTS, errandFeeCents, isElitePlan,
   releasedPlans, serviceFeeFor,
 } from "@safehubby/core";
 import { staffRoleListing, type Ctx } from "./routes.ts";
@@ -24,6 +24,7 @@ export function seoFactsFor(ctx: Ctx): SeoFacts {
     hourlyCents: serviceFeeFor("wait-with-someone", false, 1, 1),
     armedHourlyCents: serviceFeeFor("wait-with-someone", false, 1, 1, false, true),
     errandFromCents: errandFeeCents(ERRAND_TIERS[0]!.id, ERRAND_REFERENCE_CAP_CENTS),
+    loungeFeeCents: LOUNGE_PASS_FEE_CENTS,
     hospitalDayCents: serviceFeeFor("wait-with-someone", false, 1, 12, true),
     markets: LAUNCH_MARKETS.map((m) => m.label),
     roles: staffRoleListing(ctx).map((r) => ({

@@ -80,10 +80,30 @@ describe("what goes in the sitemap", () => {
     const paths = indexableSiteRoutes(["personal-assistant"]).map((r) => r.path);
     expect(paths).toEqual([
       "/", "/es", "/careers", "/es/trabajo", "/drive", "/es/chofer",
+      "/private-jets-puerto-rico", "/es/jets-privados-puerto-rico", "/airport-lounge-passes", "/es/pases-salas-vip",
       "/careers/personal-assistant", "/es/trabajo/personal-assistant",
     ]);
     expect(indexableSiteRoutes([]).some((r) => r.page === "job")).toBe(false);
     // The driver job has its own page, so it never gets one under careers.
     expect(indexableSiteRoutes(["driver"]).some((r) => r.page === "job")).toBe(false);
+  });
+});
+
+describe("service pages", () => {
+  it("are found by address in both languages, and each one's twin is the other language's", () => {
+    expect(siteRouteFor("/private-jets-puerto-rico")).toMatchObject({ page: "service", lang: "en", service: "jets" });
+    expect(siteRouteFor("/Airport-Lounge-Passes/")).toMatchObject({ page: "service", lang: "en", service: "lounges" });
+    expect(siteRouteFor("/es/jets-privados-puerto-rico")).toMatchObject({ page: "service", lang: "es", service: "jets" });
+    const es = alternateSiteRoute(siteRouteFor("/airport-lounge-passes")!, "es");
+    expect(es.path).toBe("/es/pases-salas-vip");
+    expect(alternateSiteRoute(es, "en").path).toBe("/airport-lounge-passes");
+  });
+  it("are listed for search engines, once per language, whatever jobs are open", () => {
+    const paths = indexableSiteRoutes([]).map((r) => r.path);
+    for (const p of ["/private-jets-puerto-rico", "/es/jets-privados-puerto-rico", "/airport-lounge-passes", "/es/pases-salas-vip"]) expect(paths).toContain(p);
+  });
+  it("switch language in the address bar", () => {
+    expect(sitePathInLanguage("/private-jets-puerto-rico", "es")).toBe("/es/jets-privados-puerto-rico");
+    expect(languageOfSitePath("/es/pases-salas-vip")).toBe("es");
   });
 });

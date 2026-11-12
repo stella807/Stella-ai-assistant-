@@ -1,6 +1,6 @@
 import {
   STAFF_ROLE_ES, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
-  type SiteLang, type SiteRoute, type StaffRole,
+  type ServiceId, type SiteLang, type SiteRoute, type StaffRole,
 } from "@safehubby/core";
 
 /**
@@ -42,6 +42,8 @@ export interface SeoFacts {
   armedHourlyCents: number;
   /** The smallest errand's fee, and a full hospital day. */
   errandFromCents: number;
+  /** The least a lounge pass costs on top of the pass itself. */
+  loungeFeeCents: number;
   hospitalDayCents: number;
   /** Where the service runs, as written for a reader. */
   markets: string[];
@@ -64,6 +66,8 @@ export interface SeoPage {
   body: string;
   /** An image the page shows first, worth fetching early. */
   preloadImage?: string;
+  /** The picture a shared link shows, when it is not the home page's. */
+  image?: { path: string; width: number; height: number };
 }
 
 const HERO_IMAGE = "/img/hero-luxury.jpg";
@@ -102,7 +106,7 @@ const rolePay = (role: SeoRole, lang: SiteLang) => (lang === "es" ? role.payEs :
 const WORDS = {
   en: {
     homeTitle: "Personal concierge & assistants in Puerto Rico | Safehubby",
-    homeDescription: "Safehubby sends a trusted personal assistant, errand runner or ride in Puerto Rico. Check-ins, location sharing and SOS are free. You set the spending limit.",
+    homeDescription: "Safehubby sends a trusted personal assistant, errand runner or ride in Puerto Rico, and books private jets and lounge passes. SOS and check-ins are free.",
     eyebrow: "Assistants · Errands · Rides",
     h1: "Someone you trust, wherever they're needed.",
     sub: "A personal assistant for the people you love, and for the evenings you want done right. You set the limit; you are never charged past it.",
@@ -112,6 +116,8 @@ const WORDS = {
       ["Errands", "A juice, a charger, a blanket — brought to the room."],
       ["Rides", "Booked for you, with the price shown first."],
       ["Handled for you", "Appointments, reminders, calls and emails."],
+      ["Private jets", "Booked through Jettly and followed live on your own map."],
+      ["Airport lounges", "Lounge passes bought for you through LoungePair, paid separately."],
       ["Safety", "Check-ins, location sharing and SOS, always free."],
     ],
     pricesHeading: "What it costs",
@@ -149,13 +155,50 @@ const WORDS = {
     driveDescription: "Drive people home with Safehubby: standard or secure transport, on a per-trip rate published before you apply.",
     driveH1: "Drive for Safehubby",
     driveRequirements: "A valid driver's licence, your vehicle's make, model, year and plate, and consent to a background check.",
+    services: {
+      jets: {
+        title: "Private jets in Puerto Rico: book and track | Safehubby",
+        description: () => "Your Safehubby concierge books private jet charters through Jettly, and your flight appears on your own live map: position, altitude and speed.",
+        h1: "Private jets, booked and tracked",
+        name: "Private jet charter booking and live flight tracking",
+        paragraphs: (f: SeoFacts) => [
+          "Tell your Safehubby concierge where you want to go and when. They book the charter through Jettly, a private jet charter marketplace.",
+          "Once it is booked, your assistant puts the flight on your map in the Safehubby app. You can watch the jet's position, altitude, speed and heading, and zoom in on the plane for its details. You can also type any aircraft's tail number, the registration painted near its tail, to follow it yourself.",
+          `What it costs: the charter itself is priced by the operator, and your concierge tells you the price before you confirm. Safehubby's part is your plan, and ${money(f.hourlyCents)} an hour for an assistant's time beyond the hours your plan includes.`,
+        ],
+        aboutHeading: "About the live map",
+        about: [
+          "Positions come from adsb.lol, a volunteer network of ADS-B receivers, and can lag by up to a minute.",
+          "Over open water, including much of the Caribbean, there are few receivers, so a jet can drop off the map between islands. That is a gap in coverage, not a problem with the flight.",
+          "Owners can ask for their aircraft to be kept off public trackers, and some planes do not broadcast a position. Those do not show.",
+        ],
+        related: "Also: ",
+      },
+      lounges: {
+        title: "Airport lounge passes, bought for you | Safehubby",
+        description: (f: SeoFacts) => `Your Safehubby concierge buys airport lounge access through LoungePair. Paid separately from your plan: the pass at its price plus a ${money(f.loungeFeeCents)} service fee.`,
+        h1: "Airport lounge passes, bought for you",
+        name: "Airport lounge pass purchase",
+        paragraphs: (f: SeoFacts) => [
+          "Tell your Safehubby concierge which airport and which day. They buy the lounge pass for you through LoungePair, a marketplace for airport lounge access.",
+          `How you pay: separately from your subscription, and not included in any plan. You set the most the pass can cost. You pay the pass at its price, plus a flat service fee of at least ${money(f.loungeFeeCents)}, and the price is shown before you confirm.`,
+          "How to ask: in the app, choose Run an errand, then Lounge pass.",
+        ],
+        aboutHeading: "Good to know",
+        about: [
+          "Lounge prices change with the lounge and with how busy it is, so the pass is priced when it is bought, not in advance.",
+          "Check-ins, location sharing and SOS stay free on every plan.",
+        ],
+        related: "Also: ",
+      },
+    },
     notFoundTitle: "Page not found | Safehubby",
     notFound: "This page does not exist.",
     home: "Go to Safehubby",
   },
   es: {
     homeTitle: "Concierge y asistentes personales en Puerto Rico | Safehubby",
-    homeDescription: "Safehubby te envía un asistente personal, un mensajero o un viaje de confianza en Puerto Rico. Chequeos, ubicación y SOS gratis. Tú pones el límite de gasto.",
+    homeDescription: "Safehubby te envía un asistente personal, un mensajero o un viaje de confianza en Puerto Rico, y reserva jets privados y pases de sala VIP. SOS y chequeos gratis.",
     eyebrow: "Asistentes · Mandados · Viajes",
     h1: "Alguien de confianza, donde más lo necesitas.",
     sub: "Un asistente personal para quienes quieres, y para las noches que quieres bien hechas. Tú pones el límite; nunca se cobra de más.",
@@ -165,6 +208,8 @@ const WORDS = {
       ["Mandados", "Un jugo, un cargador, una cobija — hasta la habitación."],
       ["Viajes", "Los reservamos por ti, con el precio por delante."],
       ["Resuelto por ti", "Citas, recordatorios, llamadas y correos."],
+      ["Jets privados", "Reservados a través de Jettly y seguidos en vivo en tu propio mapa."],
+      ["Salas VIP de aeropuerto", "Pases comprados para ti a través de LoungePair, que se pagan aparte."],
       ["Seguridad", "Chequeos, ubicación y SOS, siempre gratis."],
     ],
     pricesHeading: "Cuánto cuesta",
@@ -202,6 +247,43 @@ const WORDS = {
     driveDescription: "Lleva a la gente a casa con Safehubby: transporte estándar o seguro, con una tarifa por viaje publicada antes de solicitar.",
     driveH1: "Maneja con Safehubby",
     driveRequirements: "Una licencia de conducir vigente, la marca, el modelo, el año y la tablilla de tu vehículo, y tu consentimiento para una verificación de antecedentes.",
+    services: {
+      jets: {
+        title: "Jets privados en Puerto Rico: reserva y rastreo | Safehubby",
+        description: () => "Tu concierge de Safehubby reserva chárteres de jet privado a través de Jettly, y tu vuelo aparece en tu propio mapa en vivo: posición, altitud y velocidad.",
+        h1: "Jets privados, reservados y en vivo",
+        name: "Reserva de chárteres de jet privado y rastreo de vuelo en vivo",
+        paragraphs: (f: SeoFacts) => [
+          "Dile a tu concierge de Safehubby adónde quieres ir y cuándo. Él reserva el chárter a través de Jettly, un mercado de chárteres de jets privados.",
+          "Una vez reservado, tu asistente pone el vuelo en tu mapa dentro de la app de Safehubby. Puedes ver la posición, la altitud, la velocidad y el rumbo del jet, y acercarte al avión para ver sus datos. También puedes escribir la matrícula de cualquier aeronave, el código pintado cerca de la cola, para seguirla tú mismo.",
+          `Lo que cuesta: el chárter lo cobra el operador, y tu concierge te dice el precio antes de que confirmes. La parte de Safehubby es tu plan, y ${money(f.hourlyCents)} la hora por el tiempo de un asistente más allá de las horas que incluye tu plan.`,
+        ],
+        aboutHeading: "Sobre el mapa en vivo",
+        about: [
+          "Las posiciones vienen de adsb.lol, una red voluntaria de receptores ADS-B, y pueden atrasarse hasta un minuto.",
+          "Sobre el mar, incluida gran parte del Caribe, hay pocos receptores, así que un jet puede desaparecer del mapa entre islas. Es una falta de cobertura, no un problema con el vuelo.",
+          "Los dueños pueden pedir que su aeronave no aparezca en rastreadores públicos, y algunos aviones no transmiten su posición. Esos no se muestran.",
+        ],
+        related: "También: ",
+      },
+      lounges: {
+        title: "Pases de sala VIP de aeropuerto | Safehubby",
+        description: (f: SeoFacts) => `Tu concierge de Safehubby compra acceso a salas VIP de aeropuerto a través de LoungePair. Se paga aparte de tu plan: el pase a su precio más una tarifa de ${money(f.loungeFeeCents)}.`,
+        h1: "Pases de sala VIP de aeropuerto, comprados para ti",
+        name: "Compra de pases de sala VIP de aeropuerto",
+        paragraphs: (f: SeoFacts) => [
+          "Dile a tu concierge de Safehubby qué aeropuerto y qué día. Él compra el pase de sala VIP para ti a través de LoungePair, un mercado de acceso a salas de aeropuerto.",
+          `Cómo se paga: aparte de tu suscripción, y no está incluido en ningún plan. Tú fijas lo máximo que puede costar el pase. Pagas el pase a su precio, más una tarifa de servicio fija de al menos ${money(f.loungeFeeCents)}, y el precio se ve antes de confirmar.`,
+          "Cómo pedirlo: en la app, elige Hacer un mandado y luego Pase de sala VIP.",
+        ],
+        aboutHeading: "Bueno saber",
+        about: [
+          "El precio de las salas cambia según la sala y lo llena que esté, así que el pase se cotiza cuando se compra, no por adelantado.",
+          "Los chequeos, la ubicación y el SOS siguen siendo gratis en todos los planes.",
+        ],
+        related: "También: ",
+      },
+    },
     notFoundTitle: "Página no encontrada | Safehubby",
     notFound: "Esta página no existe.",
     home: "Ir a Safehubby",
@@ -318,6 +400,7 @@ function homeBody(f: SeoFacts, route: SiteRoute): string {
     items(w.doors.map(([name, text]) => `<strong>${escapeHtml(name)}</strong>: ${escapeHtml(text)}`)),
     `<h2>${escapeHtml(w.pricesHeading)}</h2>`,
     items([...plans, ...w.servicePrices(f).map(escapeHtml)]),
+    `<p>${link(sitePathFor("service", route.lang, undefined, "jets"), w.services.jets.h1)} · ${link(sitePathFor("service", route.lang, undefined, "lounges"), w.services.lounges.h1)}</p>`,
     `<h2>${escapeHtml(w.whereHeading)}</h2>`,
     `<p>${escapeHtml(w.where(markets))}</p>`,
     `<h2>${escapeHtml(w.workHeading)}</h2>`,
@@ -325,6 +408,43 @@ function homeBody(f: SeoFacts, route: SiteRoute): string {
     `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)}</p>`,
     `<p class="seo-small">${escapeHtml(w.disclaimer)}</p>`,
   ].join(""));
+}
+
+function serviceBody(f: SeoFacts, route: SiteRoute, id: ServiceId): string {
+  const w = WORDS[route.lang];
+  const sv = w.services[id];
+  const other: ServiceId = id === "jets" ? "lounges" : "jets";
+  return shell(route.lang, alternateSiteRoute(route, route.lang === "en" ? "es" : "en").path, [
+    `<h1>${escapeHtml(sv.h1)}</h1>`,
+    ...sv.paragraphs(f).map((p) => `<p>${escapeHtml(p)}</p>`),
+    `<h2>${escapeHtml(sv.aboutHeading)}</h2>`,
+    items(sv.about.map(escapeHtml)),
+    `<p>${escapeHtml(sv.related)}${link(sitePathFor("service", route.lang, undefined, other), w.services[other].h1)} · ${link(sitePathFor("home", route.lang), w.home)}</p>`,
+    `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)}</p>`,
+    `<p class="seo-small">${escapeHtml(w.disclaimer)}</p>`,
+  ].join(""));
+}
+
+function serviceJsonLd(f: SeoFacts, route: SiteRoute, id: ServiceId, description: string): unknown[] {
+  const w = WORDS[route.lang];
+  const url = `${f.origin}${route.path}`;
+  return [{
+    "@context": "https://schema.org",
+    "@graph": [
+      organization(f),
+      {
+        "@type": "Service", name: w.services[id].name, description, url, inLanguage: route.lang,
+        provider: { "@id": `${f.origin}/#organization` }, areaServed: f.markets,
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Safehubby", item: `${f.origin}${sitePathFor("home", route.lang)}` },
+          { "@type": "ListItem", position: 2, name: w.services[id].h1, item: url },
+        ],
+      },
+    ],
+  }];
 }
 
 /** Jobs that are open come first; the driver job is listed by its own page. */
@@ -401,6 +521,14 @@ export function seoPageFor(pathname: string, f: SeoFacts): SeoPage {
   if (route.page === "home") {
     return { ...base, title: w.homeTitle, description: w.homeDescription, jsonLd: homeJsonLd(f, route.lang, w.homeDescription), body: homeBody(f, route), preloadImage: HERO_IMAGE };
   }
+  if (route.page === "service" && route.service) {
+    const id = route.service;
+    const description = w.services[id].description(f);
+    return {
+      ...base, title: w.services[id].title, description, jsonLd: serviceJsonLd(f, route, id, description),
+      body: serviceBody(f, route, id), image: { path: `/img/showcase-${id === "jets" ? "jet" : "lounge"}.jpg`, width: 1100, height: 825 },
+    };
+  }
   if (route.page === "careers") {
     return { ...base, title: w.careersTitle, description: w.careersDescription, jsonLd: [], body: careersBody(f, route) };
   }
@@ -429,7 +557,7 @@ export function seoPageFor(pathname: string, f: SeoFacts): SeoPage {
    ------------------------------------------------------------------------ */
 
 export function renderSeoHead(page: SeoPage, origin: string): string {
-  const image = `${origin}${HERO_IMAGE}`;
+  const image = `${origin}${page.image?.path ?? HERO_IMAGE}`;
   const tags = [
     `<title>${escapeHtml(page.title)}</title>`,
     ...(page.description ? [`<meta name="description" content="${escapeHtml(page.description)}" />`] : []),
@@ -446,8 +574,8 @@ export function renderSeoHead(page: SeoPage, origin: string): string {
       `<meta property="og:locale" content="${OG_LOCALE[page.lang]}" />`,
       `<meta property="og:locale:alternate" content="${OG_LOCALE[page.lang === "en" ? "es" : "en"]}" />`,
       `<meta property="og:image" content="${escapeHtml(image)}" />`,
-      `<meta property="og:image:width" content="976" />`,
-      `<meta property="og:image:height" content="560" />`,
+      `<meta property="og:image:width" content="${page.image?.width ?? 976}" />`,
+      `<meta property="og:image:height" content="${page.image?.height ?? 560}" />`,
       `<meta name="twitter:card" content="summary_large_image" />`,
       `<meta name="twitter:title" content="${escapeHtml(page.title)}" />`,
       `<meta name="twitter:description" content="${escapeHtml(page.description)}" />`,

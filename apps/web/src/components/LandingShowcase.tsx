@@ -1,11 +1,12 @@
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
+import { siteRouteFor, type ServiceId } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 
 const MARQUEE: TranslationKey[] = ["show.marq1", "show.marq2", "show.marq3", "show.marq4", "show.marq5", "show.marq6", "show.marq7"];
 
-const CARDS: { photo: string; title: TranslationKey; text: TranslationKey; tag: TranslationKey }[] = [
-  { photo: "jet", title: "show.jet", text: "show.jetText", tag: "show.jetTag" },
-  { photo: "lounge", title: "show.lounge", text: "show.loungeText", tag: "show.loungeTag" },
+const CARDS: { photo: string; service?: ServiceId; title: TranslationKey; text: TranslationKey; tag: TranslationKey }[] = [
+  { photo: "jet", service: "jets", title: "show.jet", text: "show.jetText", tag: "show.jetTag" },
+  { photo: "lounge", service: "lounges", title: "show.lounge", text: "show.loungeText", tag: "show.loungeTag" },
   { photo: "yacht", title: "show.yacht", text: "show.yachtText", tag: "show.yachtTag" },
   { photo: "hotel", title: "show.hotel", text: "show.hotelText", tag: "show.hotelTag" },
   { photo: "ride", title: "show.ride", text: "show.rideText", tag: "show.rideTag" },
@@ -21,6 +22,20 @@ const CARDS: { photo: string; title: TranslationKey; text: TranslationKey; tag: 
 export function LandingShowcase() {
   const { t } = useLanguage();
   const words = [...MARQUEE, ...MARQUEE];
+
+  // An address that names a service (/private-jets-puerto-rico) is a link to it:
+  // bring that card into view and light it, so the visitor lands on what they searched for.
+  useEffect(() => {
+    const route = siteRouteFor(window.location.pathname);
+    if (route?.page !== "service" || !route.service) return;
+    const card = document.getElementById(`show-${route.service}`);
+    if (!card) return;
+    const timer = window.setTimeout(() => {
+      card.scrollIntoView({ block: "center", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      card.classList.add("show-picked");
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, []);
   return (
     <div className="show">
       {/* Decorative repetition of text that appears again below, so it is hidden from screen readers. */}
@@ -35,8 +50,8 @@ export function LandingShowcase() {
         <h2 id="show-title" className="show-title">{t("show.title")}</h2>
         <div className="show-grid">
           {CARDS.map((c, i) => (
-            <article key={c.photo} className="show-card show-spot" style={{ "--i": i } as CSSProperties}>
-              <img src={`/img/showcase-${c.photo}.jpg`} alt="" loading="lazy" width={1100} height={825} />
+            <article key={c.photo} id={c.service ? `show-${c.service}` : undefined} className="show-card show-spot" style={{ "--i": i } as CSSProperties}>
+              <img src={`/img/showcase-${c.photo}.jpg`} alt={t(c.title)} loading="lazy" width={1100} height={825} />
               <span className="show-tag">{t(c.tag)}</span>
               <div className="show-card-text">
                 <h3>{t(c.title)}</h3>

@@ -16,8 +16,12 @@ import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
 export type SiteLang = "en" | "es";
 export const SITE_LANGS: SiteLang[] = ["en", "es"];
 
-/** home: the landing page. careers: every open job. job: one job. drive: the driver application. */
-export type SitePage = "home" | "careers" | "job" | "drive";
+/** The services that have a page of their own, because people search for them by name. */
+export type ServiceId = "jets" | "lounges";
+export const SITE_SERVICES: ServiceId[] = ["jets", "lounges"];
+
+/** home: the landing page. careers: every open job. job: one job. drive: the driver application. service: one service. */
+export type SitePage = "home" | "careers" | "job" | "drive" | "service";
 
 export interface SiteRoute {
   page: SitePage;
@@ -26,11 +30,17 @@ export interface SiteRoute {
   path: string;
   /** The job a `job` page is for. */
   role?: StaffRole;
+  /** The service a `service` page is for. */
+  service?: ServiceId;
 }
 
 const HOME: Record<SiteLang, string> = { en: "/", es: "/es" };
 const CAREERS: Record<SiteLang, string> = { en: "/careers", es: "/es/trabajo" };
 const DRIVE: Record<SiteLang, string> = { en: "/drive", es: "/es/chofer" };
+const SERVICE_PATHS: Record<ServiceId, Record<SiteLang, string>> = {
+  jets: { en: "/private-jets-puerto-rico", es: "/es/jets-privados-puerto-rico" },
+  lounges: { en: "/airport-lounge-passes", es: "/es/pases-salas-vip" },
+};
 
 /** Older and printed addresses that still have to open the right page. */
 const ALIASES: Record<string, string> = { "/work": "/careers", "/trabajo": "/es/trabajo" };
@@ -47,8 +57,9 @@ export function normalizeSitePath(pathname: string): string {
   return path === "" ? "/" : path;
 }
 
-export function sitePathFor(page: SitePage, lang: SiteLang, role?: StaffRole): string {
+export function sitePathFor(page: SitePage, lang: SiteLang, role?: StaffRole, service?: ServiceId): string {
   if (page === "home") return HOME[lang];
+  if (page === "service" && service) return SERVICE_PATHS[service][lang];
   if (page === "drive") return DRIVE[lang];
   if (page === "job" && role) return `${CAREERS[lang]}/${role}`;
   return CAREERS[lang];
@@ -62,6 +73,9 @@ export function siteRouteFor(pathname: string): SiteRoute | null {
     if (path === HOME[lang]) return { page: "home", lang, path };
     if (path === CAREERS[lang]) return { page: "careers", lang, path };
     if (path === DRIVE[lang]) return { page: "drive", lang, path };
+    for (const service of SITE_SERVICES) {
+      if (path === SERVICE_PATHS[service][lang]) return { page: "service", lang, path, service };
+    }
     if (path.startsWith(`${CAREERS[lang]}/`)) {
       const role = path.slice(CAREERS[lang].length + 1);
       const known = JOB_ROLES.find((id) => id === role);
@@ -77,7 +91,7 @@ export function isPrivateSitePath(pathname: string): boolean {
 
 /** The same page in another language. */
 export function alternateSiteRoute(route: SiteRoute, lang: SiteLang): SiteRoute {
-  return { ...route, lang, path: sitePathFor(route.page, lang, route.role) };
+  return { ...route, lang, path: sitePathFor(route.page, lang, route.role, route.service) };
 }
 
 /** The language an address insists on. Only Spanish addresses insist. */
@@ -93,11 +107,14 @@ export function sitePathInLanguage(pathname: string, lang: SiteLang): string | n
   return next === normalizeSitePath(pathname) ? null : next;
 }
 
-/** Every address worth indexing: both languages of each page, and one page per job that is open. */
+/** Every address worth indexing: both languages of each page, each service, and one page per job that is open. */
 export function indexableSiteRoutes(openRoles: readonly StaffRole[]): SiteRoute[] {
   const routes: SiteRoute[] = [];
   for (const page of ["home", "careers", "drive"] as const) {
     for (const lang of SITE_LANGS) routes.push({ page, lang, path: sitePathFor(page, lang) });
+  }
+  for (const service of SITE_SERVICES) {
+    for (const lang of SITE_LANGS) routes.push({ page: "service", lang, path: sitePathFor("service", lang, undefined, service), service });
   }
   for (const role of JOB_ROLES.filter((id) => openRoles.includes(id))) {
     for (const lang of SITE_LANGS) routes.push({ page: "job", lang, path: sitePathFor("job", lang, role), role });

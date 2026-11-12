@@ -11,6 +11,7 @@ const facts: SeoFacts = {
   hourlyCents: 4500,
   armedHourlyCents: 7500,
   errandFromCents: 1167,
+  loungeFeeCents: 2000,
   hospitalDayCents: 19500,
   markets: ["Puerto Rico", "Texas", "Los Angeles"],
   roles: [
@@ -186,5 +187,51 @@ describe("the sitemap", () => {
     expect(xml).not.toContain("caretaker");
     expect(xml).not.toContain("/master");
     expect(xml).toContain(`<xhtml:link rel="alternate" hreflang="es" href="https://safehubby.com/es"/>`);
+  });
+});
+
+describe("the service pages", () => {
+  it("describe private jets in each language, with the live map's honest limits, and carry their own picture", () => {
+    const en = seoPageFor("/private-jets-puerto-rico", facts);
+    expect(en).toMatchObject({ status: 200, lang: "en", canonical: "https://safehubby.com/private-jets-puerto-rico", robots: "index, follow" });
+    expect(en.title).toContain("Private jets");
+    expect(en.body.match(/<h1>/g)).toHaveLength(1);
+    expect(en.body).toContain("Jettly");
+    expect(en.body).toContain("$45 an hour");
+    expect(en.body).toMatch(/lag by up to a minute/);
+    expect(en.image?.path).toBe("/img/showcase-jet.jpg");
+    expect(en.alternates).toContainEqual({ hreflang: "es", href: "https://safehubby.com/es/jets-privados-puerto-rico" });
+    expect(renderSeoHead(en, facts.origin)).toContain('og:image" content="https://safehubby.com/img/showcase-jet.jpg"');
+    const es = seoPageFor("/es/jets-privados-puerto-rico", facts);
+    expect(es).toMatchObject({ lang: "es", canonical: "https://safehubby.com/es/jets-privados-puerto-rico" });
+    expect(es.body).toContain("Jets privados");
+  });
+
+  it("state the lounge pass price from the same fee the app charges, never typed in the page", () => {
+    const en = seoPageFor("/airport-lounge-passes", facts);
+    expect(en.description).toContain("$20");
+    expect(en.body).toContain("at least $20");
+    expect(en.body).toContain("not included in any plan");
+    const dearer = seoPageFor("/airport-lounge-passes", { ...facts, loungeFeeCents: 2500 });
+    expect(dearer.body).toContain("at least $25");
+    expect(seoPageFor("/es/pases-salas-vip", facts).body).toContain("al menos $20");
+  });
+
+  it("describe the service as structured data with a breadcrumb", () => {
+    const [graph] = seoPageFor("/airport-lounge-passes", facts).jsonLd as { "@graph": { "@type": string }[] }[];
+    expect(graph!["@graph"].map((n) => n["@type"])).toEqual(["Organization", "Service", "BreadcrumbList"]);
+  });
+
+  it("are in the sitemap, each with its twin", () => {
+    const xml = sitemapXml(facts);
+    for (const loc of ["/private-jets-puerto-rico", "/es/jets-privados-puerto-rico", "/airport-lounge-passes", "/es/pases-salas-vip"]) {
+      expect(xml).toContain(`<loc>https://safehubby.com${loc}</loc>`);
+    }
+  });
+
+  it("are linked from the home page's plain text, which names them", () => {
+    expect(seoPageFor("/", facts).body).toContain('href="/private-jets-puerto-rico"');
+    expect(seoPageFor("/es", facts).body).toContain('href="/es/pases-salas-vip"');
+    expect(seoPageFor("/es", facts).body).toContain("Jets privados");
   });
 });

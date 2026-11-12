@@ -3,6 +3,7 @@ import { useLanguage } from "../i18n.tsx";
 import { ClientDisclosures } from "./ClientDisclosures.tsx";
 import { LegalDocumentView } from "./LegalDocumentView.tsx";
 import { PartnerForm } from "./PartnerForm.tsx";
+import { sitePathFor } from "@safehubby/core";
 import { disclosureCopy } from "../app/disclosure-copy.ts";
 import { cookiesCopy, refundCopy } from "../app/legal-copy.ts";
 
@@ -48,6 +49,8 @@ export function Footer() {
       {/* Real links, not router pushes: each portal is its own area with its own sign-in. */}
       <nav className="footer-links footer-portals" aria-label={language === "es" ? "Portales" : "Portals"}>
         <a href={language === "es" ? "/es/blog" : "/blog"}>Blog</a>
+        <a href={sitePathFor("service", language === "es" ? "es" : "en", undefined, "jets")}>{t("show.jet")}</a>
+        <a href={sitePathFor("service", language === "es" ? "es" : "en", undefined, "lounges")}>{t("show.lounge")}</a>
         <a href="/careers">{t("app.careers")}</a>
         <a href="/employee">{t("footer.employeePortal")}</a>
         <a href="/master">{t("footer.ownerPortal")}</a>

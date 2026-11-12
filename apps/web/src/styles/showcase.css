@@ -64,3 +64,6 @@
 /* Titles on photographs stay white in light mode too (the light theme turns plain h3s gold). */
 :root .show .show-card-text h3 { color: #fff; }
 :root .show .show-card-text p { color: #d9d3c6; }
+
+/* The card an address like /private-jets-puerto-rico points at. */
+.show-picked { box-shadow: inset 0 0 0 1.5px var(--accent-bright), 0 0 0 4px rgba(217, 178, 106, .18), 0 30px 60px -30px #000; }
