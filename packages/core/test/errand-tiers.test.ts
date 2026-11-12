@@ -173,7 +173,7 @@ describe("the lounge pass", () => {
   });
 
   it("is never included in a plan, and never covered by the errand credit", () => {
-    for (const planId of ["free", "basic", "premium", "premium-plus", "family"] as const) {
+    for (const planId of ["free", "basic", "premium-basic", "premium-plus", "family", "elite"] as const) {
       expect(isGrabIncluded({ planId, category: "run-errand", quickTask: true, errandTier: "lounge-pass", usedThisMonth: 0 }), planId).toBe(false);
       expect(customerServiceFeeFor({ planId, category: "run-errand", quickTask: true, errandTier: "lounge-pass", spendCapCents: 4_500, usedThisMonth: 0 }), planId)
         .toBeGreaterThanOrEqual(LOUNGE_PASS_FEE_CENTS);

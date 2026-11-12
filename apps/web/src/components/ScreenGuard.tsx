@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { useLanguage } from "../i18n.tsx";
+import { reportClientError } from "../app/error-report.ts";
 
 interface Props { children: ReactNode; title: string; retry: string; reload: string; hint: string }
 interface State { error: Error | null }
@@ -16,6 +17,7 @@ class Guard extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
     console.error("[safehubby] a screen crashed:", error, info.componentStack);
+    reportClientError("screen", `${error.name}: ${error.message}`, `${error.stack ?? ""}\n${info.componentStack ?? ""}`);
   }
 
   render() {

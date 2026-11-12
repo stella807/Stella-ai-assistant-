@@ -133,4 +133,21 @@ describe("the app's HTML, as the server sends it", () => {
     expect(res.status).toBe(404);
     expect(res.headers.get("content-type")).toContain("application/json");
   });
+
+  it("passes the deploy health check only with the web app in place, and logs a browser's crash without keeping anything personal", async () => {
+    const health = await fetch(`${base}/api/health`);
+    expect(health.status).toBe(200);
+    const logged: string[] = [];
+    const orig = console.error;
+    console.error = (...a: unknown[]) => { logged.push(a.join(" ")); };
+    try {
+      const res = await fetch(`${base}/api/client-error`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "screen", message: "TypeError: x is undefined", path: "/careers", userAgent: "TestBrowser", stack: "at f\nat g" }),
+      });
+      expect(res.status).toBe(200);
+    } finally { console.error = orig; }
+    expect(logged.join("\n")).toContain("browser screen on /careers: TypeError: x is undefined");
+    expect(logged.join("\n")).not.toContain("\nat g");
+  });
 });

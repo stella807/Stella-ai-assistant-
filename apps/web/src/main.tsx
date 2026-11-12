@@ -7,6 +7,7 @@ import { installSpotlight } from "./app/spotlight.ts";
 import { installDepth } from "./app/depth.ts";
 import { installScramble } from "./app/scramble.ts";
 import { playIntro } from "./app/intro.ts";
+import { installErrorReport } from "./app/error-report.ts";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/map.css";
@@ -49,6 +50,7 @@ window.addEventListener("vite:preloadError", (e) => {
   if (reloadOnceForNewVersion(sessionStorage, () => window.location.reload())) e.preventDefault();
 });
 
+installErrorReport();
 playIntro();
 installSpotlight();
 installDepth();

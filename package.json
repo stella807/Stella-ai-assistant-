@@ -12,6 +12,7 @@
     "dev": "pnpm --parallel -r dev",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "smoke": "node scripts/smoke.mjs",
     "lint": "oxlint --deny-warnings packages/core/src packages/core/test apps/api/src apps/api/test apps/web/src apps/site/src apps/site/test"
   },
   "devDependencies": {

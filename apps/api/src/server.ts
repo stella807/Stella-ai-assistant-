@@ -219,6 +219,12 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
         return send(res, 500, { error: "Something went wrong on our end." });
       }
     }
+    // The deploy platform asks this before it sends traffic to a new build. A build
+    // that lost its web app (a failed or partial build) must not pass, or the
+    // old working version would be replaced by a site that shows nothing.
+    if (url.pathname === "/api/health" && WEB_ROOT && !existsSync(join(WEB_ROOT, "index.html"))) {
+      return send(res, 503, { ok: false, error: "The web app is missing from this build." });
+    }
     const found = match(method === "HEAD" ? "GET" : method, url.pathname);
     if (!found) {
       // Unmatched GET/HEAD falls through to the built web app; unmatched API

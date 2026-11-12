@@ -1,0 +1,31 @@
+name: Checks
+
+# Runs on every push and every pull request. Nothing should reach `main` (and
+# so the live site) without all of these passing: the same checks, in the same
+# order, a person would run by hand.
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Types
+        run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Build the web app
+        run: pnpm --filter @safehubby/web build
+      - name: Smoke test the real server on the real build
+        run: node scripts/smoke.mjs

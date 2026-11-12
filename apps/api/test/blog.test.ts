@@ -7,6 +7,7 @@ const facts: SeoFacts = {
   origin: "https://safehubby.com",
   plans: [{ name: "Free", monthlyCents: 0, seats: 1 }, { name: "Basic", monthlyCents: 3900, seats: 1 }],
   hourlyCents: 4500, armedHourlyCents: 7500, errandFromCents: 1234, hospitalDayCents: 19500,
+  loungeFeeCents: 2000,
   markets: ["Puerto Rico"], roles: [], hiringOpenedOn: "2026-10-28",
 };
 const LANGS = ["en", "es"] as const;

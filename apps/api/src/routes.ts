@@ -173,7 +173,7 @@ export interface Ctx {
    *  another's, and tests need isolation between instances. */
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
-    applications: RateLimiter; partners: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter;
+    applications: RateLimiter; partners: RateLimiter; clientErrors: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1403,6 +1403,7 @@ export function makeLimiters() {
     // so it gets its own budget rather than borrowing signup's.
     applications: new RateLimiter(10, 60 * 60_000),
     partners: new RateLimiter(5, 60 * 60_000),
+    clientErrors: new RateLimiter(30, 60 * 60_000),
     /**
      * Redeeming a code — a share invite or a crew join.
      *
@@ -1842,6 +1843,21 @@ type Handler = (ctx: Ctx, params: Params, body: any) => Promise<unknown> | unkno
 
 export const routes: Record<string, Handler> = {
   "GET /api/health": () => ({ ok: true, venueSource }),
+
+  /**
+   * A crash a visitor's browser hit, written to the server log so it shows up
+   * in Railway's logs without anyone having to write in. No account needed
+   * (most crashes happen before sign-in) and nothing personal is kept: the
+   * client sends the page's path, never its query. Limited per connection, and
+   * every field is cut, so it cannot be used to fill the log.
+   */
+  "POST /api/client-error": (ctx, _p, body) => {
+    if (ctx.limiters.clientErrors.hit(ctx.clientKey)) return { ok: true };
+    const text = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\r\n]+/g, " ⏎ ").slice(0, max) : "");
+    const kind = body?.kind === "rejection" || body?.kind === "screen" ? body.kind : "error";
+    console.error(`[safehubby] browser ${kind} on ${text(body?.path, 120) || "/"}: ${text(body?.message, 300)} | ${text(body?.userAgent, 160)}${body?.stack ? ` | ${text(body.stack, 600)}` : ""}`);
+    return { ok: true };
+  },
 
   "POST /api/auth/signup": async (ctx, _p, body) => {
     if (ctx.limiters.signup.hit(ctx.clientKey)) throw new HttpError(429, "Too many sign-up attempts. Try again later.");
