@@ -45,7 +45,7 @@ export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrice
           <div className="lux-cta">
             <button className="lux-btn glow-border" onClick={onStart}>{t("lux.cta")} <span aria-hidden="true">→</span></button>
             <button className="lux-link" onClick={onPrices}>{t("lux.prices")}</button>
-            <a className="lux-wa" href={whatsappLink(language === "es" ? "es" : "en")} target="_blank" rel="noopener noreferrer"><WhatsAppIcon /> {t("wa.cta")}</a>
+            <a className="lux-wa" href={whatsappLink(language === "es" ? "es" : "en")} target="_blank" rel="noopener noreferrer"><WhatsAppIcon size={20} /> {t("wa.cta")}</a>
           </div>
         </div>
       </div>
