@@ -6453,6 +6453,34 @@ describe("master access — a per-account role instead of one shared secret", ()
     expect((await call("GET", "/api/master/extra-hours", undefined, null, sec)).status).toBe(401);
   });
 
+  it("shows the owner how much of each plan's included hours members use, and what the used hours cost", async () => {
+    const owner = (await masterLogin("owner", "Usage Boss", "usageboss@example.com")).cookie;
+    const at = clock.toISOString();
+    store.update((db) => {
+      db.travelers.find((t) => t.id === samId)!.planId = "premium-basic";
+      db.conciergeTasks.push(
+        { id: "ct_use1", travelerId: samId, category: "wait-with-someone", note: "x", location: { lat: 30.26, lng: -97.74 }, spendCapCents: 1000,
+          serviceFeeCents: 0, assistantPayoutCents: 7000, peopleCount: 1, hoursBooked: 2, includedHoursUsed: 2, includedHoursKind: "planned",
+          status: "completed", provider: "Nearby Aide", createdAt: at } as never,
+        { id: "ct_use2", travelerId: samId, category: "wait-with-someone", note: "canceled", location: { lat: 30.26, lng: -97.74 }, spendCapCents: 1000,
+          serviceFeeCents: 0, assistantPayoutCents: 0, peopleCount: 1, hoursBooked: 2, includedHoursUsed: 2, includedHoursKind: "planned",
+          status: "canceled", provider: "Nearby Aide", createdAt: at } as never,
+      );
+    });
+    const res = await call("GET", "/api/master/extra-hours", undefined, null, owner);
+    const premium = res.json.thisMonth.byPlan.find((p: any) => p.id === "premium-basic");
+    const members = store.data.travelers.filter((t) => t.planId === "premium-basic").length;
+    expect(premium.members).toBe(members);
+    expect(premium.hoursEach).toBe(4);
+    expect(premium.hoursAvailable).toBe(members * 4);
+    expect(premium.hoursUsed).toBe(2); // the canceled booking is not counted
+    expect(premium.usedPercent).toBe(Math.round((2 / (members * 4)) * 100));
+    expect(premium.usedCostCents).toBe(2 * 3500);
+    expect(premium.planIncomeCents).toBe(members * 9399);
+    // Elite has no cap, and Free includes no hours: neither is a row.
+    expect(res.json.thisMonth.byPlan.some((p: any) => p.id === "elite" || p.id === "free")).toBe(false);
+  });
+
   it("lets the owner set the assistant hours each plan includes", async () => {
     const owner = (await masterLogin("owner", "Hours Boss", "hoursboss@example.com")).cookie;
     const sec = (await masterLogin("secretary", "Hours Sec", "hourssec@example.com")).cookie;

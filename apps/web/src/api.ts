@@ -977,7 +977,13 @@ export interface RefundCharges {
   charges: { id: string; description: string; amountCents: number; createdAt: string; status: string; refundedCents: number; tier: "full" | "fees" | "none"; refundCents: number }[];
 }
 
+export interface IncludedHoursUse {
+  id: string; name: string; members: number; hoursEach: number; hoursAvailable: number; hoursUsed: number;
+  usedPercent: number; usedCostCents: number; planIncomeCents: number; marginCents: number;
+}
+
 export interface ExtraHoursMonth {
+  byPlan: IncludedHoursUse[];
   bookings: number; includedHours: number; includedPlannedHours: number; includedOnDemandHours: number;
   extraHours: number; billedCents: number; assistantPaidCents: number;
   members: { travelerId: string; name: string; planId: string; extraHours: number; includedHours: number; billedCents: number }[];

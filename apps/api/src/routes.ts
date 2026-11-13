@@ -1191,6 +1191,7 @@ function extraHoursReport(ctx: Ctx, start: Date, end: Date) {
     byMember.set(t.travelerId, row);
   }
   return {
+    byPlan: includedHoursUse(ctx, start, end),
     bookings: tasks.length, includedHours: included, includedPlannedHours: plannedUsed, includedOnDemandHours: onDemandUsed,
     extraHours: extra, billedCents: billed, assistantPaidCents: paid,
     members: [...byMember.values()].sort((a, b) => b.extraHours - a.extraHours || b.includedHours - a.includedHours).slice(0, 10),
@@ -1228,6 +1229,38 @@ function includedHoursRows(ctx: Ctx) {
       id: p.id, name: p.name, monthlyCents: p.monthlyCents, defaultHours: p.includedConciergeHours as number, hours,
       // The worst month: every included hour used, paid to the assistant at the live hourly rate.
       fullUseCostCents: costCents, marginIfAllUsedCents: p.monthlyCents - feeCents - costCents,
+    };
+  });
+}
+
+/**
+ * How much of each plan's included assistant hours members actually use in a
+ * month, and what the used hours cost at the live assistant pay rate, against
+ * what the plan brings in at its list price. The plans only pay for themselves
+ * while members leave hours unused, so this is the number to read before
+ * changing how many hours a plan includes.
+ *
+ * Members are counted by the plan they are on now; a booking counts against the
+ * plan of the member who made it. Canceled bookings are left out. The income is
+ * the monthly list price, before card fees and annual discounts.
+ */
+function includedHoursUse(ctx: Ctx, start: Date, end: Date) {
+  const pay = livePaHourlyPayCents();
+  return PLANS.filter((p) => includedConciergeHours(p.id) > 0 && !hasUnlimitedHours(p.id)).map((p) => {
+    const onPlan = new Set(ctx.store.data.travelers.filter((t) => t.planId === p.id).map((t) => t.id));
+    const hoursEach = includedConciergeHours(p.id);
+    const hoursAvailable = onPlan.size * hoursEach;
+    const hoursUsed = ctx.store.data.conciergeTasks.reduce((sum, t) => {
+      if (!onPlan.has(t.travelerId) || !t.includedHoursUsed || t.status === "canceled") return sum;
+      const at = new Date(t.createdAt).getTime();
+      return at >= start.getTime() && at < end.getTime() ? sum + t.includedHoursUsed : sum;
+    }, 0);
+    const usedCostCents = Math.round(hoursUsed * pay);
+    const planIncomeCents = onPlan.size * p.monthlyCents;
+    return {
+      id: p.id, name: p.name, members: onPlan.size, hoursEach, hoursAvailable, hoursUsed,
+      usedPercent: hoursAvailable > 0 ? Math.round((hoursUsed / hoursAvailable) * 100) : 0,
+      usedCostCents, planIncomeCents, marginCents: planIncomeCents - usedCostCents,
     };
   });
 }

@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CREDENTIAL_LABEL, type LaunchProgress, type LaunchStepId, type MasterAuditEntry } from "@safehubby/core";
 import { downloadBase64 } from "../files.ts";
 import { MasterSummary } from "./MasterSummary.tsx";
-import { api, type RefundCharges, type ExtraHoursReport, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
+import { api, type RefundCharges, type ExtraHoursReport, type IncludedHoursUse, type HiringRow, type IncludedHoursRow, type PlanSwitchRow, type MasterAccountRow, type MasterOverview } from "../api.ts";
 import { dollars, money as exact } from "../money.ts";
 import { TeamActivitySection } from "./TeamActivitySection.tsx";
 import { PayoutSheetSection } from "./PayoutSheetSection.tsx";
@@ -1041,6 +1041,31 @@ function RefundsSection() {
   );
 }
 
+/**
+ * Each plan's included hours: how many members have, how many they used, and
+ * what the used hours cost against the plan's income. Read this before raising
+ * the hours a plan includes: a plan only covers its cost while hours go unused.
+ */
+function IncludedHoursUseTable({ label, rows }: { label: string; rows: IncludedHoursUse[] }) {
+  const usd = (c: number) => `${c < 0 ? "-" : ""}$${(Math.abs(c) / 100).toFixed(2)}`;
+  const hrs = (n: number) => `${n % 1 === 0 ? n : n.toFixed(1)} h`;
+  return (
+    <div className="stack" style={{ gap: 2 }}>
+      <strong className="small">{label}</strong>
+      {rows.map((r) => (
+        <div key={r.id} className="row-between tiny" style={{ gap: 8 }}>
+          <span>{r.name} <span className="muted">· {r.members} {r.members === 1 ? "member" : "members"} × {hrs(r.hoursEach)}</span></span>
+          <span>
+            {hrs(r.hoursUsed)} of {hrs(r.hoursAvailable)} used ({r.usedPercent}%) · cost {usd(r.usedCostCents)} of {usd(r.planIncomeCents)}
+            {" · "}<span style={{ color: r.marginCents < 0 ? "var(--danger, #e5484d)" : undefined }}>{r.marginCents < 0 ? "loss" : "left"} {usd(r.marginCents)}</span>
+          </span>
+        </div>
+      ))}
+      <span className="tiny muted">Cost is the used hours at the assistant pay rate. Income is the list price, before card fees and annual discounts.</span>
+    </div>
+  );
+}
+
 function ExtraHoursSection() {
   const [data, setData] = useState<ExtraHoursReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1067,6 +1092,8 @@ function ExtraHoursSection() {
       {!data && !error && <p className="tiny muted">Loading...</p>}
       {data && (
         <>
+          <IncludedHoursUseTable label="Included hours used this month" rows={data.thisMonth.byPlan} />
+          <IncludedHoursUseTable label="Last month" rows={data.lastMonth.byPlan} />
           {month("This month", data.thisMonth)}
           {month("Last month", data.lastMonth)}
           {data.thisMonth.members.length > 0 && (
