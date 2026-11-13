@@ -227,3 +227,7 @@ html.fog-on body::before { display: none; }
 .scrambling { position: relative; color: transparent !important; text-shadow: none !important; }
 .scramble-overlay { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--gold, #d9b26a); }
 :root[data-theme="light"] .scramble-overlay { color: var(--accent); }
+
+/* Phones and touch tablets (app/motion.ts): cards hold still and the glass blur is lighter, which cheap phones struggle to redraw while scrolling. */
+:root[data-motion="light"] .landing .card, :root[data-motion="light"] .landing .banner { animation: none; }
+:root[data-motion="light"] .card { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }

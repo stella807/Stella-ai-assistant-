@@ -3,7 +3,7 @@ import { useLanguage } from "../i18n.tsx";
 import { ClientDisclosures } from "./ClientDisclosures.tsx";
 import { LegalDocumentView } from "./LegalDocumentView.tsx";
 import { PartnerForm } from "./PartnerForm.tsx";
-import { sitePathFor } from "@safehubby/core";
+import { sitePathFor, whatsappLink } from "@safehubby/core";
 import { disclosureCopy } from "../app/disclosure-copy.ts";
 import { cookiesCopy, refundCopy } from "../app/legal-copy.ts";
 
@@ -39,6 +39,7 @@ export function Footer() {
           know to look for them, and nobody else should have to read past them. */}
       <nav className="footer-links" aria-label={t("footer.contact")}>
         <a href="mailto:contact@safehubby.com">{t("footer.contact")}</a>
+        <a href={whatsappLink(language === "es" ? "es" : "en")} target="_blank" rel="noopener noreferrer">WhatsApp</a>
         <button className="linklike" aria-expanded={open === "press"} onClick={() => setOpen((o) => (o === "press" ? null : "press"))}>{t("footer.press")}</button>
         <button className="linklike" aria-expanded={open === "terms"} onClick={() => setOpen((o) => (o === "terms" ? null : "terms"))}>{t("footer.terms")}</button>
         <button className="linklike" aria-expanded={open === "disclosures"} onClick={() => setOpen((o) => (o === "disclosures" ? null : "disclosures"))}>{disclosureCopy(language === "es" ? "es" : "en", "").link}</button>

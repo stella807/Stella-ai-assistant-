@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
+import { whatsappLink } from "@safehubby/core";
 import { useLanguage } from "../i18n.tsx";
+import { WhatsAppIcon } from "./WhatsAppIcon.tsx";
 
 /** A line cut into words, each rising in a beat after the last. The words stay ordinary text, so reading and searching work as before. */
 function Words({ text, from }: { text: string; from: number }) {
@@ -23,7 +25,7 @@ const Icons = {
  * door that exists inside.
  */
 export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrices: () => void }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const doors = [
     { icon: Icons.assistant, label: t("lux.d1"), text: t("lux.d1t") },
     { icon: Icons.errand, label: t("lux.d2"), text: t("lux.d2t") },
@@ -43,6 +45,7 @@ export function LuxuryHero({ onStart, onPrices }: { onStart: () => void; onPrice
           <div className="lux-cta">
             <button className="lux-btn glow-border" onClick={onStart}>{t("lux.cta")} <span aria-hidden="true">→</span></button>
             <button className="lux-link" onClick={onPrices}>{t("lux.prices")}</button>
+            <a className="lux-wa" href={whatsappLink(language === "es" ? "es" : "en")} target="_blank" rel="noopener noreferrer"><WhatsAppIcon /> {t("wa.cta")}</a>
           </div>
         </div>
       </div>

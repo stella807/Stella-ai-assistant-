@@ -1,5 +1,5 @@
 import {
-  SITE_SERVICES, STAFF_ROLE_ES, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
+  SITE_SERVICES, STAFF_ROLE_ES, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, whatsappLink, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
   type ServiceId, type SiteLang, type SiteRoute, type StaffRole,
 } from "@safehubby/core";
 
@@ -403,6 +403,7 @@ const organization = (f: SeoFacts) => ({
   url: `${f.origin}/`,
   logo: `${f.origin}/apple-touch-icon.png`,
   email: CONTACT_EMAIL,
+  telephone: `+${WHATSAPP_NUMBER}`,
   areaServed: f.markets,
 });
 
@@ -507,7 +508,7 @@ function homeBody(f: SeoFacts, route: SiteRoute): string {
     `<p>${escapeHtml(w.where(markets))}</p>`,
     `<h2>${escapeHtml(w.workHeading)}</h2>`,
     `<p>${link(sitePathFor("careers", route.lang), w.workLink)} · ${link(sitePathFor("drive", route.lang), w.driveLink)} · ${link(route.lang === "es" ? "/es/blog" : "/blog", "Blog")}</p>`,
-    `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)}</p>`,
+    `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)} · ${link(whatsappLink(route.lang), `WhatsApp ${WHATSAPP_DISPLAY}`)}</p>`,
     `<p class="seo-small">${escapeHtml(w.disclaimer)}</p>`,
   ].join(""));
 }
@@ -524,7 +525,7 @@ function serviceBody(f: SeoFacts, route: SiteRoute, id: ServiceId): string {
     `<h2>${escapeHtml(sv.aboutHeading)}</h2>`,
     items(sv.about.map(escapeHtml)),
     `<p>${escapeHtml(sv.related)}${others} · ${link(sitePathFor("home", route.lang), w.home)}</p>`,
-    `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)}</p>`,
+    `<p>${escapeHtml(w.contact)}: ${link(`mailto:${CONTACT_EMAIL}`, CONTACT_EMAIL)} · ${link(whatsappLink(route.lang), `WhatsApp ${WHATSAPP_DISPLAY}`)}</p>`,
     `<p class="seo-small">${escapeHtml(w.disclaimer)}</p>`,
   ].join(""));
 }

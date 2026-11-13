@@ -129,3 +129,9 @@
 .plan-switch[aria-checked="true"]::before { background: rgba(23, 19, 10, 0.35); }
 .plan-switch[aria-checked="true"]::after { transform: translateX(10px); background: #17130a; }
 @media (prefers-reduced-motion: reduce) { .plan-switch::after { transition: none; } }
+
+/* WhatsApp: the quickest first step for most visitors, so it sits with the main buttons, in WhatsApp's own green. */
+.lux-wa { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 999px; background: #1fa855; color: #fff;
+  font-size: .78rem; font-weight: 600; letter-spacing: .04em; text-decoration: none; transition: transform .25s, background .25s; }
+.lux-wa:hover { background: #179447; transform: translateY(-2px); }
+.lux-wa:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }

@@ -91,7 +91,10 @@ export function PublicPricing({ onGetStarted }: { onGetStarted: () => void }) {
 
       <PlanComparison plans={plans.filter((p) => !isElitePlan(p.id as PlanId))} />
 
-      <EliteShowcase plans={plans.filter((p) => isElitePlan(p.id as PlanId))} eliteUnlock={eliteUnlock} />
+      {/* Elite is shown only once it opens. A "coming soon" tier priced in the
+          thousands next to the everyday plans made those look odd, and nobody
+          can join it yet. Members who ask are told about it directly. */}
+      {eliteUnlock?.unlocked && <EliteShowcase plans={plans.filter((p) => isElitePlan(p.id as PlanId))} eliteUnlock={eliteUnlock} />}
 
       {/* The two services, priced and kept apart. */}
       <section className="card stack">

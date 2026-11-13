@@ -81,3 +81,4 @@ export * from "./resume.ts";
 export * from "./vendors.ts";
 export * from "./pnl.ts";
 export * from "./partners.ts";
+export * from "./whatsapp.ts";

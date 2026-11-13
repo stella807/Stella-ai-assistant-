@@ -141,3 +141,19 @@
   .deck, .deck-slide[data-state="active"] { transition: none; }
   .deck-slide, .deck-slide *, .deck::before, .deck-caption, .warp-in, .warp-in *, .master-fold, .master-summary { animation: none !important; }
 }
+
+/* ---- Phones and touch tablets (see app/motion.ts) ----
+   The same moves without the costly parts: no blur or brightness filters, no
+   3D depth, no glitch or flash. The new slide fades up, the old one fades out. */
+@keyframes deck-light-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes deck-light-out { from { opacity: 1; } to { opacity: 0; } }
+:root[data-motion="light"] .deck { perspective: none; }
+:root[data-motion="light"] .deck.fwd .deck-slide[data-state="leaving"],
+:root[data-motion="light"] .deck.back .deck-slide[data-state="leaving"] { animation: deck-light-out .3s ease both; }
+:root[data-motion="light"] .deck.moving.fwd .deck-slide[data-state="active"],
+:root[data-motion="light"] .deck.moving.back .deck-slide[data-state="active"] { animation: deck-light-in .45s .1s cubic-bezier(.16, 1, .3, 1) both; }
+:root[data-motion="light"] .deck.moving .deck-slide[data-state="active"] > .slide > * { animation: none; }
+:root[data-motion="light"] .deck.moving .deck-slide[data-state="active"] :is(h2, h3),
+:root[data-motion="light"] .deck-caption { animation: none; }
+:root[data-motion="light"] .deck.moving::before { content: none; }
+:root[data-motion="light"] .warp-in { animation: deck-light-in .4s cubic-bezier(.16, 1, .3, 1) both; }

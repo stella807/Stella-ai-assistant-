@@ -23,8 +23,19 @@ describe("what an applicant is told a role pays", () => {
     for (const role of STAFF_ROLES.filter((r) => r.hourlyCents > 0)) {
       const label = payLabelFor(role.id);
       expect(label, role.id).toContain(usd(role.hourlyCents));
-      expect(label, role.id).toContain(String(role.prelaunchHoursPerWeek));
+      if (role.prelaunchHoursPerWeek > 0) expect(label, role.id).toContain(String(role.prelaunchHoursPerWeek));
     }
+  });
+
+  it("never promises 'about 0 hours a week': a role with no set hours is paid by the hour as work comes in", () => {
+    for (const role of STAFF_ROLES.filter((r) => r.hourlyCents > 0 && r.prelaunchHoursPerWeek === 0)) {
+      for (const lang of ["en", "es"] as const) {
+        const label = payLabelFor(role.id, lang);
+        expect(label, `${role.id} ${lang}`).not.toMatch(/\b0 (hours|horas)/);
+      }
+    }
+    expect(payLabelFor("supervisor", "es")).toContain("según haya trabajo");
+    expect(payLabelFor("supervisor", "en")).toContain("as work comes in");
   });
 
   it("has something honest to say for every role, never an empty string", () => {

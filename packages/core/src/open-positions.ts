@@ -97,6 +97,10 @@ export function payLabelFor(
   const info = STAFF_ROLES.find((r) => r.id === role);
   const hourly = set ?? info?.hourlyCents ?? 0;
   if (info && hourly > 0) {
+    // No hours are carried before launch for this role, so promising "about 0 hours a week" would be both odd and wrong.
+    if (info.prelaunchHoursPerWeek <= 0) {
+      return es ? `${usd(hourly)} la hora, según haya trabajo` : `${usd(hourly)} an hour, as work comes in`;
+    }
     return es
       ? `${usd(hourly)} la hora, unas ${info.prelaunchHoursPerWeek} horas a la semana`
       : `${usd(hourly)} an hour, about ${info.prelaunchHoursPerWeek} hours a week`;

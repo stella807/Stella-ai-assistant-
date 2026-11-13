@@ -243,6 +243,14 @@ describe("the service pages", () => {
     }
   });
 
+  it("give the WhatsApp line in plain text and in the organization's structured data", () => {
+    const es = seoPageFor("/es/asistente-personal-puerto-rico", facts);
+    expect(es.body).toContain("https://wa.me/19392450171?text=");
+    expect(es.body).toContain("WhatsApp +1 (939) 245-0171");
+    expect(seoPageFor("/", facts).body).toContain("https://wa.me/19392450171?text=");
+    expect(JSON.stringify(es.jsonLd)).toContain('"telephone":"+19392450171"');
+  });
+
   it("are linked from the home page's plain text, which names them", () => {
     expect(seoPageFor("/", facts).body).toContain('href="/private-jets-puerto-rico"');
     expect(seoPageFor("/es", facts).body).toContain('href="/es/pases-salas-vip"');
