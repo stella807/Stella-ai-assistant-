@@ -14,7 +14,7 @@
 .lux-btn { cursor: pointer; padding: 14px 22px; font-size: .78rem; letter-spacing: .24em; text-transform: uppercase; color: #1a1208; border: 0;
   background: linear-gradient(95deg, #c9a05a, #ecd29a 55%, #c9a05a); background-size: 200% 100%; transition: background-position .6s, transform .25s; border-radius: 2px; }
 .lux-btn:hover { background-position: 100% 0; transform: translateY(-2px); }
-.lux-link { background: none; border: 0; color: var(--gold); cursor: pointer; font-size: .78rem; letter-spacing: .2em; text-transform: uppercase; border-bottom: 1px solid rgba(217, 178, 106, .5); padding: 4px 0; }
+.lux-link { display: inline-block; line-height: 1.2; font-family: inherit; text-decoration: none; background: none; border: 0; color: var(--gold); cursor: pointer; font-size: .78rem; letter-spacing: .2em; text-transform: uppercase; border-bottom: 1px solid rgba(217, 178, 106, .5); padding: 4px 0; }
 
 .lux-doors { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0;
   border-top: 1px solid rgba(217, 178, 106, .22); }
