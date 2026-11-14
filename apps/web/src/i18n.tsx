@@ -708,7 +708,7 @@ const ES: Record<TranslationKey, string> = {
   "renewal.back": "Volver",
   "renewal.monthly": "mes",
   "renewal.annual": "año",
-  "plans.conciergeMemberships": "Membresías de concierge",
+  "plans.conciergeMemberships": "Membresías de asistencia personal",
   "plans.eliteBlurb": "Horas de un asistente personal cada mes, además del servicio de concierge de lujo. Desde {amount} al mes.",
   "plans.hide": "Ocultar",
   "plans.seeThem": "Verlas",
