@@ -1,6 +1,6 @@
 # Safehubby asks for one name, "safehubby-chat". The gateway answers with Claude,
-# and switches to Gemini (official free tier) only if Claude fails or is rate-limited.
-# Keys come from the service's environment, never from this file.
+# and switches to Gemini (official free tier) only if Claude fails, is rate-limited
+# or is too slow. Keys come from the service's environment, never from this file.
 model_list:
   - model_name: safehubby-chat
     litellm_params:
@@ -8,13 +8,17 @@ model_list:
       api_key: os.environ/ANTHROPIC_API_KEY
   - model_name: safehubby-backup
     litellm_params:
-      model: gemini/gemini-2.5-flash
+      # gemini-2.5-flash is deprecated and closed to new API users; this is the
+      # model Google routes its traffic to, and it is on the free tier.
+      model: gemini/gemini-3.5-flash-lite
       api_key: os.environ/GEMINI_API_KEY
 
 router_settings:
   fallbacks: [{ "safehubby-chat": ["safehubby-backup"] }]
-  num_retries: 1
-  timeout: 30
+  # The API gives up on the gateway after 8 seconds (postJson's timeout), so a slow
+  # Claude must hand over to Gemini well before then: 5 seconds, no retry.
+  num_retries: 0
+  timeout: 5
 
 litellm_settings:
   drop_params: true

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CLAUDE_MODEL, llmComplete, llmConfigured, resolveLlm } from "../src/adapters/llm.ts";
 
 const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_BASE", "SITE_CHAT_API_BASE", "SITE_CHAT_API_KEY", "SITE_CHAT_MODEL", "AI_ASSIST_API_BASE", "AI_ASSIST_API_KEY", "AI_ASSIST_MODEL", "LLM_GATEWAY_URL", "LLM_GATEWAY_KEY", "LLM_GATEWAY_MODEL"];
@@ -113,6 +113,7 @@ describe("going through the LiteLLM gateway", () => {
     process.env.ANTHROPIC_API_KEY = "sk-ant";
     process.env.LLM_GATEWAY_URL = "http://gw:4000";
     process.env.LLM_GATEWAY_KEY = "sk-gw";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     globalThis.fetch = (async (url: any, init: any) => {
       calls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
       if (String(url).startsWith("http://gw")) return new Response("bad gateway", { status: 502 });
@@ -120,6 +121,24 @@ describe("going through the LiteLLM gateway", () => {
     }) as typeof fetch;
     expect(await ask()).toBe("direct");
     expect(calls.map((c) => c.url)).toEqual(["http://gw:4000/v1/chat/completions", "https://api.anthropic.com/v1/messages"]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it("says in the log that the gateway was skipped, without the key it was given", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant";
+    process.env.LLM_GATEWAY_URL = "http://gw:4000";
+    process.env.LLM_GATEWAY_KEY = "sk-gw-secret";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    globalThis.fetch = (async (url: any) => String(url).startsWith("http://gw")
+      ? new Response('{"error":"Invalid proxy server token passed. Received API Key = sk-gw-secret"}', { status: 401 })
+      : new Response(JSON.stringify({ content: [{ type: "text", text: "direct" }] }), { status: 200 })) as typeof fetch;
+    expect(await ask()).toBe("direct");
+    const line = String(warn.mock.calls[0]?.[0]);
+    expect(line).toMatch(/gateway/i);
+    expect(line).toMatch(/401/);
+    expect(line).not.toContain("sk-gw-secret");
+    warn.mockRestore();
   });
 
   it("reports the gateway's failure when there is no Claude key to fall back to", async () => {

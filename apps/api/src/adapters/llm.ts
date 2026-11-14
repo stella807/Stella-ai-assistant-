@@ -83,7 +83,11 @@ export async function llmComplete(
   if (r.kind === "openai" && r.gateway && anthropicKey) {
     try {
       return await complete(r, input);
-    } catch {
+    } catch (err) {
+      // Without this line a broken gateway would go unnoticed for good, since every answer still arrives.
+      // Key-shaped text is masked: a gateway's auth error can quote the key it was sent.
+      const why = (err instanceof Error ? err.message : "unknown error").replace(/\bsk-[\w.-]+/g, "sk-…").slice(0, 160);
+      console.warn(`[safehubby] LLM gateway failed (${why}); answering with Claude directly.`);
       const direct: Resolved = { kind: "anthropic", base: env("ANTHROPIC_API_BASE") ?? "https://api.anthropic.com", key: anthropicKey, model: env(`${feature}_MODEL`) ?? DEFAULT_CLAUDE_MODEL };
       return complete(direct, input);
     }

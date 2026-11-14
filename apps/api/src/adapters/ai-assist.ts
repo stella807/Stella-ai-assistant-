@@ -6,7 +6,8 @@ import { llmComplete, llmConfigured, llmProviderName } from "./llm.ts";
  * The assistant's own drafting help — see ai-assist.ts in core for why this
  * never reaches a customer on its own.
  *
- * Calls Claude directly when `ANTHROPIC_API_KEY` is set, or a plain
+ * Calls Claude directly when `ANTHROPIC_API_KEY` is set, through the LiteLLM
+ * gateway when `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY` are, or a plain
  * OpenAI-compatible endpoint when `AI_ASSIST_API_BASE` and `AI_ASSIST_API_KEY`
  * are (see llm.ts). With neither, `status.mode` stays `"handoff"` and `draft()`
  * is never called — routes.ts checks `isAutomatic(aiAssist.status)` first and
@@ -23,7 +24,8 @@ const SYSTEM_PROMPT =
 export const aiAssist: AiAssistPort = {
   status: statusFor(
     "ai-assist", llmProviderName("AI_ASSIST"), llmConfigured("AI_ASSIST"),
-    "An ANTHROPIC_API_KEY (Claude), or an OpenAI-compatible endpoint with AI_ASSIST_API_BASE and AI_ASSIST_API_KEY. " +
+    "An ANTHROPIC_API_KEY (Claude), the LiteLLM gateway (LLM_GATEWAY_URL and LLM_GATEWAY_KEY), " +
+    "or an OpenAI-compatible endpoint with AI_ASSIST_API_BASE and AI_ASSIST_API_KEY. " +
     "AI_ASSIST_MODEL is optional.",
   ),
 
