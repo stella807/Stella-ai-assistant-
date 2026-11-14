@@ -48,12 +48,12 @@ describe("submitting a standard application", () => {
     expect(() => submitApplication({ ...base, state: "" })).toThrow(/state/i);
   });
 
-  it("rejects an already-expired driver's licence", () => {
+  it("rejects an already-expired driver's license", () => {
     expect(() => submitApplication({ ...base, licenseExpiry: "2020-01-01T00:00:00Z" })).toThrow(/expired/i);
   });
 
-  it("rejects a nonsense licence expiry", () => {
-    expect(() => submitApplication({ ...base, licenseExpiry: "not-a-date" })).toThrow(/valid licence expiry/i);
+  it("rejects a nonsense license expiry", () => {
+    expect(() => submitApplication({ ...base, licenseExpiry: "not-a-date" })).toThrow(/valid license expiry/i);
   });
 
   it("rejects negative or missing driving experience", () => {
@@ -67,7 +67,7 @@ describe("submitting a standard application", () => {
     expect(() => submitApplication({ ...base, vehicle: { ...base.vehicle, year: 2099 } })).toThrow(/vehicle year/i);
   });
 
-  it("rejects a missing licence plate or make/model", () => {
+  it("rejects a missing license plate or make/model", () => {
     expect(() => submitApplication({ ...base, vehicle: { ...base.vehicle, licensePlate: "" } })).toThrow(/plate/i);
     expect(() => submitApplication({ ...base, vehicle: { ...base.vehicle, make: "" } })).toThrow(/make and model/i);
   });
@@ -98,8 +98,8 @@ describe("submitting a secure-transport application", () => {
     expect(app.yearsProtectiveExperience).toBe(8);
   });
 
-  it("rejects a secure-transport application with no protective licence", () => {
-    expect(() => submitApplication({ ...secure, protectiveLicenseNumber: undefined })).toThrow(/protective-services or law-enforcement licence/i);
+  it("rejects a secure-transport application with no protective license", () => {
+    expect(() => submitApplication({ ...secure, protectiveLicenseNumber: undefined })).toThrow(/protective-services or law-enforcement license/i);
   });
 
   it("rejects a secure-transport application with no issuing state", () => {
@@ -136,7 +136,7 @@ describe("review workflow", () => {
 
   it("rejects once under review", () => {
     const underReview = reviewApplication(app(), "under-review", T0);
-    expect(reviewApplication(underReview, "rejected", T0, "Licence could not be verified.").status).toBe("rejected");
+    expect(reviewApplication(underReview, "rejected", T0, "License could not be verified.").status).toBe("rejected");
   });
 
   it("lets an admin deliberately reopen a decided application", () => {

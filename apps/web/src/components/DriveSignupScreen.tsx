@@ -12,7 +12,7 @@ import { BENEFIT_ES, CAREERS, DRIVE } from "../app/careers-copy.ts";
  * drivers and shoppers — this is the intake for whatever Safehubby vets and
  * staffs directly. Today that's nothing yet, but the secure-transport tier
  * cannot exist as more than a page describing it without this: it has to be
- * staffed by name and verified licence, never by API key.
+ * staffed by name and verified license, never by API key.
  *
  * No account is needed to apply. The id returned after submitting is the only
  * way to check status or withdraw later, so it is always shown here.

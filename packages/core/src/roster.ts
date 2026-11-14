@@ -113,7 +113,7 @@ export interface HiredAssistant {
   withholdingExemptionCertificate?: string;
   /** When their own liability insurance runs out; off the roster after it. */
   insuranceExpiresAt?: Iso8601;
-  /** Cleared for armed work until the earlier licence expires. */
+  /** Cleared for armed work until the earlier license expires. */
   armedUntil?: Iso8601;
 }
 
@@ -142,7 +142,7 @@ export interface HireInput {
     firearmsLicenseConfirmed?: boolean;
     guardLicenseConfirmed?: boolean;
   };
-  /** The reviewer checked the firearms and guard licences and clears this
+  /** The reviewer checked the firearms and guard licenses and clears this
    *  person for armed work. Refused unless both are on file and current. */
   armed?: boolean;
   market: LaunchMarketId;
@@ -176,19 +176,19 @@ export function hireFromApplication(input: HireInput): HiredAssistant {
   // A policy is optional, but one that is on file and current is kept, so they come off the roster when it runs out.
   const found = app.credentials?.find((c) => c.kind === "liability-insurance");
   const insurance = isCurrent(found, input.now) ? found : undefined;
-  // A bodyguard is always cleared armed, so both licences must be on file; nobody else is.
+  // A bodyguard is always cleared armed, so both licenses must be on file; nobody else is.
   const wantsArmed = app.role === "bodyguard" || input.armed === true;
   if (input.armed && app.role !== "bodyguard") {
     throw new Error("Only a bodyguard is cleared for armed work. Hire them as a bodyguard instead.");
   }
-  // Licences on file give their own expiry. Ticked ones carry no date, so the reviewer's own check at hiring
+  // Licenses on file give their own expiry. Ticked ones carry no date, so the reviewer's own check at hiring
   // (`armed`) clears them for a year, after which the clearance has to be renewed.
   const ticked = app.firearmsLicenseConfirmed === true && app.guardLicenseConfirmed === true;
   const armed = wantsArmed
     ? armedUntil(app.credentials, input.now) ?? (ticked && input.armed === true ? new Date(input.now.getTime() + 365 * 86_400_000).toISOString() : undefined)
     : undefined;
   if (wantsArmed && !armed) {
-    throw new Error("Armed work needs a current firearms licence and security-guard licence: attached on the application, or both ticked and the reviewer's check made.");
+    throw new Error("Armed work needs a current firearms license and security-guard licence: attached on the application, or both ticked and the reviewer's check made.");
   }
 
   const capacity = input.maxConcurrentCustomers ?? ASSISTANT_MIN_CAPACITY;

@@ -8,7 +8,7 @@ import { statusFor } from "@safehubby/core";
  * That is why the attribution travels with every answer and is shown on screen.
  *
  * Chosen over the alternatives for a company's use: OpenSky's free API is for
- * research and non-commercial use, ADS-B Exchange needs a commercial licence,
+ * research and non-commercial use, ADS-B Exchange needs a commercial license,
  * and FlightAware's AeroAPI bills per call. adsb.lol needs no key today; its
  * maintainers say a key earned by feeding the network may be required later,
  * which is what `ADSB_API_BASE` is for (point it at another

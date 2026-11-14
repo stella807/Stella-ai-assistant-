@@ -501,7 +501,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
   const [years, setYears] = useState("");
   const [gender, setGender] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
-  // Both licences on file: the reviewer may clear them for armed jobs.
+  // Both licenses on file: the reviewer may clear them for armed jobs.
   // (or both ticked on the application, which carry no file to look at).
   const canBeArmed = ["firearms-license", "guard-license"].every((k) => app.credentials?.some((c) => c.kind === k))
     || Boolean(app.firearmsLicenseConfirmed && app.guardLicenseConfirmed);
@@ -630,7 +630,7 @@ function ApplicationRow({ app, canWrite, onChanged }: {
               {canBeArmed && (
                 <label className="row tiny" style={{ gap: 6, alignItems: "center", width: "100%" }}>
                   <input type="checkbox" checked={armed} onChange={(e) => setArmed(e.target.checked)} />
-                  I checked their firearms and guard licences (attached, or ticked on the application) — clear them for armed jobs
+                  I checked their firearms and guard licenses (attached, or ticked on the application) — clear them for armed jobs
                 </label>
               )}
               <button className="btn btn-sm btn-primary" disabled={busy} onClick={hire}>

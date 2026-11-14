@@ -22,7 +22,7 @@ const EN = {
   },
   status: { "in-progress": "In progress", completed: "Completed", canceled: "Cancelled" } as Record<string, string>,
   notCovered: "We are not in your area yet.",
-  notCoveredBody: (markets: string) => `Assistants work ${markets} for now. Everything else on your plan still works wherever you are — this is the one part that needs somebody local.`,
+  notCoveredBody: (markets: string) => `Assistants work in ${markets} for now. Everything else on your plan still works wherever you are — this is the one part that needs somebody local.`,
   past: "Past requests",
   from: (amount: string) => `from ${amount}`,
   whichFlight: "Which flight?",
@@ -117,12 +117,12 @@ const ES: typeof EN = {
     errand: {
       heading: "Mandado pequeño",
       blurb: "Un trabajo corto y concreto —traer una cosa, hacer un mandado— con tope exacto en lo que pongas abajo, nunca más.",
-      locked: "🔒 Envía a alguien a un recogido rápido o a un mandado, con el límite de gasto que tú pongas. Incluido en todos los planes pagos.",
+      locked: "🔒 Envía a alguien a un recogido rápido o a un mandado, con el límite de gasto que tú pongas. Incluido en todos los planes de pago.",
     },
     concierge: {
       heading: "Concierge personal",
       blurb: "Envía a alguien para una tarea concreta, con tope exacto en lo que pongas abajo: nunca más, cueste lo que cueste.",
-      locked: "🔒 Envía a un asistente personal verificado a acompañar a alguien, visitar a alguien o reservar y comprar algo por ti. Incluido en todos los planes pagos.",
+      locked: "🔒 Envía a un asistente personal verificado a acompañar a alguien, visitar a alguien o reservar y comprar algo por ti. Incluido en todos los planes de pago.",
     },
   },
   status: { "in-progress": "En curso", completed: "Completada", canceled: "Cancelada" },

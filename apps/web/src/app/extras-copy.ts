@@ -68,7 +68,7 @@ const EN = {
     arm: "Arm it",
     armUpTo: (cap: number) => `Arm it — up to ${money(cap)}`,
     soberPrepared: "Set up while sober, because a basket chosen drunk is one you did not really choose. Nothing is charged automatically — Safehubby has no pharmacy partnership yet, so you confirm the order yourself.",
-    soberOrdered: "You can only set this up while you're sober. Once you're impaired Safehubby will not take an authorization to spend your money — that's not consent.",
+    soberOrdered: "You can only set this up while you're sober. Once you're impaired, Safehubby will not take an authorization to spend your money — that's not consent.",
   },
 };
 
@@ -96,10 +96,10 @@ const ES: typeof EN = {
   },
   desk: {
     title: "Pídele a un asistente",
-    locked: "🔒 Citas, recordatorios, correos y trámites, hechos por una persona; incluido en todos los planes pagos.",
+    locked: "🔒 Citas, recordatorios, correos y trámites, hechos por una persona; incluido en todos los planes de pago.",
     failed: "No se pudo enviar.",
     cancel: "Cancelar",
-    intro: "Las cosas que se comen una tarde y nunca te necesitaron a ti en persona. Sin cargo y sin límite de gasto: es parte de tu plan.",
+    intro: "Las cosas que te quitan una tarde y nunca necesitaron que fueras en persona. Sin cargo y sin límite de gasto: es parte de tu plan.",
     need: "¿Qué necesitas?",
     placeholder: "Saca cita con el dentista, cualquier tarde después del 12",
     left: (left: number, of: number, out: boolean) => `Te quedan ${left} de ${of} este mes${out ? "; el conteo vuelve a empezar el día 1, y un plan más grande trae más" : ""}.`,
@@ -114,7 +114,7 @@ const ES: typeof EN = {
     reasons: { auto: "Enviado automáticamente", guardian: "Enviado por quien te cuida", self: "Lo enviaste tú" },
     sent: (reason: string, amount: string, to: string, eta: number) => `${reason} · ${amount} · ${to} · ~${eta} min`,
     orderAt: () => "Pedirlo en línea",
-    orderNote: "Abre una tienda en línea con tus artículos buscados. Allí haces el pedido.",
+    orderNote: "Abre una tienda en línea con tus artículos ya buscados. Allí haces el pedido.",
     armedPrepared: (basket: string, to: string) => `${basket} se prepara para ${to} si pasas el límite que pusiste. No se cobra nada: tú o quien te cuida lo confirman en la app de la tienda.`,
     armedOrdered: (basket: string, to: string, cap: number) => `${basket} va a ${to} si pasas el límite que pusiste. Con un tope de ${money(cap)}, una vez por noche.`,
     turnOff: "Apagarlo",

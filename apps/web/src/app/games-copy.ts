@@ -8,7 +8,7 @@ export type Lang = "en" | "es";
 const EN = {
   games: {
     title: "Games",
-    lead: "Seven ways to make looking after each other competitive. None of them score on how much you drink.",
+    lead: "Seven ways to make looking after each other competitive. None of them award points for how much you drink.",
     noCrew: "Games are played with the table you are out with. Start or join a crew on the Tonight tab, then come back — rounds use whoever is in it.",
     live: "Live rounds",
     playing: (n: number) => `${n} playing`,
@@ -36,7 +36,7 @@ const EN = {
     total: "Total",
     covers: (n: number) => `Comfortably covers about ${n} people — set by whichever category is thinnest, so twelve chairs and food for forty still seats twelve.`,
     checkout: "Checkout — not connected yet",
-    catalogue: "Vendors are catalogue entries in this build. Nothing here places a real order or takes payment.",
+    catalogue: "Vendors are catalog entries in this build. Nothing here places a real order or takes payment.",
     failed: "Could not save the cart",
   },
 };
@@ -44,7 +44,7 @@ const EN = {
 const ES: typeof EN = {
   games: {
     title: "Juegos",
-    lead: "Siete maneras de convertir el cuidarse unos a otros en competencia. Ninguno da puntos por cuánto tomas.",
+    lead: "Siete maneras de convertir el cuidarse unos a otros en competencia. Ninguna da puntos por cuánto tomas.",
     noCrew: "Los juegos se juegan con la mesa con la que sales. Crea o únete a un grupo en Inicio y vuelve: las rondas usan a quien esté en él.",
     live: "Rondas en curso",
     playing: (n: number) => `${n} jugando`,

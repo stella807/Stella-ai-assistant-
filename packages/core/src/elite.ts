@@ -181,7 +181,7 @@ export const MEDICAL_FEE_RULE =
  * broker to disclose three things *before* a contract is entered into: which
  * carrier is actually operating the flight, the capacity the broker is
  * acting in, and how much liability insurance the broker carries — or that it
- * carries none. No licence or registry is required, but these are not
+ * carries none. No license or registry is required, but these are not
  * optional, and the operator's identity is not knowable until a specific
  * aircraft is quoted, which is why they belong on the quote rather than in a
  * signup flow.

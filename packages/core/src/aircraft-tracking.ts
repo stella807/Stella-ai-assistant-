@@ -37,7 +37,7 @@ export interface AircraftFix {
 
 export interface AircraftTrackingPort {
   readonly status: ProviderStatus;
-  /** Who the positions come from and under what licence; shown wherever they are. */
+  /** Who the positions come from and under what license; shown wherever they are. */
   readonly attribution: { name: string; url: string; license: string };
   /** Null when nothing with that registration is being heard right now. Throws when the source itself fails. */
   findByTail(tailNumber: string): Promise<AircraftFix | null>;

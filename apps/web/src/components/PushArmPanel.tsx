@@ -88,7 +88,7 @@ export function PushArmPanel({
 
       {armed && !senderLive && (
         <div className="banner">
-          {w.noSender[0]}<strong>{w.noSender[1]}</strong>{w.noSender[2]}<code>PUSH_API_URL</code>{w.noSender[3]}
+          {w.noSender[0]}<strong>{w.noSender[1]}</strong>{w.noSender[2]}
         </div>
       )}
 

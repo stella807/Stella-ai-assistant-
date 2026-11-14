@@ -118,7 +118,7 @@ export function AccountScreen({ account, onDeleted, onManagePlan }: {
         <h3>{es ? "Borrar mi cuenta" : "Delete my account"}</h3>
         <p className="small">
           {es
-            ? "Esto borra tu cuenta y todo lo que tiene, para siempre; no se esconde. Quien te vigile pierde el acceso enseguida. "
+            ? "Esto borra tu cuenta y todo lo que tiene, para siempre; no solo se oculta. Quien te vigile pierde el acceso enseguida. "
             : "This deletes your account and everything on it — permanently, not hidden. Anyone watching you loses access immediately. "}
           <strong>{es ? "Tu historial de ubicación no se puede recuperar." : "Your location history cannot be recovered."}</strong>
         </p>

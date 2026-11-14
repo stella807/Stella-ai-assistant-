@@ -47,7 +47,7 @@ const EN = {
   },
   senior: {
     title: (age: number) => `Basic is for members ${age} and over`,
-    intro: "Add your date of birth and a photo of your driver's licence, state ID or passport. Our team checks it; you can start using Basic right away.",
+    intro: "Add your date of birth and a photo of your driver's license, state ID or passport. Our team checks it; you can start using Basic right away.",
     rejected: "Your last ID was not accepted:",
     birthDate: "Date of birth",
     photo: "Photo of your ID",

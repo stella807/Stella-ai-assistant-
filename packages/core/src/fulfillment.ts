@@ -81,7 +81,7 @@ export interface AutomaticDeliveryPort {
  *
  * Kept as its own port rather than another entry in the ride list, because it
  * is a different product with different law behind it. Armed protective service
- * is licensed state by state in the US, the licence classes differ, and a
+ * is licensed state by state in the US, the license classes differ, and a
  * provider legal in one state may not operate in the next one over. So the
  * adapter must report coverage per location, and the app must never offer this
  * where the provider has not said it operates.

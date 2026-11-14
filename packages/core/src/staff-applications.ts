@@ -11,7 +11,7 @@ import { validateCredential, type Credential } from "./credentials.ts";
  * runner, secretary.
  *
  * Its own module rather than more optional fields on `DriverApplication`.
- * That type is dense with vehicle, licence, plate and protective-licence
+ * That type is dense with vehicle, license, plate and protective-license
  * detail, none of which a secretary has, and widening it would mean every
  * one of those fields becomes "required, except when it isn't" — the shape
  * would stop saying what a valid application is, which is the one job it
@@ -50,12 +50,12 @@ export interface StaffApplication {
    *  same reason the driver form requires them: this is in-person work with
    *  vulnerable people. */
   backgroundCheckConsent: boolean;
-  /** They ticked that they hold a firearms licence, which every job requires. A bodyguard attaches the licence itself instead. */
+  /** They ticked that they hold a firearms license, which every job requires. A bodyguard attaches the license itself instead. */
   firearmsLicenseConfirmed?: boolean;
-  /** The bodyguard job also needs the security-guard licence, ticked the same way. */
+  /** The bodyguard job also needs the security-guard license, ticked the same way. */
   guardLicenseConfirmed?: boolean;
   /** Their own liability insurance (required for field roles) and, for armed
-   *  work, firearms and security-guard licences — see credentials.ts. */
+   *  work, firearms and security-guard licenses — see credentials.ts. */
   credentials?: Credential[];
   submittedAt: Iso8601;
   status: ApplicationStatus;
@@ -93,7 +93,7 @@ const MIN_EXPERIENCE_CHARS = 20;
  */
 export function submitStaffApplication(input: SubmitStaffApplicationInput): StaffApplication {
   if (input.role === "driver") {
-    throw new Error("Drivers apply through the driver application, which asks about your vehicle and licence.");
+    throw new Error("Drivers apply through the driver application, which asks about your vehicle and license.");
   }
   // Throws on an unknown role rather than accepting an application for a job
   // that does not exist.
@@ -132,13 +132,13 @@ export function submitStaffApplication(input: SubmitStaffApplicationInput): Staf
   const credentials = input.credentials ?? [];
   for (const c of credentials) validateCredential(c, input.now);
   // Liability insurance is welcome but not required to apply; a policy that is attached is still checked above.
-  // Every job requires a firearms licence, confirmed by a tick (or the licence attached). The bodyguard job, the one
-  // cleared for armed work, also needs the security-guard licence.
+  // Every job requires a firearms license, confirmed by a tick (or the license attached). The bodyguard job, the one
+  // cleared for armed work, also needs the security-guard license.
   const hasGun = input.firearmsLicenseConfirmed === true || credentials.some((c) => c.kind === "firearms-license");
   const hasGuard = input.guardLicenseConfirmed === true || credentials.some((c) => c.kind === "guard-license");
-  if (!hasGun) throw new Error("Confirm that you hold a firearms licence — it is required for every job.");
+  if (!hasGun) throw new Error("Confirm that you hold a firearms license — it is required for every job.");
   if (input.role === "bodyguard" && !hasGuard) {
-    throw new Error("For the bodyguard job, confirm your security-guard licence as well as your firearms licence.");
+    throw new Error("For the bodyguard job, confirm your security-guard license as well as your firearms license.");
   }
 
   return {

@@ -28,8 +28,8 @@ export const isCredentialFilled = (c: CredentialDraft) =>
 const WORDS = {
   en: {
     "liability-insurance": { title: "Your liability insurance", number: "Policy number", issuer: "Insurance company" },
-    "firearms-license": { title: "Firearms licence", number: "Licence number", issuer: "Issued by" },
-    "guard-license": { title: "Security-guard licence", number: "Licence number", issuer: "Issued by" },
+    "firearms-license": { title: "Firearms license", number: "License number", issuer: "Issued by" },
+    "guard-license": { title: "Security-guard license", number: "License number", issuer: "Issued by" },
     expires: "Expires on", copy: "A copy (PDF or photo)", attached: "Attached:", tooBig: "That file is too large.",
   },
   es: {

@@ -8,7 +8,7 @@ const PRESETS_CENTS = [1_000, 2_500, 5_000, 10_000];
 const COPY = {
   en: {
     title: "Safehubby balance",
-    lead: "Add money with your saved card and errands and assistants are paid from it. Whatever isn't spent stays here.",
+    lead: "Add money with your saved card, and errands and assistants are paid from it. Whatever isn't spent stays here.",
     available: "Available",
     held: "Set aside for tasks in progress",
     pick: "How much?",
@@ -28,10 +28,10 @@ const COPY = {
     pick: "¿Cuánto?",
     other: "U otra cantidad ($)",
     otherHint: "Cualquier cantidad, desde $0.50.",
-    added: "Añadido a tu balance.",
+    added: "Añadido a tu saldo.",
     add: (amount: string) => `Añadir ${amount} con tu tarjeta`,
     adding: "Cobrando tu tarjeta…",
-    note: "Se cobra a tu tarjeta guardada a través de Stripe. El dinero añadido a tu balance lo devuelve nuestro equipo, no automáticamente.",
+    note: "Se cobra a tu tarjeta guardada a través de Stripe. El dinero añadido a tu saldo lo devuelve nuestro equipo, no automáticamente.",
     needCard: "Guarda primero una tarjeta en Pagos y luego podrás añadir dinero aquí.",
   },
 } as const;

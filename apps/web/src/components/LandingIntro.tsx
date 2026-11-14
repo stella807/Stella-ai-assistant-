@@ -176,7 +176,7 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
 
             {/* The roles being hired that have nothing to do with a car. Its
                 own path because the driver form asks for a vehicle, a plate
-                and a licence expiry, none of which a secretary has. */}
+                and a license expiry, none of which a secretary has. */}
             <div className="stack" style={{ gap: 6 }}>
               <strong className="small">{t("work.staff")}</strong>
               <p className="tiny muted" style={{ margin: 0 }}>{t("work.staffNote")}</p>

@@ -148,13 +148,13 @@ const WORDS = {
     payLabel: "Pay",
     whereLabel: "Where",
     requirementsLabel: "To apply",
-    requirements: "A firearms licence, consent to a background check, and a short note on your experience. Bodyguards also need a security-guard licence.",
+    requirements: "A firearms license, consent to a background check, and a short note on your experience. Bodyguards also need a security-guard license.",
     apply: "Apply now",
     allJobs: "All open jobs",
     driveTitle: "Driver jobs in Puerto Rico | Drive for Safehubby",
     driveDescription: "Drive people home with Safehubby: standard or secure transport, on a per-trip rate published before you apply.",
     driveH1: "Drive for Safehubby",
-    driveRequirements: "A valid driver's licence, your vehicle's make, model, year and plate, and consent to a background check.",
+    driveRequirements: "A valid driver's license, your vehicle's make, model, year and plate, and consent to a background check.",
     services: {
       jets: {
         title: "Private jets in Puerto Rico: book and track | Safehubby",
@@ -337,7 +337,7 @@ const WORDS = {
       errands: {
         title: "Servicio de mandados en Puerto Rico, con límite de gasto | Safehubby",
         description: (f: SeoFacts) => `Alguien hace un mandado y te lo trae, desde ${money(f.errandFromCents)} más lo que se compre, con un límite de gasto que tú fijas y que nunca se excede.`,
-        h1: "Un mandado pequeño, hecho por ti",
+        h1: "Un mandado pequeño, hecho para ti",
         name: "Mandados con límite de gasto",
         paragraphs: (f: SeoFacts) => [
           "Pídele a tu asistente de Safehubby que busque una cosa o haga un mandado y te lo traiga.",

@@ -50,7 +50,7 @@ describe("the server's English, for a Spanish reader", () => {
 
   it("translates the terms of a task's charge line and keeps the customer's own words", () => {
     const line = "Grab something — a juice for Mami ($4.50 service fee included, paid from your balance)";
-    expect(localized(line, "es")).toBe("Traer algo — a juice for Mami (cargo de servicio de $4.50 incluido, pagado de tu balance)");
+    expect(localized(line, "es")).toBe("Traer algo — a juice for Mami (cargo de servicio de $4.50 incluido, pagado de tu saldo)");
   });
 
   it("changes only whole known sentences in a response, never ids or what people typed", () => {

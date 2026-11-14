@@ -402,7 +402,7 @@ export const PLANS: Plan[] = [
     get blurb() {
       return "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate"
         + (isEnabled("free-errands") ? ", and quick errands — grab something (up to $20) or run an errand" : "")
-        + ". Always free — safety basics are not a paywall.";
+        + ". Always free — the safety basics are never behind a paywall.";
     },
   },
   {
@@ -415,7 +415,7 @@ export const PLANS: Plan[] = [
     annualCents: 39000,
     seats: 1,
     features: BASIC_FEATURES,
-    blurb: "For members 65 and over, with an ID. Covers 1 client. The safety basics, $35 a month of errands paid for — free food pickups — a snack, a restaurant order or groceries, brought to you at home or in a hospital bed.",
+    blurb: "For members 65 and over, with an ID. Covers 1 client. The safety basics, plus $35 a month of errand fees paid by us: free food pickups (a snack, a restaurant order or groceries), brought to you at home or in a hospital bed.",
   },
   {
     id: "premium-basic",
@@ -443,7 +443,7 @@ export const PLANS: Plan[] = [
     // once a plan actually covers more than one person.
     features: PLUS_FEATURES,
     includedConciergeHours: 8,
-    blurb: "The same everything as Premium, covering 2 clients instead of one, plus multiple clients on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
+    blurb: "Everything in Premium, covering 2 clients instead of one, plus multiple clients on one account — Safehubby books your ride and sends supplies itself, plus secure transport where it operates, the full pharmacy-run menu, safe routes, history, group games, and extended emergency contacts.",
   },
   {
     id: "family",
@@ -460,7 +460,7 @@ export const PLANS: Plan[] = [
     // PREMIUM_FEATURES's own doc comment above.
     features: PLUS_FEATURES,
     includedConciergeHours: 12,
-    blurb: "The same everything as Premium Plus, covering up to 6 clients instead of two — one household on one bill, at ownership's set price.",
+    blurb: "Everything in Premium Plus, covering up to 6 clients instead of two — one household on one bill.",
   },
   {
     id: "elite",

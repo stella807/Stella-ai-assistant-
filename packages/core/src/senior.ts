@@ -48,7 +48,7 @@ export function validateSeniorId(input: { birthDate: string; document: Resume },
   try {
     validateResume(input.document);
   } catch {
-    throw new Error("Attach a photo of your ID — a driver's licence, state ID or passport.");
+    throw new Error("Attach a photo of your ID — a driver's license, state ID or passport.");
   }
 }
 

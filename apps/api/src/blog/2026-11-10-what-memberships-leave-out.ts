@@ -29,7 +29,7 @@ export const article: Article = {
     { h2: { en: "3. The work itself", es: "3. El trabajo en sí" } },
     { p: {
       en: "The fee often buys access to the desk. The hours, the errands and the bookings are billed on top. **Ask what is included each month, in hours.**",
-      es: "La cuota muchas veces solo compra acceso al escritorio. Las horas, los mandados y las reservas se cobran aparte. **Pregunta qué incluye cada mes, en horas.**",
+      es: "La cuota muchas veces solo compra acceso al servicio. Las horas, los mandados y las reservas se cobran aparte. **Pregunta qué incluye cada mes, en horas.**",
     } },
     { h2: { en: "4. A limit on your money", es: "4. Un límite para tu dinero" } },
     { p: {

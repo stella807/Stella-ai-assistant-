@@ -322,7 +322,7 @@ export interface StaffApplicationInput {
   backgroundCheckConsent: boolean;
   firearmsLicenseConfirmed?: boolean;
   guardLicenseConfirmed?: boolean;
-  /** Liability insurance (field roles) and, for armed work, both licences. */
+  /** Liability insurance (field roles) and, for armed work, both licenses. */
   credentials?: {
     kind: "liability-insurance" | "firearms-license" | "guard-license";
     number: string; issuer: string; expiresAt: string;

@@ -62,7 +62,7 @@ export function approximateDecodedBytes(base64: string): number {
 export function recordVoiceMessage(input: RecordVoiceMessageInput): VoiceMessage {
   if (!input.audioBase64.trim()) throw new Error("No audio was recorded.");
   if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) {
-    throw new Error("That clip has no length.");
+    throw new Error("That recording is empty.");
   }
   if (input.durationSeconds > MAX_VOICE_MESSAGE_SECONDS) {
     throw new Error(`Voice messages are capped at ${MAX_VOICE_MESSAGE_SECONDS} seconds — keep it short.`);

@@ -33,7 +33,7 @@ export function termsCopy(lang: "en" | "es", rate: string): LegalDocument {
       intro: "Estos términos explican cómo funciona Safehubby y qué esperamos de ti y de nosotros. Al crear una cuenta, suscribirte a un plan o reservar a un asistente, aceptas estos términos.",
       sections: [
         { heading: "1. Quiénes somos y qué ofrecemos", paragraphs: [
-          "Safehubby es una app y un servicio de conserjería en Puerto Rico, Texas y Los Ángeles. Incluye chequeos de seguridad, compartir ubicación, SOS, reservas de viajes y asistentes personales que van en persona a hacer tareas contigo o por ti.",
+          "Safehubby es una app y un servicio de concierge en Puerto Rico, Texas y Los Ángeles. Incluye chequeos de seguridad, compartir ubicación, SOS, reservas de viajes y asistentes personales que van en persona a hacer tareas contigo o por ti.",
           "Safehubby coordina el servicio. Tus asistentes son profesionales independientes y verificados, no empleados tuyos, y la relación entre ellos y Safehubby no te hace su patrono.",
         ] },
         { heading: "2. Tu cuenta", paragraphs: [
@@ -125,7 +125,7 @@ export function termsCopy(lang: "en" | "es", rate: string): LegalDocument {
         "Your assistant will not enter your home; you meet outside or in a public place.",
       ] },
       { heading: "8. Armed protection", paragraphs: [
-        "Armed work is done only by bodyguards who hold current firearms and security-guard licences, and only when you book it expressly. Other assistants do not carry firearms. It is never offered for a hospital stay.",
+        "Armed work is done only by bodyguards who hold current firearms and security-guard licenses, and only when you book it expressly. Other assistants do not carry firearms. It is never offered for a hospital stay.",
         "By booking armed protection you agree that armed personnel will be with you during that booking, that you will follow the bodyguard's safety instructions, and that you will obey the law. We may refuse or end an armed booking that is not safe.",
       ] },
       { heading: "9. Third-party services", paragraphs: [
@@ -212,7 +212,7 @@ export function privacyCopy(lang: "en" | "es"): LegalDocument {
         "Using the app: your check-ins, your guardian contacts, your drink history and related estimates, and your tasks (the note, the place, messages, voice messages, receipts and photos).",
         "Payments: your card's brand and last four digits and a Stripe reference. The full card number is handled by Stripe and does not pass through our servers.",
         "Verification: if you join a plan for people 65 and over, a photo of your ID, which our team reviews. If you give a phone number, we use it for text alerts.",
-        "Job applicants: their application, résumé, documents such as insurance and licences, their consent to a background check and, if hired, the bank details used to pay them, which are stored encrypted.",
+        "Job applicants: their application, résumé, documents such as insurance and licenses, their consent to a background check and, if hired, the bank details used to pay them, which are stored encrypted.",
       ] },
       { heading: "2. Why we use it", paragraphs: [
         "To provide the service: alerting your guardians, dispatching an assistant, billing your plan, giving you support, preventing fraud, and keeping the app safe and running. We do not sell your data or use it for targeted advertising.",

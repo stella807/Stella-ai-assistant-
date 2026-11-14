@@ -108,7 +108,7 @@ export const STAFF_ROLES: RoleInfo[] = [
   {
     id: "social-media-manager",
     label: "Social media manager",
-    description: "Fill the launch: run the accounts, the launch party, the newsletter and the referral push that brings the first customers in.",
+    description: "Build up the launch: run the accounts, the launch party, the newsletter and the referral push that brings the first customers in.",
     drives: false,
     // The role the original plan forgot, and the one the launch actually
     // depends on. Two months of pre-launch signups, a mailing list and a
@@ -219,7 +219,7 @@ export const STAFF_ROLES: RoleInfo[] = [
   {
     id: "bodyguard",
     label: "Armed bodyguard",
-    description: "Protect a client in person: close protection at events, on the road and at home. Armed work needs your own firearms and security-guard licences (Ley 108).",
+    description: "Protect a client in person: close protection at events, on the road and at home. Armed work needs your own firearms and security-guard licenses (Ley 108).",
     drives: false,
     // Puerto Rico reference: armed security guards earn roughly $12-16/hr
     // there and executive-protection work $20-30/hr, well under the mainland

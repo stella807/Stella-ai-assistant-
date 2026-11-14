@@ -35,7 +35,7 @@ let ctx: Ctx;
  * covered in core's auto-renewal.test.ts and in "the renewal-terms gate"
  * below.
  */
-/** A current firearms licence, which every applicant has to attach (see
+/** A current firearms license, which every applicant has to attach (see
  *  staff-applications.ts). A real PDF header, so it validates. */
 const TEST_INSURANCE = {
   kind: "firearms-license", number: "POL-123456", issuer: "Policía de Puerto Rico", expiresAt: "2099-01-01T00:00:00.000Z",
@@ -3754,7 +3754,7 @@ describe("driver applications", () => {
   it("requires the extra fields for the secure-transport tier", async () => {
     const res = await call("POST", "/api/drivers/apply", applicant({ tier: "secure-transport" }));
     expect(res.status).toBe(400);
-    expect(res.json.error).toMatch(/protective-services or law-enforcement licence/i);
+    expect(res.json.error).toMatch(/protective-services or law-enforcement license/i);
   });
 
   it("accepts a complete secure-transport application", async () => {
@@ -4157,12 +4157,12 @@ describe("hiring for the roles that do not drive", () => {
     ...over,
   });
 
-  it("takes a field application without insurance, but refuses one without a firearms licence", async () => {
+  it("takes a field application without insurance, but refuses one without a firearms license", async () => {
     expect((await call("POST", "/api/staff/apply", application())).status).toBe(200);
     expect((await call("POST", "/api/staff/apply", application({ credentials: [], firearmsLicenseConfirmed: true }))).status).toBe(200);
     const res = await call("POST", "/api/staff/apply", application({ credentials: [] }));
     expect(res.status).toBe(400);
-    expect(res.json.error).toMatch(/firearms licence/i);
+    expect(res.json.error).toMatch(/firearms license/i);
   });
 
   it("publishes the open roles and what everyone hired gets, without a login", async () => {
@@ -4224,7 +4224,7 @@ describe("hiring for the roles that do not drive", () => {
       await new Promise((r) => setTimeout(r, 20));
       const mail = sent.find((m) => m.to === "contact@safehubby.com");
       expect(mail?.subject).toMatch(/New application/);
-      expect(JSON.stringify(mail)).toMatch(/Firearms licence: confirmed/);
+      expect(JSON.stringify(mail)).toMatch(/Firearms license: confirmed/);
       process.env.OWNER_ALERT_EMAIL = "boss@example.com";
       await call("POST", "/api/staff/apply", application({ email: "second@example.com" }));
       await new Promise((r) => setTimeout(r, 20));

@@ -131,7 +131,7 @@ export function disclosureCopy(lang: "en" | "es", rate: string): DisclosureCopy 
           "Your location is shared with your assistant only for the length of that task.",
           "A selfie from each of you is shared with the other, so you can confirm who you are meeting.",
           "Assistants do not give medical, legal or financial advice, and nobody on the team judges whether you are fit to drive.",
-          "Armed work is done only by bodyguards holding current firearms and security-guard licences, and is never offered for a hospital stay.",
+          "Armed work is done only by bodyguards holding current firearms and security-guard licenses, and is never offered for a hospital stay.",
         ],
       },
       {

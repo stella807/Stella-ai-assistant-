@@ -36,9 +36,9 @@ describe("recordVoiceMessage", () => {
   });
 
   it("rejects a non-positive or non-finite duration", () => {
-    expect(() => recordVoiceMessage(input({ durationSeconds: 0 }))).toThrow(/no length/i);
-    expect(() => recordVoiceMessage(input({ durationSeconds: -3 }))).toThrow(/no length/i);
-    expect(() => recordVoiceMessage(input({ durationSeconds: Number.NaN }))).toThrow(/no length/i);
+    expect(() => recordVoiceMessage(input({ durationSeconds: 0 }))).toThrow(/is empty/i);
+    expect(() => recordVoiceMessage(input({ durationSeconds: -3 }))).toThrow(/is empty/i);
+    expect(() => recordVoiceMessage(input({ durationSeconds: Number.NaN }))).toThrow(/is empty/i);
   });
 
   it("caps how long a clip can be", () => {

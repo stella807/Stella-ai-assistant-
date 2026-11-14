@@ -512,7 +512,7 @@ export const HOSPITAL_STAY_CATEGORY: ConciergeCategory = "wait-with-someone";
 
 /**
  * Armed work: a safety wait or check somewhere with no security, done only by
- * an assistant cleared for it (firearms and security-guard licences — see
+ * an assistant cleared for it (firearms and security-guard licenses — see
  * credentials.ts). Never a hospital stay. Priced on its own rates, since it
  * is guard work, not caretaking.
  */

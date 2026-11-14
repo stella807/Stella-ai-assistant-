@@ -43,7 +43,7 @@ const EN = {
     typical: (hours: number) => ` for a typical ${hours}-hour booking`,
     quick: (amount: number) => ` (as low as ${money(amount)} for a quick task)`,
     perHour: "/hr",
-    sameRate: "The rate is the same in every market we work — the job is the same job. Errands pay a fixed price per errand, because an errand has an end built into it. Personal assistant work is booked and paid by the hour, so an evening that runs long is paid for rather than absorbed. A quick task pays less because it is a shorter job, not a worse rate.",
+    sameRate: "The rate is the same in every market we work in — the job is the same job. Errands pay a fixed price per errand, because an errand has an end built into it. Personal assistant work is booked and paid by the hour, so an evening that runs long is paid for rather than absorbed. A quick task pays less because it is a shorter job, not a worse rate.",
     repeat: "If a customer keeps sending you work",
     perWeek: "Tasks per week, from one customer",
     weekly: (n: number) => `${n} / week`,
@@ -116,7 +116,7 @@ const EN = {
     send: "Send it and unlock the card",
     voiceToo: "Record a voice message on the task too if it needs explaining — they'll see both together.",
     applePay: "Add it to Apple Pay",
-    easier: "Easier than reading a card number out at the till — once it's in Wallet you just tap.",
+    easier: "Easier than reading a card number out at the register — once it's in Wallet you just tap.",
     steps: (expiry: string) => [
       "Tap \"Show the full card number\" above and keep that page open.",
       "Open the Wallet app, then tap + at the top right.",

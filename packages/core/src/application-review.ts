@@ -2,7 +2,7 @@
  * The review pipeline every job application moves through, whatever the job.
  *
  * Extracted here because driver applications and staff applications are
- * genuinely different shapes — one has a vehicle and a licence, the other has
+ * genuinely different shapes — one has a vehicle and a license, the other has
  * availability and a paragraph about experience — but the rules for moving
  * one through review are not different at all, and should not be able to
  * drift. In particular: **nothing goes from submitted straight to approved.**

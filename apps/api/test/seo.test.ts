@@ -105,7 +105,7 @@ describe("job listings", () => {
       baseSalary: { currency: "USD", value: { value: 35, unitText: "HOUR" } },
     });
     expect(job.description).toContain("Go to people in person.");
-    expect(job.description).toContain("firearms licence");
+    expect(job.description).toContain("firearms license");
     expect(job.jobLocation).toHaveLength(3);
   });
 
@@ -124,7 +124,7 @@ describe("job listings", () => {
 
   it("does not turn per-task pay into an hourly wage", () => {
     expect(posting("/drive")).not.toHaveProperty("baseSalary");
-    expect(String(posting("/drive")!.description)).toContain("driver&#39;s licence");
+    expect(String(posting("/drive")!.description)).toContain("driver&#39;s license");
     expect(String(posting("/drive")!.description)).not.toContain("firearms");
   });
 

@@ -24,9 +24,9 @@ const EXACT: Record<string, string> = {
   Margarita: "Margarita", "Spirit, neat": "Licor, solo", Water: "Agua", "Soda / mocktail": "Refresco / mocktail",
   Coffee: "Café", "Can't be woken": "No se despierta", "Owners' dinner": "Cena con los dueños", Skydiving: "Paracaídas",
   // The Free plan's description is assembled from pieces, one per flag.
-  "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate, and quick errands — grab something (up to $20) or run an errand. Always free — safety basics are not a paywall.":
+  "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate, and quick errands — grab something (up to $20) or run an errand. Always free — the safety basics are never behind a paywall.":
     "Cubre a 1 cliente. Compartir ubicación, chequeos, conteo de bebidas, SOS, reserva de viajes y transporte seguro a la tarifa real del proveedor, y mandados rápidos: traer algo (hasta $20) o hacer un mandado. Siempre gratis: lo básico de seguridad no se cobra.",
-  "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate. Always free — safety basics are not a paywall.":
+  "Covers 1 client. Location sharing, check-ins, drink count, SOS, ride booking and secure transport at the provider's real rate. Always free — the safety basics are never behind a paywall.":
     "Cubre a 1 cliente. Compartir ubicación, chequeos, conteo de bebidas, SOS, reserva de viajes y transporte seguro a la tarifa real del proveedor. Siempre gratis: lo básico de seguridad no se cobra.",
 };
 
@@ -56,8 +56,8 @@ const label = (s: string) => EXACT[s] ?? s;
 
 const CREDENTIAL: Record<string, string> = {
   "liability insurance": "del seguro de responsabilidad civil",
-  "firearms licence": "de la licencia de armas",
-  "security-guard licence": "de la licencia de guardia de seguridad",
+  "firearms license": "de la licencia de armas",
+  "security-guard license": "de la licencia de guardia de seguridad",
 };
 const credential = (s: string) => CREDENTIAL[s] ?? s;
 
@@ -96,7 +96,7 @@ const PATTERNS: Rule[] = [
   [/^Personal concierge is only available in (.+) for now\.$/, (m) => `Por ahora, el concierge personal solo está disponible en ${m.replace(/ and /g, " y ")}.`],
   [/^Safehubby's dispatch service starts on (.+)\. You're signed up and nothing is being charged until then — check-ins, location sharing and SOS work now\.$/, (d) => `El servicio de despacho de Safehubby empieza el ${spanishDate(d)}. Ya estás inscrito y no se cobra nada hasta entonces; los chequeos, compartir ubicación y SOS ya funcionan.`],
   [/^(.+) does not operate where you are right now\.$/, (p) => `${p} no opera donde estás ahora mismo.`],
-  [/^Your balance \((\$[\d,.]+)\) does not cover (\$[\d,.]+)\. Add money to it, or add a card\.$/, (b, t) => `Tu balance (${b}) no cubre ${t}. Añádele dinero o añade una tarjeta.`],
+  [/^Your balance \((\$[\d,.]+)\) does not cover (\$[\d,.]+)\. Add money to it, or add a card\.$/, (b, t) => `Tu saldo (${b}) no cubre ${t}. Añádele dinero o añade una tarjeta.`],
   [/^That is all (\d+) of this month's included tasks\. The count resets on the 1st — or a bigger plan carries more\.$/, (n) => `Esas son las ${n} tareas incluidas de este mes. El conteo vuelve a empezar el día 1, o un plan más grande trae más.`],
   [/^This task is already (.+)\.$/, (s) => `Esta tarea ya está ${status(s)}.`],
   [/^This task is (.+) — its card has already been cancelled\.$/, (s) => `Esta tarea está ${status(s)}; su tarjeta ya se canceló.`],
@@ -133,7 +133,7 @@ const PATTERNS: Rule[] = [
   [/^Voice messages are capped at (\d+) seconds — keep it short\.$/, (n) => `Las notas de voz tienen un máximo de ${n} segundos; que sea corta.`],
   [/^Load at least (\$[\d,.]+) at a time\.$/, (a) => `Añade por lo menos ${a} cada vez.`],
   [/^Load at most (\$[\d,.]+) at a time\.$/, (a) => `Añade como máximo ${a} cada vez.`],
-  [/^Your balance can hold at most (\$[\d,.]+)\.$/, (a) => `Tu balance puede tener como máximo ${a}.`],
+  [/^Your balance can hold at most (\$[\d,.]+)\.$/, (a) => `Tu saldo puede tener como máximo ${a}.`],
   [/^Enter a weight between ([\d.]+)kg and ([\d.]+)kg\.$/, (a, b) => `Escribe un peso entre ${a} kg y ${b} kg.`],
   [/^The body-water ratio must be between ([\d.]+) and ([\d.]+)\.$/, (a, b) => `La proporción de agua corporal tiene que estar entre ${a} y ${b}.`],
   [/^Set a drink limit between 1 and (\d+)\.$/, (n) => `Pon un límite de bebidas entre 1 y ${n}.`],
@@ -189,7 +189,7 @@ const FEE_TERMS: [RegExp, string][] = [
   [/([\d.]+) hr included in your plan/, "$1 h incluidas en tu plan"],
   [/(\$[\d,.]+) service fee included/, "cargo de servicio de $1 incluido"],
   [/(\$[\d,.]+) service fee/, "cargo de servicio de $1"],
-  [/, paid from your balance/, ", pagado de tu balance"],
+  [/, paid from your balance/, ", pagado de tu saldo"],
 ];
 function taskChargeLine(text: string): string | null {
   const dash = text.indexOf(" — ");

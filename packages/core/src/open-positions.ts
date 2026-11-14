@@ -80,7 +80,7 @@ export function payLabelFor(
     const hour = usd(set ?? liveArmedHourlyPayCents());
     return es
       ? `${hour} la hora, armado. Necesitas tus propias licencias de armas y de guardia de seguridad (Ley 108) y tu propio seguro de responsabilidad civil`
-      : `${hour} an hour, armed. Bring your own firearms and security-guard licences (Ley 108) and your own liability insurance`;
+      : `${hour} an hour, armed. Bring your own firearms and security-guard licenses (Ley 108) and your own liability insurance`;
   }
   if (role === "caretaker") {
     const [day, hour] = [usd(set ?? liveHospitalDayPayCents()), usd(livePaHourlyPayCents())];

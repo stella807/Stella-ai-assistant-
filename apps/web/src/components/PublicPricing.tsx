@@ -240,7 +240,7 @@ const ELITE_COPY = {
     lead: "Todos los planes Elite tienen el mismo servicio 24/7, incluido un médico concierge, que paga Safehubby y no se te cobra aparte. En todos los planes Elite tienes un asistente personal disponible 24/7. Las horas de asistente son ilimitadas en todos los planes Elite: tu cuota las cubre todas. Los planes cambian en cuántas personas cubren.",
     whyTitle: "Todavía no está abierto: por qué y qué lo abre",
     why: (multiple: number, low: number, high: number) =>
-      `Elite incluye un fondo mensual para gastos que paga Safehubby. Esperamos a abrir el plan hasta que el negocio genere ${multiple} veces lo que costaría ese fondo si nuestros primeros ${low} a ${high} miembros de cada plan lo usaran completo en el mismo mes. Primero cubrimos el compromiso, después vendemos el plan.`,
+      `Elite incluye un fondo mensual para gastos que paga Safehubby. No abriremos el plan hasta que el negocio genere ${multiple} veces lo que costaría ese fondo si nuestros primeros ${low} a ${high} miembros de cada plan lo usaran completo en el mismo mes. Primero cubrimos el compromiso, después vendemos el plan.`,
     progress: (have: string, need: string, pct: number) => `${have} de ${need} necesarios (${pct}%).`,
     hours: "Asistente",
     hrs: "h/mes incluidas",

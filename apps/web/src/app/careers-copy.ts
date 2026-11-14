@@ -83,8 +83,8 @@ const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 export const DRIVE = {
   en: {
     title: "Drive for Safehubby", back: "Back", tier: "Which tier", standard: "Standard", secure: "Secure transport",
-    secureNote: "For licensed protective-services, military, or law-enforcement professionals. Requires a verifiable protective-services licence in addition to everything below.",
-    standardNote: "A driving licence, a roadworthy vehicle, and a background check.",
+    secureNote: "For licensed protective-services, military, or law-enforcement professionals. Requires a verifiable protective-services license in addition to everything below.",
+    standardNote: "A driving license, a roadworthy vehicle, and a background check.",
     pay: "Pay",
     payLine: (base: number, mile: number, minute: number) => mile === 0 && minute === 0
       ? `${usd(base)} per trip, regardless of distance or time.`
@@ -93,14 +93,14 @@ export const DRIVE = {
     secureWhy: " Higher than standard by design — it reflects the real, ongoing cost of a licensed protective-services driver's insurance and training, not a premium for the job sounding riskier.",
     notLive: "Nobody is dispatched from this list yet — see the note after you apply. This is the rate that will apply once driving for Safehubby is live, published now rather than decided later.",
     aboutYou: "About you", fullName: "Full name",
-    licence: "Driver's licence", licenceNumber: "Licence number", expiry: "Expiry date", yearsDriving: "Years driving",
-    vehicle: "Vehicle", make: "Make", model: "Model", year: "Year", plate: "Licence plate",
-    protective: "Protective-services licence",
-    protectiveNote: "Required for this tier. Safehubby does not itself verify whether a given state's licence is genuine — a background-check vendor and legal counsel do — but the application cannot omit the field that makes that check possible.",
+    licence: "Driver's license", licenceNumber: "License number", expiry: "Expiry date", yearsDriving: "Years driving",
+    vehicle: "Vehicle", make: "Make", model: "Model", year: "Year", plate: "License plate",
+    protective: "Protective-services license",
+    protectiveNote: "Required for this tier. Safehubby does not itself verify whether a given state's license is genuine — a background-check vendor and legal counsel do — but the application cannot omit the field that makes that check possible.",
     issuingState: "Issuing state", yearsProtective: "Years of protective, military, or law-enforcement experience",
-    resumeTitle: "Résumé (optional)", resumeNote: "A valid licence and a roadworthy vehicle are what the job needs — this is optional.",
+    resumeTitle: "Résumé (optional)", resumeNote: "A valid license and a roadworthy vehicle are what the job needs — this is optional.",
     attach: "Attach a file",
-    consent: "I consent to a background check, including driving record and, for secure transport, licence verification.",
+    consent: "I consent to a background check, including driving record and, for secure transport, license verification.",
     submit: "Submit application", failed: "Could not submit that application",
     yourId: "Your application id is", saveIt: "Save it — it is the only way to check on your application or withdraw it later.",
     followUp: "A background check is required before approval. We'll follow up at the email you gave.",

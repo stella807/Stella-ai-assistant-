@@ -4,7 +4,7 @@
  * Safehubby already knows a group is getting together and already talks to
  * delivery and ride providers. Planning the thing is the same problem one step
  * earlier — seating, food, decorations, entertainment, and the boring stuff
- * everyone forgets. Vendors here are catalogue entries; a real deployment
+ * everyone forgets. Vendors here are catalog entries; a real deployment
  * fulfils them through the same ports as the pharmacy and food runs.
  */
 

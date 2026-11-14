@@ -35,7 +35,7 @@ export function consentCopy(lang: "en" | "es"): ConsentCopy {
     privacy: "Privacy Policy",
     disclosures: "Client Disclosures",
     armedHeading: "Before you book armed protection",
-    armedBody: "Armed protection is done by bodyguards who hold current firearms and security-guard licences. To book it, confirm that you agree to the terms and that you allow armed personnel to be with you during that booking.",
+    armedBody: "Armed protection is done by bodyguards who hold current firearms and security-guard licenses. To book it, confirm that you agree to the terms and that you allow armed personnel to be with you during that booking.",
     save: "Save my agreement",
     failed: "We couldn't save your agreement. Please try again.",
     needed: "Check the box to continue.",

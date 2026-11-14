@@ -76,10 +76,10 @@ describe("what the form insists on", () => {
   });
 });
 
-describe("licences", () => {
-  it("rejects anyone who does not confirm a firearms licence, and a bodyguard who does not confirm the guard licence too", () => {
-    expect(() => submitStaffApplication(input({ credentials: [] }))).toThrow(/firearms licence/i);
-    expect(() => submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true }))).toThrow(/security-guard licence/i);
+describe("licenses", () => {
+  it("rejects anyone who does not confirm a firearms license, and a bodyguard who does not confirm the guard license too", () => {
+    expect(() => submitStaffApplication(input({ credentials: [] }))).toThrow(/firearms license/i);
+    expect(() => submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true }))).toThrow(/security-guard license/i);
     expect(submitStaffApplication(input({ credentials: [], firearmsLicenseConfirmed: true })).firearmsLicenseConfirmed).toBe(true);
     const guard = submitStaffApplication(input({ role: "bodyguard", credentials: [], firearmsLicenseConfirmed: true, guardLicenseConfirmed: true }));
     expect([guard.firearmsLicenseConfirmed, guard.guardLicenseConfirmed]).toEqual([true, true]);

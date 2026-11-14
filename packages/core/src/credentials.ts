@@ -11,14 +11,14 @@ import type { Iso8601 } from "./types.ts";
  * number, expiry and a copy of the certificate. A policy that has run out
  * takes them off the roster until a new one is on file.
  *
- * **Armed work, only with both licences.** Regular work is unarmed. An armed
+ * **Armed work, only with both licenses.** Regular work is unarmed. An armed
  * job — a safety wait somewhere with no security — goes only to somebody
- * holding a Puerto Rico firearms licence *and* a security-guard licence: in
+ * holding a Puerto Rico firearms license *and* a security-guard licence: in
  * Puerto Rico, being paid to be armed while protecting somebody is guard work
- * (Ley 108), so a personal firearms licence alone is not enough. Armed work is
+ * (Ley 108), so a personal firearms license alone is not enough. Armed work is
  * never offered for a hospital stay, since hospitals do not allow firearms.
  *
- * Nothing here checks a licence against a government register — there is no
+ * Nothing here checks a license against a government register — there is no
  * such API. The documents are what a reviewer checks by eye before hiring;
  * this module makes sure they were provided, are not expired, and are
  * re-checked at every dispatch.
@@ -28,20 +28,20 @@ export type CredentialKind = "liability-insurance" | "firearms-license" | "guard
 
 export interface Credential {
   kind: CredentialKind;
-  /** Policy or licence number, as printed on the document. */
+  /** Policy or license number, as printed on the document. */
   number: string;
   /** Insurer or issuing agency. */
   issuer: string;
   /** When it stops being valid. */
   expiresAt: Iso8601;
-  /** A copy of the certificate or licence — a PDF or a clear photo. */
+  /** A copy of the certificate or license — a PDF or a clear photo. */
   document: Resume;
 }
 
 export const CREDENTIAL_LABEL: Record<CredentialKind, string> = {
   "liability-insurance": "Liability insurance",
-  "firearms-license": "Firearms licence",
-  "guard-license": "Security-guard licence",
+  "firearms-license": "Firearms license",
+  "guard-license": "Security-guard license",
 };
 
 /** Roles that go out to customers, and so must carry their own insurance. */
@@ -67,7 +67,7 @@ export const isCurrent = (c: { expiresAt: Iso8601 } | undefined, now: Date) =>
   Boolean(c) && Date.parse(c!.expiresAt) > now.getTime();
 
 /**
- * Until when somebody may be sent armed: the earlier of the two licences'
+ * Until when somebody may be sent armed: the earlier of the two licenses'
  * expiry, or undefined when either is missing or already expired.
  */
 export function armedUntil(credentials: Credential[] | undefined, now: Date): Iso8601 | undefined {

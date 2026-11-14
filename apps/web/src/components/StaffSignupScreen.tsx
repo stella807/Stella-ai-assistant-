@@ -12,7 +12,7 @@ import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
  *
  * Separate screen from `DriveSignupScreen` for the same reason the domain
  * keeps two application types: a secretary has no vehicle, no plate, and no
- * licence expiry, and a form that asks anyway is a form that tells people
+ * license expiry, and a form that asks anyway is a form that tells people
  * they are applying for the wrong thing.
  *
  * No account is needed. The id returned is the only way to withdraw later, so
@@ -95,7 +95,7 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     }
   };
 
-  // Insurance is not asked for. Every job requires a firearms licence: a box to tick, except the bodyguard job, which attaches both licences.
+  // Insurance is not asked for. Every job requires a firearms licence: a box to tick, except the bodyguard job, which attaches both licenses.
   const credentialsReady = hasFirearmsLicense && (role !== "bodyguard" || hasGuardLicense);
 
   if (submitted) {
@@ -129,8 +129,8 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
     ...(city.trim() && state.trim() ? [] : [es ? "ciudad y estado" : "city and state"]),
     ...(experience.trim().length >= 20 ? [] : [es ? "experiencia (al menos 20 letras)" : "experience (at least 20 characters)"]),
     ...(Number(hoursPerWeek) > 0 ? [] : [es ? "horas a la semana" : "hours a week"]),
-    ...(hasFirearmsLicense ? [] : [es ? "la casilla de la licencia de armas" : "the firearms licence box"]),
-    ...(role !== "bodyguard" || hasGuardLicense ? [] : [es ? "la casilla de la licencia de guardia de seguridad" : "the security-guard licence box"]),
+    ...(hasFirearmsLicense ? [] : [es ? "la casilla de la licencia de armas" : "the firearms license box"]),
+    ...(role !== "bodyguard" || hasGuardLicense ? [] : [es ? "la casilla de la licencia de guardia de seguridad" : "the security-guard license box"]),
     ...(consent ? [] : [es ? "la casilla de verificación de antecedentes" : "the background check box"]),
   ];
 
@@ -231,14 +231,14 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
         <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
           <input type="checkbox" checked={hasFirearmsLicense} onChange={(e) => setHasFirearmsLicense(e.target.checked)} />
           <span className="tiny">
-            {lang === "es" ? "Tengo una licencia de armas vigente (requerida para todos los puestos)." : "I hold a current firearms licence (required for every job)."}
+            {lang === "es" ? "Tengo una licencia de armas vigente (requerida para todos los puestos)." : "I hold a current firearms license (required for every job)."}
           </span>
         </label>
         {role === "bodyguard" && (
           <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
             <input type="checkbox" checked={hasGuardLicense} onChange={(e) => setHasGuardLicense(e.target.checked)} />
             <span className="tiny">
-              {lang === "es" ? "Tengo una licencia de guardia de seguridad vigente (requerida para este puesto)." : "I hold a current security-guard licence (required for this job)."}
+              {lang === "es" ? "Tengo una licencia de guardia de seguridad vigente (requerida para este puesto)." : "I hold a current security-guard license (required for this job)."}
             </span>
           </label>
         )}

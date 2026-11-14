@@ -23,7 +23,7 @@ const COPY = {
   es: {
     title: "Alertas por texto",
     lead: {
-      account: "Recibe un texto cuando tu asistente responda, te pida aprobar una compra o termine — y, si cuidas a alguien, cuando active un SOS o no haga su check-in.",
+      account: "Recibe un texto cuando tu asistente responda, te pida aprobar una compra o termine — y, si cuidas a alguien, cuando active un SOS o no conteste un chequeo.",
       assistant: "Recibe un texto cuando un cliente te reserve o te escriba, para no tener que dejar esta página abierta.",
     },
     phone: "Número de celular",

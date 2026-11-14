@@ -246,7 +246,7 @@ function resumeFrom(body: any, now: Date): Resume | undefined {
   };
 }
 
-/** The insurance and licences an applicant sent, each as number, issuer,
+/** The insurance and licenses an applicant sent, each as number, issuer,
  *  expiry and a copy of the document; validated by `submitStaffApplication`. */
 function credentialsFrom(body: any, now: Date): Credential[] | undefined {
   if (!Array.isArray(body?.credentials)) return undefined;
@@ -3027,7 +3027,7 @@ export const routes: Record<string, Handler> = {
     return {
       ...billingState(ctx, me),
       verified: false,
-      note: "Recorded against your account. Receipt verification with the store is not wired in this build — see docs/billing.md.",
+      note: "Recorded on your account. Receipt verification with the store is not set up yet.",
     };
   },
 
@@ -3520,7 +3520,7 @@ export const routes: Record<string, Handler> = {
       throw new HttpError(400, `${ourAssistant.name} is not dispatched for that kind of task.`);
     }
     if (input.armed && !(ourAssistant && isArmedAvailable(ourAssistant, ctx.now()))) {
-      throw new HttpError(400, "Choose a bodyguard cleared for armed work — their firearms and guard licences must be current.");
+      throw new HttpError(400, "Choose a bodyguard cleared for armed work — their firearms and guard licenses must be current.");
     }
     if (!input.armed && ourAssistant?.role === "bodyguard") {
       throw new HttpError(400, "A bodyguard is booked for armed protection only.");
@@ -6173,7 +6173,7 @@ export const routes: Record<string, Handler> = {
      Instacart integrations, which bring their own drivers and shoppers. This
      is the intake for whatever Safehubby vets and staffs directly, which
      today is nothing, but which the secure-transport tier cannot be real
-     without: that tier has to be staffed by name and licence, not an API key. */
+     without: that tier has to be staffed by name and license, not an API key. */
 
   /** Public — applying needs no account. Rate limited on its own budget. */
   "POST /api/drivers/apply": (ctx, _p, body) => {
@@ -6208,7 +6208,7 @@ export const routes: Record<string, Handler> = {
     ctx.store.update((db) => void db.driverApplications.push(app));
     textOwnerOfApplication();
     emailApplicant(app.email, app.fullName, "Driver", "received");
-    // The full record (licence numbers, etc.) is not echoed back to the
+    // The full record (license numbers, etc.) is not echoed back to the
     // submitter's own browser response beyond what they already typed — this
     // just confirms receipt and gives them their id to reference.
     return { id: app.id, status: app.status, submittedAt: app.submittedAt };
@@ -6240,7 +6240,7 @@ export const routes: Record<string, Handler> = {
     return runPayroll(ctx);
   },
 
-  /** Admin: the review queue. Applicant contact and licence details are real
+  /** Admin: the review queue. Applicant contact and license details are real
    *  personal data, so this is the one place in the app gated by a shared
    *  secret rather than a per-account role — see requireAdmin. */
   "GET /api/drivers/applications": (ctx) => {
@@ -6331,8 +6331,8 @@ export const routes: Record<string, Handler> = {
       role: findRole(app.role).label, fullName: app.fullName, email: app.email, phone: app.phone, city: app.city, state: app.state,
       hoursPerWeek: app.hoursPerWeek, experience: app.experience, id: app.id,
       notes: [
-        `Firearms licence: ${app.firearmsLicenseConfirmed || app.credentials?.some((c) => c.kind === "firearms-license") ? "confirmed" : "not confirmed"}`,
-        ...(app.role === "bodyguard" ? [`Security-guard licence: ${app.guardLicenseConfirmed || app.credentials?.some((c) => c.kind === "guard-license") ? "confirmed" : "not confirmed"}`] : []),
+        `Firearms license: ${app.firearmsLicenseConfirmed || app.credentials?.some((c) => c.kind === "firearms-license") ? "confirmed" : "not confirmed"}`,
+        ...(app.role === "bodyguard" ? [`Security-guard license: ${app.guardLicenseConfirmed || app.credentials?.some((c) => c.kind === "guard-license") ? "confirmed" : "not confirmed"}`] : []),
         `Résumé: ${app.resume ? "attached (open it in the portal)" : "none"}`,
       ],
     });
@@ -6377,7 +6377,7 @@ export const routes: Record<string, Handler> = {
     return { fileName, mimeType, base64 };
   },
 
-  /** One credential's document (insurance certificate or licence), for the
+  /** One credential's document (insurance certificate or license), for the
    *  reviewer to check by eye before hiring — same discipline as the résumé. */
   "GET /api/applications/:id/credential/:kind": (ctx, p) => {
     requireAdmin(ctx, "operations");

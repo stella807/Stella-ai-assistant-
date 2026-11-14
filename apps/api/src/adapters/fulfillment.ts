@@ -243,7 +243,7 @@ const SECURE_NAME = process.env.SECURE_TRANSPORT_PROVIDER ?? "Blackwolf";
  * this expects so the mapping is a small edit rather than a rewrite.
  *
  * Coverage is checked before the option is ever shown. Armed protective service
- * is licensed state by state — licence classes differ, reciprocity is patchy,
+ * is licensed state by state — license classes differ, reciprocity is patchy,
  * and an operator legal in one state may be committing a felony in the next.
  * Offering a service that cannot legally arrive is worse than not offering it,
  * because someone stops looking for another way home.

@@ -109,7 +109,7 @@ export const SUGGESTED_VENDORS: Seed[] = [
 
   // ---- deep-sea fishing
   { id: "vnd-the-legend", name: "\"The Legend\" 48 ft Hatteras", category: "fishing", area: "San Juan Bay",
-    offers: "Private offshore fishing charter for up to six anglers; half-day to full-day trips, 25 minutes from the marina. Gear, bait, licence, captain and crew included.",
+    offers: "Private offshore fishing charter for up to six anglers; half-day to full-day trips, 25 minutes from the marina. Gear, bait, license, captain and crew included.",
     sourceUrl: "https://feverup.com/m/683871/en", notes: "Listings showed $1,363 for a short trip and $1,629 for six hours. " + L },
   { id: "vnd-ocean-pro", name: "Ocean Pro Adventure", category: "fishing", area: "Fajardo",
     offers: "Deep-sea fishing charters out of Fajardo on boats around 55 ft.",

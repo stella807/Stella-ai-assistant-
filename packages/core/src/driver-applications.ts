@@ -11,15 +11,15 @@ import { validateResume, type Resume } from "./resume.ts";
  * bring their own drivers and shoppers. It exists for whatever Safehubby
  * vets and books directly: today that is nothing (the app resells other
  * platforms' fleets), but the secure-transport tier is exactly the kind of
- * service that has to be staffed by name, licence, and background check
+ * service that has to be staffed by name, license, and background check
  * rather than by API key — so the intake has to exist before that tier can
  * ever be real rather than a page describing it.
  *
  * The tier a driver applies for changes what the form requires. "Standard"
- * needs a driving licence and a roadworthy vehicle. "Secure transport" needs
- * a verifiable protective-services or law-enforcement licence, because that
+ * needs a driving license and a roadworthy vehicle. "Secure transport" needs
+ * a verifiable protective-services or law-enforcement license, because that
  * is the entire premise of the tier — Safehubby is not the one who checks
- * whether a given state's armed-guard licence is real, a background-check
+ * whether a given state's armed-guard license is real, a background-check
  * vendor and legal counsel are, but the application cannot omit the field
  * that makes the check possible.
  */
@@ -51,7 +51,7 @@ export interface DriverApplication {
   protectiveLicenseNumber?: string;
   protectiveLicenseState?: string;
   yearsProtectiveExperience?: number;
-  /** Optional. Not required for either tier — a valid licence and a
+  /** Optional. Not required for either tier — a valid license and a
    *  roadworthy vehicle are what the job actually needs; a résumé adds
    *  nothing a reviewer checks against, but some applicants want to attach
    *  one anyway. */
@@ -104,11 +104,11 @@ export function submitApplication(input: SubmitApplicationInput): DriverApplicat
 
   if (!input.city.trim()) throw new Error("Enter your city.");
   if (!input.state.trim()) throw new Error("Enter your state.");
-  if (!input.licenseNumber.trim()) throw new Error("Enter your driver's licence number.");
+  if (!input.licenseNumber.trim()) throw new Error("Enter your driver's license number.");
 
   const expiry = new Date(input.licenseExpiry);
-  if (Number.isNaN(expiry.getTime())) throw new Error("Enter a valid licence expiry date.");
-  if (expiry.getTime() <= input.now.getTime()) throw new Error("That driver's licence has expired.");
+  if (Number.isNaN(expiry.getTime())) throw new Error("Enter a valid license expiry date.");
+  if (expiry.getTime() <= input.now.getTime()) throw new Error("That driver's license has expired.");
 
   if (!Number.isFinite(input.yearsDriving) || input.yearsDriving < 0) {
     throw new Error("Enter your years of driving experience.");
@@ -142,10 +142,10 @@ export function submitApplication(input: SubmitApplicationInput): DriverApplicat
 
   if (input.tier === "secure-transport") {
     if (!input.protectiveLicenseNumber?.trim()) {
-      throw new Error("Secure-transport drivers must give a protective-services or law-enforcement licence number.");
+      throw new Error("Secure-transport drivers must give a protective-services or law-enforcement license number.");
     }
     if (!input.protectiveLicenseState?.trim()) {
-      throw new Error("Enter the state that issued your protective-services licence.");
+      throw new Error("Enter the state that issued your protective-services license.");
     }
     if (!Number.isFinite(input.yearsProtectiveExperience) || (input.yearsProtectiveExperience ?? -1) < 0) {
       throw new Error("Enter your years of protective, military, or law-enforcement experience.");
@@ -167,7 +167,7 @@ function validateVehicle(vehicle: VehicleInfo, now: Date): VehicleInfo {
   if (!Number.isInteger(vehicle.year) || vehicle.year < MIN_VEHICLE_YEAR || vehicle.year > currentYear + 1) {
     throw new Error(`Enter a vehicle year between ${MIN_VEHICLE_YEAR} and ${currentYear + 1}.`);
   }
-  if (!vehicle.licensePlate.trim()) throw new Error("Enter your licence plate.");
+  if (!vehicle.licensePlate.trim()) throw new Error("Enter your license plate.");
   return {
     make: vehicle.make.trim(),
     model: vehicle.model.trim(),
