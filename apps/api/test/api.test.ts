@@ -2828,6 +2828,23 @@ describe("biweekly payroll", () => {
       expect(again.vendors).toHaveLength(got.vendors.length);
     });
 
+    it("leaves the owner's own lists and vendors exactly as they were when new research arrives", async () => {
+      const earlier = SUGGESTED_VENDORS.filter((v) => !HOTEL_PROGRAM_VENDORS.includes(v));
+      const texasVendor = { id: "vnd-own-texas", listId: "list-texas", name: "Austin Event Co", category: "event-planner" as const, area: "Austin", offers: "Events", notes: "",
+        status: "quoted" as const, contactName: "Dana", phone: "512-555-0100", ownerNotes: "Quoted $2,000", updatedAt: "2026-11-02T00:00:00.000Z" };
+      const prVendor = { ...earlier[0]!, listId: DEFAULT_VENDOR_LIST.id, status: "booked" as const, ownerNotes: "Booked for December", updatedAt: "2026-11-03T00:00:00.000Z" };
+      store.update((db) => {
+        db.vendorLists = [DEFAULT_VENDOR_LIST, { id: "list-texas", name: "Texas" }];
+        db.vendors = [prVendor, ...earlier.slice(1).map((v) => ({ ...v, listId: DEFAULT_VENDOR_LIST.id, status: "lead" as const, updatedAt: "2026-11-01T00:00:00.000Z" })), texasVendor];
+        db.vendorSeedsOffered = earlier.map((v) => v.id);
+      });
+      const got = (await callAdmin("GET", "/api/master/vendors")).json;
+      expect(got.lists.map((l: { name: string }) => l.name)).toEqual(["Puerto Rico vendors", "Texas", "United States vendors"]);
+      expect(got.vendors.find((v: { id: string }) => v.id === "vnd-own-texas")).toEqual(texasVendor);
+      expect(got.vendors.find((v: { id: string }) => v.id === prVendor.id)).toEqual(prVendor);
+      expect(got.vendors).toHaveLength(earlier.length + 1 + HOTEL_PROGRAM_VENDORS.length);
+    });
+
     it("files the US hotel programs under the owner's own United States list when one already exists", async () => {
       const earlier = SUGGESTED_VENDORS.filter((v) => !HOTEL_PROGRAM_VENDORS.includes(v));
       store.update((db) => {
