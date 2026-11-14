@@ -71,7 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, jobPayRates, JOB_PAY_ROLES, jobPayUnit, defaultJobPayCents, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
-  DEFAULT_VENDOR_LIST, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
+  DEFAULT_VENDOR_LIST, HOTEL_PROGRAM_VENDORS, SUGGESTED_VENDOR_LISTS, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, readPartnerInquiry, type PartnerInquiry, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
@@ -1109,7 +1109,10 @@ const shareInvite = (ctx: Ctx) => {
     };
   };
 
-const SUGGESTED_LATER = new Set(["vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway"]);
+const SUGGESTED_LATER = new Set([
+  "vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway",
+  ...HOTEL_PROGRAM_VENDORS.map((v) => v.id),
+]);
 
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
 function cleanText(value: unknown, max: number): string {
@@ -6684,13 +6687,23 @@ export const routes: Record<string, Handler> = {
         db.vendorSeedsOffered = SUGGESTED_VENDORS.map((v) => v.id);
       });
     }
-    // Every vendor sits in a list. The first time through, the researched Puerto Rico vendors go to the default list.
-    const lists = ctx.store.data.vendorLists;
-    const fallbackId = (lists?.[0] ?? DEFAULT_VENDOR_LIST).id;
-    if (!lists?.length || (ctx.store.data.vendors ?? []).some((v) => !v.listId)) {
+    // Every vendor sits in a list. The first time through, the researched Puerto Rico vendors go to the
+    // default list. Research filed under a list of its own (the US hotel programs) brings that list with
+    // it, or joins the owner's list of the same name; anything else without a real list goes to the first.
+    const listIds = new Set((ctx.store.data.vendorLists ?? []).map((l) => l.id));
+    if (!listIds.size || (ctx.store.data.vendors ?? []).some((v) => !v.listId || !listIds.has(v.listId))) {
       ctx.store.update((db) => {
         if (!db.vendorLists?.length) db.vendorLists = [DEFAULT_VENDOR_LIST];
-        for (const v of db.vendors ?? []) if (!v.listId) v.listId = fallbackId;
+        const lists = db.vendorLists;
+        const fallbackId = lists[0]!.id;
+        for (const v of db.vendors ?? []) {
+          if (v.listId && lists.some((l) => l.id === v.listId)) continue;
+          const suggested = SUGGESTED_VENDOR_LISTS.find((l) => l.id === v.listId);
+          if (!suggested) { v.listId = fallbackId; continue; }
+          const sameName = lists.find((l) => l.name.trim().toLowerCase() === suggested.name.toLowerCase());
+          if (sameName) v.listId = sameName.id;
+          else lists.push({ ...suggested });
+        }
       });
     }
     return { vendors: ctx.store.data.vendors ?? [], lists: ctx.store.data.vendorLists ?? [], categories: VENDOR_CATEGORIES, statuses: VENDOR_STATUSES };

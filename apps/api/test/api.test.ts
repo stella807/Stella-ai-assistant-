@@ -12,7 +12,7 @@ import { taskCards } from "../src/adapters/cards.ts";
 import {
   ELITE_LADDER, INCLUDED_GRABS_PER_MONTH, PHARMACY_RUN_FEE_CENTS, PLANS, authorizeExactHold, findPlan, assistantPayoutFor,
   eliteUnlockThresholdCents, previousPayoutPeriod, recordCharge, resetFlags, serviceFeeFor,
-  OPEN_POSITIONS, errandFeeCents, errandPayoutCents, settleCharge, setFlag, SUGGESTED_VENDORS, type CardIssuingPort } from "@safehubby/core";
+  OPEN_POSITIONS, errandFeeCents, errandPayoutCents, settleCharge, setFlag, SUGGESTED_VENDORS, HOTEL_PROGRAM_VENDORS, UNITED_STATES_VENDOR_LIST, DEFAULT_VENDOR_LIST, type CardIssuingPort } from "@safehubby/core";
 import {
   LAUNCH_DISCOUNT_RATE, LAUNCH_WINDOW_END, LAUNCH_WINDOW_START, POINT_RULES, SERVICE_LIVE_AT,
 } from "@safehubby/core";
@@ -2808,18 +2808,51 @@ describe("biweekly payroll", () => {
       expect((await callAdmin("GET", "/api/master/vendors")).json.vendors).toHaveLength(first.length);
     });
 
+    it("brings the hotel programs into an existing list, the US ones under a new United States list", async () => {
+      // An install that has already loaded every earlier round of research.
+      const earlier = SUGGESTED_VENDORS.filter((v) => !HOTEL_PROGRAM_VENDORS.includes(v));
+      store.update((db) => {
+        db.vendorLists = [DEFAULT_VENDOR_LIST];
+        db.vendors = earlier.map((v) => ({ ...v, listId: DEFAULT_VENDOR_LIST.id, status: "lead" as const, updatedAt: "2026-11-01T00:00:00.000Z" }));
+        db.vendorSeedsOffered = earlier.map((v) => v.id);
+      });
+      const got = (await callAdmin("GET", "/api/master/vendors")).json;
+      expect(got.lists.map((l: { name: string }) => l.name)).toEqual(["Puerto Rico vendors", "United States vendors"]);
+      const listOf = (id: string) => got.vendors.find((v: { id: string }) => v.id === id)?.listId;
+      expect(listOf("vnd-etc-puerto-rico")).toBe(DEFAULT_VENDOR_LIST.id);
+      expect(listOf("vnd-virtuoso")).toBe(UNITED_STATES_VENDOR_LIST.id);
+      expect(got.vendors).toHaveLength(earlier.length + HOTEL_PROGRAM_VENDORS.length);
+      // Asking again adds nothing: no second list, no duplicate vendors.
+      const again = (await callAdmin("GET", "/api/master/vendors")).json;
+      expect(again.lists).toHaveLength(2);
+      expect(again.vendors).toHaveLength(got.vendors.length);
+    });
+
+    it("files the US hotel programs under the owner's own United States list when one already exists", async () => {
+      const earlier = SUGGESTED_VENDORS.filter((v) => !HOTEL_PROGRAM_VENDORS.includes(v));
+      store.update((db) => {
+        db.vendorLists = [DEFAULT_VENDOR_LIST, { id: "list-mine", name: "united states VENDORS" }];
+        db.vendors = earlier.map((v) => ({ ...v, listId: DEFAULT_VENDOR_LIST.id, status: "lead" as const, updatedAt: "2026-11-01T00:00:00.000Z" }));
+        db.vendorSeedsOffered = earlier.map((v) => v.id);
+      });
+      const got = (await callAdmin("GET", "/api/master/vendors")).json;
+      expect(got.lists.map((l: { id: string }) => l.id)).toEqual([DEFAULT_VENDOR_LIST.id, "list-mine"]);
+      expect(got.vendors.find((v: { id: string }) => v.id === "vnd-virtuoso").listId).toBe("list-mine");
+    });
+
     it("keeps vendors in named lists, one per area, that the owner creates, renames, moves between and deletes", async () => {
       const got = (await callAdmin("GET", "/api/master/vendors")).json;
-      // The researched Puerto Rico vendors start in one default list.
-      expect(got.lists).toHaveLength(1);
-      expect(got.lists[0].name).toBe("Puerto Rico vendors");
-      expect(got.vendors.every((v: { listId: string }) => v.listId === got.lists[0].id)).toBe(true);
+      // The researched Puerto Rico vendors start in the default list; the US hotel programs in a list of their own.
+      expect(got.lists.map((l: { name: string }) => l.name)).toEqual(["Puerto Rico vendors", "United States vendors"]);
+      const usIds = HOTEL_PROGRAM_VENDORS.filter((v) => v.listId === UNITED_STATES_VENDOR_LIST.id).map((v) => v.id).sort();
+      expect(got.vendors.filter((v: { listId: string }) => v.listId === got.lists[1].id).map((v: { id: string }) => v.id).sort()).toEqual(usIds);
+      expect(got.vendors.filter((v: { listId: string }) => v.listId !== got.lists[1].id).every((v: { listId: string }) => v.listId === got.lists[0].id)).toBe(true);
 
       expect((await callAdmin("POST", "/api/master/vendor-lists", { name: "   " })).status).toBe(400);
       expect((await callAdmin("POST", "/api/master/vendor-lists", { name: "puerto rico VENDORS" })).status).toBe(400);
       const texas = (await callAdmin("POST", "/api/master/vendor-lists", { name: "Texas" })).json.list;
       const machu = (await callAdmin("POST", "/api/master/vendor-lists", { name: "Machu Picchu" })).json.list;
-      expect((await callAdmin("GET", "/api/master/vendors")).json.lists.map((l: { name: string }) => l.name)).toEqual(["Puerto Rico vendors", "Texas", "Machu Picchu"]);
+      expect((await callAdmin("GET", "/api/master/vendors")).json.lists.map((l: { name: string }) => l.name)).toEqual(["Puerto Rico vendors", "United States vendors", "Texas", "Machu Picchu"]);
 
       // A vendor saved under a list lives in that list only.
       const added = (await callAdmin("POST", "/api/master/vendors", { name: "Austin Event Co", category: "event-planner", listId: texas.id })).json.vendor;
