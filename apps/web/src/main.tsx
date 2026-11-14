@@ -63,6 +63,8 @@ later(() => {
   if (!lightMotion) void import("./app/fog.ts").then((m) => m.startFog());
   void import("./app/particles.ts").then((m) => m.startParticles());
 });
+// The app is taking over from the plain-text page that theme-init.js kept hidden.
+document.documentElement.classList.remove("app-loading");
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {/* The owner dashboard is English-only; the assistants' portal and the
