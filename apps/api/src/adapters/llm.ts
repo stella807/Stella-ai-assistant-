@@ -13,8 +13,13 @@ import { postJson } from "./fulfillment.ts";
  * `AI_ASSIST`):
  *   1. `<PREFIX>_API_BASE` and `<PREFIX>_API_KEY` both set: that endpoint,
  *      OpenAI-style. An explicit override always wins.
- *   2. `ANTHROPIC_API_KEY` set: Claude, directly.
- *   3. The website assistant only: the drafting helper's `AI_ASSIST_API_*`
+ *   2. `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY` set: the LiteLLM gateway
+ *      (deploy/litellm), asked for the `safehubby-chat` alias so the gateway,
+ *      not this code, decides which model answers and what it falls back to.
+ *      If the gateway itself fails and `ANTHROPIC_API_KEY` is set, Claude is
+ *      asked directly: a gateway outage must not silence the assistant.
+ *   3. `ANTHROPIC_API_KEY` set: Claude, directly.
+ *   4. The website assistant only: the drafting helper's `AI_ASSIST_API_*`
  *      endpoint, so a setup made before Claude was added keeps working.
  *
  * Environment is read on every call, never at import, so configuring it needs
@@ -29,7 +34,9 @@ const ANTHROPIC_VERSION = "2023-06-01";
 
 type Resolved =
   | { kind: "anthropic"; base: string; key: string; model: string }
-  | { kind: "openai"; base: string; key: string; model: string };
+  | { kind: "openai"; base: string; key: string; model: string; gateway?: true };
+
+export const GATEWAY_MODEL_ALIAS = "safehubby-chat";
 
 const env = (name: string): string | undefined => process.env[name] || undefined;
 
@@ -38,6 +45,12 @@ export function resolveLlm(feature: LlmFeature): Resolved | null {
   const ownKey = env(`${feature}_API_KEY`);
   const ownModel = env(`${feature}_MODEL`);
   if (ownBase && ownKey) return { kind: "openai", base: ownBase, key: ownKey, model: ownModel ?? env("AI_ASSIST_MODEL") ?? "gpt-4o-mini" };
+
+  const gatewayUrl = env("LLM_GATEWAY_URL");
+  const gatewayKey = env("LLM_GATEWAY_KEY");
+  if (gatewayUrl && gatewayKey) {
+    return { kind: "openai", base: `${gatewayUrl.replace(/\/+$/, "").replace(/\/v1$/, "")}/v1`, key: gatewayKey, model: env("LLM_GATEWAY_MODEL") ?? GATEWAY_MODEL_ALIAS, gateway: true };
+  }
 
   const anthropicKey = env("ANTHROPIC_API_KEY");
   if (anthropicKey) {
@@ -66,6 +79,22 @@ export async function llmComplete(
 ): Promise<string> {
   const r = resolveLlm(feature);
   if (!r) throw new Error("The AI assistant is not configured.");
+  const anthropicKey = env("ANTHROPIC_API_KEY");
+  if (r.kind === "openai" && r.gateway && anthropicKey) {
+    try {
+      return await complete(r, input);
+    } catch {
+      const direct: Resolved = { kind: "anthropic", base: env("ANTHROPIC_API_BASE") ?? "https://api.anthropic.com", key: anthropicKey, model: env(`${feature}_MODEL`) ?? DEFAULT_CLAUDE_MODEL };
+      return complete(direct, input);
+    }
+  }
+  return complete(r, input);
+}
+
+async function complete(
+  r: Resolved,
+  input: { system: string; messages: LlmTurn[]; maxTokens: number; temperature?: number },
+): Promise<string> {
   const base = r.base.replace(/\/$/, "");
 
   if (r.kind === "anthropic") {

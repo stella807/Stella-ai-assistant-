@@ -1,0 +1,25 @@
+# Safehubby asks for one name, "safehubby-chat". The gateway answers with Claude,
+# and switches to Gemini (official free tier) only if Claude fails or is rate-limited.
+# Keys come from the service's environment, never from this file.
+model_list:
+  - model_name: safehubby-chat
+    litellm_params:
+      model: anthropic/claude-haiku-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: safehubby-backup
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+router_settings:
+  fallbacks: [{ "safehubby-chat": ["safehubby-backup"] }]
+  num_retries: 1
+  timeout: 30
+
+litellm_settings:
+  drop_params: true
+  # No prompts or answers are written to logs: they can hold members' details.
+  turn_off_message_logging: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_CLAUDE_MODEL, llmComplete, llmConfigured, resolveLlm } from "../src/adapters/llm.ts";
 
-const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_BASE", "SITE_CHAT_API_BASE", "SITE_CHAT_API_KEY", "SITE_CHAT_MODEL", "AI_ASSIST_API_BASE", "AI_ASSIST_API_KEY", "AI_ASSIST_MODEL"];
+const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_BASE", "SITE_CHAT_API_BASE", "SITE_CHAT_API_KEY", "SITE_CHAT_MODEL", "AI_ASSIST_API_BASE", "AI_ASSIST_API_KEY", "AI_ASSIST_MODEL", "LLM_GATEWAY_URL", "LLM_GATEWAY_KEY", "LLM_GATEWAY_MODEL"];
 const realFetch = globalThis.fetch;
 const calls: { url: string; headers: Record<string, string>; body: any }[] = [];
 
@@ -87,5 +87,45 @@ describe("calling Claude directly", () => {
     expect(await llmComplete("SITE_CHAT", { system: "s", messages: [{ role: "user", content: "q" }], maxTokens: 10 })).toBe("hi");
     expect(calls[0]!.url).toBe("https://other.test/v1/chat/completions");
     expect(calls[0]!.body.messages[0]).toEqual({ role: "system", content: "s" });
+  });
+});
+
+describe("going through the LiteLLM gateway", () => {
+  const ask = () => llmComplete("SITE_CHAT", { system: "s", messages: [{ role: "user", content: "q" }], maxTokens: 10 });
+
+  it("sends both features through the gateway, by its model alias, when it is set", () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant";
+    process.env.LLM_GATEWAY_URL = "http://litellm.railway.internal:4000";
+    process.env.LLM_GATEWAY_KEY = "sk-gw";
+    expect(resolveLlm("SITE_CHAT")).toMatchObject({ kind: "openai", base: "http://litellm.railway.internal:4000/v1", model: "safehubby-chat" });
+    expect(resolveLlm("AI_ASSIST")).toMatchObject({ kind: "openai", model: "safehubby-chat" });
+  });
+
+  it("still lets a feature's own endpoint win over the gateway", () => {
+    process.env.LLM_GATEWAY_URL = "http://gw:4000";
+    process.env.LLM_GATEWAY_KEY = "sk-gw";
+    process.env.SITE_CHAT_API_BASE = "https://other.test/v1";
+    process.env.SITE_CHAT_API_KEY = "k";
+    expect(resolveLlm("SITE_CHAT")).toMatchObject({ base: "https://other.test/v1" });
+  });
+
+  it("falls back to Claude directly when the gateway is down, so the assistant keeps answering", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant";
+    process.env.LLM_GATEWAY_URL = "http://gw:4000";
+    process.env.LLM_GATEWAY_KEY = "sk-gw";
+    globalThis.fetch = (async (url: any, init: any) => {
+      calls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
+      if (String(url).startsWith("http://gw")) return new Response("bad gateway", { status: 502 });
+      return new Response(JSON.stringify({ content: [{ type: "text", text: "direct" }] }), { status: 200 });
+    }) as typeof fetch;
+    expect(await ask()).toBe("direct");
+    expect(calls.map((c) => c.url)).toEqual(["http://gw:4000/v1/chat/completions", "https://api.anthropic.com/v1/messages"]);
+  });
+
+  it("reports the gateway's failure when there is no Claude key to fall back to", async () => {
+    process.env.LLM_GATEWAY_URL = "http://gw:4000";
+    process.env.LLM_GATEWAY_KEY = "sk-gw";
+    globalThis.fetch = (async () => new Response("bad gateway", { status: 502 })) as typeof fetch;
+    await expect(ask()).rejects.toThrow(/502/);
   });
 });
