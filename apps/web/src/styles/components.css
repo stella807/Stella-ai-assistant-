@@ -275,6 +275,11 @@
   color: var(--muted);
   white-space: nowrap;
 }
+/* A long pill (a sentence, such as the launch-party discount) wraps inside its
+   card instead of running off the edge of a phone screen. */
+.pill { max-width: 100%; }
+.pill:not(:has(> *)) { white-space: normal; line-height: 1.3; }
+.pill::before { flex: none; }
 /* A dot ahead of the label: readable at a glance, and readable in greyscale
    for anyone who cannot separate the fills by hue. */
 .pill::before {
@@ -504,13 +509,11 @@
    on remembering the last card you swiped past. */
 .plan-ladder {
   display: flex;
+  flex-wrap: wrap; /* every price in view: on a phone the fifth plan used to sit off the edge, cut mid-number */
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.plan-ladder::-webkit-scrollbar { display: none; }
 .plan-ladder-item {
-  flex: 1 0 auto;
+  flex: 1 1 88px;
   min-width: 68px;
   display: flex;
   flex-direction: column;
@@ -1349,3 +1352,13 @@ input[type="file"] { max-width: 100%; min-width: 0; box-sizing: border-box; }
 .rival-named td:nth-child(2) { width: 43%; }
 .rival-named tr.rival-us { background: rgba(212, 175, 90, 0.10); }
 .rival-named a { color: var(--accent-bright, #d4af5a); text-decoration: underline; }
+
+/* The plan comparison is wider than a phone. It scrolls sideways; the right
+   edge fades and a line says so, so the cut-off column reads as "more this way"
+   rather than as a broken table. */
+.compare-scroll { overflow-x: auto; }
+.compare-hint { display: none; margin: 4px 0 0; }
+@media (max-width: 720px) {
+  .compare-hint { display: block; }
+  .compare-scroll { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+}

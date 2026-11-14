@@ -236,6 +236,7 @@ const EN = {
   "pricing.capNote": "On top of this you set a spend cap for anything they buy for you. The cap is a ceiling, not a price — you are charged for what is actually spent, and never a cent over it.",
 
   "compare.heading": "Compare what's included",
+  "compare.swipe": "Swipe the table sideways to see every plan.",
   "compare.seats": "Clients covered",
   "compare.grabSomething": "Grab something",
   "compare.runErrand": "Run an errand",
@@ -647,6 +648,7 @@ const ES: Record<TranslationKey, string> = {
   "pricing.capNote": "Además, tú fijas un límite de gasto para lo que compren por ti. El límite es un techo, no un precio — se te cobra lo que realmente se gaste, y nunca un centavo más.",
 
   "compare.heading": "Compara lo que incluye cada plan",
+  "compare.swipe": "Desliza la tabla de lado para ver todos los planes.",
   "compare.seats": "Clientes cubiertos",
   "compare.grabSomething": "Que te compren algo",
   "compare.runErrand": "Que te hagan un mandado",

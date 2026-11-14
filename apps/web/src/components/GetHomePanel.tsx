@@ -257,9 +257,10 @@ export function GetHomePanel({ pickup, homeLabel, planId }: {
       {!homeAddress ? (
         <div className="field">
           <label htmlFor="address-label" className="tiny muted">{w.saveAddressLabel}</label>
-          <div className="row" style={{ gap: 6 }}>
+          {/* Wraps: the button's label is long in Spanish, and on a phone it ran off the card beside the field. */}
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
             <input id="address-label" type="text" value={addressLabel}
-              onChange={(e) => setAddressLabel(e.target.value)} placeholder={w.home} style={{ flex: 1 }} />
+              onChange={(e) => setAddressLabel(e.target.value)} placeholder={w.home} style={{ flex: "1 1 160px", minWidth: 0 }} />
             <button className="btn btn-sm" disabled={busy} onClick={saveAddress}>{w.saveAddress}</button>
           </div>
         </div>

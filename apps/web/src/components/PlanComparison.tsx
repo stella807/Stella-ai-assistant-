@@ -75,7 +75,8 @@ export function PlanComparison({ plans }: { plans: Plan[] }) {
 
       {open && (
         <>
-          <div style={{ overflowX: "auto" }}>
+          <p className="tiny muted compare-hint">{t("compare.swipe")}</p>
+          <div className="compare-scroll">
             <table className="pay-table compare-table">
               <thead>
                 <tr>
