@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" style="background:#0a0e1a">
+<html lang="en" class="app-loading" style="background:#0a0e1a">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -24,6 +24,7 @@
       {"@context":"https://schema.org","@type":"Organization","name":"Safehubby","url":"https://safehubby.com/","logo":"https://safehubby.com/apple-touch-icon.png","email":"contact@safehubby.com","areaServed":["Puerto Rico","Texas","Los Angeles"]}
     </script>
     <!--/seo:head-->
+    <noscript><style>html.app-loading .seo-shell{visibility:visible;animation:none}</style></noscript>
     <!-- How the page reads for the moment before the app starts, and for anything that does not run JavaScript. -->
     <style>
       .seo-shell{max-width:448px;margin:0 auto;padding:18px 16px 40px;color:#e7ecf7;font:400 17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
@@ -36,7 +37,10 @@
       .seo-shell .seo-brand{font-family:Georgia,serif;letter-spacing:.08em;text-transform:uppercase;margin:0}
       .seo-shell .seo-eyebrow{letter-spacing:.2em;text-transform:uppercase;font-size:12px;color:#c99a4c;margin:18px 0 0}
       .seo-shell .seo-small{font-size:13px;color:#9aa7c2}
-      .app-loading .seo-shell{visibility:hidden}
+      /* Hidden from the first byte, not by a script: a browser holding an older copy of theme-init.js would show it. The app replaces it
+         when it starts. If the app never does, it comes back by itself after 8 seconds, and at once without JavaScript. */
+      .app-loading .seo-shell{visibility:hidden;animation:seo-show 0s 8s forwards}
+      @keyframes seo-show{to{visibility:visible}}
     </style>
   </head>
   <body>

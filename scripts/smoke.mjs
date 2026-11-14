@@ -73,7 +73,7 @@ for (const img of ["hero-luxury", "showcase-jet", "showcase-lounge", "showcase-y
   check(`picture ${img}`, r.status === 200 && (r.headers.get("content-type") ?? "").startsWith("image/"), String(r.status));
 }
 check("the early theme script is served", (await fetch(`${base}/theme-init.js`)).status === 200);
-check("the plain-text page is covered until the app starts", (await (await fetch(`${base}/theme-init.js`)).text()).includes("app-loading") && (await (await fetch(`${base}/`)).text()).includes(".app-loading .seo-shell{visibility:hidden}"));
+check("the plain-text page is hidden from the first byte, with a way back", /<html lang="en" class="app-loading"/.test(home.text) && home.text.includes(".app-loading .seo-shell{visibility:hidden;animation:seo-show 0s 8s forwards}") && home.text.includes("<noscript><style>html.app-loading .seo-shell{visibility:visible"));
 
 for (const [path, needle] of [
   ["/es", 'lang="es"'], ["/careers", "<h1>"], ["/es/trabajo", "<h1>"], ["/drive", "<h1>"],

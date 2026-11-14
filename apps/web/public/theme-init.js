@@ -8,9 +8,3 @@ try {
   }
 } catch (e) { /* storage blocked: stay dark */ }
 
-// The page arrives with a plain-text version of itself for search engines and for
-// browsers without JavaScript. With JavaScript, a visitor would see that text flash
-// before the app replaces it, so it is hidden until the app starts
-// (main.tsx shows the app). If the app never starts, the text comes back by itself.
-document.documentElement.classList.add("app-loading");
-setTimeout(function () { document.documentElement.classList.remove("app-loading"); }, 8000);
