@@ -49,15 +49,22 @@ describe("who pays", () => {
     expect(who("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36")).toBe("person");
   });
 
-  it("asks AI crawlers and agents to pay, including Anthropic's and OpenAI's", () => {
+  it("asks AI crawlers and agents to pay, OpenAI's included", () => {
     for (const ua of [
       "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
       "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ChatGPT-User/1.0; +https://openai.com/bot)",
-      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
-      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)",
       "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 (Applebot-Extended/0.1)",
     ]) expect(who(ua), ua).toBe("agent");
+  });
+
+  it("lets every one of Claude's agents and crawlers read free", () => {
+    for (const ua of [
+      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)",
+      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-SearchBot/1.0; +Claude-SearchBot@anthropic.com)",
+      "anthropic-ai",
+    ]) expect(who(ua), ua).toBe("claude");
   });
 
   it("asks plain HTTP tools and headless browsers to pay, and a visitor with no User-Agent", () => {
@@ -115,6 +122,14 @@ describe("the paywall", () => {
     expect(f.feePayer).not.toHaveBeenCalled();
   });
 
+  it("serves Claude free, article and preview, without asking the facilitator anything", async () => {
+    const f = fakeFacilitator();
+    const paywall = paywallWith(f);
+    expect(await paywall.gate(request({ "user-agent": "Claude-User/1.0" }))).toEqual({ type: "serve", headers: {} });
+    expect((await paywall.gate(request({ "user-agent": "ClaudeBot/1.0" }, { kind: "preview" }))).type).toBe("serve");
+    expect(f.feePayer).not.toHaveBeenCalled();
+  });
+
   it("serves the owner's key free and keeps the page out of shared caches", async () => {
     const gate = await paywallWith(fakeFacilitator()).gate(request({ "user-agent": "curl/8", "x-safehubby-access": KEY }));
     expect(gate).toEqual({ type: "serve", headers: { "cache-control": "private, no-store" } });
@@ -141,7 +156,7 @@ describe("the paywall", () => {
   });
 
   it("prices a preview at $0.001", async () => {
-    const gate = await paywallWith(fakeFacilitator()).gate(request({ "user-agent": "ClaudeBot/1.0" }, { kind: "preview", previewUrl: undefined, title: "A post" }));
+    const gate = await paywallWith(fakeFacilitator()).gate(request({ "user-agent": "PerplexityBot/1.0" }, { kind: "preview", previewUrl: undefined, title: "A post" }));
     if (gate.type !== "respond") throw new Error("expected a 402");
     const required = decode(gate.headers["PAYMENT-REQUIRED"]!);
     expect(required.accepts[0].amount).toBe(String(PRICES.preview));
@@ -407,6 +422,12 @@ describe("the blog, served with the paywall", () => {
     expect(await res.text()).toContain(`<h1>`);
     expect(res.headers.get("cache-control")).toBe("private, no-store");
     expect(res.headers.get("payment-response")).toBeTruthy();
+  });
+
+  it("sends Claude the whole article free", async () => {
+    const res = await fetch(`${base}/blog/${slug}`, { headers: { "user-agent": "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)" } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("<h1>");
   });
 
   it("lets the owner's key read the article and its preview free", async () => {

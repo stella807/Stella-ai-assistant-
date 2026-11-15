@@ -1,7 +1,7 @@
 # AI agents pay to read the blog
 
-People read the blog free. AI crawlers and agents (GPTBot, ClaudeBot,
-PerplexityBot and the rest, and plain tools like curl or python-requests) pay
+People read the blog free. AI crawlers and agents (GPTBot, PerplexityBot
+and the rest, except Claude's, and plain tools like curl or python-requests) pay
 in USDC on Solana, through [x402](https://x402.org), to the owner's wallet:
 
 | Page | Price | Address |
@@ -34,6 +34,12 @@ transaction ...`. Look the transaction up on any Solana explorer.
 - **Search engines and link previews** (Google, Bing, Apple, DuckDuckGo,
   WhatsApp, Facebook, Slack...). Charging them would take the blog out of
   search and break shared links.
+- **Claude.** Every one of Anthropic's agents and crawlers (Claude-User,
+  ClaudeBot, Claude-SearchBot), on the owner's say, so Claude can read and
+  check the blog it helps write. A visitor is taken to be Claude by its
+  User-Agent alone, so a scraper calling itself Claude also reads free. If
+  that is ever abused, drop the `CLAUDE` list in `agent-paywall.ts` and use
+  the key below instead.
 - **The owner's key.** `?access=<BLOG_ACCESS_KEY>` on an article's address, or
   the `x-safehubby-access` header. This is how the owner, or Claude working
   for them, checks a live post. Keep it private; change it in Railway if it

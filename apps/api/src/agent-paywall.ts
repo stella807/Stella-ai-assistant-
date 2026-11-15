@@ -19,6 +19,9 @@ import { timingSafeEqual } from "node:crypto";
  *   so the owner, or Claude working for them, can check a post as it is live.
  * - Search engines and link previews read free: charging them would take the
  *   blog out of search and break shared links.
+ * - Claude, all of Anthropic's agents and crawlers, reads free: the owner's
+ *   choice, so Claude can read and check the blog it helps write. Anyone can
+ *   claim to be Claude, so this is a door left open on purpose, not a check.
  * - Named AI crawlers and agents, and plain HTTP tools (curl, python-requests,
  *   headless browsers and the like), are asked to pay.
  * - Everyone else is taken to be a person and reads free.
@@ -72,10 +75,12 @@ export interface PaywallConfig {
   accessKey?: string | null;
 }
 
-export type Visitor = "owner" | "paying" | "agent" | "search" | "person";
+export type Visitor = "owner" | "paying" | "claude" | "agent" | "search" | "person";
 
+/** Anthropic's agents and crawlers, which read free (see above). */
+const CLAUDE = /claudebot|claude-user|claude-searchbot|claude-web|anthropic-ai/i;
 /** Agents and crawlers that read pages for an AI product. Checked before SEARCH, because "Applebot-Extended" contains "Applebot". */
-const AI_AGENTS = /gptbot|chatgpt-user|oai-searchbot|claudebot|claude-user|claude-searchbot|claude-web|anthropic-ai|perplexitybot|perplexity-user|ccbot|bytespider|amazonbot|applebot-extended|meta-externalagent|meta-externalfetcher|facebookbot|cohere-ai|cohere-training|diffbot|youbot|mistralai-user|duckassistbot|google-cloudvertexbot|googleother|petalbot|ai2bot|imagesiftbot|timpibot|omgili|firecrawl|crawl4ai|scrapy|headlesschrome|phantomjs/i;
+const AI_AGENTS = /gptbot|chatgpt-user|oai-searchbot|perplexitybot|perplexity-user|ccbot|bytespider|amazonbot|applebot-extended|meta-externalagent|meta-externalfetcher|facebookbot|cohere-ai|cohere-training|diffbot|youbot|mistralai-user|duckassistbot|google-cloudvertexbot|googleother|petalbot|ai2bot|imagesiftbot|timpibot|omgili|firecrawl|crawl4ai|scrapy|headlesschrome|phantomjs/i;
 /** Search engines and the bots that draw a link's preview when someone shares it. */
 const SEARCH = /googlebot|google-inspectiontool|storebot-google|adsbot-google|bingbot|bingpreview|duckduckbot|applebot|yandexbot|baiduspider|facebookexternalhit|twitterbot|linkedinbot|slackbot|whatsapp|telegrambot|discordbot|pinterestbot/i;
 /** Plain HTTP tools: a person reading the blog uses a browser, so these are programs. */
@@ -99,6 +104,7 @@ export function classifyVisitor(headers: Record<string, string | string[] | unde
   if (header(headers, "payment-signature") || header(headers, "x-payment")) return "paying";
   const ua = (header(headers, "user-agent") ?? "").trim();
   if (!ua) return "agent";
+  if (CLAUDE.test(ua)) return "claude";
   if (AI_AGENTS.test(ua)) return "agent";
   if (SEARCH.test(ua)) return "search";
   if (TOOLS.test(ua)) return "agent";
@@ -183,7 +189,7 @@ export function createAgentPaywall(config: PaywallConfig) {
       const visitor = classifyVisitor(req.headers, req.url, config.accessKey);
       // A page someone paid for is theirs alone: no shared cache may hand it to the next agent.
       if (visitor === "owner") return { type: "serve", headers: { "cache-control": "private, no-store" } };
-      if (visitor === "person" || visitor === "search") return { type: "serve", headers: {} };
+      if (visitor === "person" || visitor === "search" || visitor === "claude") return { type: "serve", headers: {} };
 
       let accepts: PaymentRequirements;
       try {
