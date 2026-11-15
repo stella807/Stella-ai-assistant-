@@ -7,6 +7,7 @@ import { Store, type StoreLike } from "./store.ts";
 import { applySeo, seoPageFor, sitemapXml, type SeoFacts } from "./seo.ts";
 import { seoFactsFor } from "./seo-facts.ts";
 import { blogPageFor, blogSitemapUrls, isBlogPath } from "./blog.ts";
+import type { AgentPaywall } from "./agent-paywall.ts";
 import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
 import { cancelStripeSubscription } from "./adapters/stripe.ts";
 import {
@@ -164,7 +165,8 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 /** The OpenReceive routes, when a crypto wallet is configured — see adapters/openreceive.ts. */
 export type CryptoRoutes = (req: IncomingMessage, res: ServerResponse, body: string, travelerId: string | null) => Promise<void>;
 
-export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
+/** With a paywall, AI agents pay to read blog articles (agent-paywall.ts); without one, the blog is free to all. */
+export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null, agentPaywall: AgentPaywall | null = null) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // No other site may frame this one (clickjacking), and a file is never guessed to be a different type.
     res.setHeader("X-Frame-Options", "DENY");
@@ -232,9 +234,26 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       const isRead = method === "GET" || method === "HEAD";
       if (isRead && isBlogPath(url.pathname)) {
         // The blog's pages are whole documents the server writes itself (blog.ts), not the app.
-        const page = blogPageFor(url.pathname, seoFactsFor(base));
+        const facts = seoFactsFor(base);
+        const preview = url.searchParams.has("preview");
+        const page = blogPageFor(url.pathname, facts, undefined, { preview });
         if (page) {
-          res.writeHead(page.status, { "content-type": MIME[".html"]!, "content-language": page.lang, "cache-control": "public, max-age=300" });
+          const headers: Record<string, string> = { "content-type": MIME[".html"]!, "content-language": page.lang, "cache-control": "public, max-age=300" };
+          if (agentPaywall && (page.kind === "article" || page.kind === "preview")) {
+            const address = `${facts.origin}${url.pathname.replace(/\/+$/, "")}`;
+            const gate = await agentPaywall.gate({
+              headers: req.headers, url, head: method === "HEAD", kind: page.kind, title: page.title ?? "",
+              resourceUrl: preview ? `${address}?preview=1` : address,
+              previewUrl: preview ? undefined : `${address}?preview=1`,
+            });
+            if (gate.type === "respond") {
+              const json = JSON.stringify(gate.body);
+              res.writeHead(gate.status, { ...gate.headers, "content-type": "application/json; charset=utf-8", "content-length": String(Buffer.byteLength(json)) });
+              return void res.end(method === "HEAD" ? undefined : json);
+            }
+            Object.assign(headers, gate.headers);
+          }
+          res.writeHead(page.status, headers);
           return void res.end(method === "HEAD" ? undefined : page.html);
         }
       }

@@ -4,6 +4,8 @@ import {
 } from "./billing.ts";
 import { chargeSaved, chargingReady } from "./adapters/charging.ts";
 import { createApp, makeCtx } from "./server.ts";
+import { createAgentPaywall, type AgentPaywall } from "./agent-paywall.ts";
+import { agentPaywallConfigFromEnv } from "./adapters/x402-facilitator.ts";
 import { createCryptoRoutes } from "./adapters/openreceive.ts";
 import { emailMode } from "./adapters/email.ts";
 import { ensureStripeCardholder } from "./adapters/stripe-cards.ts";
@@ -212,7 +214,16 @@ async function main(): Promise<void> {
     return null;
   });
   if (cryptoRoutes) console.log("[safehubby] Crypto payments: set up (OpenReceive) — the wallet is checked on the first payment");
-  const server = createApp(makeCtx(store), cryptoRoutes);
+  // AI agents pay to read the blog once a facilitator is set; a bad key leaves the blog free rather than the site down.
+  let agentPaywall: AgentPaywall | null = null;
+  try {
+    const paywall = agentPaywallConfigFromEnv();
+    if (paywall) agentPaywall = createAgentPaywall(paywall);
+    console.log(`[safehubby] Blog paywall for AI agents: ${paywall ? paywall.describe : "off (no CDP_API_KEY_ID/CDP_API_KEY_SECRET or X402_FACILITATOR_URL)"}.`);
+  } catch (err) {
+    console.error("[safehubby] Blog paywall is off:", err instanceof Error ? err.message : err);
+  }
+  const server = createApp(makeCtx(store), cryptoRoutes, agentPaywall);
   server.listen(port, () => console.log(`[safehubby] Listening on ${port}`));
 
   // Railway sends SIGTERM on redeploy; finish in-flight writes before exiting

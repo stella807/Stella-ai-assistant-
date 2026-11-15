@@ -5,6 +5,9 @@
 Spanish. See `docs/seo.md` for how the rest of the site is described to
 search engines.
 
+AI agents pay to read the articles; people and search engines do not. See
+`docs/blog-paywall.md`.
+
 ## Publishing an article
 
 1. Add a file in `apps/api/src/blog/`, named `YYYY-MM-DD-subject.ts`, that

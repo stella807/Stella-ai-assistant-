@@ -58,6 +58,7 @@ const UI = {
     ctaText: "Safehubby sends a personal assistant, an errand runner or a ride. Check-ins, location sharing and SOS are free.",
     ctaButton: "See what it costs", allArticles: "All articles", home: "Safehubby home", jobs: "Jobs",
     notFound: "That article does not exist.",
+    preview: "Preview", previewNote: "This is the start of the article. The whole of it is at",
   },
   es: {
     blogTitle: "El blog de Safehubby",
@@ -71,6 +72,7 @@ const UI = {
     ctaText: "Safehubby te envía un asistente personal, un mensajero o un viaje. Los chequeos, la ubicación y el SOS son gratis.",
     ctaButton: "Ver cuánto cuesta", allArticles: "Todos los artículos", home: "Inicio de Safehubby", jobs: "Empleos",
     notFound: "Ese artículo no existe.",
+    preview: "Vista previa", previewNote: "Este es el comienzo del artículo. El artículo completo está en",
   },
 } as const;
 
@@ -230,23 +232,59 @@ function articlePage(f: SeoFacts, lang: SiteLang, a: Article): string {
   }, main, articlePath(a, other(lang)));
 }
 
-export interface BlogResponse { status: 200 | 404; lang: SiteLang; html: string }
+/**
+ * A short page for an article: its title, summary and first paragraph, with a
+ * link to the whole of it. It is what an AI agent can buy for less than the
+ * article (see agent-paywall.ts). It is never indexed: the article is the page
+ * search engines should find.
+ */
+function previewPage(f: SeoFacts, lang: SiteLang, a: Article): string {
+  const w = UI[lang];
+  const url = `${f.origin}${articlePath(a, lang)}`;
+  const first = a.blocks.find((b): b is { p: Words } => "p" in b);
+  const main = [
+    `<article><p class="eyebrow">Blog · ${w.preview} · ${w.published} ${longDate(a.publishedOn, lang)}</p>`,
+    `<h1>${escapeHtml(a.title[lang])}</h1>`,
+    `<p class="lead">${escapeHtml(fill(a.description[lang], f))}</p>`,
+    ...(first ? [renderBlock(first, lang, f)] : []),
+    `<p class="small">${w.previewNote} <a href="${articlePath(a, lang)}">${escapeHtml(url)}</a></p>`,
+    `</article>`,
+  ].join("");
+  return document(f, {
+    lang, title: `${w.preview}: ${a.title[lang]} | Safehubby`, description: fill(a.description[lang], f), alternates: [], jsonLd: [],
+  }, main, undefined);
+}
+
+export interface BlogResponse {
+  status: 200 | 404;
+  lang: SiteLang;
+  html: string;
+  /** What the page is: an article (or its preview) is what agents pay for; the indexes and the 404 page are free. */
+  kind: "index" | "article" | "preview" | "missing";
+  /** The article's title, for an article or a preview. */
+  title?: string;
+}
 
 /** Whether an address belongs to the blog at all (so the server can skip the work for every other request). */
 export const isBlogPath = (pathname: string): boolean => /^\/(es\/)?blog(\/|$)/.test(pathname.toLowerCase());
 
-/** The blog page at an address, a 404 page for an article that does not exist, or null for an address that is not the blog's. */
-export function blogPageFor(pathname: string, f: SeoFacts, articles: readonly Article[] = ARTICLES): BlogResponse | null {
+/**
+ * The blog page at an address, a 404 page for an article that does not exist,
+ * or null for an address that is not the blog's. With `preview`, an article's
+ * address gives its preview page instead of the whole article.
+ */
+export function blogPageFor(pathname: string, f: SeoFacts, articles: readonly Article[] = ARTICLES, options: { preview?: boolean } = {}): BlogResponse | null {
   const path = pathname.toLowerCase().replace(/\/+$/, "");
   for (const lang of LANGS) {
-    if (path === BLOG[lang]) return { status: 200, lang, html: indexPage(f, lang, articles) };
+    if (path === BLOG[lang]) return { status: 200, lang, kind: "index", html: indexPage(f, lang, articles) };
     if (!path.startsWith(`${BLOG[lang]}/`)) continue;
     const slug = path.slice(BLOG[lang].length + 1);
     const found = articles.find((a) => a.slug[lang] === slug);
-    if (found) return { status: 200, lang, html: articlePage(f, lang, found) };
+    if (found && options.preview) return { status: 200, lang, kind: "preview", title: found.title[lang], html: previewPage(f, lang, found) };
+    if (found) return { status: 200, lang, kind: "article", title: found.title[lang], html: articlePage(f, lang, found) };
     const w = UI[lang];
     const main = `<h1>${w.notFound}</h1><p><a href="${BLOG[lang]}">${w.allArticles}</a></p>`;
-    return { status: 404, lang, html: document(f, { lang, title: `${w.notFound} | Safehubby`, description: "", alternates: [], jsonLd: [] }, main, undefined) };
+    return { status: 404, lang, kind: "missing", html: document(f, { lang, title: `${w.notFound} | Safehubby`, description: "", alternates: [], jsonLd: [] }, main, undefined) };
   }
   return null;
 }
