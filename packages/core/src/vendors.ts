@@ -11,8 +11,11 @@
  * contact once somebody answers.
  */
 
+import { AIRPORT_VIP_VENDORS } from "./airport-vip-vendors.ts";
+export { AIRPORT_VIP_VENDORS };
+
 export type VendorCategory =
-  | "boats" | "bio-bay" | "skydiving" | "motorsport" | "rum-cigars" | "wine" | "transport" | "cleaning" | "flowers" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "hotels" | "growth";
+  | "boats" | "bio-bay" | "skydiving" | "motorsport" | "rum-cigars" | "wine" | "transport" | "cleaning" | "flowers" | "private-chef" | "fishing" | "air" | "off-road" | "event-planner" | "hotels" | "airport-vip" | "growth";
 
 export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "event-planner", label: "Event planners and DMCs" },
@@ -27,6 +30,7 @@ export const VENDOR_CATEGORIES: { id: VendorCategory; label: string }[] = [
   { id: "wine", label: "Wine and tastings" },
   { id: "transport", label: "Chauffeurs and transport" },
   { id: "hotels", label: "Hotels and travel perks" },
+  { id: "airport-vip", label: "Airport VIP and meet and greet" },
   { id: "cleaning", label: "Home cleaning and maintenance" },
   { id: "flowers", label: "Flowers and gifts" },
   { id: "private-chef", label: "Private chefs and dining" },
@@ -45,8 +49,11 @@ export const DEFAULT_VENDOR_LIST: VendorList = { id: "list-puerto-rico", name: "
 /** Where researched vendors based on the mainland are filed, so they are not mistaken for Puerto Rico ones. */
 export const UNITED_STATES_VENDOR_LIST: VendorList = { id: "list-united-states", name: "United States vendors" };
 
+/** Where researched vendors in the rest of the world are filed. */
+export const WORLDWIDE_VENDOR_LIST: VendorList = { id: "list-worldwide", name: "Worldwide vendors" };
+
 /** Lists a suggested vendor can be filed under, created the first time one of their vendors is loaded. */
-export const SUGGESTED_VENDOR_LISTS: VendorList[] = [UNITED_STATES_VENDOR_LIST];
+export const SUGGESTED_VENDOR_LISTS: VendorList[] = [UNITED_STATES_VENDOR_LIST, WORLDWIDE_VENDOR_LIST];
 
 export interface Vendor {
   id: string;
@@ -72,7 +79,8 @@ export interface Vendor {
   updatedAt: string;
 }
 
-type Seed = Omit<Vendor, "status" | "updatedAt">;
+export type VendorSeed = Omit<Vendor, "status" | "updatedAt">;
+type Seed = VendorSeed;
 
 const L = "Third-party listing price; confirm with the operator.";
 
@@ -351,4 +359,5 @@ export const SUGGESTED_VENDORS: Seed[] = [
     sourceUrl: "https://federallabs.org/events/2026-boricua-entrepreneur-fest-(be-fest)", notes: "The 2026 edition was listed for September 4. Could be a member outing." },
 
   ...HOTEL_PROGRAM_VENDORS,
+  ...AIRPORT_VIP_VENDORS,
 ];

@@ -71,7 +71,7 @@ import {
   devicesFor, registerDevice, upsertDevice, messagesForAssistantTask,
   submitApplication, reviewApplication, withdrawApplication,
   compilePricing, jobPayRates, JOB_PAY_ROLES, jobPayUnit, defaultJobPayCents, ownerAccruedCentsFor, DRIVER_RATE_CARD, type CurrentPricing, type PriceOverride,
-  DEFAULT_VENDOR_LIST, HOTEL_PROGRAM_VENDORS, SUGGESTED_VENDOR_LISTS, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
+  AIRPORT_VIP_VENDORS, DEFAULT_VENDOR_LIST, HOTEL_PROGRAM_VENDORS, SUGGESTED_VENDOR_LISTS, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, readPartnerInquiry, type PartnerInquiry, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
 } from "@safehubby/core";
@@ -1112,6 +1112,7 @@ const shareInvite = (ctx: Ctx) => {
 const SUGGESTED_LATER = new Set([
   "vnd-skydive-pr", "vnd-xtreme-divers", "vnd-arecibo-motorsport", "vnd-pr-pro-drift", "vnd-ponce-speedway", "vnd-salinas-speedway",
   ...HOTEL_PROGRAM_VENDORS.map((v) => v.id),
+  ...AIRPORT_VIP_VENDORS.map((v) => v.id),
 ]);
 
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
