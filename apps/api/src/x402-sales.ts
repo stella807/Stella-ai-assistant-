@@ -8,6 +8,8 @@ import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
 import { noteSignal } from "./signals.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
+import { newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
+import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
@@ -127,6 +129,21 @@ export const PRODUCTS: Product[] = [
       return { status: 200, body: found, results: found.results.length, summary: JSON.stringify(query).slice(0, 200), words: [query.q, query.country].filter(Boolean).join(" ") };
     },
   },
+  {
+    id: "checklists", title: "Checklists to hand to a person",
+    description: "Practical checklists in English and Spanish for the person an agent works for: a day at the hospital with a parent, arriving at an airport with an older relative, and questions to ask any concierge before hiring one. Plain text with empty boxes, ready to forward. General information, not medical or legal advice. Free with a site pass.",
+    path: "/api/agent/checklists/{slug}", usage: "GET /api/agent/checklists/{slug}?lang=en|es (list them free at /api/agent/checklists)", defaultPrice: "$0.02",
+    respond(u) {
+      const lang: "en" | "es" = u.searchParams.get("lang") === "es" ? "es" : "en";
+      const slug = decodeURIComponent(u.pathname.split("/").pop() ?? "");
+      const c = findChecklist(slug, lang);
+      if (!c) return { status: 404, body: { error: "No checklist has that slug. See /api/agent/checklists for the list (add ?lang=es for Spanish)." }, results: 0, summary: slug.slice(0, 80) };
+      return {
+        status: 200, results: 1, summary: `checklist/${c.slug.en}`, words: `checklist/${c.slug.en}`,
+        body: { slug: c.slug[lang], lang, title: c.title[lang], description: c.description[lang], groups: c.groups.map((g) => ({ heading: g.heading[lang], items: g.items.map((i) => i[lang]) })), forPerson: checklistText(c, lang) },
+      };
+    },
+  },
 ];
 
 const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
@@ -159,13 +176,29 @@ const productFor = (pathname: string): Product | undefined =>
       : pathname === "/api/agent/digest" ? PRODUCTS[2]
         : pathname === "/api/agent/brief" ? PRODUCTS[3]
           : pathname === "/api/agent/airports" ? PRODUCTS[4]
-            : undefined;
+            : pathname.startsWith("/api/agent/checklists/") && pathname.length > "/api/agent/checklists/".length ? PRODUCTS[5]
+              : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
-export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || productFor(pathname) !== undefined;
+export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/checklists" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
-function catalog(origin: string) {
+/** The signing key, made the first time it is needed. Only the public half is ever shown. */
+export function signingKeyFor(store: StoreLike): SigningKeyRecord {
+  let key = store.data.signingKey;
+  if (!key) { key = newSigningKey(); store.update((db) => { db.signingKey = key; }); }
+  return key;
+}
+
+/** Sends a product's answer with a signature over the exact bytes and the address that was asked. */
+function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string) {
+  const text = JSON.stringify(body);
+  const expose = [headers["access-control-expose-headers"], "X-Safehubby-Signature"].filter(Boolean).join(", ");
+  res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", ...headers, "access-control-expose-headers": expose, "X-Safehubby-Signature": signResponse(signingKeyFor(store), text, target, now) });
+  res.end(text);
+}
+
+function catalog(origin: string, store: StoreLike) {
   const config = x402Config();
   const on = !("error" in config);
   return {
@@ -183,6 +216,10 @@ function catalog(origin: string) {
     nfts: {
       url: NFT_COLLECTION.soldAt, gallery: `${origin}/api/agent/nfts`,
       note: "The owner's NFT collection, sold on Rarible, not through this site. The pieces are made with AI and edited by the artist; check the page for what is listed and what each costs. This is art, not an investment: nothing here suggests a piece will keep or gain value, and Safehubby gives no financial advice. Email "+CONTACT_EMAIL+" with questions.",
+    },
+    signing: {
+      alg: "ed25519", keyId: signingKeyFor(store).keyId, key: `${origin}/api/agent/key`,
+      how: "Every answer from the paid items has an X-Safehubby-Signature header. Check it with the public key at the key address: the signed message is the text 'safehubby-v1', the path and query you asked, the created time and the SHA-256 of the exact response body, each on its own line. If it checks, the answer is unchanged and was made at the created time.",
     },
     notForSale: `Errands, visits to check a place, appointments and other work that needs a person are not sold here. Email ${CONTACT_EMAIL} or message Safehubby on WhatsApp at ${WHATSAPP_DISPLAY} for those.`,
     contact: {
@@ -245,7 +282,13 @@ export async function takePayment(
 
 /** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
 export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false): Promise<void> {
-  if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin));
+  if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin, store));
+  // The public key, free, so an agent can check an answer without trusting anything else.
+  if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, { alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how }); }
+  if (url.pathname === "/api/agent/checklists") {
+    const lang = langOf(url);
+    return json(res, 200, { lang, price: "see /api/agent/catalog (free with a site pass)", checklists: checklistIndex(lang).map((c) => ({ ...c, endpoint: `${origin}/api/agent/checklists/${c.slug}?lang=${lang}` })) });
+  }
   // The NFT gallery is free to look at. The pieces are sold on Rarible, never here.
   if (url.pathname === "/api/agent/nfts") {
     return json(res, 200, {
@@ -263,7 +306,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
 
   const answer = product.respond(url, origin);
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
-  if (holdsPass && answer.status === 200) return json(res, 200, answer.body);
+  if (holdsPass && answer.status === 200) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname);
   const paid = await takePayment(req, res, {
     path: url.pathname, origin, price, description: product.description,
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
@@ -282,5 +325,5 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     payer: paid.payer, transaction: paid.transaction, query: answer.summary.slice(0, 300), results: answer.results,
   };
   store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
-  return json(res, 200, answer.body, paid.headers);
+  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname);
 }

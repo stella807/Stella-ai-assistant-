@@ -271,6 +271,8 @@ export interface Db {
   agentSales?: import("./x402-sales.ts").AgentSale[];
   /** What visitors do, as counts by day (no addresses, no names); see signals.ts. Days older than 90 are forgotten. */
   signals?: import("./signals.ts").SignalsDb["signals"];
+  /** The key that signs every answer the agent store gives (attestation.ts); made on first use, the private half never leaves. */
+  signingKey?: import("./attestation.ts").SigningKeyRecord;
   /** Signs the visit passes sold to AI crawlers; made on first use and never shown. */
   sitePassSecret?: string;
   /** Safehubby Business: other companies' own AI employees. Each business's data stays apart from every other's. */

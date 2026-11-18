@@ -17,6 +17,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Weekly digest: newest and lately updated articles with dates, plus current plans and prices | `/api/agent/digest` | $0.05 |
 | Brief: one page to forward to a person (what Safehubby does, plans, safety rules, how to reach us) | `/api/agent/brief` | $0.05 |
 | Airport directory: name, code, city and country for the cities Safehubby covers (names and codes only, nothing about any service) | `/api/agent/airports?q=&country=&limit=` | $0.01 |
+| Checklists to hand to a person, English and Spanish: a day at the hospital with a parent, arriving at an airport with an older relative, questions to ask before hiring a concierge (general information, not medical or legal advice) | `/api/agent/checklists/{slug}?lang=en\|es` (list free at `/api/agent/checklists`) | $0.02 |
 
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
@@ -24,7 +25,7 @@ Add `?info` to any product address for a free description. Prices can be changed
 ## The site pass: $8.99 a visit for AI crawlers to read the website
 
 **A pass includes the whole store.** During the visit, plans and prices facts, blog articles as clean text, the digest,
-the brief and the airport directory answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
+the brief, the airport directory and the checklists answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
 cents each; the pass is the cheap way in. The digest and brief are built only from what Safehubby has published (articles
 with their dates, the live plan list). There is no vendor list in any of it. Anything that needs a person is not
 included. There is no cap per visit yet; if one agent abuses it, add one.
@@ -84,6 +85,22 @@ kept, only whether it could answer.** Days older than 90 are forgotten.
 Limits, said plainly: "asked" counts requests that were shown a price, not different visitors (a crawler that ignores the
 price and keeps fetching counts each time). With only a few requests the numbers say nothing; the page says so until there
 are at least ten.
+
+## Signed answers
+
+Every answer from the paid items (facts, blog copies, digest, brief, airports, checklists), whether paid for or covered by
+a pass, carries an `X-Safehubby-Signature` header: `keyId`, `alg="ed25519"`, `created` and `sig`. The public key is free at
+`/api/agent/key` (and its fingerprint is in the catalog under `signing`). The signed message is four lines: `safehubby-v1`,
+the path and query that were asked, the `created` time, and the SHA-256 (hex) of the exact response bytes. An agent that checks it
+knows the answer is unchanged, was made at that time, and answers the question it asked. This proves where an answer came
+from; it does not make the content true beyond what Safehubby publishes. The private key is made on first use, kept in the
+database (`signingKey`) and never sent. If the database is lost a new key is made and the key id changes, so verifiers notice.
+
+```js
+import { createHash, createPublicKey, verify } from "node:crypto";
+const msg = `safehubby-v1\n${path}\n${created}\n${createHash("sha256").update(bodyText).digest("hex")}`;
+const ok = verify(null, Buffer.from(msg), createPublicKey(publicKeyPem), Buffer.from(sig, "base64"));
+```
 
 ## The owner's NFTs
 

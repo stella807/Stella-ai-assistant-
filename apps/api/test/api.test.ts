@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "checklists", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3211,9 +3211,70 @@ describe("biweekly payroll", () => {
         expect(JSON.stringify(all)).not.toMatch(/vip|phone|@|https?:|concierge|meet and greet/i);
       });
 
+      it("signs every answer, publishes the key to check it with, and the signature breaks if anything is changed", async () => {
+        const { verifyResponse } = await import("../src/attestation.ts");
+        const pass = await buyPass();
+        const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+        expect(k).toMatchObject({ alg: "ed25519", keyId: expect.stringMatching(/^[0-9a-f]{16}$/) });
+        expect(k.publicKeyPem).toContain("BEGIN PUBLIC KEY");
+        expect(JSON.stringify(k)).not.toMatch(/PRIVATE/);
+        for (const path of ["/api/agent/facts?q=How%20much%20is%20Premium%20per%20month%3F", "/api/agent/digest", "/api/agent/brief", "/api/agent/airports?q=san%20juan", "/api/agent/checklists/hospital-day-with-a-parent"]) {
+          const res = await fetch(`${base}${path}`, { headers: { "x-safehubby-pass": pass } });
+          expect(res.status, path).toBe(200);
+          const sig = res.headers.get("x-safehubby-signature")!;
+          const text = await res.text();
+          expect(sig, path).toContain(`keyId="${k.keyId}"`);
+          expect(verifyResponse(k.publicKeyPem, sig, text, path), path).toBe(true);
+          expect(verifyResponse(k.publicKeyPem, sig, text + " ", path), path).toBe(false);
+        }
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.signing).toMatchObject({ keyId: k.keyId, alg: "ed25519", key: expect.stringMatching(/\/api\/agent\/key$/) });
+      });
+
+      it("is the same key a day later, and the signature is on a paid answer too", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const { verifyResponse } = await import("../src/attestation.ts");
+        const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+        const url = `${base}/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`;
+        const required: any = await (await fetch(url)).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        const res = await fetch(url, { headers: { "payment-signature": sig } });
+        const header = res.headers.get("x-safehubby-signature")!;
+        expect(verifyResponse(k.publicKeyPem, header, await res.text(), "/api/agent/facts?q=How%20much%20is%20Premium%20per%20month%3F")).toBe(true);
+        const again: any = await (await fetch(`${base}/api/agent/key`)).json();
+        expect(again.keyId).toBe(k.keyId);
+      });
+
+      it("sells three checklists in English and Spanish, lists them free, and is free with the pass", async () => {
+        const list: any = await (await fetch(`${base}/api/agent/checklists`)).json();
+        expect(list.checklists.map((c: any) => c.slug)).toEqual(["hospital-day-with-a-parent", "airport-with-an-older-relative", "questions-before-hiring-a-concierge"]);
+        const es: any = await (await fetch(`${base}/api/agent/checklists?lang=es`)).json();
+        expect(es.checklists[0].slug).toBe("dia-en-el-hospital-con-un-familiar");
+        const one = `${base}/api/agent/checklists/hospital-day-with-a-parent`;
+        const required: any = await (await fetch(one)).json();
+        expect(required.accepts[0].amount).toBe("20000");
+        const pass = await buyPass();
+        const body: any = await (await fetch(one, { headers: { "x-safehubby-pass": pass } })).json();
+        expect(body.title).toMatch(/hospital/i);
+        expect(body.forPerson).toMatch(/- \[ \]/);
+        expect(body.forPerson).toContain("contact@safehubby.com");
+        const spanish: any = await (await fetch(`${base}/api/agent/checklists/dia-en-el-hospital-con-un-familiar?lang=es`, { headers: { "x-safehubby-pass": pass } })).json();
+        expect(spanish.forPerson).toMatch(/consejo m[eé]dico/i);
+      });
+
+      it("never charges for a checklist that does not exist", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const url = `${base}/api/agent/checklists/no-such-list`;
+        const required: any = await (await fetch(url)).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        const res = await fetch(url, { headers: { "payment-signature": sig } });
+        expect(res.status).toBe(404);
+        expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
+      });
+
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "checklists", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.comingLater).toBeUndefined();
