@@ -84,6 +84,11 @@ Limits, said plainly: "asked" counts requests that were shown a price, not diffe
 price and keeps fetching counts each time). With only a few requests the numbers say nothing; the page says so until there
 are at least ten.
 
+## Coming later: NFTs
+
+The free catalog tells agents a collector corner for Safehubby NFTs is planned, not available yet, with price and pass
+coverage undecided (`comingLater`). Remove or update that line when it opens.
+
 ## The vendor list is not for sale
 
 Safehubby's vendor research (event vendors, hotel programs, airport VIP services) is what clients pay for, so it is

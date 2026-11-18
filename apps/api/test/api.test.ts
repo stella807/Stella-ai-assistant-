@@ -3202,6 +3202,8 @@ describe("biweekly payroll", () => {
         expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "brief", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
+        expect(c.comingLater).toMatch(/NFT/);
+        expect(c.comingLater).toMatch(/not available yet/i);
       });
     });
 
