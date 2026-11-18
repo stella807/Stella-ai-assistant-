@@ -40,11 +40,13 @@ import "./styles/intro.css";
 // addresses. A customer's phone should not download two back offices to read
 // the home page; it is most of what made the first load heavy.
 const EmployeePortal = lazyWithReload(() => import("./components/EmployeePortal.tsx").then((m) => ({ default: m.EmployeePortal })));
+const BusinessScreen = lazyWithReload(() => import("./components/BusinessScreen.tsx").then((m) => ({ default: m.BusinessScreen })));
 const MasterScreen = lazyWithReload(() => import("./components/MasterScreen.tsx").then((m) => ({ default: m.MasterScreen })));
 
 const path = window.location.pathname.replace(/\/$/, "");
 const isEmployeeArea = path === "/employee";
 const isMasterArea = path === "/master";
+const isBusinessArea = path === "/business";
 
 // Vite fires this when a code chunk the page asked for no longer exists (a deploy replaced it): fetch the new version.
 window.addEventListener("vite:preloadError", (e) => {
@@ -69,7 +71,7 @@ createRoot(document.getElementById("root")!).render(
         customer app each carry the EN/ES toggle. */}
     {/* Nothing is drawn for the instant a portal's code is arriving; the page is already the app's dark background. */}
     <Suspense fallback={null}>
-      {isMasterArea ? <MasterScreen /> : (
+      {isBusinessArea ? <BusinessScreen /> : isMasterArea ? <MasterScreen /> : (
         <LanguageProvider>
           {isEmployeeArea ? <EmployeePortal /> : <App />}
         </LanguageProvider>

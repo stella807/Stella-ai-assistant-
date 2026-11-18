@@ -61,13 +61,18 @@ export function buildKnowledge(): Knowledge[] {
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const STOP = new Set(["the", "a", "an", "is", "of", "to", "and", "or", "for", "in", "on", "it", "do", "does", "how", "much", "me", "my", "i", "you", "are", "this", "that", "el", "la", "los", "las", "un", "una", "de", "del", "que", "es", "en", "y", "o", "mi", "al", "se", "por", "con", "para", "cual", "como"]);
+const STOP = new Set(["about", "the", "a", "an", "is", "of", "to", "and", "or", "for", "in", "on", "it", "do", "does", "how", "much", "me", "my", "i", "you", "are", "this", "that", "el", "la", "los", "las", "un", "una", "de", "del", "que", "es", "en", "y", "o", "mi", "al", "se", "por", "con", "para", "cual", "como"]);
 
-/** The facts that best match a question, best first, and none at all when nothing matches. */
-export function retrieveKnowledge(question: string, limit = 3): Knowledge[] {
-  const words = norm(question).split(/[^a-z0-9+]+/).filter((w) => w.length > 1 && !STOP.has(w));
+/** The words of a question that carry meaning, without accents, case or filler. */
+export function meaningfulWords(text: string): string[] {
+  return norm(text).split(/[^a-z0-9+]+/).filter((w) => w.length > 1 && !STOP.has(w));
+}
+
+/** The facts from a list that best match a question, best first, and none at all when nothing matches. */
+export function rankFacts(list: Knowledge[], question: string, limit: number, deprioritize: string[] = []): Knowledge[] {
+  const words = meaningfulWords(question);
   if (!words.length) return [];
-  const scored = buildKnowledge().map((k) => {
+  const scored = list.map((k) => {
     const kws = new Set(k.keywords.map(norm));
     const title = norm(k.title);
     let score = 0;
@@ -76,11 +81,16 @@ export function retrieveKnowledge(question: string, limit = 3): Knowledge[] {
       else if ([...kws].some((x) => x.length > 3 && (x.startsWith(w) || w.startsWith(x)) && w.length > 3)) score += 2;
       if (title.includes(w)) score += 2;
     }
-    // The generic "plans" fact should not outrank the specific plan a question names.
-    if (k.id === "plans-overview") score = Math.max(0, score - 1);
+    // A general fact should not outrank the specific one a question names.
+    if (deprioritize.includes(k.id)) score = Math.max(0, score - 1);
     return { k, score };
   }).filter((s) => s.score >= 3).sort((a, b) => b.score - a.score);
   return scored.slice(0, limit).map((s) => s.k);
+}
+
+/** The facts that best match a question, best first, and none at all when nothing matches. */
+export function retrieveKnowledge(question: string, limit = 3): Knowledge[] {
+  return rankFacts(buildKnowledge(), question, limit, ["plans-overview"]);
 }
 
 /**

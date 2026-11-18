@@ -8,7 +8,7 @@ import type {
   ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor, VendorList, ClubSubscription, ClubRsvp, ClubMonthState,
 } from "@safehubby/core";
 import type { MonthlyFreebies, SeniorIdCheck, StaffRole } from "@safehubby/core";
-import type { BizAuditEntry, BizDraft, BizLead, BizSettings, BizSuppression } from "@safehubby/core";
+import type { BizAuditEntry, BizDraft, BizLead, BizSettings, BizSuppression, Business, BusinessConversation } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
@@ -269,6 +269,14 @@ export interface Db {
   clubMonths?: Record<string, ClubMonthState>;
   /** Paid vendor lookups sold to other AI agents over x402; see x402-sales.ts. */
   agentSales?: import("./x402-sales.ts").AgentSale[];
+  /** Safehubby Business: other companies' own AI employees. Each business's data stays apart from every other's. */
+  businesses?: Business[];
+  /** Only a hash of each business's sign-in key, so a key can be replaced but never read back. */
+  bizCredentials?: Record<string, { keyHash: string; createdAt: string }>;
+  bizSessions?: { token: string; businessId: string; createdAt: string; expiresAt: string }[];
+  bizConversations?: BusinessConversation[];
+  /** Answers given per business per month ("<businessId>:2026-11"), against each business's monthly limit. */
+  bizUsage?: Record<string, number>;
   /** Business development: the investors, customers and partners the owner works through. */
   bizLeads?: BizLead[];
   /** Messages drafted for those leads. None is ever sent by the server: the owner sends it and records that. */

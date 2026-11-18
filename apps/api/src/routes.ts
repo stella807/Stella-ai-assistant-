@@ -106,6 +106,7 @@ import { aiAssist } from "./adapters/ai-assist.ts";
 import { askOllama, llmComplete, llmConfigured, ollamaHealth } from "./adapters/llm.ts";
 import { answerPrompt, retrieveKnowledge, WHATSAPP_DISPLAY } from "@safehubby/core";
 import { x402Config } from "./x402-sales.ts";
+import { businessRoutes } from "./business-routes.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
@@ -174,12 +175,19 @@ export interface Ctx {
   masterActorId: string | null;
   setMasterSession?: (token: string | null) => void;
   masterSessionToken?: string | null;
+  /** The signed-in business (Safehubby Business), from its own cookie and session table; never conflated with the others. */
+  bizActorId?: string | null;
+  bizSessionToken?: string | null;
+  setBizSession?: (token: string | null) => void;
+  /** The website that made a request, for the chat box, which any site may call. */
+  requestOrigin?: string | null;
   clientKey: string;
   /** Per-instance, not module-global: one server's traffic must not throttle
    *  another's, and tests need isolation between instances. */
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
     applications: RateLimiter; partners: RateLimiter; clientErrors: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter; ask: RateLimiter; askAll: RateLimiter;
+    bizLogin: RateLimiter; bizTest: RateLimiter; widget: RateLimiter; widgetAll: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1333,6 +1341,7 @@ function adminKeyMatches(typed: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export type MasterScopeName = MasterScope;
 function requireAdmin(ctx: Ctx, scope: MasterScope = "operations"): void {
   // Trimmed on both sides, like adminKeyMatches: a value pasted into a
   // hosting dashboard often carries a stray space or newline, and an exact
@@ -1459,6 +1468,11 @@ export function makeLimiters() {
     // whole site a daily ceiling, whatever the traffic.
     ask: new RateLimiter(10, 60 * 60_000),
     askAll: new RateLimiter(Number(process.env.ASK_DAILY_LIMIT) || 500, 24 * 60 * 60_000),
+    bizLogin: new RateLimiter(8, 15 * 60_000),
+    bizTest: new RateLimiter(30, 60 * 60_000),
+    // Each visitor of a business's site gets 20 questions an hour; all businesses together share a daily ceiling on AI answers.
+    widget: new RateLimiter(20, 60 * 60_000),
+    widgetAll: new RateLimiter(Number(process.env.WIDGET_DAILY_LIMIT) || 3000, 24 * 60 * 60_000),
     // Public and unauthenticated — a driver application needs no account —
     // so it gets its own budget rather than borrowing signup's.
     applications: new RateLimiter(10, 60 * 60_000),
@@ -7375,4 +7389,5 @@ export const routes: Record<string, Handler> = {
       })),
     };
   },
+  ...businessRoutes({ HttpError, requireAdmin, cleanText, notFound, req }),
 };

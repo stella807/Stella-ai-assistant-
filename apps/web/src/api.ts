@@ -6,6 +6,16 @@ import type {
   BizAuditEntry, BizDraft, BizMarket, BizSettings, BizStats, BizSuppression, DraftTemplate, InvestorList, InvestorType, LeadKind, LeadStatus,
 } from "@safehubby/core";
 import type { BizLeadView } from "./app/bizdev-view.ts";
+import type { BusinessAssistant, BusinessConversation } from "@safehubby/core";
+
+/** A business as its own portal sees it. */
+export type BizMe = {
+  id: string; name: string; contactEmail: string; status: "active" | "suspended"; messageLimit: number; allowedOrigins: string[];
+  assistant: BusinessAssistant; usage: { month: string; used: number };
+};
+export type BizAdminRow = {
+  id: string; name: string; contactEmail: string; status: "active" | "suspended"; messageLimit: number; assistantName: string; used: number; conversations: number; createdAt: string;
+};
 
 /** Safehubby's own model server, as the owner portal sees it. */
 export type OwnAiStatus = {
@@ -938,6 +948,17 @@ export const api = {
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
   agentSales: () => request<{ enabled: boolean; status: string; count: number; totalUnits: number; byProduct: Record<string, { count: number; units: number }>;
     recent: { id: string; at: string; product?: string; amount: string; payer?: string; transaction?: string; query: string; results: number }[] }>("GET", "/api/master/agent-sales"),
+  businessesList: () => request<{ businesses: BizAdminRow[]; month: string }>("GET", "/api/master/businesses"),
+  businessCreate: (b: { name: string; contactEmail: string; messageLimit?: number }) =>
+    request<{ business: { id: string; name: string }; key: string }>("POST", "/api/master/businesses", b),
+  businessUpdate: (id: string, change: { status?: "active" | "suspended"; messageLimit?: number }) => request<{ ok: true }>("POST", `/api/master/businesses/${id}`, change),
+  businessNewKey: (id: string) => request<{ key: string }>("POST", `/api/master/businesses/${id}/new-key`, {}),
+  bizLogin: (key: string) => request<{ name: string }>("POST", "/api/biz/login", { key }),
+  bizLogout: () => request<{ ok: true }>("POST", "/api/biz/logout", {}),
+  bizMe: () => request<{ business: BizMe }>("GET", "/api/biz/me"),
+  bizSaveAssistant: (assistant: BusinessAssistant, allowedOrigins: string[]) => request<{ business: BizMe }>("POST", "/api/biz/assistant", { assistant, allowedOrigins }),
+  bizConversations: () => request<{ conversations: BusinessConversation[] }>("GET", "/api/biz/conversations"),
+  bizTestQuestion: (question: string) => request<{ answer: string; source: "ai" | "handoff" }>("POST", "/api/biz/test", { question }),
   ownAiStatus: () => request<{ ollama: OwnAiStatus }>("GET", "/api/master/ai"),
   ownAiTest: (question: string) => request<{ text: string; seconds: number; model: string }>("POST", "/api/master/ai/test", { question }),
   bizDesk: () => request<BizDesk>("GET", "/api/master/bizdev"),

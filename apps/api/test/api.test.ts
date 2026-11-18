@@ -3094,6 +3094,161 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("Safehubby Business: another company's own AI employee", () => {
+    useAdminKey();
+    let fake: ReturnType<typeof createHttpServer>;
+    const systems: string[] = [];
+    beforeEach(async () => {
+      fake = createHttpServer((rq, rs) => {
+        let raw = ""; rq.on("data", (c) => { raw += c; });
+        rq.on("end", () => {
+          const b = JSON.parse(raw); systems.push(b.messages[0].content);
+          rs.setHeader("content-type", "application/json"); rs.end(JSON.stringify({ message: { content: "Airport pickup is $45." } }));
+        });
+      });
+      await new Promise<void>((r) => fake.listen(0, "127.0.0.1", r));
+      process.env.OLLAMA_URL = `http://127.0.0.1:${(fake.address() as AddressInfo).port}`;
+    });
+    afterEach(async () => { delete process.env.OLLAMA_URL; systems.length = 0; await new Promise((r) => fake.close(r)); });
+
+    const cookieOf = (setCookie: string | null) => /sh_biz_session=([^;]+)/.exec(setCookie ?? "")?.[1] ?? "";
+    const biz = async (method: string, path: string, body?: unknown, cookie = "", origin?: string) => {
+      const res = await fetch(`${base}${path}`, {
+        method, headers: { "content-type": "application/json", ...(cookie ? { cookie: `sh_biz_session=${cookie}` } : {}), ...(origin ? { origin } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      return { status: res.status, json: text ? JSON.parse(text) : {}, setCookie: res.headers.get("set-cookie"), headers: res.headers };
+    };
+    const assistant = (over: Record<string, unknown> = {}) => ({
+      name: "Luna", tone: "friendly", language: "both", about: "A boutique hotel in Old San Juan.", hours: "Front desk 7am to 11pm.", welcome: "Hi, I'm Luna.",
+      services: [{ name: "Airport pickup", price: "$45", description: "A driver meets you at SJU." }], faqs: [{ q: "Is parking available?", a: "The garage on Calle Sol is two blocks away." }],
+      escalation: "Call 787-555-0100.", ...over,
+    });
+    const createBusiness = async (name = "Casa Luna Hotel", extra: Record<string, unknown> = {}) => {
+      const c = await callAdmin("POST", "/api/master/businesses", { name, contactEmail: "hola@casaluna.example", ...extra });
+      expect(c.status).toBe(200);
+      const login = await biz("POST", "/api/biz/login", { key: c.json.key });
+      expect(login.status).toBe(200);
+      const cookie = cookieOf(login.setCookie);
+      expect((await biz("POST", "/api/biz/assistant", { assistant: assistant() }, cookie)).status).toBe(200);
+      return { id: c.json.business.id as string, key: c.json.key as string, cookie };
+    };
+    const ask = (id: string, question: string, origin?: string) => biz("POST", `/api/widget/${id}/ask`, { question }, "", origin);
+
+    it("is created, suspended and listed by the Safehubby owner alone", async () => {
+      expect((await call("POST", "/api/master/businesses", { name: "X", contactEmail: "x@x.example" })).status).toBe(401);
+      expect((await call("GET", "/api/master/businesses", undefined, jordan)).status).toBe(401);
+      expect((await callAdmin("POST", "/api/master/businesses", { name: "", contactEmail: "x@x.example" })).status).toBe(400);
+      expect((await callAdmin("POST", "/api/master/businesses", { name: "X", contactEmail: "not-an-email" })).status).toBe(400);
+      const b = await createBusiness();
+      const list = (await callAdmin("GET", "/api/master/businesses")).json.businesses;
+      expect(list).toHaveLength(1);
+      expect(JSON.stringify(list)).not.toContain(b.key.split(".")[1]);
+    });
+
+    it("signs a business in with its own key, and tells a wrong key nothing", async () => {
+      const b = await createBusiness();
+      expect((await biz("POST", "/api/biz/login", { key: "nope" })).status).toBe(401);
+      expect((await biz("POST", "/api/biz/login", { key: `${b.id}.wrong-secret` })).status).toBe(401);
+      expect((await biz("GET", "/api/biz/me")).status).toBe(401);
+      const me = await biz("GET", "/api/biz/me", undefined, b.cookie);
+      expect(me.json.business.name).toBe("Casa Luna Hotel");
+      expect(JSON.stringify(me.json)).not.toContain("keyHash");
+      expect((await biz("POST", "/api/biz/logout", {}, b.cookie)).status).toBe(200);
+      expect((await biz("GET", "/api/biz/me", undefined, b.cookie)).status).toBe(401);
+    });
+
+    it("keeps one business's facts and conversations away from every other business", async () => {
+      const a = await createBusiness("Casa Luna Hotel");
+      const c = await callAdmin("POST", "/api/master/businesses", { name: "Taller Sol", contactEmail: "t@sol.example" });
+      const other = await biz("POST", "/api/biz/login", { key: c.json.key });
+      const otherCookie = cookieOf(other.setCookie);
+      await biz("POST", "/api/biz/assistant", { assistant: assistant({ name: "Sol", about: "A car repair shop.", services: [{ name: "Oil change", price: "$30" }], faqs: [], hours: "Mon to Fri 8 to 5" }) }, otherCookie);
+      await ask(a.id, "How much is the airport pickup?");
+      await ask(c.json.business.id, "How much is an oil change?");
+      expect(systems[0]).toContain("Airport pickup");
+      expect(systems[0]).not.toContain("Oil change");
+      expect(systems[1]).toContain("Oil change");
+      expect(systems[1]).not.toContain("Airport pickup");
+      expect(systems.join("\n")).not.toContain("Premium");
+      const mine = (await biz("GET", "/api/biz/conversations", undefined, a.cookie)).json.conversations;
+      const theirs = (await biz("GET", "/api/biz/conversations", undefined, otherCookie)).json.conversations;
+      expect(mine).toHaveLength(1); expect(mine[0].question).toContain("airport");
+      expect(theirs).toHaveLength(1); expect(theirs[0].question).toContain("oil");
+    });
+
+    it("answers a visitor from the business's own facts, saying it is an AI, with no cookie needed", async () => {
+      const b = await createBusiness();
+      const cfg = await biz("GET", `/api/widget/${b.id}/config`);
+      expect(cfg.json).toMatchObject({ name: "Luna", business: "Casa Luna Hotel" });
+      expect(cfg.headers.get("access-control-allow-origin")).toBe("*");
+      expect(cfg.headers.get("access-control-allow-credentials")).toBeNull();
+      const res = await ask(b.id, "How much is the airport pickup?");
+      expect(res.json).toMatchObject({ source: "ai", answer: "Airport pickup is $45." });
+      expect(systems[0]).toMatch(/AI assistant for Casa Luna Hotel/);
+      expect(systems[0]).toContain("$45");
+    });
+
+    it("sends the visitor to the business's own contact, without asking the model, when it has no fact", async () => {
+      const b = await createBusiness();
+      const res = await ask(b.id, "what is the capital of Mongolia");
+      expect(res.json).toMatchObject({ source: "handoff" });
+      expect(res.json.answer).toContain("787-555-0100");
+      expect(systems).toHaveLength(0);
+    });
+
+    it("stops answering past the monthly limit, and the owner's tests and handoffs do not use it up", async () => {
+      const b = await createBusiness("Limited", { messageLimit: 1 });
+      await biz("POST", "/api/biz/test", { question: "How much is the airport pickup?" }, b.cookie);
+      await ask(b.id, "unrelated question about nothing here");
+      expect((await biz("GET", "/api/biz/me", undefined, b.cookie)).json.business.usage.used).toBe(0);
+      expect((await ask(b.id, "How much is the airport pickup?")).json.source).toBe("ai");
+      const over = await ask(b.id, "How much is the airport pickup?");
+      expect(over.json.source).toBe("handoff");
+      expect(systems).toHaveLength(2);
+      expect((await biz("GET", "/api/biz/conversations", undefined, b.cookie)).json.conversations).toHaveLength(3);
+    });
+
+    it("lets only the websites the business listed show its chat box", async () => {
+      const b = await createBusiness();
+      expect((await biz("POST", "/api/biz/assistant", { assistant: assistant(), allowedOrigins: ["https://casaluna.example"] }, b.cookie)).status).toBe(200);
+      expect((await ask(b.id, "How much is the airport pickup?", "https://evil.example")).status).toBe(404);
+      expect((await ask(b.id, "How much is the airport pickup?")).status).toBe(404);
+      expect((await ask(b.id, "How much is the airport pickup?", "https://casaluna.example")).status).toBe(200);
+      expect((await biz("POST", "/api/biz/assistant", { assistant: assistant(), allowedOrigins: ["javascript:alert(1)"] }, b.cookie)).status).toBe(400);
+    });
+
+    it("ends a suspended business's sign-in and chat box at once, and a new key replaces the old", async () => {
+      const b = await createBusiness();
+      await callAdmin("POST", `/api/master/businesses/${b.id}`, { status: "suspended" });
+      expect((await biz("GET", "/api/biz/me", undefined, b.cookie)).status).toBe(401);
+      expect((await biz("POST", "/api/biz/login", { key: b.key })).status).toBe(401);
+      expect((await ask(b.id, "How much is the airport pickup?")).status).toBe(404);
+      await callAdmin("POST", `/api/master/businesses/${b.id}`, { status: "active" });
+      const fresh = await callAdmin("POST", `/api/master/businesses/${b.id}/new-key`, {});
+      expect((await biz("POST", "/api/biz/login", { key: b.key })).status).toBe(401);
+      expect((await biz("POST", "/api/biz/login", { key: fresh.json.key })).status).toBe(200);
+    });
+
+    it("refuses an assistant without a name, and strips markup from what a business typed", async () => {
+      const b = await createBusiness();
+      expect((await biz("POST", "/api/biz/assistant", { assistant: assistant({ name: " " }) }, b.cookie)).status).toBe(400);
+      const ok = await biz("POST", "/api/biz/assistant", { assistant: assistant({ about: "<script>alert(1)</script>Hello" }) }, b.cookie);
+      expect(ok.json.business.assistant.about).not.toContain("<script");
+    });
+
+    it("serves the chat box script, which writes visitors' words as text and never as markup", async () => {
+      const res = await fetch(`${base}/widget.js`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toMatch(/javascript/);
+      const js = await res.text();
+      expect(js).toContain("textContent");
+      expect(js).not.toMatch(/innerHTML\s*=(?!\s*')/);
+      expect(js).toContain("attachShadow");
+    });
+  });
+
   describe("asking Safehubby's AI about plans and prices", () => {
     let fake: ReturnType<typeof createHttpServer>;
     const asked: any[] = [];

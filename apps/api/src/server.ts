@@ -1,4 +1,5 @@
 import { handleAgentStore, isAgentPath } from "./x402-sales.ts";
+import { WIDGET_JS } from "./widget.ts";
 import { setIncludedHours, setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
@@ -10,6 +11,7 @@ import { seoFactsFor } from "./seo-facts.ts";
 import { blogPageFor, blogSitemapUrls, isBlogPath } from "./blog.ts";
 import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
 import { cancelStripeSubscription } from "./adapters/stripe.ts";
+import { BIZ_SESSION_COOKIE, BIZ_SESSION_TTL_MS } from "./business-routes.ts";
 import {
   ASSISTANT_SESSION_COOKIE, ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_COOKIE, MASTER_SESSION_TTL_MS, SESSION_COOKIE,
   clearedCookie, parseCookies, sessionCookie,
@@ -186,6 +188,13 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
     }
     res.setHeader("Access-Control-Allow-Headers", "content-type,authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
+    // A business's chat box runs on that business's own site, so any site may call it, with no cookies.
+    // Which sites may use a given assistant is checked per business, from the Origin header.
+    if ((req.url ?? "").startsWith("/api/widget/")) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.removeHeader("Access-Control-Allow-Credentials");
+      res.setHeader("Access-Control-Allow-Headers", "content-type");
+    }
     if (req.method === "OPTIONS") return void res.writeHead(204).end();
 
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -202,6 +211,11 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
         if (!res.headersSent) send(res, 500, { error: "Something went wrong on our end." });
       }
       return;
+    }
+    // The chat box script that businesses put on their own websites.
+    if (url.pathname === "/widget.js" && (method === "GET" || method === "HEAD")) {
+      res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" });
+      return void res.end(method === "HEAD" ? undefined : WIDGET_JS);
     }
     // The agent store: a free catalog, and paid lookups for other AI agents. x402 reads and writes its own payment headers.
     if (isAgentPath(url.pathname) && method === "GET") {
@@ -266,6 +280,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
     const token = readToken(req);
     const assistantToken = readAssistantToken(req);
     const masterToken = readMasterToken(req);
+    const bizToken = parseCookies(req.headers.cookie)[BIZ_SESSION_COOKIE] ?? null;
     const ctx: Ctx = {
       ...base,
       actorId: resolveActor(base, token),
@@ -274,6 +289,14 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       assistantSessionToken: assistantToken,
       masterActorId: resolveMasterActor(base, masterToken),
       masterSessionToken: masterToken,
+      bizActorId: resolveBizActor(base, bizToken),
+      bizSessionToken: bizToken,
+      requestOrigin: firstHeader(req.headers.origin),
+      setBizSession: (next) => {
+        appendSetCookie(res, next === null
+          ? clearedCookie(SECURE_COOKIES, BIZ_SESSION_COOKIE)
+          : sessionCookie(next, SECURE_COOKIES, BIZ_SESSION_COOKIE, BIZ_SESSION_TTL_MS));
+      },
       clientKey: clientKey(req),
       adminKey: firstHeader(req.headers["x-admin-key"]),
       partnerKey: firstHeader(req.headers["x-concierge-key"]),
@@ -398,6 +421,13 @@ function resolveAssistantActor(ctx: Ctx, token: string | null): string | null {
  *  the other two. */
 function readMasterToken(req: IncomingMessage): string | null {
   return parseCookies(req.headers.cookie)[MASTER_SESSION_COOKIE] ?? null;
+}
+
+function resolveBizActor(ctx: Ctx, token: string | null): string | null {
+  if (!token) return null;
+  const session = (ctx.store.data.bizSessions ?? []).find((s) => s.token === token);
+  if (!session || new Date(session.expiresAt).getTime() <= ctx.now().getTime()) return null;
+  return session.businessId;
 }
 
 function resolveMasterActor(ctx: Ctx, token: string | null): string | null {
