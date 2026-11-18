@@ -3225,6 +3225,26 @@ describe("biweekly payroll", () => {
       });
     });
 
+    describe("the NFT gallery for agents", () => {
+      it("is free, shows only pieces made with AI that are cleared, and links to where they are sold", async () => {
+        const res = await fetch(`${base}/api/agent/nfts`, { headers: { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2)" } });
+        expect(res.status).toBe(200);
+        const g: any = await res.json();
+        expect(g.collection).toBe("Cryptic Future");
+        expect(g.soldAt).toBe("https://rarible.com/thesmurfetfuturenft");
+        expect(g.pieces.map((p: any) => p.title).sort()).toEqual(["Bitcoin Shark", "Green Dolphin City", "Meet the Robos", "Overgrown Towers", "Sky Garden Towers", "The Brass Turtle", "Waterfront Spires"]);
+        for (const p of g.pieces) {
+          expect(p.description).toMatch(/made with AI/i);
+          expect(p.image).toMatch(/^http.*\/nft\/[a-z0-9-]+\.jpg$/);
+          expect(p.attributes.length).toBeGreaterThan(0);
+        }
+        expect(g.note).toMatch(/not an investment/i);
+        expect(JSON.stringify({ note: g.note, pieces: g.pieces })).not.toMatch(/shark tank|smurf|will rise|profit|guarantee/i);
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.nfts.gallery).toMatch(/\/api\/agent\/nfts$/);
+      });
+    });
+
     it("tells every agent how to email us: in the catalog and in every request for payment", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.contact.email).toBe("contact@safehubby.com");

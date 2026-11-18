@@ -89,7 +89,8 @@ are at least ten.
 
 The free catalog has an `nfts` entry that points agents to the owner's collection on Rarible
 (`NFT_URL`, default `https://rarible.com/thesmurfetfuturenft`). They are sold on Rarible, never through this server, which
-holds no wallet. The note says the pieces are made with AI, are art and not an investment, and promises no value. Nothing
+holds no wallet. A free gallery at `/api/agent/nfts` (pictures at `/nft/*.jpg`, served from `apps/web/public/nft`) shows the 7
+pieces the owner says were made with ChatGPT; the others are on hold. The note says the pieces are made with AI, are art and not an investment, and promises no value. Nothing
 is posted anywhere about them without the owner's go. Only pieces the owner has shown the rights to should be listed
 (see `/home/user/cryptic-future-nft/README.md`).
 

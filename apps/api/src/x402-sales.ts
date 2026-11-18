@@ -7,6 +7,7 @@ import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
 import { noteSignal } from "./signals.ts";
+import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
@@ -161,7 +162,7 @@ const productFor = (pathname: string): Product | undefined =>
             : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
-export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || productFor(pathname) !== undefined;
+export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
 function catalog(origin: string) {
@@ -180,7 +181,7 @@ function catalog(origin: string) {
     },
     // The owner's NFT collection on Rarible. Sold there, never through this server: it holds no wallet and moves no money.
     nfts: {
-      url: process.env.NFT_URL?.trim() || "https://rarible.com/thesmurfetfuturenft",
+      url: NFT_COLLECTION.soldAt, gallery: `${origin}/api/agent/nfts`,
       note: "The owner's NFT collection, sold on Rarible, not through this site. The pieces are made with AI and edited by the artist; check the page for what is listed and what each costs. This is art, not an investment: nothing here suggests a piece will keep or gain value, and Safehubby gives no financial advice. Email "+CONTACT_EMAIL+" with questions.",
     },
     notForSale: `Errands, visits to check a place, appointments and other work that needs a person are not sold here. Email ${CONTACT_EMAIL} or message Safehubby on WhatsApp at ${WHATSAPP_DISPLAY} for those.`,
@@ -245,6 +246,13 @@ export async function takePayment(
 /** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
 export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false): Promise<void> {
   if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin));
+  // The NFT gallery is free to look at. The pieces are sold on Rarible, never here.
+  if (url.pathname === "/api/agent/nfts") {
+    return json(res, 200, {
+      collection: NFT_COLLECTION.name, soldAt: NFT_COLLECTION.soldAt, note: NFT_COLLECTION.note,
+      pieces: NFT_PIECES.map((p) => ({ title: p.title, description: p.description, attributes: p.attributes, image: `${origin}/nft/${p.file}` })),
+    });
+  }
   if (url.pathname === "/api/agent/blog") return json(res, 200, { lang: langOf(url), price: "per article, see /api/agent/catalog", articles: articleIndex(langOf(url)).map((a) => ({ ...a, endpoint: `${origin}/api/agent/blog/${a.slug}?lang=${langOf(url)}` })) });
 
   const product = productFor(url.pathname)!;
