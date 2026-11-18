@@ -2937,6 +2937,84 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("selling the vendor lookup to other AI agents (x402, test money)", () => {
+    useAdminKey();
+    let fac: ReturnType<typeof createHttpServer>;
+    let settleOk = true;
+    const seen: string[] = [];
+    const PAY_TO = "0x1111111111111111111111111111111111111111";
+    beforeEach(async () => {
+      settleOk = true;
+      fac = createHttpServer((rq, rs) => {
+        let raw = ""; rq.on("data", (c) => { raw += c; });
+        rq.on("end", () => {
+          seen.push(rq.url ?? "");
+          rs.setHeader("content-type", "application/json");
+          if (rq.url?.endsWith("/supported")) return rs.end(JSON.stringify({ kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:84532" }], extensions: [], signers: {} }));
+          if (rq.url?.endsWith("/verify")) return rs.end(JSON.stringify({ isValid: true, payer: "0xbuyer" }));
+          if (rq.url?.endsWith("/settle")) return rs.end(JSON.stringify(settleOk
+            ? { success: true, transaction: "0xtx", network: "eip155:84532", payer: "0xbuyer" }
+            : { success: false, errorReason: "insufficient_funds", transaction: "", network: "eip155:84532" }));
+          rs.statusCode = 404; rs.end("{}");
+        });
+      });
+      await new Promise<void>((r) => fac.listen(0, "127.0.0.1", r));
+      process.env.X402_ENABLED = "true";
+      process.env.X402_PAY_TO = PAY_TO;
+      process.env.X402_FACILITATOR_URL = `http://127.0.0.1:${(fac.address() as AddressInfo).port}`;
+    });
+    afterEach(async () => {
+      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET"]) delete process.env[k];
+      seen.length = 0;
+      await new Promise((r) => fac.close(r));
+    });
+    const raw = (headers: Record<string, string> = {}, q = "?category=airport-vip&place=puerto%20rico") => fetch(`${base}/api/agent/vendors${q}`, { headers });
+
+    it("is off unless switched on, and refuses real money until the owner allows it", async () => {
+      delete process.env.X402_ENABLED;
+      expect((await raw()).status).toBe(503);
+      process.env.X402_ENABLED = "true";
+      process.env.X402_NETWORK = "eip155:8453";
+      expect((await raw()).status).toBe(503);
+    });
+
+    it("asks for 5 cents of test USDC to the owner's address, and gives nothing away unpaid", async () => {
+      const res = await raw();
+      expect(res.status).toBe(402);
+      const body: any = await res.json();
+      expect(body.results).toBeUndefined();
+      expect(body.accepts[0]).toMatchObject({ scheme: "exact", network: "eip155:84532", amount: "50000", payTo: PAY_TO });
+      expect(res.headers.get("payment-required")).toBeTruthy();
+      expect((await (await raw({}, "?info")).json())).toMatchObject({ price: "$0.05", testMoneyOnly: true });
+    });
+
+    it("answers once the payment is verified and settled, and records the sale for the owner", async () => {
+      const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+      const required: any = await (await raw()).json();
+      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+      const res = await raw({ "payment-signature": sig });
+      expect(res.status).toBe(200);
+      const body: any = await res.json();
+      expect(body.results.length).toBeGreaterThan(0);
+      expect(res.headers.get("payment-response")).toBeTruthy();
+      expect(seen.some((u) => u.endsWith("/settle"))).toBe(true);
+      const sales = (await callAdmin("GET", "/api/master/agent-sales")).json;
+      expect(sales).toMatchObject({ enabled: true, count: 1, totalUnits: 50000 });
+      expect(sales.recent[0]).toMatchObject({ payer: "0xbuyer", transaction: "0xtx" });
+    });
+
+    it("gives nothing when settlement fails", async () => {
+      settleOk = false;
+      const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+      const required: any = await (await raw()).json();
+      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+      const res = await raw({ "payment-signature": sig });
+      expect(res.status).toBe(402);
+      expect(((await res.json()) as any).results).toBeUndefined();
+      expect((await callAdmin("GET", "/api/master/agent-sales")).json.count).toBe(0);
+    });
+  });
+
   describe("the owner's view of our own AI (Ollama)", () => {
     useAdminKey();
     let fake: ReturnType<typeof createHttpServer>;

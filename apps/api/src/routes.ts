@@ -104,6 +104,7 @@ import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { askOllama, ollamaHealth } from "./adapters/llm.ts";
+import { TESTNET as X402_TESTNET, x402Config } from "./x402-sales.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
@@ -6820,6 +6821,17 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Owner: what other AI agents have paid for the vendor lookup (x402), and whether it is on test money. */
+  "GET /api/master/agent-sales": (ctx) => {
+    requireAdmin(ctx, "money");
+    const sales = ctx.store.data.agentSales ?? [];
+    const config = x402Config();
+    return {
+      enabled: !("error" in config), status: "error" in config ? config.error : `On, ${config.price} a lookup, ${config.network === X402_TESTNET ? "test money only" : config.network}`,
+      count: sales.length, totalUnits: sales.reduce((a, s) => a + Number(s.amount || 0), 0), recent: sales.slice(-20).reverse(),
+    };
   },
 
   /** Owner: whether Safehubby's own model (Ollama) is reachable, has its model and has it loaded. */

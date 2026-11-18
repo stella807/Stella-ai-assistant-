@@ -14,6 +14,8 @@
     "@openreceive/http": "0.4.31",
     "@openreceive/node": "0.4.31",
     "@safehubby/core": "workspace:*",
+    "@x402/core": "^2.31.0",
+    "@x402/evm": "^2.31.0",
     "pg": "^8.23.0"
   },
   "devDependencies": {

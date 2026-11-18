@@ -267,6 +267,8 @@ export interface Db {
   clubRsvps?: ClubRsvp[];
   /** Per month ("2026-12"): whether the club has locked the outing in or called it off. */
   clubMonths?: Record<string, ClubMonthState>;
+  /** Paid vendor lookups sold to other AI agents over x402; see x402-sales.ts. */
+  agentSales?: import("./x402-sales.ts").AgentSale[];
   /** Business development: the investors, customers and partners the owner works through. */
   bizLeads?: BizLead[];
   /** Messages drafted for those leads. None is ever sent by the server: the owner sends it and records that. */

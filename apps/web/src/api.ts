@@ -936,6 +936,8 @@ export const api = {
   masterAddVendor: (v: { listId?: string; name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
+  agentSales: () => request<{ enabled: boolean; status: string; count: number; totalUnits: number;
+    recent: { id: string; at: string; amount: string; payer?: string; transaction?: string; query: string; results: number }[] }>("GET", "/api/master/agent-sales"),
   ownAiStatus: () => request<{ ollama: OwnAiStatus }>("GET", "/api/master/ai"),
   ownAiTest: (question: string) => request<{ text: string; seconds: number; model: string }>("POST", "/api/master/ai/test", { question }),
   bizDesk: () => request<BizDesk>("GET", "/api/master/bizdev"),
