@@ -3277,6 +3277,9 @@ describe("biweekly payroll", () => {
         expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "checklists", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
+        expect(c.sitePass.includes).toMatch(/checklists/i);
+        expect(c.sitePass.includes).toMatch(/airport/i);
+        expect(c.sitePass.includes).toMatch(/signed/i);
         expect(c.comingLater).toBeUndefined();
         expect(c.nfts.url).toBe("https://rarible.com/thesmurfetfuturenft");
         expect(c.nfts.note).toMatch(/made with AI/i);

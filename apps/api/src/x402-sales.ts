@@ -207,7 +207,7 @@ function catalog(origin: string, store: StoreLike) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
-      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person and the airport directory, with no further payment. Not included: anything that needs a person.",
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory and the checklists (English and Spanish), all with no further payment, and every answer is signed. Not included: anything that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
