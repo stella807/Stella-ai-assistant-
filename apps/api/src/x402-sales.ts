@@ -138,10 +138,10 @@ function catalog(origin: string) {
     available: on, note: on ? undefined : config.error,
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
-      price: sitePassInfo().price, days: sitePassInfo().days,
+      price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
-      how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on later requests.",
+      how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
     },
     notForSale: "Errands, visits to check a place, appointments and other work that needs a person are not sold here. Message Safehubby on WhatsApp at +1 (939) 245-0171 for those.",
   };

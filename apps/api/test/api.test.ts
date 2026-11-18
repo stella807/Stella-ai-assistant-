@@ -3055,7 +3055,7 @@ describe("biweekly payroll", () => {
         expect((await page(`/blog/${list.articles[0].slug}`, GPT)).status).not.toBe(402);
       });
 
-      it("sells a 30-day pass once, then lets the same crawler read freely, and refuses a forged or expired one", async () => {
+      it("sells one visit for $8.99, lets the same crawler read freely during it, and refuses a forged one", async () => {
         const paid = await payFor("/careers", GPT);
         expect(paid.status).not.toBe(402);
         const pass = paid.headers.get("x-safehubby-pass")!;
@@ -3068,6 +3068,10 @@ describe("biweekly payroll", () => {
         const [payer, exp, sig] = pass.split(".");
         expect((await page("/careers", { ...GPT, "x-safehubby-pass": `${payer}.${Number(exp) + 99999}.${sig}` })).status).toBe(402);
         expect((await page("/careers", { ...GPT, "x-safehubby-pass": "junk" })).status).toBe(402);
+        // A pass from a visit that ended an hour ago no longer works: the crawler has to pay again.
+        const { makePass } = await import("../src/site-pass.ts");
+        const old = makePass(store.data.sitePassSecret!, "0xbuyer", new Date(clock.getTime() - 2 * 3_600_000), 60);
+        expect((await page("/careers", { ...GPT, "x-safehubby-pass": old })).status).toBe(402);
         const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
         expect(sales.byProduct["site-pass"]).toEqual({ count: 1, units: 8_990_000 });
       });
@@ -3087,7 +3091,7 @@ describe("biweekly payroll", () => {
           expect(body.accepts[0].amount).toBe("12500000");
         } finally { delete process.env.X402_SITE_PASS_PRICE; }
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.sitePass).toMatchObject({ price: "$8.99", days: 30 });
+        expect(c.sitePass).toMatchObject({ price: "$8.99", perVisit: true, minutesPerVisit: 60 });
         expect(c.sitePass.excludes).toMatch(/blog/i);
       });
     });

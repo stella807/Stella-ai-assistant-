@@ -5,8 +5,8 @@ import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
 
 /**
- * The site pass: an AI crawler or agent that identifies itself as one pays once (default $8.99 in USDC) for 30 days of
- * access to the website's pages. People, search engines and everyone else read the site free, and the blog, the store,
+ * The site pass: an AI crawler or agent that identifies itself as one pays (default $8.99 in USDC) for one visit, which
+ * lasts an hour by default, to read the website's pages. It can read as many pages as it likes within the visit. People, search engines and everyone else read the site free, and the blog, the store,
  * the API, robots.txt, the sitemap, the chat box script and files such as scripts and images are never charged.
  *
  * Honest limits: it works by the name a visitor gives itself, so a crawler that pretends to be a browser reads the
@@ -30,13 +30,13 @@ export function isGatedPath(pathname: string): boolean {
   return true;
 }
 
-const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
 const sign = (secret: string, payer: string, exp: number) => createHmac("sha256", secret).update(`${payer}.${exp}`).digest("base64url");
 
 /** `<payer>.<expiry>.<signature>`: only this server can make one, and changing any part breaks it. */
-export function makePass(secret: string, payer: string, now: Date, days: number): string {
+export function makePass(secret: string, payer: string, now: Date, minutes: number): string {
   const p = payer.toLowerCase();
-  const exp = Math.floor((now.getTime() + days * DAY_MS) / 1000);
+  const exp = Math.floor((now.getTime() + minutes * MINUTE_MS) / 1000);
   return `${p}.${exp}.${sign(secret, p, exp)}`;
 }
 
@@ -53,7 +53,7 @@ export function passIsValid(secret: string, pass: string | undefined, now: Date)
 
 export const PASS_HEADER = "x-safehubby-pass";
 const sitePassPrice = () => sitePassInfo().price;
-const passDays = () => sitePassInfo().days;
+const passMinutes = () => sitePassInfo().minutes;
 
 /** Whether the pass is in force at all: paid access is on, and it was not switched off. */
 export const sitePassOn = (): boolean => !("error" in x402Config()) && process.env.X402_SITE_PASS?.trim().toLowerCase() !== "off";
@@ -83,7 +83,7 @@ export async function gateSitePage(
   const price = sitePassPrice();
   const paid = await takePayment(req, res, {
     path: pathname, origin: getOrigin(), price,
-    description: `Safehubby site pass: ${passDays()} days of access to safehubby.com for AI crawlers and agents. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header.`,
+    description: `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header.`,
   });
   if (!paid) return true;
   const sale: AgentSale = {
@@ -92,7 +92,7 @@ export async function gateSitePage(
   };
   store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
   for (const [k, v] of Object.entries(paid.headers)) res.setHeader(k, v);
-  res.setHeader("X-Safehubby-Pass", makePass(secret, paid.payer ?? "unknown", now(), passDays()));
+  res.setHeader("X-Safehubby-Pass", makePass(secret, paid.payer ?? "unknown", now(), passMinutes()));
   res.setHeader("Access-Control-Expose-Headers", "X-Safehubby-Pass, PAYMENT-RESPONSE");
   return false;
 }

@@ -29,17 +29,17 @@ describe("which addresses the site pass covers", () => {
   });
 });
 
-describe("the 30-day pass", () => {
+describe("the visit pass", () => {
   const secret = "s3cret-for-tests";
   const now = new Date("2026-11-18T12:00:00Z");
   it("is accepted for the payer it was made for until it ends", () => {
-    const pass = makePass(secret, "0xAbC", now, 30);
+    const pass = makePass(secret, "0xAbC", now, 60);
     expect(passIsValid(secret, pass, now)).toBe(true);
-    expect(passIsValid(secret, pass, new Date("2026-12-17T11:59:00Z"))).toBe(true);
-    expect(passIsValid(secret, pass, new Date("2026-12-18T12:00:01Z"))).toBe(false);
+    expect(passIsValid(secret, pass, new Date("2026-11-18T12:59:00Z"))).toBe(true);
+    expect(passIsValid(secret, pass, new Date("2026-11-18T13:00:01Z"))).toBe(false);
   });
   it("is refused when changed, made with another secret, or garbled", () => {
-    const pass = makePass(secret, "0xabc", now, 30);
+    const pass = makePass(secret, "0xabc", now, 60);
     const [payer, exp, sig] = pass.split(".") as [string, string, string];
     expect(passIsValid(secret, `${payer}.${Number(exp) + 1}.${sig}`, now)).toBe(false);
     expect(passIsValid(secret, `0xother.${exp}.${sig}`, now)).toBe(false);

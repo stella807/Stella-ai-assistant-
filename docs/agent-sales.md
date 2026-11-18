@@ -16,14 +16,15 @@ money (Base Sepolia) until the owner decides otherwise.
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_VENDORS`, `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
 
-## The site pass: $8.99 for AI crawlers to read the website
+## The site pass: $8.99 a visit for AI crawlers to read the website
 
 A visitor that names itself as an AI crawler or agent (GPTBot, ChatGPT-User, OAI-SearchBot,
 ClaudeBot, Claude-User, PerplexityBot, CCBot, Bytespider, Meta-ExternalAgent and a few more; the
-list is in `apps/api/src/site-pass.ts`) is asked for **$8.99 once** (`X402_SITE_PASS_PRICE`) to read
-the website's pages for **30 days** (`X402_SITE_PASS_DAYS`). It pays, and the answer carries an
-`X-Safehubby-Pass` header to send back on later requests. The payment goes through the same checks as
-the store: verified, then settled, and only then is the page served.
+list is in `apps/api/src/site-pass.ts`) is asked for **$8.99 per visit** (`X402_SITE_PASS_PRICE`) to read
+the website's pages. A **visit lasts 1 hour** (`X402_SITE_PASS_MINUTES`) and covers as many pages as it
+likes. The payment answer carries an `X-Safehubby-Pass` header to send back on every request during the
+visit. When the hour is over, it pays again. The payment goes through the same checks as the store:
+verified, then settled, and only then is the page served.
 
 Never charged: people with a browser, **search engines** (Googlebot, bingbot, DuckDuckBot, Applebot
 are not in the list), the **blog** (`/blog`, `/es/blog`), the agent store, the whole API, `robots.txt`,
@@ -35,6 +36,7 @@ Limits, said plainly:
 - It goes by the name a visitor gives itself. A crawler that calls itself a browser reads the site free.
 - AI search tools that obey it will no longer read the website's pages, only the blog. That means
   fewer mentions of the site in their answers. The blog stays open so they can still cite it.
+- A crawler that reads thousands of pages pays once an hour, so the price is per visit, not per page.
 - Every payment is real USDC once the real-money switch is on.
 
 ## What is not paywalled, and why
