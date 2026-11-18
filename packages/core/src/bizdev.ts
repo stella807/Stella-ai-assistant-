@@ -158,14 +158,12 @@ export function scoreLead(lead: BizLead, now: Date, settings: BizSettings = DEFA
   if (lead.kind !== "investor") {
     // Customers and partners: where they are, documented fit, and a listed way to reach them.
     const geography = Math.round((GEO[lead.market] / 15) * 30);
-    const fitTags = new Set(evidence.filter((e) => e.tag).map((e) => e.tag));
     const fit = Math.min(40, Math.min(2, evidence.length) * 20);
     const ch = lead.contactChannel;
     const reachable = !!ch && (ch.kind === "form" || ch.kind === "linkedin" || ch.kind === "other" ? isHttps(ch.value) : isHttps(ch.source));
     const contact = reachable ? 20 : 0;
     const decisionMaker = lead.contactName?.trim() && reachable ? 10 : 0;
     if (!reachable) flags.push("No publicly listed way to reach them, with its source page.");
-    void fitTags;
     const parts = { geography, fit, contact, decisionMaker };
     const total = geography + fit + contact + decisionMaker;
     return { total, parts, flags, qualified: total >= QUALIFIED_AT && evidence.length > 0 };
@@ -253,7 +251,12 @@ export function validateLead(input: unknown): string[] {
   const sources: unknown[] = Array.isArray(l.sources) ? l.sources : [];
   if (sources.length === 0) errors.push("Add at least one source page for this lead.");
   else if (!sources.every(isHttps)) errors.push("Every source must be an https page.");
-  for (const e of Array.isArray(l.evidence) ? l.evidence : []) if (!isHttps(e?.url)) errors.push("Every piece of evidence needs an https source page.");
+  for (const e of Array.isArray(l.evidence) ? l.evidence : []) {
+    if (!isHttps(e?.url)) errors.push("Every piece of evidence needs an https source page.");
+    else if (!String(e?.claim ?? "").trim()) errors.push("Every piece of evidence needs a sentence saying what the page shows.");
+  }
+  for (const k of ["website", "profileUrl"] as const) if (l[k] && !isHttps(l[k])) errors.push(`The ${k === "website" ? "website" : "profile link"} must be an https address.`);
+  if (l.status !== undefined && !LEAD_STATUSES.includes(l.status)) errors.push("That is not a status.");
   const c = l.contactChannel;
   if (c) {
     if (c.kind === "email" && !EMAIL_RE.test(String(c.value ?? "").trim())) errors.push("That email address is not valid.");
@@ -389,4 +392,94 @@ export function bizStats(leads: BizLead[], drafts: BizDraft[], now: Date, settin
     replies: byStatus.replied ?? 0,
     meetings: byStatus.meeting ?? 0,
   };
+}
+
+/* ---- reading what the portal sends ------------------------------------------------------------ */
+
+const txt = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+const opt = (v: unknown, max: number): string | undefined => txt(v, max) || undefined;
+const usd = (v: unknown): number | undefined => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v.replace(/[$,\s]/g, "")) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : undefined;
+};
+const day = (v: unknown): string | undefined => {
+  const s = txt(v, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime()) ? s : undefined;
+};
+/** A list typed as one line ("a, b") or sent as an array. */
+const list = (v: unknown, max: number, each: number): string[] => {
+  const raw = Array.isArray(v) ? v : typeof v === "string" ? v.split(/[,\n]/) : [];
+  return raw.map((x) => txt(x, each)).filter(Boolean).slice(0, max);
+};
+const EVIDENCE_TAGS: EvidenceTag[] = [...INDUSTRY_TAGS, "marketing", "introductions", "puerto-rico"];
+const CONTACT_KINDS: ContactKind[] = ["email", "phone", "form", "linkedin", "other"];
+
+/**
+ * The fields of a lead found in an untrusted request body, trimmed and capped. Only the fields the body
+ * carries come back, so an edit changes only what was sent. Nothing is checked here beyond shape:
+ * `validateLead` on the merged lead decides whether it can be saved.
+ */
+export function readLeadInput(body: unknown): Partial<BizLead> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const has = (k: string) => b[k] !== undefined;
+  const out: Partial<BizLead> = {};
+  if (has("kind")) out.kind = txt(b.kind, 20) as LeadKind;
+  if (has("name")) out.name = txt(b.name, 120);
+  if (has("org")) out.org = opt(b.org, 160);
+  if (has("website")) out.website = opt(b.website, 400);
+  if (has("profileUrl")) out.profileUrl = opt(b.profileUrl, 400);
+  if (has("location")) out.location = opt(b.location, 120);
+  if (has("market")) out.market = txt(b.market, 20) as BizMarket;
+  if (has("investorType")) out.investorType = (opt(b.investorType, 40) as InvestorType | undefined);
+  if (has("segment")) out.segment = opt(b.segment, 80);
+  if (has("stage")) out.stage = opt(b.stage, 80);
+  if (has("interests")) out.interests = list(b.interests, 20, 60);
+  if (has("previousInvestments")) out.previousInvestments = list(b.previousInvestments, 30, 160);
+  if (has("typicalCheckUsd")) {
+    const t = (b.typicalCheckUsd ?? {}) as Record<string, unknown>;
+    const min = usd(t.min), max = usd(t.max);
+    out.typicalCheckUsd = min === undefined && max === undefined ? undefined : { min, max };
+  }
+  if (has("fundSizeUsd")) out.fundSizeUsd = usd(b.fundSizeUsd);
+  if (has("lastInvestmentOn")) out.lastInvestmentOn = day(b.lastInvestmentOn);
+  if (has("lastVerifiedOn")) out.lastVerifiedOn = day(b.lastVerifiedOn);
+  if (has("evidence")) {
+    out.evidence = (Array.isArray(b.evidence) ? b.evidence : []).slice(0, 20).map((e: any) => ({
+      claim: txt(e?.claim, 300), url: txt(e?.url, 400),
+      ...(EVIDENCE_TAGS.includes(e?.tag) ? { tag: e.tag as EvidenceTag } : {}),
+      ...(e?.comparable === true ? { comparable: true } : {}),
+    })).filter((e) => e.claim || e.url);
+  }
+  if (has("contactName")) out.contactName = opt(b.contactName, 120);
+  if (has("contactChannel")) {
+    const c = b.contactChannel as Record<string, unknown> | null;
+    const kind = txt(c?.kind, 20) as ContactKind;
+    const value = txt(c?.value, 200);
+    out.contactChannel = c && CONTACT_KINDS.includes(kind) && value ? { kind, value, ...(opt(c.source, 400) ? { source: opt(c.source, 400) } : {}) } : undefined;
+  }
+  if (has("sources")) out.sources = list(b.sources, 20, 400);
+  if (has("connection")) out.connection = opt(b.connection, 600);
+  if (has("status")) out.status = txt(b.status, 20) as LeadStatus;
+  if (has("notes")) out.notes = txt(b.notes, 2000);
+  return out;
+}
+
+/** The owner's assumptions, with each kept inside the limits the sending rules were written for. */
+export function readBizSettings(body: unknown, current: BizSettings = DEFAULT_BIZ_SETTINGS): BizSettings {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const n = (k: keyof BizSettings, lo: number, hi: number) => {
+    const v = usd(b[k]);
+    return v === undefined ? (current[k] as number) : Math.min(hi, Math.max(lo, v));
+  };
+  const next: BizSettings = {
+    askUsd: n("askUsd", 1, 1_000_000_000),
+    launchMinUsd: n("launchMinUsd", 0, 1_000_000_000),
+    launchMaxUsd: n("launchMaxUsd", 0, 1_000_000_000),
+    securitiesReviewed: typeof b.securitiesReviewed === "boolean" ? b.securitiesReviewed : current.securitiesReviewed,
+    // Never closer than five days apart and never more than two follow-ups, however the setting is typed.
+    minDaysBetween: n("minDaysBetween", 5, 60),
+    maxFollowUps: n("maxFollowUps", 0, 2),
+  };
+  if (next.launchMinUsd > next.launchMaxUsd) next.launchMaxUsd = next.launchMinUsd;
+  return next;
 }

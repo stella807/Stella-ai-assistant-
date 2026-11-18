@@ -74,6 +74,9 @@ import {
   AIRPORT_VIP_VENDORS, DEFAULT_VENDOR_LIST, HOTEL_PROGRAM_VENDORS, SUGGESTED_VENDOR_LISTS, SUGGESTED_VENDORS, VENDOR_CATEGORIES, VENDOR_STATUSES, type Vendor, type VendorList, type VendorCategory, type VendorStatus,
   currentMonthlyFreebies, defaultMonthlyFreebies, sanitizeMonthlyFreebies, setMonthlyFreebies, withholdingFor, payoutSheet, payoutPeriodFor, costEmail, canEmail, composeEmail, isValidNewsletterEmail, readPartnerInquiry, type PartnerInquiry, type TextAlertKind, optOutEmail, registerEmailContact,
   SENIOR_MIN_AGE, isSeniorEligible, validateSeniorId, type SeniorIdCheck,
+  BIZ_MARKETS, CAPITAL_TEMPLATES, DEFAULT_BIZ_SETTINGS, DRAFT_TEMPLATES, INVESTOR_LIST_LABELS, INVESTOR_TYPES, LEAD_KINDS, LEAD_STATUSES,
+  bizStats, canMarkSent, draftFor, investorLists, isSuppressed, readBizSettings, readLeadInput, scoreLead, validateLead,
+  type BizAuditEntry, type BizDraft, type BizLead, type DraftTemplate,
 } from "@safehubby/core";
 import type {
   PreAuthorization,
@@ -1114,6 +1117,19 @@ const SUGGESTED_LATER = new Set([
   ...HOTEL_PROGRAM_VENDORS.map((v) => v.id),
   ...AIRPORT_VIP_VENDORS.map((v) => v.id),
 ]);
+
+/** One line in the business-development audit log. Kept to the newest 2,000. */
+function bizAudit(db: { bizAudit?: BizAuditEntry[] }, at: string, action: string, subjectId: string | undefined, detail: string): void {
+  const entry: BizAuditEntry = { id: newId("bau"), at, actor: "owner", action, subjectId, detail: detail.slice(0, 300) };
+  db.bizAudit = [...(db.bizAudit ?? []), entry].slice(-2000);
+}
+
+/** A lead as the portal shows it: its score, its investor lists and whether it is on the opt-out list, worked out fresh each time. */
+function bizView(lead: BizLead, ctx: Ctx) {
+  const settings = ctx.store.data.bizSettings ?? DEFAULT_BIZ_SETTINGS;
+  const now = ctx.now();
+  return { ...lead, score: scoreLead(lead, now, settings), lists: investorLists(lead, now, settings), suppressed: isSuppressed(lead, ctx.store.data.bizSuppressions ?? []) };
+}
 
 /** Text the owner typed, trimmed and capped; anything else becomes empty. */
 function cleanText(value: unknown, max: number): string {
@@ -6803,6 +6819,183 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /* Business development: investors, customers and partners. Owner only (money scope to look, write to change).
+     The server never sends a message: the owner approves a draft, sends it themselves and records that here,
+     and the sending rules in core decide whether it may be recorded. Every change is in the audit log. */
+  "GET /api/master/bizdev": (ctx) => {
+    requireAdmin(ctx, "money");
+    const d = ctx.store.data;
+    const settings = d.bizSettings ?? DEFAULT_BIZ_SETTINGS;
+    const leads = d.bizLeads ?? [];
+    const drafts = d.bizDrafts ?? [];
+    return {
+      leads: leads.map((l) => bizView(l, ctx)), drafts, suppressions: d.bizSuppressions ?? [], settings,
+      stats: bizStats(leads, drafts, ctx.now(), settings), audit: (d.bizAudit ?? []).slice(-100).reverse(),
+      meta: {
+        markets: BIZ_MARKETS, kinds: LEAD_KINDS, investorTypes: INVESTOR_TYPES, statuses: LEAD_STATUSES, templates: DRAFT_TEMPLATES,
+        capitalTemplates: CAPITAL_TEMPLATES, listLabels: INVESTOR_LIST_LABELS,
+      },
+    };
+  },
+
+  "POST /api/master/bizdev/leads": (ctx, _p, body) => {
+    requireAdmin(ctx, "write");
+    const at = ctx.now().toISOString();
+    const lead: BizLead = {
+      id: newId("bl"), kind: "investor", name: "", market: "puerto-rico", interests: [], previousInvestments: [], evidence: [], sources: [],
+      status: "discovered", notes: "", createdAt: at, updatedAt: at, ...readLeadInput(body),
+    };
+    const errors = validateLead(lead);
+    if (errors.length) throw new HttpError(400, errors.join(" "));
+    const dup = (ctx.store.data.bizLeads ?? []).find((l) => l.kind === lead.kind && l.name.toLowerCase() === lead.name.toLowerCase() && (l.org ?? "").toLowerCase() === (lead.org ?? "").toLowerCase());
+    if (dup) throw new HttpError(400, "That lead is already on the list.");
+    ctx.store.update((db) => { db.bizLeads = [...(db.bizLeads ?? []), lead]; bizAudit(db, at, "lead.add", lead.id, `${lead.kind}: ${lead.name}`); });
+    return { lead: bizView(lead, ctx) };
+  },
+
+  "POST /api/master/bizdev/leads/:id": (ctx, p, body) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const found = (ctx.store.data.bizLeads ?? []).find((l) => l.id === id);
+    if (!found) throw notFound("Lead");
+    const at = ctx.now().toISOString();
+    const change = readLeadInput(body);
+    const next: BizLead = { ...found, ...change, id, createdAt: found.createdAt, updatedAt: at };
+    const errors = validateLead(next);
+    if (errors.length) throw new HttpError(400, errors.join(" "));
+    ctx.store.update((db) => {
+      db.bizLeads = (db.bizLeads ?? []).map((l) => (l.id === id ? next : l));
+      bizAudit(db, at, "lead.edit", id, `Changed: ${Object.keys(change).join(", ") || "nothing"}`);
+    });
+    return { lead: bizView(next, ctx) };
+  },
+
+  "POST /api/master/bizdev/leads/:id/delete": (ctx, p) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const found = (ctx.store.data.bizLeads ?? []).find((l) => l.id === id);
+    if (!found) throw notFound("Lead");
+    // A lead that was written to keeps its record, so the follow-up and opt-out rules still have something to check against.
+    if ((ctx.store.data.bizDrafts ?? []).some((d) => d.leadId === id && d.status === "sent")) throw new HttpError(400, "This lead was already written to, so it stays. Mark it turned down instead.");
+    const at = ctx.now().toISOString();
+    ctx.store.update((db) => {
+      db.bizLeads = (db.bizLeads ?? []).filter((l) => l.id !== id);
+      db.bizDrafts = (db.bizDrafts ?? []).filter((d) => d.leadId !== id);
+      bizAudit(db, at, "lead.remove", id, found.name);
+    });
+    return { ok: true };
+  },
+
+  "POST /api/master/bizdev/leads/:id/draft": (ctx, p, body) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const lead = (ctx.store.data.bizLeads ?? []).find((l) => l.id === id);
+    if (!lead) throw notFound("Lead");
+    const template = String(body?.template ?? "") as DraftTemplate;
+    if (!DRAFT_TEMPLATES.some((t) => t.id === template)) throw new HttpError(400, "Pick a template.");
+    if (isSuppressed(lead, ctx.store.data.bizSuppressions ?? [])) throw new HttpError(400, "This contact has opted out, so no message is drafted.");
+    const settings = ctx.store.data.bizSettings ?? DEFAULT_BIZ_SETTINGS;
+    const followUp = (ctx.store.data.bizDrafts ?? []).filter((d) => d.leadId === id && d.status === "sent").length;
+    if (followUp > settings.maxFollowUps) throw new HttpError(400, `Already sent the first message and ${settings.maxFollowUps} follow-ups.`);
+    const at = ctx.now().toISOString();
+    const made = draftFor(lead, template, ctx.now());
+    const draft: BizDraft = {
+      id: newId("bd"), leadId: id, template, subject: followUp ? `Following up: ${made.subject}` : made.subject, body: made.body,
+      status: "draft", followUp, createdAt: at,
+    };
+    ctx.store.update((db) => {
+      db.bizDrafts = [...(db.bizDrafts ?? []), draft];
+      const l = (db.bizLeads ?? []).find((x) => x.id === id)!;
+      if (l.status === "discovered" || l.status === "qualified") { l.status = "drafted"; l.updatedAt = at; }
+      bizAudit(db, at, "draft.create", draft.id, `${template} for ${lead.name}`);
+    });
+    return { draft, lead: bizView((ctx.store.data.bizLeads ?? []).find((l) => l.id === id)!, ctx) };
+  },
+
+  /** Approve, reject or edit a draft. Editing an approved draft sends it back for approval. */
+  "POST /api/master/bizdev/drafts/:id": (ctx, p, body) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const found = (ctx.store.data.bizDrafts ?? []).find((d) => d.id === id);
+    if (!found) throw notFound("Draft");
+    if (found.status === "sent") throw new HttpError(400, "This message was already sent, so it can't be changed.");
+    const action = String(body?.action ?? "");
+    const at = ctx.now().toISOString();
+    if (action === "edit") {
+      const subject = cleanText(body?.subject, 200);
+      const text = typeof body?.body === "string" ? body.body.trim().slice(0, 8000) : "";
+      if (!subject || !text) throw new HttpError(400, "A message needs a subject and a body.");
+      ctx.store.update((db) => {
+        const d = (db.bizDrafts ?? []).find((x) => x.id === id)!;
+        d.subject = subject; d.body = text; d.status = "draft"; delete d.approvedAt;
+        bizAudit(db, at, "draft.edit", id, subject);
+      });
+    } else if (action === "approve" || action === "reject") {
+      ctx.store.update((db) => {
+        const d = (db.bizDrafts ?? []).find((x) => x.id === id)!;
+        d.status = action === "approve" ? "approved" : "rejected";
+        if (action === "approve") d.approvedAt = at; else delete d.approvedAt;
+        const l = (db.bizLeads ?? []).find((x) => x.id === d.leadId);
+        if (action === "approve" && l && l.status === "drafted") { l.status = "approved"; l.updatedAt = at; }
+        bizAudit(db, at, `draft.${action}`, id, d.subject);
+      });
+    } else throw new HttpError(400, "Say approve, reject or edit.");
+    return { draft: (ctx.store.data.bizDrafts ?? []).find((d) => d.id === id)!, lead: bizView((ctx.store.data.bizLeads ?? []).find((l) => l.id === found.leadId)!, ctx) };
+  },
+
+  /** The owner sent an approved message themselves; this records it, if the sending rules allow. */
+  "POST /api/master/bizdev/drafts/:id/sent": (ctx, p) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const d0 = ctx.store.data;
+    const draft = (d0.bizDrafts ?? []).find((d) => d.id === id);
+    if (!draft) throw notFound("Draft");
+    const lead = (d0.bizLeads ?? []).find((l) => l.id === draft.leadId);
+    if (!lead) throw notFound("Lead");
+    const check = canMarkSent(draft, lead, d0.bizSettings ?? DEFAULT_BIZ_SETTINGS, d0.bizSuppressions ?? [], d0.bizDrafts ?? [], ctx.now());
+    if (!check.ok) throw new HttpError(400, check.reasons.join(" "));
+    const at = ctx.now().toISOString();
+    ctx.store.update((db) => {
+      const d = (db.bizDrafts ?? []).find((x) => x.id === id)!;
+      d.status = "sent"; d.sentAt = at;
+      const l = (db.bizLeads ?? []).find((x) => x.id === draft.leadId)!;
+      if (["discovered", "qualified", "drafted", "approved"].includes(l.status)) { l.status = "sent"; l.updatedAt = at; }
+      bizAudit(db, at, "draft.sent", id, `${draft.subject} to ${lead.name}`);
+    });
+    return { draft: (ctx.store.data.bizDrafts ?? []).find((d) => d.id === id)!, lead: bizView((ctx.store.data.bizLeads ?? []).find((l) => l.id === lead.id)!, ctx) };
+  },
+
+  "POST /api/master/bizdev/suppressions": (ctx, _p, body) => {
+    requireAdmin(ctx, "write");
+    const value = cleanText(body?.value, 200).toLowerCase().replace(/^@/, "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(value)) throw new HttpError(400, "Enter an email address or a domain, like example.com.");
+    if ((ctx.store.data.bizSuppressions ?? []).some((s) => s.value === value)) throw new HttpError(400, "That is already on the opt-out list.");
+    const at = ctx.now().toISOString();
+    const entry = { id: newId("bsp"), value, reason: cleanText(body?.reason, 200) || undefined, at };
+    ctx.store.update((db) => { db.bizSuppressions = [...(db.bizSuppressions ?? []), entry]; bizAudit(db, at, "suppression.add", entry.id, value); });
+    return { suppression: entry };
+  },
+
+  "POST /api/master/bizdev/suppressions/:id/delete": (ctx, p) => {
+    requireAdmin(ctx, "write");
+    const id = req(p, "id");
+    const found = (ctx.store.data.bizSuppressions ?? []).find((s) => s.id === id);
+    if (!found) throw notFound("Opt-out");
+    const at = ctx.now().toISOString();
+    ctx.store.update((db) => { db.bizSuppressions = (db.bizSuppressions ?? []).filter((s) => s.id !== id); bizAudit(db, at, "suppression.remove", id, found.value); });
+    return { ok: true };
+  },
+
+  "POST /api/master/bizdev/settings": (ctx, _p, body) => {
+    requireAdmin(ctx, "write");
+    const before = ctx.store.data.bizSettings ?? DEFAULT_BIZ_SETTINGS;
+    const settings = readBizSettings(body, before);
+    const at = ctx.now().toISOString();
+    const changed = (Object.keys(settings) as (keyof typeof settings)[]).filter((k) => settings[k] !== before[k]);
+    ctx.store.update((db) => { db.bizSettings = settings; bizAudit(db, at, "settings", undefined, changed.map((k) => `${k}=${settings[k]}`).join(", ") || "no change"); });
+    return { settings };
   },
 
   /** Master: a member's plan charges and what each would get back under the refund rules. */

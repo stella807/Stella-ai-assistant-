@@ -2936,6 +2936,88 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("the owner's business-development desk", () => {
+    useAdminKey();
+    const investor = {
+      kind: "investor", name: "Dana Rivera", org: "Isla Partners", market: "puerto-rico", investorType: "family-office",
+      website: "https://isla.example", sources: ["https://isla.example/about"],
+      typicalCheckUsd: { min: 500000, max: 4000000 }, lastInvestmentOn: "2026-03-01",
+      evidence: [{ claim: "Backed a hotel group", url: "https://isla.example/news", tag: "hospitality", comparable: true }],
+      contactChannel: { kind: "email", value: "dana@isla.example", source: "https://isla.example/contact" },
+    };
+
+    it("is the owner's alone", async () => {
+      expect((await call("GET", "/api/master/bizdev")).status).toBe(401);
+      expect((await call("GET", "/api/master/bizdev", undefined, jordan)).status).toBe(401);
+      expect((await call("POST", "/api/master/bizdev/leads", investor, jordan)).status).toBe(401);
+      const res = await callAdmin("GET", "/api/master/bizdev");
+      expect(res.status).toBe(200);
+      expect(res.json.leads).toEqual([]);
+      expect(res.json.settings.securitiesReviewed).toBe(false);
+    });
+
+    it("refuses a lead whose email has no source page, and scores one that is sourced", async () => {
+      const bad = await callAdmin("POST", "/api/master/bizdev/leads", { ...investor, contactChannel: { kind: "email", value: "dana@isla.example" } });
+      expect(bad.status).toBe(400);
+      expect(bad.json.error ?? JSON.stringify(bad.json)).toMatch(/source/i);
+      const ok = await callAdmin("POST", "/api/master/bizdev/leads", investor);
+      expect(ok.status).toBe(200);
+      expect(ok.json.lead.score.total).toBeGreaterThan(0);
+      expect(ok.json.lead.lists).toContain("A");
+      expect((await callAdmin("POST", "/api/master/bizdev/leads", investor)).status).toBe(400);
+    });
+
+    it("drafts, needs approval, and blocks investor messages until counsel has reviewed them", async () => {
+      const { lead } = (await callAdmin("POST", "/api/master/bizdev/leads", investor)).json;
+      const { draft } = (await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/draft`, { template: "investor" })).json;
+      expect(draft.status).toBe("draft");
+      expect(draft.body).toMatch(/no revenue/i);
+      // Not approved yet.
+      expect((await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}/sent`, {})).status).toBe(400);
+      expect((await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}`, { action: "approve" })).json.draft.status).toBe("approved");
+      const blocked = await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}/sent`, {});
+      expect(blocked.status).toBe(400);
+      expect(JSON.stringify(blocked.json)).toMatch(/counsel/i);
+      await callAdmin("POST", "/api/master/bizdev/settings", { securitiesReviewed: true });
+      const sent = await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}/sent`, {});
+      expect(sent.status).toBe(200);
+      expect(sent.json.draft.status).toBe("sent");
+      // A sent message can't be edited, and its lead can't be deleted.
+      expect((await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}`, { action: "edit", subject: "x", body: "y" })).status).toBe(400);
+      expect((await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/delete`, {})).status).toBe(400);
+      const got = (await callAdmin("GET", "/api/master/bizdev")).json;
+      expect(got.stats.messagesSent).toBe(1);
+      expect(got.audit.map((a: { action: string }) => a.action)).toEqual(expect.arrayContaining(["lead.add", "draft.create", "draft.approve", "settings", "draft.sent"]));
+    });
+
+    it("editing an approved draft sends it back for approval", async () => {
+      const { lead } = (await callAdmin("POST", "/api/master/bizdev/leads", { ...investor, kind: "partner", name: "Hotel Uno", investorType: undefined })).json;
+      const { draft } = (await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/draft`, { template: "hotel" })).json;
+      await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}`, { action: "approve" });
+      const edited = await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}`, { action: "edit", subject: "Hi", body: "Short note" });
+      expect(edited.json.draft.status).toBe("draft");
+    });
+
+    it("never drafts for or records a message to someone on the opt-out list", async () => {
+      const { lead } = (await callAdmin("POST", "/api/master/bizdev/leads", { ...investor, kind: "partner", name: "Hotel Dos", investorType: undefined })).json;
+      const { draft } = (await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/draft`, { template: "hotel" })).json;
+      await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}`, { action: "approve" });
+      expect((await callAdmin("POST", "/api/master/bizdev/suppressions", { value: "not an address" })).status).toBe(400);
+      expect((await callAdmin("POST", "/api/master/bizdev/suppressions", { value: "isla.example", reason: "Asked not to be contacted" })).status).toBe(200);
+      const blocked = await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}/sent`, {});
+      expect(blocked.status).toBe(400);
+      expect(JSON.stringify(blocked.json)).toMatch(/opted out/i);
+      expect((await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/draft`, { template: "hotel" })).status).toBe(400);
+      expect((await callAdmin("GET", "/api/master/bizdev")).json.leads[0].suppressed).toBe(true);
+    });
+
+    it("keeps the follow-up limits inside the rules", async () => {
+      const res = await callAdmin("POST", "/api/master/bizdev/settings", { minDaysBetween: 0, maxFollowUps: 10 });
+      expect(res.json.settings.minDaysBetween).toBe(5);
+      expect(res.json.settings.maxFollowUps).toBe(2);
+    });
+  });
+
   describe("the owner's switch for what is free each month", () => {
     useAdminKey();
 

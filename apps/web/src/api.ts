@@ -3,6 +3,19 @@ import { currentLanguage } from "./i18n.tsx";
 import { localized, localizeDeep } from "./app/server-es.ts";
 import { setMonthlyFreebies } from "@safehubby/core";
 import type {
+  BizAuditEntry, BizDraft, BizMarket, BizSettings, BizStats, BizSuppression, DraftTemplate, InvestorList, InvestorType, LeadKind, LeadStatus,
+} from "@safehubby/core";
+import type { BizLeadView } from "./app/bizdev-view.ts";
+
+/** Everything the owner's business-development desk shows, in one load. */
+export type BizDesk = {
+  leads: BizLeadView[]; drafts: BizDraft[]; suppressions: BizSuppression[]; settings: BizSettings; stats: BizStats; audit: BizAuditEntry[];
+  meta: {
+    markets: { id: BizMarket; label: string }[]; kinds: LeadKind[]; investorTypes: { id: InvestorType; label: string }[]; statuses: LeadStatus[];
+    templates: { id: DraftTemplate; label: string }[]; capitalTemplates: DraftTemplate[]; listLabels: Record<InvestorList, string>;
+  };
+};
+import type {
   AircraftFix,
   TrackedAircraft,
   Alert, AssistantProfile, BacEstimate, Charge, CheckIn, ConciergeCategory, ConciergeTask, DeskTask,
@@ -918,6 +931,17 @@ export const api = {
   masterAddVendor: (v: { listId?: string; name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
+  bizDesk: () => request<BizDesk>("GET", "/api/master/bizdev"),
+  bizAddLead: (lead: Record<string, unknown>) => request<{ lead: BizLeadView }>("POST", "/api/master/bizdev/leads", lead),
+  bizUpdateLead: (id: string, change: Record<string, unknown>) => request<{ lead: BizLeadView }>("POST", `/api/master/bizdev/leads/${id}`, change),
+  bizDeleteLead: (id: string) => request<{ ok: true }>("POST", `/api/master/bizdev/leads/${id}/delete`, {}),
+  bizDraft: (leadId: string, template: DraftTemplate) => request<{ draft: BizDraft; lead: BizLeadView }>("POST", `/api/master/bizdev/leads/${leadId}/draft`, { template }),
+  bizDraftAction: (id: string, action: "approve" | "reject" | { subject: string; body: string }) =>
+    request<{ draft: BizDraft; lead: BizLeadView }>("POST", `/api/master/bizdev/drafts/${id}`, typeof action === "string" ? { action } : { action: "edit", ...action }),
+  bizMarkSent: (id: string) => request<{ draft: BizDraft; lead: BizLeadView }>("POST", `/api/master/bizdev/drafts/${id}/sent`, {}),
+  bizAddSuppression: (value: string, reason?: string) => request<{ suppression: BizSuppression }>("POST", "/api/master/bizdev/suppressions", { value, reason }),
+  bizRemoveSuppression: (id: string) => request<{ ok: true }>("POST", `/api/master/bizdev/suppressions/${id}/delete`, {}),
+  bizSaveSettings: (s: Partial<BizSettings>) => request<{ settings: BizSettings }>("POST", "/api/master/bizdev/settings", s),
   masterFreebies: () =>
     request<{ freebies: MonthlyFreebies; defaults: MonthlyFreebies }>("GET", "/api/master/freebies"),
   masterSetFreebies: (freebies: MonthlyFreebies) =>

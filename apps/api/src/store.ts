@@ -8,6 +8,7 @@ import type {
   ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor, VendorList, ClubSubscription, ClubRsvp, ClubMonthState,
 } from "@safehubby/core";
 import type { MonthlyFreebies, SeniorIdCheck, StaffRole } from "@safehubby/core";
+import type { BizAuditEntry, BizDraft, BizLead, BizSettings, BizSuppression } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
@@ -266,6 +267,16 @@ export interface Db {
   clubRsvps?: ClubRsvp[];
   /** Per month ("2026-12"): whether the club has locked the outing in or called it off. */
   clubMonths?: Record<string, ClubMonthState>;
+  /** Business development: the investors, customers and partners the owner works through. */
+  bizLeads?: BizLead[];
+  /** Messages drafted for those leads. None is ever sent by the server: the owner sends it and records that. */
+  bizDrafts?: BizDraft[];
+  /** Addresses and domains that asked not to be contacted; nothing may be marked sent to them. */
+  bizSuppressions?: BizSuppression[];
+  /** Every change on the business-development desk, newest last, capped. */
+  bizAudit?: BizAuditEntry[];
+  /** The owner's assumptions (the ask, a smaller launch) and the sending limits; unset means the defaults. */
+  bizSettings?: BizSettings;
   /** Ids of the suggested vendors already offered, so a later round of research adds only the new ones and a removed vendor stays removed. */
   vendorSeedsOffered?: string[];
   /** The owner's switch and amounts for what is free each month; unset means the built-in numbers. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_BIZ_SETTINGS, bizStats, canMarkSent, draftFor, investorLists, isSuppressed, scoreLead, validateLead,
+  DEFAULT_BIZ_SETTINGS, bizStats, canMarkSent, draftFor, investorLists, isSuppressed, readBizSettings, readLeadInput, scoreLead, validateLead,
   type BizDraft, type BizLead,
 } from "../src/bizdev.ts";
 
@@ -204,5 +204,31 @@ describe("the owner's summary", () => {
     expect(s.draftsAwaitingApproval).toBe(1);
     expect(s.messagesSent).toBe(1);
     expect(s.fundingNote).toMatch(/not commitments/i);
+  });
+});
+
+describe("reading what the portal sends", () => {
+  it("keeps only the fields sent, trimmed, and turns typed lists and amounts into data", () => {
+    const got = readLeadInput({ name: "  Ana  ", interests: "hotels, transport ,", typicalCheckUsd: { min: "$250,000", max: "" }, lastInvestmentOn: "2025-13-40", extra: "x" });
+    expect(got).toEqual({ name: "Ana", interests: ["hotels", "transport"], typicalCheckUsd: { min: 250_000, max: undefined }, lastInvestmentOn: undefined });
+  });
+  it("drops an evidence tag it does not know and a contact with no value", () => {
+    const got = readLeadInput({ evidence: [{ claim: "A", url: "https://a.example", tag: "nonsense", comparable: "yes" }], contactChannel: { kind: "email", value: " " } });
+    expect(got.evidence).toEqual([{ claim: "A", url: "https://a.example" }]);
+    expect(got.contactChannel).toBeUndefined();
+  });
+  it("refuses a website that is not https and evidence without a claim", () => {
+    const base = lead();
+    expect(validateLead({ ...base, website: "http://isla.example" }).join(" ")).toMatch(/website/i);
+    expect(validateLead({ ...base, evidence: [{ claim: " ", url: "https://isla.example/x" }] }).join(" ")).toMatch(/sentence/i);
+    expect(validateLead({ ...base, status: "maybe" }).join(" ")).toMatch(/status/i);
+  });
+  it("keeps the sending limits inside the rules, however the settings are typed", () => {
+    const s = readBizSettings({ minDaysBetween: 1, maxFollowUps: 9, securitiesReviewed: "true", askUsd: "3,800,000" });
+    expect(s.minDaysBetween).toBe(5);
+    expect(s.maxFollowUps).toBe(2);
+    expect(s.securitiesReviewed).toBe(false);
+    expect(s.askUsd).toBe(3_800_000);
+    expect(readBizSettings({ securitiesReviewed: true }).securitiesReviewed).toBe(true);
   });
 });

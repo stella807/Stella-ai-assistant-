@@ -14,6 +14,7 @@ import { FreebiesSection } from "./FreebiesSection.tsx";
 import { ProfitCalculatorSection } from "./ProfitCalculatorSection.tsx";
 import { dollarsToCents } from "../app/dollars-input.ts";
 import { VendorsSection } from "./VendorsSection.tsx";
+import { BizDevSection } from "./BizDevSection.tsx";
 
 /**
  * The master (owner/secretary) dashboard — a third area of the app, reached
@@ -368,6 +369,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
             canWrite={overview.scopes.includes("write")} onChanged={onRefresh} />
         </Fold>
       )}
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Investors, customers and partners"><BizDevSection /></Fold>}
       {tab === "money" && overview.money && <Fold title="Money"><MoneySection money={overview.money} /></Fold>}
       {tab === "money" && overview.money && <Fold title="Payout sheet"><PayoutSheetSection /></Fold>}
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Free each month"><FreebiesSection /></Fold>}
