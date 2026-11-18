@@ -3187,6 +3187,57 @@ describe("biweekly payroll", () => {
       expect(JSON.stringify(body.facts)).toContain("$93.99");
     });
 
+    describe("signals: what the owner learns from who asks and who pays", () => {
+      const GPT = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
+      const signalsNow = async () => (await callAdmin("GET", "/api/master/signals")).json;
+
+      it("counts a price shown and a price paid per product, and the words an agent searched for", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const url = `${base}/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`;
+        const required: any = await (await fetch(url)).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        await fetch(url, { headers: { "payment-signature": sig } });
+        const s: any = await signalsNow();
+        expect(s.products.facts).toEqual({ asked: 1, paid: 1 });
+        expect(s.queries.map((q: any) => q.text)).toContain("how much is premium per month?");
+        expect(s.unanswered).toEqual([]);
+        expect(s.buyers).toEqual({ total: 1, repeat: 0 });
+      });
+
+      it("counts a search that finds nothing as a question nobody could answer, and does not count a request that was refused", async () => {
+        await fetch(`${base}/api/agent/vendors?q=zzzzqqqq-no-such-thing&place=atlantis`);
+        await fetch(`${base}/api/agent/facts?q=`);
+        const s: any = await signalsNow();
+        expect(s.unanswered.map((q: any) => q.text).join(" ")).toContain("zzzzqqqq-no-such-thing");
+        expect(s.products.facts).toBeUndefined();
+      });
+
+      it("names the crawler that hit the site pass and whether it paid, and keeps no address and no browser string", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        await fetch(`${base}/careers`, { headers: GPT });
+        const required: any = await (await fetch(`${base}/careers`, { headers: GPT })).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        await fetch(`${base}/careers`, { headers: { ...GPT, "payment-signature": sig } });
+        const s: any = await signalsNow();
+        expect(s.products["site-pass"]).toEqual({ asked: 2, paid: 1 });
+        expect(s.crawlers).toEqual([{ name: "gptbot", asked: 2, paid: 1 }]);
+        const stored = JSON.stringify(store.data.signals);
+        expect(stored).not.toMatch(/mozilla|openai\.com|127\.0\.0\.1|::1/i);
+      });
+
+      it("is for the owner only", async () => {
+        expect((await call("GET", "/api/master/signals")).status).toBeGreaterThanOrEqual(401);
+        expect((await callAdmin("GET", "/api/master/signals", undefined, "wrong-key")).status).toBeGreaterThanOrEqual(401);
+        expect((await callAdmin("GET", "/api/master/signals")).status).toBe(200);
+      });
+
+      it("adds plain sentences about what the numbers do and do not say", async () => {
+        const s: any = await signalsNow();
+        expect(Array.isArray(s.insights)).toBe(true);
+        expect(s.insights.join(" ")).toMatch(/too little/i);
+      });
+    });
+
     it("keeps the human blog and every page free for people and search engines", async () => {
       for (const path of ["/blog", "/es/blog", "/", "/sitemap.xml"]) {
         const res = await fetch(`${base}${path}`, { headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1)" } });
@@ -3366,6 +3417,7 @@ describe("biweekly payroll", () => {
   });
 
   describe("asking Safehubby's AI about plans and prices", () => {
+    useAdminKey();
     let fake: ReturnType<typeof createHttpServer>;
     const asked: any[] = [];
     beforeEach(async () => {
@@ -3397,6 +3449,14 @@ describe("biweekly payroll", () => {
       expect(res.json).toMatchObject({ source: "handoff" });
       expect(res.json.answer).toContain("+1 (939) 245-0171");
       expect(asked).toHaveLength(0);
+    });
+
+    it("counts how many chat questions it could not answer, and never keeps what anyone typed", async () => {
+      await ask("How much is Premium per month?");
+      await ask("do you take Medicare for my mother Maria 787-555-0100");
+      const s: any = (await callAdmin("GET", "/api/master/signals")).json;
+      expect(s.chat).toEqual({ asked: 2, handoff: 1 });
+      expect(JSON.stringify(store.data.signals)).not.toMatch(/maria|medicare|787/i);
     });
 
     it("hands over to a person when the AI is not set up or fails", async () => {

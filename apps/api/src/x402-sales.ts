@@ -6,6 +6,7 @@ import { lookupVendorsForAgents, retrieveKnowledge, type SiteLang } from "@safeh
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
+import { noteSignal } from "./signals.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
@@ -56,7 +57,8 @@ export interface Product {
   path: string;
   usage: string;
   defaultPrice: string;
-  respond(url: URL): { status: 200 | 400 | 404; body: unknown; results: number; summary: string };
+  /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
+  respond(url: URL): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string };
 }
 
 const langOf = (u: URL): SiteLang => (u.searchParams.get("lang") === "es" ? "es" : "en");
@@ -69,7 +71,7 @@ export const PRODUCTS: Product[] = [
     respond(u) {
       const query = { q: u.searchParams.get("q") ?? "", category: u.searchParams.get("category") ?? "", place: u.searchParams.get("place") ?? "", limit: Number(u.searchParams.get("limit")) || 10 };
       const found = lookupVendorsForAgents(query);
-      return { status: 200, body: found, results: found.results.length, summary: JSON.stringify(query) };
+      return { status: 200, body: found, results: found.results.length, summary: JSON.stringify(query), words: [query.q, query.category, query.place].filter(Boolean).join(" ") };
     },
   },
   {
@@ -80,7 +82,7 @@ export const PRODUCTS: Product[] = [
       const q = (u.searchParams.get("q") ?? "").slice(0, 300);
       if (q.trim().length < 2) return { status: 400, body: { error: "Add ?q= with your question." }, results: 0, summary: "" };
       const facts = retrieveKnowledge(q, 3).map((k) => ({ title: k.title, text: k.text }));
-      return { status: 200, body: { facts }, results: facts.length, summary: q.slice(0, 120) };
+      return { status: 200, body: { facts }, results: facts.length, summary: q.slice(0, 120), words: q };
     },
   },
   {
@@ -91,7 +93,7 @@ export const PRODUCTS: Product[] = [
       const slug = decodeURIComponent(u.pathname.split("/").pop() ?? "");
       const a = findArticle(slug, langOf(u));
       if (!a) return { status: 404, body: { error: "No article has that slug. See /api/agent/blog for the list." }, results: 0, summary: slug.slice(0, 80) };
-      return { status: 200, body: { slug, lang: langOf(u), publishedOn: a.publishedOn, updatedOn: a.updatedOn, text: articleText(a, langOf(u)) }, results: 1, summary: `blog/${slug}` };
+      return { status: 200, body: { slug, lang: langOf(u), publishedOn: a.publishedOn, updatedOn: a.updatedOn, text: articleText(a, langOf(u)) }, results: 1, summary: `blog/${slug}`, words: `blog/${slug}` };
     },
   },
 ];
@@ -153,7 +155,11 @@ function catalog(origin: string) {
  * result returned and the caller sends what was bought. Shared by every paid thing, so each has the same checks.
  */
 export async function takePayment(
-  req: IncomingMessage, res: ServerResponse, opts: { path: string; origin: string; price: string; description: string; beforeSettle?: () => { status: number; body: unknown } | null },
+  req: IncomingMessage, res: ServerResponse, opts: {
+    path: string; origin: string; price: string; description: string; beforeSettle?: () => { status: number; body: unknown } | null;
+    /** Called when the price is shown to someone who has not paid yet, and when a payment is settled. For the owner's numbers only. */
+    onAsk?: () => void; onPaid?: () => void;
+  },
 ): Promise<{ amount: string; payer?: string; transaction?: string; network: string; headers: Record<string, string> } | null> {
   const config = x402Config();
   if ("error" in config) { json(res, 503, { error: config.error }); return null; }
@@ -175,7 +181,7 @@ export async function takePayment(
 
   const header = req.headers["payment-signature"];
   const signature = Array.isArray(header) ? header[0] : header;
-  if (!signature) return ask();
+  if (!signature) { opts.onAsk?.(); return ask(); }
   let payload;
   try { payload = decodePaymentSignatureHeader(signature); } catch { return ask("The payment header could not be read."); }
   const match = server.findMatchingRequirements(requirements, payload);
@@ -189,6 +195,7 @@ export async function takePayment(
   // Settled before anything is given, so nothing is given away on a payment that fails.
   const settled = await server.settlePayment(payload, match);
   if (!settled.success) return ask(`Payment could not be settled: ${settled.errorReason ?? "unknown reason"}`);
+  opts.onPaid?.();
   return { amount: match.amount, payer: settled.payer, transaction: settled.transaction, network: config.network, headers: { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled), ...expose } };
 }
 
@@ -207,6 +214,14 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const paid = await takePayment(req, res, {
     path: url.pathname, origin, price, description: product.description,
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
+    // A request that can never be answered (no question, no such article) says nothing about demand, so it is not counted.
+    onAsk: () => {
+      if (answer.status !== 200) return;
+      noteSignal(store, now(), { kind: "ask", product: product.id });
+      if (!answer.words) return;
+      noteSignal(store, now(), answer.results === 0 ? { kind: "unanswered", text: answer.words } : { kind: "query", product: product.id, text: answer.words });
+    },
+    onPaid: () => noteSignal(store, now(), { kind: "paid", product: product.id }),
   });
   if (!paid) return;
   const sale: AgentSale = {

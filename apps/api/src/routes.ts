@@ -106,6 +106,7 @@ import { aiAssist } from "./adapters/ai-assist.ts";
 import { askOllama, llmComplete, llmConfigured, ollamaHealth } from "./adapters/llm.ts";
 import { answerPrompt, retrieveKnowledge, WHATSAPP_DISPLAY } from "@safehubby/core";
 import { x402Config } from "./x402-sales.ts";
+import { insightsFor, noteSignal, summarizeSignals } from "./signals.ts";
 import { businessRoutes } from "./business-routes.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
@@ -6865,17 +6866,32 @@ export const routes: Record<string, Handler> = {
     if (question.length < 2) throw new HttpError(400, "Type a question.");
     if (ctx.limiters.ask.hit(ctx.clientKey)) throw new HttpError(429, `You have asked a lot of questions. Message us on WhatsApp at ${WHATSAPP_DISPLAY}.`);
     const handoff = `I'm not sure about that one. A person can help on WhatsApp at ${WHATSAPP_DISPLAY}.`;
-    if (!retrieveKnowledge(question, 1).length) return { answer: handoff, source: "handoff" };
-    if (!llmConfigured("SITE_CHAT")) return { answer: handoff, source: "handoff" };
-    if (ctx.limiters.askAll.hit("all")) return { answer: handoff, source: "handoff" };
+    // Only whether it could answer is counted for the owner's numbers; the words typed are never kept.
+    const note = (answered: boolean) => noteSignal(ctx.store, ctx.now(), { kind: "chat", answered });
+    const sendToPerson = () => { note(false); return { answer: handoff, source: "handoff" as const }; };
+    if (!retrieveKnowledge(question, 1).length) return sendToPerson();
+    if (!llmConfigured("SITE_CHAT")) return sendToPerson();
+    if (ctx.limiters.askAll.hit("all")) return sendToPerson();
     const prompt = answerPrompt(question);
     try {
       const answer = await llmComplete("SITE_CHAT", { system: prompt.system, messages: [{ role: "user", content: prompt.question }], maxTokens: 250, temperature: 0.1 });
+      note(true);
       return { answer, source: "ai" };
     } catch (err) {
       console.warn("[safehubby] /api/ask could not get an answer:", err instanceof Error ? err.message.slice(0, 120) : "unknown error");
-      return { answer: handoff, source: "handoff" };
+      return sendToPerson();
     }
+  },
+
+  /**
+   * Owner: the numbers that show what visitors do. How often each paid thing was shown a price and how often it was paid
+   * for, which named crawlers come, what agents search for, what nobody could answer, and repeat buyers. Counts only:
+   * no addresses, no browser strings, and nothing a person typed in the chat box.
+   */
+  "GET /api/master/signals": (ctx) => {
+    requireAdmin(ctx, "money");
+    const summary = summarizeSignals(ctx.store, ctx.now());
+    return { ...summary, insights: insightsFor(summary) };
   },
 
   /** Owner: whether Safehubby's own model (Ollama) is reachable, has its model and has it loaded. */

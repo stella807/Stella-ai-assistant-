@@ -17,6 +17,19 @@ const AUTOMATION = /(python-requests|python-httpx|httpx\/|aiohttp|Go-http-client
 
 export const isAiAgent = (userAgent: string | undefined): boolean => !!userAgent && AI_AGENTS.test(userAgent);
 
+/**
+ * A short fixed name for the owner's numbers: the crawler's own name, the scripting library, or a label. Never the raw
+ * browser string, which can carry a version, an address or a tool's private name.
+ */
+export function visitorLabel(userAgent: string | undefined, kind: VisitorKind): string {
+  const ua = userAgent ?? "";
+  if (kind === "ai") return (AI_AGENTS.exec(ua)?.[1] ?? "ai-crawler").toLowerCase();
+  if (kind === "automation") return (AUTOMATION.exec(ua)?.[1] ?? "script").toLowerCase().replace(/\/$/, "");
+  if (kind === "browser-lookalike") return "browser-lookalike";
+  if (kind === "search-claim") return /bingbot/i.test(ua) ? "fake-bingbot" : "fake-googlebot";
+  return "busy-address";
+}
+
 export type VisitorKind = "ai" | "automation" | "browser-lookalike" | "search-claim" | "normal";
 
 type Headers = Record<string, string | undefined>;

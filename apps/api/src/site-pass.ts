@@ -3,7 +3,8 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { takePayment, x402Config, type AgentSale } from "./x402-sales.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
-import { PageRateTracker, classifyVisitor, verifySearchEngine } from "./visitor-kind.ts";
+import { PageRateTracker, classifyVisitor, verifySearchEngine, visitorLabel } from "./visitor-kind.ts";
+import { noteSignal } from "./signals.ts";
 
 /**
  * The site pass: an AI crawler or agent that identifies itself as one pays (default $8.99 in USDC) for one visit, which
@@ -99,6 +100,9 @@ export async function gateSitePage(
   const price = sitePassPrice();
   const paid = await takePayment(req, res, {
     path: pathname, origin: getOrigin(), price,
+    // Only a fixed label is kept (a crawler's name or "script"), never the address or the browser string.
+    onAsk: () => noteSignal(store, now(), { kind: "ask", product: "site-pass", crawler: visitorLabel(ua, kind) }),
+    onPaid: () => noteSignal(store, now(), { kind: "paid", product: "site-pass", crawler: visitorLabel(ua, kind) }),
     description: `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`,
   });
   if (!paid) return true;

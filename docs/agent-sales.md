@@ -53,6 +53,27 @@ Limits, said plainly:
 - A crawler that reads thousands of pages pays once an hour, so the price is per visit, not per page.
 - Every payment is real USDC once the real-money switch is on.
 
+## Signals: what the owner learns from who asks and who pays
+
+The owner portal (Money, **Signals: what visitors do**) shows the numbers that say what to change. They are counted quietly
+as it happens, and `GET /api/master/signals` (owner, money scope) returns them:
+
+- **Asked and paid, per product:** how many times a price was shown and how many times it was paid, for the last 30 days
+  and the last 7. A product that is asked for often and never paid points at the price, or at buyers that cannot pay.
+- **Which crawlers hit the paywall:** by the name a crawler gives itself (`gptbot`, `claudebot`) or a fixed label
+  (`python-requests`, `browser-lookalike`, `fake-googlebot`, `busy-address`).
+- **What agents search for**, and **searches with no answer** (a vendor or fact we could add).
+- **The chat box:** how many questions, and how many it sent to a person.
+- **Buyers:** how many different payers, and how many came back, from the sales record.
+
+Private by design: only counts. No addresses, no browser strings, no names. The words an AI agent searched for are kept
+lowercase, at most 100 characters, at most 200 different ones a day (so a flood of junk searches can fill a day's list: the numbers are a guide, not proof). **The words a person types in the chat box are never
+kept, only whether it could answer.** Days older than 90 are forgotten.
+
+Limits, said plainly: "asked" counts requests that were shown a price, not different visitors (a crawler that ignores the
+price and keeps fetching counts each time). With only a few requests the numbers say nothing; the page says so until there
+are at least ten.
+
 ## What is not paywalled, and why
 
 The website and the human blog stay free for people and for search engines.

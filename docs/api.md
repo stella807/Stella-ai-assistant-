@@ -257,4 +257,5 @@ change in the code changes the answers. When no fact matches the question, the A
 is not asked and the visitor is sent to the WhatsApp line (`source: "handoff"`).
 The same happens if the AI is not set up, fails, or the site-wide daily limit
 (`ASK_DAILY_LIMIT`, default 500) is reached. Each visitor gets 10 questions an
-hour. Nothing a visitor types is stored.
+hour. Nothing a visitor types is stored. Only a count of how many questions were answered or sent to a person is kept,
+for the owner's Signals page (`GET /api/master/signals`, see `docs/agent-sales.md`).

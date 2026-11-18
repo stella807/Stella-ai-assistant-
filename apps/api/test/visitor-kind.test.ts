@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PageRateTracker, classifyVisitor, verifySearchEngine, type Dns } from "../src/visitor-kind.ts";
+import { PageRateTracker, classifyVisitor, verifySearchEngine, visitorLabel, type Dns } from "../src/visitor-kind.ts";
 
 const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const OLD_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Mobile/15E148 Safari/604.1";
@@ -72,5 +72,18 @@ describe("reading too many pages too fast", () => {
     expect(t.hit("1.1.1.1", start)).toBe(true);
     expect(t.hit("2.2.2.2", start)).toBe(false);
     expect(t.hit("1.1.1.1", new Date("2026-11-18T12:11:00Z"))).toBe(false);
+  });
+});
+
+describe("naming a visitor for the owner's numbers, without keeping anything personal", () => {
+  it("uses the crawler's own name, or a fixed label, never the raw browser string", () => {
+    expect(visitorLabel("Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)", "ai")).toBe("gptbot");
+    expect(visitorLabel("Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0)", "ai")).toBe("claudebot");
+    expect(visitorLabel("python-requests/2.31.0", "automation")).toBe("python-requests");
+    expect(visitorLabel("Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0 Safari/537.36", "automation")).toBe("headlesschrome");
+    expect(visitorLabel("Mozilla/5.0 Chrome/120 Safari/537.36 secret-user-name", "browser-lookalike")).toBe("browser-lookalike");
+    expect(visitorLabel("Mozilla/5.0 (compatible; Googlebot/2.1)", "search-claim")).toBe("fake-googlebot");
+    expect(visitorLabel("Mozilla/5.0 (compatible; bingbot/2.0)", "search-claim")).toBe("fake-bingbot");
+    expect(visitorLabel("anything", "normal")).toBe("busy-address");
   });
 });

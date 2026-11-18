@@ -948,6 +948,11 @@ export const api = {
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
   agentSales: () => request<{ enabled: boolean; status: string; count: number; totalUnits: number; byProduct: Record<string, { count: number; units: number }>;
     recent: { id: string; at: string; product?: string; amount: string; payer?: string; transaction?: string; query: string; results: number }[] }>("GET", "/api/master/agent-sales"),
+  signals: () => request<{
+    products: Record<string, { asked: number; paid: number }>; last7: Record<string, { asked: number; paid: number }>;
+    crawlers: { name: string; asked: number; paid: number }[]; queries: { text: string; count: number }[]; unanswered: { text: string; count: number }[];
+    buyers: { total: number; repeat: number }; chat: { asked: number; handoff: number }; insights: string[];
+  }>("GET", "/api/master/signals"),
   businessesList: () => request<{ businesses: BizAdminRow[]; month: string }>("GET", "/api/master/businesses"),
   businessCreate: (b: { name: string; contactEmail: string; messageLimit?: number }) =>
     request<{ business: { id: string; name: string }; key: string }>("POST", "/api/master/businesses", b),
