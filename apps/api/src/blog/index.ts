@@ -5,6 +5,8 @@ import { article as assistantCost } from "./2026-11-10-personal-assistant-cost-p
 import { article as questionsBeforeHiring } from "./2026-11-12-questions-before-hiring-concierge.ts";
 import { article as hospitalCompanion } from "./2026-11-14-hospital-companion-puerto-rico.ts";
 import { article as settlingIn } from "./2026-11-14-settling-in-puerto-rico.ts";
+import { article as x402Explained } from "./2026-11-18-x402-pay-per-request-explained.ts";
+import { article as airportVip } from "./2026-11-18-airport-vip-meet-and-greet-guide.ts";
 import { article as safeRideHome } from "./2026-11-12-safe-ride-home-puerto-rico.ts";
 import { article as membershipsLeaveOut } from "./2026-11-10-what-memberships-leave-out.ts";
 
@@ -14,4 +16,4 @@ import { article as membershipsLeaveOut } from "./2026-11-10-what-memberships-le
  * rules an article has to follow are in docs/blog.md, and test/blog.test.ts
  * holds every article in this list to them.
  */
-export const ARTICLES: Article[] = [conciergePrices, membershipsLeaveOut, assistantCost, membershipComplaints, safeRideHome, questionsBeforeHiring, hospitalCompanion, settlingIn];
+export const ARTICLES: Article[] = [conciergePrices, membershipsLeaveOut, assistantCost, membershipComplaints, safeRideHome, questionsBeforeHiring, hospitalCompanion, settlingIn, x402Explained, airportVip];

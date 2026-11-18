@@ -178,3 +178,16 @@ describe("the clean-text copy sold to agents", () => {
     expect(articleText(a, "en")).toContain(`read in ${a.companies![0]!.checked}`);
   });
 });
+
+describe("the airport VIP article's numbers match Safehubby's own research list", () => {
+  it("says how many services and countries the list holds, so the article cannot go stale", async () => {
+    const { AIRPORT_VIP_VENDORS } = await import("@safehubby/core");
+    const countries = new Set(AIRPORT_VIP_VENDORS.map((v) => v.area.split(", ")[1] ?? v.area)).size;
+    const a = ARTICLES.find((x) => x.slug.en === "airport-vip-meet-and-greet-guide")!;
+    const text = (lang: "en" | "es") => a.blocks.map((b) => ("p" in b ? b.p[lang] : "")).join(" ");
+    for (const lang of ["en", "es"] as const) {
+      expect(text(lang)).toContain(String(AIRPORT_VIP_VENDORS.length));
+      expect(text(lang)).toContain(String(countries));
+    }
+  });
+});
