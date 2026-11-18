@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CLAUDE_MODEL, DEFAULT_OLLAMA_MODEL, llmComplete, llmConfigured, llmProviderName, resolveLlm } from "../src/adapters/llm.ts";
 
 const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_BASE", "SITE_CHAT_API_BASE", "SITE_CHAT_API_KEY", "SITE_CHAT_MODEL", "AI_ASSIST_API_BASE", "AI_ASSIST_API_KEY", "AI_ASSIST_MODEL", "LLM_GATEWAY_URL", "LLM_GATEWAY_KEY", "LLM_GATEWAY_MODEL",
-  "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_FEATURES", "OLLAMA_API_KEY", "OLLAMA_TIMEOUT_MS", "OLLAMA_NUM_CTX", "OLLAMA_NUM_THREAD", "AI_ASSIST_OLLAMA_MODEL", "SITE_CHAT_OLLAMA_MODEL"];
+  "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_FEATURES", "OLLAMA_API_KEY", "OLLAMA_TIMEOUT_MS", "OLLAMA_NUM_CTX", "OLLAMA_NUM_THREAD", "AI_ASSIST_OLLAMA_MODEL", "SITE_CHAT_OLLAMA_MODEL", "GEMINI_API_KEY", "GEMINI_MODEL"];
 const realFetch = globalThis.fetch;
 const calls: { url: string; headers: Record<string, string>; body: any }[] = [];
 
@@ -238,6 +238,24 @@ describe("our own model, on Ollama", () => {
     expect(warn).toHaveBeenCalledTimes(2);
     expect(String(warn.mock.calls[0]?.[0])).toMatch(/Ollama/);
     expect(warn.mock.calls.map((c) => String(c[0])).join(" ")).not.toContain("sk-gw-secret");
+    warn.mockRestore();
+  });
+
+  it("asks Google's free Gemini next when our model is down, before anything paid", async () => {
+    process.env.OLLAMA_URL = "http://ollama:11434";
+    process.env.GEMINI_API_KEY = "g-key";
+    process.env.ANTHROPIC_API_KEY = "sk-ant";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    globalThis.fetch = (async (url: any, init: any) => {
+      calls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
+      if (String(url).startsWith("http://ollama")) return new Response("down", { status: 503 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "from Gemini" } }] }), { status: 200 });
+    }) as typeof fetch;
+    expect(await ask()).toBe("from Gemini");
+    expect(calls[1]!.url).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+    expect(calls[1]!.headers.authorization).toBe("Bearer g-key");
+    expect(calls).toHaveLength(2);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/Ollama failed.*Gemini/);
     warn.mockRestore();
   });
 

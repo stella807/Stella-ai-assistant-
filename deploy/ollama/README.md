@@ -43,6 +43,7 @@ Railway has no GPUs, so this runs on CPUs. That is enough for short answers.
    - **Networking:** do **not** generate a public domain. Ollama has no
      password, so it must only be reachable inside your project.
    - **Resources:** at least 4 vCPU and 6 GB memory.
+   - **Serverless:** on, so it sleeps when nobody uses it (see the cost section).
 3. Right-click the service, choose **Attach volume**, and mount it at
    `/root/.ollama`. The model is saved there, so it downloads only once.
 4. Open the service's **Variables** and add `PORT` = `11434`.
@@ -53,6 +54,7 @@ Railway has no GPUs, so this runs on CPUs. That is enough for short answers.
    - `OLLAMA_NUM_THREAD` = the number of vCPUs you gave the ollama service
      (for example `4`). Ollama otherwise counts all the cores of Railway's
      machine, not your share of them, and runs slower.
+   - `GEMINI_API_KEY` = a free key from Google AI Studio, the free backup.
    - Optional: `OLLAMA_FEATURES` = `AI_ASSIST` to use it only for the
      assistants' drafting help and keep Claude for everything else.
 7. Redeploy the API. In the owner portal, go to **Setup**, then **Our own
@@ -62,34 +64,39 @@ Railway has no GPUs, so this runs on CPUs. That is enough for short answers.
 
 To stop using it, delete `OLLAMA_URL` from the API service. Nothing else changes.
 
-## What it costs (estimate, Railway usage pricing)
+## What it costs: set up to be nearly free
 
-Railway charges for memory and CPU while they are used: $10 per GB of memory
-per month, $20 per vCPU per month, and $0.15 per GB of volume per month.
-Check the current prices on Railway before deciding.
+Two settings keep it close to $0:
 
-- **Memory:** the model stays loaded, about 3.5 to 4 GB, so about **$35 to $40
-  a month, even with no visitors at all**. This is the main cost.
-  Setting `OLLAMA_KEEP_ALIVE=10m` unloads it when idle and costs less, but the
-  first answer after a quiet spell then waits a few extra seconds.
-- **CPU:** about 10 seconds on 4 vCPU per answer, roughly 30 cents per 1,000
-  answers.
-- **Volume:** 3 GB, about $0.45 a month.
+1. **The model unloads after 5 idle minutes** (`OLLAMA_KEEP_ALIVE=5m`, the
+   default here). Memory is paid for only while it answers.
+2. **Railway Serverless:** on the ollama service, open Settings and turn on
+   **Serverless** (sometimes called "App Sleeping"). The whole service sleeps
+   when nobody uses it and wakes up on the next question.
 
-| Conversations a month (about 5 answers each) | Estimated total |
-|---|---|
-| 100 | about $41 |
-| 1,000 | about $42 |
-| 10,000 | about $56 |
+Railway charges for memory and CPU only while they are used ($10 per GB of
+memory a month, $20 per vCPU a month, $0.15 per GB of volume a month; check
+current prices). At a few hundred answers a month that is a few cents, plus
+about $0.45 for the 3 GB volume. It should fit inside the $5 of usage the
+Hobby plan already includes.
 
-Compare these with your monthly Claude bill before switching: if Claude costs
-less than about $40 a month at your traffic, our own model only pays off later.
+**The tradeoff:** after a quiet spell, the first answer waits while the service
+wakes and loads the model, about 15 to 30 seconds more. The API waits up to 60
+seconds. Answers right after that come at normal speed.
 
-At 10,000 a month, people may wait at busy times: it answers one question at a
-time. If that happens, the API can be pointed at a GPU provider instead by
+**Free backup:** add `GEMINI_API_KEY` to the API service, with a free key from
+Google AI Studio (aistudio.google.com). If our model is asleep too long or
+down, Gemini answers next, before anything paid. The free tier has daily
+limits, and Google may use free-tier prompts to improve its products, so the
+app should not send members' private details through it.
+
+The order is: our model, then Gemini (free), then the LiteLLM gateway or
+Claude (paid), whichever are set up.
+
+If the site gets busy (thousands of answers a day), it answers one question
+at a time and people may wait. Then the API can point at a GPU provider by
 setting `SITE_CHAT_API_BASE` and `SITE_CHAT_API_KEY` (or the `AI_ASSIST_`
-pair) to any OpenAI-compatible service, such as vLLM on a rented GPU. No code
-changes are needed.
+pair) to any OpenAI-compatible service, with no code changes.
 
 ## Safety
 

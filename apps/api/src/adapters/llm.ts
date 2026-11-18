@@ -16,8 +16,8 @@ import { postJson } from "./fulfillment.ts";
  *      vLLM, for one).
  *   1b. `OLLAMA_URL` set: Safehubby's own open-weight model on Ollama
  *      (deploy/ollama), for every feature or only those in `OLLAMA_FEATURES`.
- *      If it fails or is too slow, the gateway and then Claude are tried, when
- *      they are configured.
+ *      If it fails or is too slow, Gemini (GEMINI_API_KEY, free tier), then the
+ *      gateway, then Claude are tried, when they are configured.
  *   2. `LLM_GATEWAY_URL` and `LLM_GATEWAY_KEY` set: the LiteLLM gateway
  *      (deploy/litellm), asked for the `safehubby-chat` alias so the gateway,
  *      not this code, decides which model answers and what it falls back to.
@@ -73,6 +73,13 @@ function afterOllama(feature: LlmFeature): Resolved | null {
   return claudeDirect(feature);
 }
 
+/** Google's Gemini through its OpenAI-compatible endpoint, with a free-tier key from Google AI Studio. */
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+function geminiDirect(): Resolved | null {
+  const key = env("GEMINI_API_KEY");
+  return key ? { kind: "openai", base: "https://generativelanguage.googleapis.com/v1beta/openai", key, model: env("GEMINI_MODEL") ?? DEFAULT_GEMINI_MODEL } : null;
+}
+
 function claudeDirect(feature: LlmFeature): Resolved | null {
   const anthropicKey = env("ANTHROPIC_API_KEY");
   return anthropicKey ? { kind: "anthropic", base: env("ANTHROPIC_API_BASE") ?? "https://api.anthropic.com", key: anthropicKey, model: env(`${feature}_MODEL`) ?? DEFAULT_CLAUDE_MODEL } : null;
@@ -124,14 +131,20 @@ export async function llmComplete(
   const r = resolveLlm(feature);
   if (!r) throw new Error("The AI assistant is not configured.");
   if (r.kind === "ollama") {
+    // Our model first, then Google's free Gemini, then the gateway or Claude: free before paid.
+    const steps: { name: string; run: () => Promise<string> }[] = [{ name: "Ollama", run: () => complete(r, input) }];
+    const gemini = geminiDirect();
+    if (gemini) steps.push({ name: "Gemini", run: () => complete(gemini, input) });
     const next = afterOllama(feature);
-    if (!next) return complete(r, input);
-    try {
-      return await complete(r, input);
-    } catch (err) {
-      // Logged so a stopped or overloaded model server is noticed, though answers keep arriving from the fallback.
-      console.warn(`[safehubby] Ollama failed (${reasonOf(err)}); answering with ${next.kind === "anthropic" ? "Claude directly" : "the gateway"}.`);
-      return completeWithClaudeAfter(feature, next, input);
+    if (next) steps.push({ name: next.kind === "anthropic" ? "Claude directly" : "the gateway", run: () => completeWithClaudeAfter(feature, next, input) });
+    for (let i = 0; ; i++) {
+      try {
+        return await steps[i]!.run();
+      } catch (err) {
+        if (i === steps.length - 1) throw err;
+        // Logged so a stopped or overloaded model is noticed, though answers keep arriving from the next one.
+        console.warn(`[safehubby] ${steps[i]!.name} failed (${reasonOf(err)}); answering with ${steps[i + 1]!.name}.`);
+      }
     }
   }
   return completeWithClaudeAfter(feature, r, input);
@@ -204,8 +217,8 @@ async function completeOllama(
       headers: { "content-type": "application/json", ...(r.key ? { authorization: `Bearer ${r.key}` } : {}) },
       body: JSON.stringify({
         model: r.model, stream: false, think: false,
-        // Kept loaded between questions: loading the model again takes several seconds.
-        keep_alive: env("OLLAMA_KEEP_ALIVE") ?? "24h",
+        // Unloaded after 5 idle minutes so memory is paid for only while in use; the first answer after that loads it again (seconds).
+        keep_alive: env("OLLAMA_KEEP_ALIVE") ?? "5m",
         messages: [{ role: "system", content: input.system }, ...input.messages],
         options: {
           num_predict: input.maxTokens, temperature: input.temperature ?? 0.2, num_ctx: Number(env("OLLAMA_NUM_CTX")) || 4096,
