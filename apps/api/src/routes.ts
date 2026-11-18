@@ -103,7 +103,8 @@ import { eliteDesk } from "./adapters/elite-desk.ts";
 import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
-import { askOllama, ollamaHealth } from "./adapters/llm.ts";
+import { askOllama, llmComplete, llmConfigured, ollamaHealth } from "./adapters/llm.ts";
+import { answerPrompt, retrieveKnowledge, WHATSAPP_DISPLAY } from "@safehubby/core";
 import { TESTNET as X402_TESTNET, x402Config } from "./x402-sales.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
@@ -178,7 +179,7 @@ export interface Ctx {
    *  another's, and tests need isolation between instances. */
   limiters: {
     login: RateLimiter; assistantLogin: RateLimiter; masterLogin: RateLimiter; signup: RateLimiter;
-    applications: RateLimiter; partners: RateLimiter; clientErrors: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter;
+    applications: RateLimiter; partners: RateLimiter; clientErrors: RateLimiter; codes: RateLimiter; places: RateLimiter; flights: RateLimiter; aircraft: RateLimiter; ask: RateLimiter; askAll: RateLimiter;
   };
   /** The one header a route needs directly: the admin key, checked constant-time
    *  against SAFEHUBBY_ADMIN_KEY rather than a session, since driver-application
@@ -1454,6 +1455,10 @@ export function makeLimiters() {
     // legitimate person is never going to need many tries.
     masterLogin: new RateLimiter(5, 15 * 60_000),
     signup: new RateLimiter(5, 60 * 60_000),
+    // Public questions to our AI: each costs CPU time or a paid call, so one visitor gets a few an hour and the
+    // whole site a daily ceiling, whatever the traffic.
+    ask: new RateLimiter(10, 60 * 60_000),
+    askAll: new RateLimiter(Number(process.env.ASK_DAILY_LIMIT) || 500, 24 * 60 * 60_000),
     // Public and unauthenticated — a driver application needs no account —
     // so it gets its own budget rather than borrowing signup's.
     applications: new RateLimiter(10, 60 * 60_000),
@@ -6832,6 +6837,29 @@ export const routes: Record<string, Handler> = {
       enabled: !("error" in config), status: "error" in config ? config.error : `On, ${config.price} a lookup, ${config.network === X402_TESTNET ? "test money only" : config.network}`,
       count: sales.length, totalUnits: sales.reduce((a, s) => a + Number(s.amount || 0), 0), recent: sales.slice(-20).reverse(),
     };
+  },
+
+  /**
+   * Anyone can ask about Safehubby's plans and prices. The answer comes from Safehubby's own facts only (core
+   * knowledge.ts, built from the real plan list); with no matching fact the model is not asked at all, and the
+   * visitor is sent to a person. Nothing a visitor types is stored.
+   */
+  "POST /api/ask": async (ctx, _p, body) => {
+    const question = cleanText(body?.question, 500);
+    if (question.length < 2) throw new HttpError(400, "Type a question.");
+    if (ctx.limiters.ask.hit(ctx.clientKey)) throw new HttpError(429, `You have asked a lot of questions. Message us on WhatsApp at ${WHATSAPP_DISPLAY}.`);
+    const handoff = `I'm not sure about that one. A person can help on WhatsApp at ${WHATSAPP_DISPLAY}.`;
+    if (!retrieveKnowledge(question, 1).length) return { answer: handoff, source: "handoff" };
+    if (!llmConfigured("SITE_CHAT")) return { answer: handoff, source: "handoff" };
+    if (ctx.limiters.askAll.hit("all")) return { answer: handoff, source: "handoff" };
+    const prompt = answerPrompt(question);
+    try {
+      const answer = await llmComplete("SITE_CHAT", { system: prompt.system, messages: [{ role: "user", content: prompt.question }], maxTokens: 250, temperature: 0.1 });
+      return { answer, source: "ai" };
+    } catch (err) {
+      console.warn("[safehubby] /api/ask could not get an answer:", err instanceof Error ? err.message.slice(0, 120) : "unknown error");
+      return { answer: handoff, source: "handoff" };
+    }
   },
 
   /** Owner: whether Safehubby's own model (Ollama) is reachable, has its model and has it loaded. */

@@ -81,6 +81,7 @@ export * from "./resume.ts";
 export * from "./vendors.ts";
 export * from "./bizdev.ts";
 export * from "./agent-vendor-lookup.ts";
+export * from "./knowledge.ts";
 export * from "./pnl.ts";
 export * from "./partners.ts";
 export * from "./whatsapp.ts";

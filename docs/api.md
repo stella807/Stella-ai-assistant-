@@ -245,3 +245,16 @@ UI changes.
 
 Fares are always echoed from the ride provider. Safehubby does not compute
 fares or driver payouts — those are set by the ride company's own pricing.
+
+## POST /api/ask
+
+Anyone can ask about Safehubby's plans and prices: `{ "question": "..." }`
+returns `{ "answer": "...", "source": "ai" | "handoff" }`.
+
+The answer is built only from Safehubby's own facts (`packages/core/src/knowledge.ts`),
+and the plan prices come from the same list the app charges from, so a price
+change in the code changes the answers. When no fact matches the question, the AI
+is not asked and the visitor is sent to the WhatsApp line (`source: "handoff"`).
+The same happens if the AI is not set up, fails, or the site-wide daily limit
+(`ASK_DAILY_LIMIT`, default 500) is reached. Each visitor gets 10 questions an
+hour. Nothing a visitor types is stored.
