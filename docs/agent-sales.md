@@ -14,11 +14,19 @@ money (Base Sepolia) until the owner decides otherwise.
 |---|---|---|
 | Plans and prices facts | `/api/agent/facts?q=` | $0.01 |
 | One blog article as clean text | `/api/agent/blog/{slug}?lang=en` | $0.01 |
+| Weekly digest: newest and lately updated articles with dates, plus current plans and prices | `/api/agent/digest` | $0.05 |
+| Brief: one page to forward to a person (what Safehubby does, plans, safety rules, how to reach us) | `/api/agent/brief` | $0.05 |
 
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
 
 ## The site pass: $8.99 a visit for AI crawlers to read the website
+
+**A pass includes the whole store.** During the visit, plans and prices facts, blog articles as clean text, the digest and
+the brief answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
+cents each; the pass is the cheap way in. The digest and brief are built only from what Safehubby has published (articles
+with their dates, the live plan list). There is no vendor list in any of it. Anything that needs a person is not
+included. There is no cap per visit yet; if one agent abuses it, add one.
 
 A visitor that names itself as an AI crawler or agent (GPTBot, ChatGPT-User, OAI-SearchBot,
 ClaudeBot, Claude-User, PerplexityBot, CCBot, Bytespider, Meta-ExternalAgent and a few more; the

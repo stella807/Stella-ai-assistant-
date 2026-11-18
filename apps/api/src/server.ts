@@ -1,6 +1,6 @@
 import { handleAgentStore, isAgentPath } from "./x402-sales.ts";
 import { WIDGET_JS } from "./widget.ts";
-import { gateSitePage } from "./site-pass.ts";
+import { gateSitePage, holdsPass } from "./site-pass.ts";
 import { setIncludedHours, setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
@@ -223,7 +223,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
     // The agent store: a free catalog, and paid lookups for other AI agents. x402 reads and writes its own payment headers.
     if (isAgentPath(url.pathname) && method === "GET") {
       try {
-        return await handleAgentStore(req, res, url, base.store, base.now, seoFactsFor(base).origin);
+        return await handleAgentStore(req, res, url, base.store, base.now, seoFactsFor(base).origin, holdsPass(req, base.store, base.now()));
       } catch (err) {
         console.error("[safehubby] agent store failed", err instanceof Error ? err.message : err);
         if (!res.headersSent) send(res, 502, { error: "The payment could not be completed. You have not been charged for an answer you did not get." });

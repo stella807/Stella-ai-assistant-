@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { CONTACT_EMAIL, WHATSAPP_DISPLAY, retrieveKnowledge, type SiteLang } from "@safehubby/core";
+import { CONTACT_EMAIL, WHATSAPP_DISPLAY, buildKnowledge, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
@@ -58,7 +58,7 @@ export interface Product {
   usage: string;
   defaultPrice: string;
   /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
-  respond(url: URL): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string };
+  respond(url: URL, origin: string): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string };
 }
 
 const langOf = (u: URL): SiteLang => (u.searchParams.get("lang") === "es" ? "es" : "en");
@@ -84,6 +84,36 @@ export const PRODUCTS: Product[] = [
       const a = findArticle(slug, langOf(u));
       if (!a) return { status: 404, body: { error: "No article has that slug. See /api/agent/blog for the list." }, results: 0, summary: slug.slice(0, 80) };
       return { status: 200, body: { slug, lang: langOf(u), publishedOn: a.publishedOn, updatedOn: a.updatedOn, text: articleText(a, langOf(u)) }, results: 1, summary: `blog/${slug}`, words: `blog/${slug}` };
+    },
+  },
+  {
+    id: "digest", title: "Weekly digest",
+    description: "What is new from Safehubby, in one answer: the newest blog articles and the ones updated lately (each with its date), and the current plans and prices. Built only from what Safehubby has published. Free with a site pass.",
+    path: "/api/agent/digest", usage: "GET", defaultPrice: "$0.05",
+    respond(_u, origin) {
+      const lang: SiteLang = "en";
+      const all = articleIndex(lang);
+      const soon = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+      const item = (a: (typeof all)[number]) => ({ ...a, endpoint: `${origin}/api/agent/blog/${a.slug}?lang=${lang}` });
+      const plans = buildKnowledge().find((k) => k.id === "plans-overview")?.text ?? "";
+      return {
+        status: 200, results: all.length, summary: "digest", words: "",
+        body: {
+          about: "Only what Safehubby has published, with its dates. It is not a promise of availability.",
+          newest: all.slice(0, 8).map(item), updatedLately: all.filter((a) => (a.updatedOn ?? "") >= soon).slice(0, 8).map(item),
+          plans, contact: { email: CONTACT_EMAIL, whatsapp: WHATSAPP_DISPLAY },
+        },
+      };
+    },
+  },
+  {
+    id: "brief", title: "Brief to forward to a person",
+    description: "One plain-text page about Safehubby (what it does, the plans and prices, the safety rules, how to reach a person) written for an agent to forward to the person it works for. Free with a site pass.",
+    path: "/api/agent/brief", usage: "GET", defaultPrice: "$0.05",
+    respond(_u, origin) {
+      const facts = buildKnowledge().map((k) => `${k.title}\n${k.text}`).join("\n\n");
+      const forward = `Safehubby: concierge, assistants, errands and rides in Puerto Rico\n\n${facts}\n\nTo talk to a person: email ${CONTACT_EMAIL} or message ${WHATSAPP_DISPLAY} on WhatsApp.\nMore: ${origin}`;
+      return { status: 200, body: { forward }, results: 1, summary: "brief", words: "" };
     },
   },
 ];
@@ -115,7 +145,9 @@ const json = (res: ServerResponse, status: number, body: unknown, headers: Recor
 const productFor = (pathname: string): Product | undefined =>
   pathname === "/api/agent/facts" ? PRODUCTS[0]
     : pathname.startsWith("/api/agent/blog/") && pathname.length > "/api/agent/blog/".length ? PRODUCTS[1]
-      : undefined;
+      : pathname === "/api/agent/digest" ? PRODUCTS[2]
+        : pathname === "/api/agent/brief" ? PRODUCTS[3]
+          : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
 export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || productFor(pathname) !== undefined;
@@ -130,6 +162,7 @@ function catalog(origin: string) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest and the brief to forward to a person, with no further payment. Not included: anything that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
@@ -194,7 +227,7 @@ export async function takePayment(
 }
 
 /** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
-export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string): Promise<void> {
+export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false): Promise<void> {
   if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin));
   if (url.pathname === "/api/agent/blog") return json(res, 200, { lang: langOf(url), price: "per article, see /api/agent/catalog", articles: articleIndex(langOf(url)).map((a) => ({ ...a, endpoint: `${origin}/api/agent/blog/${a.slug}?lang=${langOf(url)}` })) });
 
@@ -204,7 +237,9 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const price = priceOf(product);
   if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
-  const answer = product.respond(url);
+  const answer = product.respond(url, origin);
+  // A visitor with a valid site pass already paid for the visit: the store is part of it.
+  if (holdsPass && answer.status === 200) return json(res, 200, answer.body);
   const paid = await takePayment(req, res, {
     path: url.pathname, origin, price, description: product.description,
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),

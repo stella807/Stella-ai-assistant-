@@ -64,6 +64,13 @@ function secretFor(store: StoreLike): string {
   return secret;
 }
 
+/** Whether a request carries a valid, unexpired pass. Never makes the secret: with none, no pass can exist. */
+export function holdsPass(req: IncomingMessage, store: StoreLike, now: Date): boolean {
+  const secret = store.data.sitePassSecret;
+  const held = req.headers[PASS_HEADER];
+  return !!secret && sitePassOn() && passIsValid(secret, Array.isArray(held) ? held[0] : held, now);
+}
+
 const trackers = new WeakMap<StoreLike, PageRateTracker>();
 const pageLimit = () => Math.max(0, Math.floor(Number(process.env.X402_SITE_PASS_PAGE_LIMIT)) || 0);
 

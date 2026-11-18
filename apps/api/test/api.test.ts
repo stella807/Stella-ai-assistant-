@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "brief", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3154,6 +3154,55 @@ describe("biweekly payroll", () => {
       expect((await fetch(`${base}/api/agent/vendors?q=airport`)).status).toBe(404);
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(JSON.stringify(c)).not.toMatch(/vendor/i);
+    });
+
+    describe("what a site pass includes", () => {
+      const GPT = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
+      const buyPass = async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const required: any = await (await fetch(`${base}/careers`, { headers: GPT })).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        return (await fetch(`${base}/careers`, { headers: { ...GPT, "payment-signature": sig } })).headers.get("x-safehubby-pass")!;
+      };
+      const factsUrl = () => `${base}/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`;
+
+      it("makes facts and blog articles free for the whole visit, and still charges everyone else", async () => {
+        const pass = await buyPass();
+        const settles = seen.filter((u) => u.endsWith("/settle")).length;
+        const f = await fetch(factsUrl(), { headers: { "x-safehubby-pass": pass } });
+        expect(f.status).toBe(200);
+        expect(JSON.stringify(await f.json())).toContain("$93.99");
+        const list: any = await (await fetch(`${base}/api/agent/blog`)).json();
+        expect((await fetch(`${base}/api/agent/blog/${list.articles[0].slug}`, { headers: { "x-safehubby-pass": pass } })).status).toBe(200);
+        expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        expect((await fetch(factsUrl())).status).toBe(402);
+        expect((await fetch(factsUrl(), { headers: { "x-safehubby-pass": "junk" } })).status).toBe(402);
+        const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
+        expect(sales.byProduct.facts).toBeUndefined();
+      });
+
+      it("gives a weekly digest and a brief to forward, sourced from what is published, and never a vendor", async () => {
+        const pass = await buyPass();
+        const h = { "x-safehubby-pass": pass };
+        expect((await fetch(`${base}/api/agent/digest`)).status).toBe(402);
+        expect((await fetch(`${base}/api/agent/brief`)).status).toBe(402);
+        const d: any = await (await fetch(`${base}/api/agent/digest`, { headers: h })).json();
+        expect(d.newest.length).toBeGreaterThan(0);
+        expect(d.newest[0]).toMatchObject({ title: expect.any(String), publishedOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), endpoint: expect.stringContaining("/api/agent/blog/") });
+        expect(d.plans).toContain("$93.99");
+        expect(d.contact.email).toBe("contact@safehubby.com");
+        const b: any = await (await fetch(`${base}/api/agent/brief`, { headers: h })).json();
+        expect(b.forward).toContain("contact@safehubby.com");
+        expect(b.forward).toContain("$93.99");
+        expect(JSON.stringify([d, b])).not.toMatch(/vendor/i);
+      });
+
+      it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "brief", "digest", "facts"]);
+        expect(c.sitePass.includes).toMatch(/facts/i);
+        expect(c.sitePass.includes).toMatch(/digest/i);
+      });
     });
 
     it("tells every agent how to email us: in the catalog and in every request for payment", async () => {
