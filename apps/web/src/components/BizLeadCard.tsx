@@ -29,7 +29,8 @@ export function BizLeadCard({ lead, drafts, desk, onLead, onDraft, onRemoved }: 
     try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "That did not work"); }
   };
 
-  const capital = (t: DraftTemplate) => meta.capitalTemplates.includes(t);
+  // Mirrors needsSecuritiesReview in core: anything to an investor is held, whatever the template.
+  const capital = (t: DraftTemplate) => lead.kind === "investor" || meta.capitalTemplates.includes(t);
   const ch = lead.contactChannel;
   const contactHref = ch?.kind === "form" || ch?.kind === "linkedin" ? safeHttpUrl(ch.value) : undefined;
 

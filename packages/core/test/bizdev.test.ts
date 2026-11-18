@@ -232,3 +232,20 @@ describe("reading what the portal sends", () => {
     expect(readBizSettings({ securitiesReviewed: true }).securitiesReviewed).toBe(true);
   });
 });
+
+describe("the securities hold and the opt-out list, edge cases", () => {
+  it("holds any message to an investor, whatever template it was drafted from", () => {
+    const r = canMarkSent(draft({ template: "hotel" }), lead(), DEFAULT_BIZ_SETTINGS, [], [], NOW);
+    expect(r.ok).toBe(false);
+    expect(r.reasons.join(" ")).toMatch(/counsel/i);
+    expect(canMarkSent(draft({ template: "hotel" }), lead({ kind: "partner" }), DEFAULT_BIZ_SETTINGS, [], [], NOW).ok).toBe(true);
+  });
+  it("lets a suppressed domain cover its subdomains, but not a lookalike", () => {
+    const l = lead({ website: "https://invest.isla.example", contactChannel: { kind: "email", value: "dana@mail.isla.example", source: "https://isla.example/c" } });
+    expect(isSuppressed(l, [{ value: "isla.example" }])).toBe(true);
+    expect(isSuppressed(lead({ website: "https://notisla.example" }), [{ value: "isla.example" }])).toBe(false);
+  });
+  it("greets the named contact when there is one", () => {
+    expect(draftFor(lead({ contactName: "Ana Ortiz" }), "investor", NOW).body.startsWith("Hello Ana Ortiz,")).toBe(true);
+  });
+});

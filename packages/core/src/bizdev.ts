@@ -278,7 +278,7 @@ const NOT_OFFER = "This message is not an offer to sell securities or a solicita
 /** A message built only from what the lead record says. It leaves out whatever is unknown. */
 export function draftFor(lead: BizLead, template: DraftTemplate, _now: Date): { template: DraftTemplate; subject: string; body: string } {
   const ev = validEvidence(lead)[0];
-  const who = `Hello ${lead.name.trim()},`;
+  const who = `Hello ${(lead.contactName || lead.name).trim()},`;
   const noticed = ev ? `I came across your work because of this: ${ev.claim} (${ev.url}).\n\n` : "";
   const place = lead.org ? ` at ${lead.org}` : "";
 
@@ -325,14 +325,19 @@ export function draftFor(lead: BizLead, template: DraftTemplate, _now: Date): { 
 const norm = (s: string) => s.trim().toLowerCase().replace(/^@/, "");
 const hostOf = (url?: string): string | undefined => { try { return url ? new URL(url).hostname.replace(/^www\./, "").toLowerCase() : undefined; } catch { return undefined; } };
 
-/** Whether the lead's address or domain is on the opt-out list, however the entry was typed. */
+/** Whether a message falls under the securities rules: anything to an investor, or any fundraising template. */
+export function needsSecuritiesReview(draft: Pick<BizDraft, "template">, lead: Pick<BizLead, "kind">): boolean {
+  return lead.kind === "investor" || CAPITAL_TEMPLATES.includes(draft.template);
+}
+
+/** Whether the lead's address or domain is on the opt-out list, however the entry was typed. A domain covers its subdomains. */
 export function isSuppressed(lead: BizLead, list: { value: string }[]): boolean {
   const email = emailOf(lead);
   const domains = new Set([email?.split("@")[1], hostOf(lead.website)].filter((d): d is string => !!d));
   return list.some((s) => {
     const v = norm(s.value);
     if (!v) return false;
-    return v.includes("@") ? v === email : domains.has(v);
+    return v.includes("@") ? v === email : [...domains].some((d) => d === v || d.endsWith(`.${v}`));
   });
 }
 
@@ -344,7 +349,8 @@ export function canMarkSent(
   if (draft.status !== "approved") reasons.push("The owner has not approved this message.");
   if (lead.status === "rejected") reasons.push("This lead was turned down.");
   if (isSuppressed(lead, suppressions)) reasons.push("This contact has opted out (suppression list).");
-  if (CAPITAL_TEMPLATES.includes(draft.template) && !settings.securitiesReviewed) {
+  // Any message to an investor counts, whatever template it was drafted from: a "partner" note to an investor is still an approach.
+  if (needsSecuritiesReview(draft, lead) && !settings.securitiesReviewed) {
     reasons.push("Investor messages stay blocked until counsel has reviewed how Safehubby approaches investors (securities rules).");
   }
   const sent = prior.filter((p) => p.leadId === lead.id && p.status === "sent" && p.id !== draft.id);

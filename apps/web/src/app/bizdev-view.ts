@@ -13,7 +13,7 @@ export function filterLeads(leads: BizLeadView[], f: BizFilter): BizLeadView[] {
       && (f.market === "all" || l.market === f.market)
       && (f.list === "all" || l.lists.includes(f.list))
       && (!q || `${l.name} ${l.org ?? ""} ${l.location ?? ""} ${l.segment ?? ""} ${l.interests.join(" ")}`.toLowerCase().includes(q)))
-    .sort((a, b) => b.score.total - a.score.total || a.name.localeCompare(b.name));
+    .sort((a, b) => b.score.total - a.score.total || a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 
 /** "$3.8M", "$250K", "$900": short enough for a phone. */

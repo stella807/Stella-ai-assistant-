@@ -2990,6 +2990,15 @@ describe("biweekly payroll", () => {
       expect(got.audit.map((a: { action: string }) => a.action)).toEqual(expect.arrayContaining(["lead.add", "draft.create", "draft.approve", "settings", "draft.sent"]));
     });
 
+    it("holds a message to an investor even when it was drafted from a partner template", async () => {
+      const { lead } = (await callAdmin("POST", "/api/master/bizdev/leads", { ...investor, name: "Other Investor" })).json;
+      const { draft } = (await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/draft`, { template: "hotel" })).json;
+      await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}`, { action: "approve" });
+      const blocked = await callAdmin("POST", `/api/master/bizdev/drafts/${draft.id}/sent`, {});
+      expect(blocked.status).toBe(400);
+      expect(JSON.stringify(blocked.json)).toMatch(/counsel/i);
+    });
+
     it("editing an approved draft sends it back for approval", async () => {
       const { lead } = (await callAdmin("POST", "/api/master/bizdev/leads", { ...investor, kind: "partner", name: "Hotel Uno", investorType: undefined })).json;
       const { draft } = (await callAdmin("POST", `/api/master/bizdev/leads/${lead.id}/draft`, { template: "hotel" })).json;
