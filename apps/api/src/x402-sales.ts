@@ -5,6 +5,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { lookupVendorsForAgents, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
+import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
  * What Safehubby sells to other AI agents, paid per request with x402 (USDC).
@@ -25,15 +26,24 @@ const TESTNETS = new Set([TESTNET, "eip155:11155111"]);
 
 export type AgentSale = { id: string; at: string; product?: string; network: string; amount: string; payer?: string; transaction?: string; query: string; results: number };
 
-type Config = { payTo: string; network: string; facilitator: string };
+type Config = { payTo: string; network: string; facilitator: string; live: boolean; facilitatorName: string };
+
+export const PAYAI_FACILITATOR = "https://facilitator.payai.network";
+export const TESTNET_FACILITATOR = "https://x402.org/facilitator";
 
 export function x402Config(): Config | { error: string } {
   if (process.env.X402_ENABLED !== "true") return { error: "Paid agent services are switched off on this server." };
   const payTo = process.env.X402_PAY_TO?.trim() ?? "";
   if (!/^0x[0-9a-fA-F]{40}$/.test(payTo)) return { error: "X402_PAY_TO is not a valid receiving address." };
   const network = process.env.X402_NETWORK?.trim() || TESTNET;
-  if (!TESTNETS.has(network) && process.env.X402_ALLOW_MAINNET !== "yes") return { error: "Real-money networks are refused until the owner allows them." };
-  return { payTo, network, facilitator: process.env.X402_FACILITATOR_URL?.trim() || "https://x402.org/facilitator" };
+  const live = !TESTNETS.has(network);
+  if (live && process.env.X402_ALLOW_MAINNET !== "yes") return { error: "Real-money networks are refused until the owner allows them." };
+  // "payai" is a name for PayAI's facilitator, which settles real USDC on Base. The default for test money is the free x402.org one.
+  const named = process.env.X402_FACILITATOR?.trim().toLowerCase();
+  const facilitator = process.env.X402_FACILITATOR_URL?.trim() || (named === "payai" ? PAYAI_FACILITATOR : TESTNET_FACILITATOR);
+  // x402.org's service is for test money only: pointing real money at it would never settle, so it is refused up front.
+  if (live && /(^|\/\/)(www\.)?x402\.org\b/.test(facilitator)) return { error: "Real money needs a facilitator that settles on the real network: set X402_FACILITATOR=payai." };
+  return { payTo, network, facilitator, live, facilitatorName: facilitator === PAYAI_FACILITATOR ? "PayAI" : new URL(facilitator).hostname };
 }
 
 /** A paid product: its price, what it is, and what it returns for a request (or nothing, for a request it cannot answer). */
@@ -89,9 +99,14 @@ const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?
 
 let cached: { key: string; server: Promise<x402ResourceServer> } | null = null;
 function serverFor(c: Config): Promise<x402ResourceServer> {
-  const key = `${c.network}|${c.facilitator}`;
+  const key = `${c.network}|${c.facilitator}|${process.env.PAYAI_API_KEY_ID ?? ""}`;
   if (cached?.key !== key) {
-    const s = new x402ResourceServer(new HTTPFacilitatorClient({ url: c.facilitator })).register(c.network as `${string}:${string}`, new ExactEvmScheme());
+    // A PayAI key is optional: the first 1,000 payments per wallet settle without one. When it is set, it signs in.
+    const id = process.env.PAYAI_API_KEY_ID?.trim();
+    const secret = process.env.PAYAI_API_KEY_SECRET?.trim();
+    const auth = id && secret && c.facilitator === PAYAI_FACILITATOR ? payaiAuthHeaders(id, secret) : undefined;
+    const s = new x402ResourceServer(new HTTPFacilitatorClient({ url: c.facilitator, ...(auth ? { createAuthHeaders: async () => auth() } : {}) }))
+      .register(c.network as `${string}:${string}`, new ExactEvmScheme());
     const ready = s.initialize().then(() => s);
     ready.catch(() => { if (cached?.key === key) cached = null; });
     cached = { key, server: ready };
@@ -118,7 +133,7 @@ function catalog(origin: string) {
   const config = x402Config();
   const on = !("error" in config);
   return {
-    seller: "Safehubby", site: origin, payment: on ? { protocol: "x402", version: 2, network: config.network, testMoneyOnly: TESTNETS.has(config.network), currency: "USDC" } : null,
+    seller: "Safehubby", site: origin, payment: on ? { protocol: "x402", version: 2, network: config.network, testMoneyOnly: !config.live, currency: "USDC" } : null,
     available: on, note: on ? undefined : config.error,
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     notForSale: "Errands, visits to check a place, appointments and other work that needs a person are not sold here. Message Safehubby on WhatsApp at +1 (939) 245-0171 for those.",
@@ -134,7 +149,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const config = x402Config();
   if ("error" in config) return json(res, 503, { error: config.error });
   const price = priceOf(product);
-  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: TESTNETS.has(config.network) });
+  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
   const expose = { "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE" };
   let server: x402ResourceServer;

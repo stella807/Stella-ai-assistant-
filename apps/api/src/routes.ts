@@ -105,7 +105,7 @@ import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
 import { askOllama, llmComplete, llmConfigured, ollamaHealth } from "./adapters/llm.ts";
 import { answerPrompt, retrieveKnowledge, WHATSAPP_DISPLAY } from "@safehubby/core";
-import { TESTNET as X402_TESTNET, x402Config } from "./x402-sales.ts";
+import { x402Config } from "./x402-sales.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
@@ -6836,7 +6836,7 @@ export const routes: Record<string, Handler> = {
     const by: Record<string, { count: number; units: number }> = {};
     for (const s of sales) { const k = s.product ?? "vendors"; by[k] = { count: (by[k]?.count ?? 0) + 1, units: (by[k]?.units ?? 0) + Number(s.amount || 0) }; }
     return {
-      enabled: !("error" in config), status: "error" in config ? config.error : `On for AI agents, ${config.network === X402_TESTNET ? "test money only" : config.network}`,
+      enabled: !("error" in config), status: "error" in config ? config.error : (config.live ? `LIVE: real USDC on ${config.network}, through ${config.facilitatorName}` : `On for AI agents, test money only (${config.facilitatorName})`), live: !("error" in config) && config.live,
       count: sales.length, totalUnits: sales.reduce((a, s) => a + Number(s.amount || 0), 0), byProduct: by, recent: sales.slice(-20).reverse(),
     };
   },

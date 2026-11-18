@@ -3003,6 +3003,28 @@ describe("biweekly payroll", () => {
       expect(sales.recent[0]).toMatchObject({ payer: "0xbuyer", transaction: "0xtx" });
     });
 
+    it("goes live only with every real-money switch, and only through a facilitator that settles real money", async () => {
+      const { x402Config } = await import("../src/x402-sales.ts");
+      const keys = ["X402_NETWORK", "X402_ALLOW_MAINNET", "X402_FACILITATOR", "X402_FACILITATOR_URL"];
+      const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+      try {
+        delete process.env.X402_FACILITATOR_URL;
+        process.env.X402_NETWORK = "eip155:8453";
+        expect(x402Config()).toMatchObject({ error: expect.stringMatching(/refused/i) });
+        process.env.X402_ALLOW_MAINNET = "yes";
+        expect(x402Config()).toMatchObject({ error: expect.stringMatching(/X402_FACILITATOR=payai/) });
+        process.env.X402_FACILITATOR = "payai";
+        expect(x402Config()).toMatchObject({ live: true, network: "eip155:8453", facilitator: "https://facilitator.payai.network", facilitatorName: "PayAI" });
+        // The test-money service is never accepted for real money, even when written out as a URL.
+        process.env.X402_FACILITATOR_URL = "https://x402.org/facilitator";
+        expect(x402Config()).toMatchObject({ error: expect.stringMatching(/X402_FACILITATOR=payai/) });
+        delete process.env.X402_NETWORK; delete process.env.X402_FACILITATOR_URL; delete process.env.X402_FACILITATOR; delete process.env.X402_ALLOW_MAINNET;
+        expect(x402Config()).toMatchObject({ live: false, network: "eip155:84532" });
+      } finally {
+        for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+      }
+    });
+
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
