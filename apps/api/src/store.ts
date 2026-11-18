@@ -269,6 +269,8 @@ export interface Db {
   clubMonths?: Record<string, ClubMonthState>;
   /** Paid vendor lookups sold to other AI agents over x402; see x402-sales.ts. */
   agentSales?: import("./x402-sales.ts").AgentSale[];
+  /** Signs the 30-day site passes sold to AI crawlers; made on first use and never shown. */
+  sitePassSecret?: string;
   /** Safehubby Business: other companies' own AI employees. Each business's data stays apart from every other's. */
   businesses?: Business[];
   /** Only a hash of each business's sign-in key, so a key can be replaced but never read back. */

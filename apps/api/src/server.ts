@@ -1,5 +1,6 @@
 import { handleAgentStore, isAgentPath } from "./x402-sales.ts";
 import { WIDGET_JS } from "./widget.ts";
+import { gateSitePage } from "./site-pass.ts";
 import { setIncludedHours, setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
@@ -212,6 +213,8 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       }
       return;
     }
+    // AI crawlers and agents that name themselves as such pay once for the website's pages; everyone else reads free.
+    if ((method === "GET" || method === "HEAD") && await gateSitePage(req, res, url.pathname, base.store, base.now, () => seoFactsFor(base).origin)) return;
     // The chat box script that businesses put on their own websites.
     if (url.pathname === "/widget.js" && (method === "GET" || method === "HEAD")) {
       res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" });

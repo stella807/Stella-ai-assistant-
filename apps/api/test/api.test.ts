@@ -2964,7 +2964,7 @@ describe("biweekly payroll", () => {
       process.env.X402_FACILITATOR_URL = `http://127.0.0.1:${(fac.address() as AddressInfo).port}`;
     });
     afterEach(async () => {
-      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET"]) delete process.env[k];
+      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE"]) delete process.env[k];
       seen.length = 0;
       await new Promise((r) => fac.close(r));
     });
@@ -3023,6 +3023,73 @@ describe("biweekly payroll", () => {
       } finally {
         for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
       }
+    });
+
+    describe("the $8.99 site pass for AI crawlers", () => {
+      const GPT = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
+      const page = (path: string, headers: Record<string, string> = {}) => fetch(`${base}${path}`, { headers });
+      const payFor = async (path: string, headers: Record<string, string>) => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const required: any = await (await page(path, headers)).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        return page(path, { ...headers, "payment-signature": sig });
+      };
+
+      it("asks a named AI crawler for $8.99 to read a page, and nobody else", async () => {
+        const res = await page("/careers", GPT);
+        expect(res.status).toBe(402);
+        const body: any = await res.json();
+        expect(body.accepts[0].amount).toBe("8990000");
+        expect(body.accepts[0].payTo).toBeTruthy();
+        for (const ua of ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "Mozilla/5.0 (compatible; bingbot/2.0)", "Mozilla/5.0 (iPhone) Safari/604.1", "curl/8.4.0"]) {
+          expect((await page("/careers", { "user-agent": ua })).status, ua).not.toBe(402);
+        }
+        expect((await page("/careers")).status).not.toBe(402);
+      });
+
+      it("never charges for the blog, the store, the API or the files search tools and pages need", async () => {
+        for (const path of ["/blog", "/es/blog", "/api/health", "/api/agent/catalog", "/robots.txt", "/sitemap.xml", "/widget.js"]) {
+          expect((await page(path, GPT)).status, path).not.toBe(402);
+        }
+        const list: any = await (await fetch(`${base}/api/agent/blog`)).json();
+        expect((await page(`/blog/${list.articles[0].slug}`, GPT)).status).not.toBe(402);
+      });
+
+      it("sells a 30-day pass once, then lets the same crawler read freely, and refuses a forged or expired one", async () => {
+        const paid = await payFor("/careers", GPT);
+        expect(paid.status).not.toBe(402);
+        const pass = paid.headers.get("x-safehubby-pass")!;
+        expect(pass).toMatch(/^0xbuyer\.\d+\./);
+        expect(paid.headers.get("payment-response")).toBeTruthy();
+        const settles = seen.filter((u) => u.endsWith("/settle")).length;
+        expect((await page("/careers", { ...GPT, "x-safehubby-pass": pass })).status).not.toBe(402);
+        expect((await page("/es", { ...GPT, "x-safehubby-pass": pass })).status).not.toBe(402);
+        expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        const [payer, exp, sig] = pass.split(".");
+        expect((await page("/careers", { ...GPT, "x-safehubby-pass": `${payer}.${Number(exp) + 99999}.${sig}` })).status).toBe(402);
+        expect((await page("/careers", { ...GPT, "x-safehubby-pass": "junk" })).status).toBe(402);
+        const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
+        expect(sales.byProduct["site-pass"]).toEqual({ count: 1, units: 8_990_000 });
+      });
+
+      it("charges nothing at all when paid access is off or the pass is switched off", async () => {
+        process.env.X402_SITE_PASS = "off";
+        expect((await page("/careers", GPT)).status).not.toBe(402);
+        delete process.env.X402_SITE_PASS;
+        delete process.env.X402_ENABLED;
+        expect((await page("/careers", GPT)).status).not.toBe(402);
+      });
+
+      it("lets the price be changed, and says in the free catalog that the pass exists", async () => {
+        process.env.X402_SITE_PASS_PRICE = "$12.50";
+        try {
+          const body: any = await (await page("/careers", GPT)).json();
+          expect(body.accepts[0].amount).toBe("12500000");
+        } finally { delete process.env.X402_SITE_PASS_PRICE; }
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.sitePass).toMatchObject({ price: "$8.99", days: 30 });
+        expect(c.sitePass.excludes).toMatch(/blog/i);
+      });
     });
 
     it("lists what is for sale for free, and never offers work that needs a person", async () => {

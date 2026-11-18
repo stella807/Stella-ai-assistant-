@@ -5,6 +5,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { lookupVendorsForAgents, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
+import { sitePassInfo } from "./site-pass-info.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
@@ -136,33 +137,40 @@ function catalog(origin: string) {
     seller: "Safehubby", site: origin, payment: on ? { protocol: "x402", version: 2, network: config.network, testMoneyOnly: !config.live, currency: "USDC" } : null,
     available: on, note: on ? undefined : config.error,
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
+    sitePass: {
+      price: sitePassInfo().price, days: sitePassInfo().days,
+      appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
+      excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
+      how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on later requests.",
+    },
     notForSale: "Errands, visits to check a place, appointments and other work that needs a person are not sold here. Message Safehubby on WhatsApp at +1 (939) 245-0171 for those.",
   };
 }
 
-/** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
-export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string): Promise<void> {
-  if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin));
-  if (url.pathname === "/api/agent/blog") return json(res, 200, { lang: langOf(url), price: "per article, see /api/agent/catalog", articles: articleIndex(langOf(url)).map((a) => ({ ...a, endpoint: `${origin}/api/agent/blog/${a.slug}?lang=${langOf(url)}` })) });
-
-  const product = productFor(url.pathname)!;
+/**
+ * Asks for payment, or takes it. Sends the 402 itself and returns null when there is no valid payment yet. When there
+ * is one, it is verified, then `beforeSettle` may refuse (nothing is charged), then it is settled; only then is the
+ * result returned and the caller sends what was bought. Shared by every paid thing, so each has the same checks.
+ */
+export async function takePayment(
+  req: IncomingMessage, res: ServerResponse, opts: { path: string; origin: string; price: string; description: string; beforeSettle?: () => { status: number; body: unknown } | null },
+): Promise<{ amount: string; payer?: string; transaction?: string; network: string; headers: Record<string, string> } | null> {
   const config = x402Config();
-  if ("error" in config) return json(res, 503, { error: config.error });
-  const price = priceOf(product);
-  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
-
+  if ("error" in config) { json(res, 503, { error: config.error }); return null; }
   const expose = { "access-control-expose-headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE" };
   let server: x402ResourceServer;
   try { server = await serverFor(config); } catch {
-    return json(res, 503, { error: "The payment service could not be reached. Try again later." });
+    json(res, 503, { error: "The payment service could not be reached. Try again later." });
+    return null;
   }
   const requirements = await server.buildPaymentRequirementsFromOptions(
-    [{ scheme: "exact", price, network: config.network as `${string}:${string}`, payTo: config.payTo }], {},
+    [{ scheme: "exact", price: opts.price, network: config.network as `${string}:${string}`, payTo: config.payTo }], {},
   );
-  const resource = { url: `${origin}${url.pathname}`, description: product.description, mimeType: "application/json" };
+  const resource = { url: `${opts.origin}${opts.path}`, description: opts.description, mimeType: "application/json" };
   const ask = async (error?: string) => {
     const required = await server.createPaymentRequiredResponse(requirements, resource, error);
-    return json(res, 402, required, { "PAYMENT-REQUIRED": encodePaymentRequiredHeader(required), ...expose });
+    json(res, 402, required, { "PAYMENT-REQUIRED": encodePaymentRequiredHeader(required), ...expose });
+    return null;
   };
 
   const header = req.headers["payment-signature"];
@@ -176,15 +184,35 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   if (!verified.isValid) return ask(`Payment not valid: ${verified.invalidReason ?? "unknown reason"}`);
 
   // A request that cannot be answered (an unknown article, a missing question) is refused before any money moves.
-  const answer = product.respond(url);
-  if (answer.status !== 200) return json(res, answer.status, answer.body);
-  // Settled before the answer goes out, so nothing is given away on a payment that fails.
+  const refusal = opts.beforeSettle?.();
+  if (refusal) { json(res, refusal.status, refusal.body); return null; }
+  // Settled before anything is given, so nothing is given away on a payment that fails.
   const settled = await server.settlePayment(payload, match);
   if (!settled.success) return ask(`Payment could not be settled: ${settled.errorReason ?? "unknown reason"}`);
+  return { amount: match.amount, payer: settled.payer, transaction: settled.transaction, network: config.network, headers: { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled), ...expose } };
+}
+
+/** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
+export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string): Promise<void> {
+  if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin));
+  if (url.pathname === "/api/agent/blog") return json(res, 200, { lang: langOf(url), price: "per article, see /api/agent/catalog", articles: articleIndex(langOf(url)).map((a) => ({ ...a, endpoint: `${origin}/api/agent/blog/${a.slug}?lang=${langOf(url)}` })) });
+
+  const product = productFor(url.pathname)!;
+  const config = x402Config();
+  if ("error" in config) return json(res, 503, { error: config.error });
+  const price = priceOf(product);
+  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
+
+  const answer = product.respond(url);
+  const paid = await takePayment(req, res, {
+    path: url.pathname, origin, price, description: product.description,
+    beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
+  });
+  if (!paid) return;
   const sale: AgentSale = {
-    id: newId("sal"), at: now().toISOString(), product: product.id, network: config.network, amount: match.amount,
-    payer: settled.payer, transaction: settled.transaction, query: answer.summary.slice(0, 300), results: answer.results,
+    id: newId("sal"), at: now().toISOString(), product: product.id, network: paid.network, amount: paid.amount,
+    payer: paid.payer, transaction: paid.transaction, query: answer.summary.slice(0, 300), results: answer.results,
   };
   store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
-  return json(res, 200, answer.body, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled), ...expose });
+  return json(res, 200, answer.body, paid.headers);
 }
