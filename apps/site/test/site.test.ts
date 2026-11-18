@@ -195,6 +195,57 @@ describe("the marketing site", () => {
   });
 });
 
+describe("the trust block above the plans", () => {
+  const block = (html: string) => /id="trust"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+
+  it("is on both pages, after what we do and before what it costs", () => {
+    for (const lang of LANGS) {
+      const html = pages[lang];
+      const at = html.indexOf('id="trust"');
+      expect(at, lang).toBeGreaterThan(html.indexOf('class="services"'));
+      expect(at, lang).toBeLessThan(html.indexOf('class="plan-rail"'));
+    }
+  });
+
+  it("answers the three things a family asks: who comes, where, and what to do first", () => {
+    const en = block(pages.en).toLowerCase();
+    expect(en).toContain("photo");
+    expect(en).toContain("all of puerto rico");
+    expect(en).toContain("911");
+    expect(en).toContain("whatsapp");
+    expect(en).toMatch(/call you.*why.*approximate/);
+    const es = block(pages.es).toLowerCase();
+    expect(es).toContain("foto");
+    expect(es).toContain("todo puerto rico");
+    expect(es).toContain("911");
+    expect(es).toContain("whatsapp");
+    expect(es).toMatch(/te llama.*aproximada/);
+  });
+
+  it("puts the emergency line before anything else about problems, in both languages", () => {
+    for (const lang of LANGS) {
+      const b = block(pages[lang]);
+      expect(b.indexOf("911"), lang).toBeGreaterThan(-1);
+      expect(b.indexOf("911"), lang).toBeLessThan(b.toLowerCase().indexOf("whatsapp"));
+    }
+  });
+
+  it("says plainly that there is one assistant today, and promises nothing it cannot keep", () => {
+    expect(block(pages.en)).toMatch(/one assistant, the founder/i);
+    expect(block(pages.es)).toMatch(/un solo asistente, el fundador/i);
+    for (const lang of LANGS) {
+      const b = block(pages[lang]).toLowerCase();
+      expect(b, lang).not.toMatch(/24\/7|network|red de|guarante|garantiz|always|siempre|hundreds|cientos|never late|nunca se atras/);
+      // The selfie is optional in the app, so the page may only say it can be shared.
+      expect(b, lang).not.toMatch(/each get|cada uno recibe|you will receive a selfie/);
+    }
+  });
+
+  it("does not print a phone number of its own: the contact section below is the one place for it", () => {
+    for (const lang of LANGS) expect(block(pages[lang]), lang).not.toMatch(/\+?1?\s?\(?\d{3}\)?[\s-]\d{3}[\s-]\d{4}/);
+  });
+});
+
 describe("reaching a person", () => {
   /** The page as a browser reads it: character references decoded. */
   const decoded = (html: string) =>
@@ -325,14 +376,16 @@ describe("the page stays simple", () => {
     }
   });
 
-  it("stays under eight hundred and fifty words of body copy", () => {
+  it("stays under a thousand words of body copy", () => {
     // 810 words was the measurement that started this, for a page that then
     // sold three tiers and no prices. It now sells seven, the Club, a
-    // price per task and a priced list of errand sizes. The cap moves when
-    // real content arrives and never to make room for prose.
+    // price per task and a priced list of errand sizes. It then gained a
+    // hundred words that answer what a family asks first: who comes, where,
+    // and what to do in a problem (850 to 1000, since Spanish runs longer). The cap moves when real
+    // content arrives and never to make room for prose.
     for (const lang of LANGS) {
       const words = pages[lang].replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean);
-      expect(words.length, `words in ${lang}`).toBeLessThan(850);
+      expect(words.length, `words in ${lang}`).toBeLessThan(1000);
     }
   });
 });

@@ -203,6 +203,16 @@ ${header(lang, pathFor(lang), c.otherLang.href, c.otherLang.label)}
     </div>
   </section>
 
+  <section class="band" id="trust">
+    <h2>${esc(c.trustHeading)}</h2>
+    <ul class="services">
+      ${c.trust.map((t) => `<li class="service">
+        <h3>${esc(t.title)}</h3>
+        <p>${esc(t.body)}</p>
+      </li>`).join("\n      ")}
+    </ul>
+  </section>
+
   <section class="band">
     <h2>${esc(c.pricingHeading)}</h2>
     <p class="lede">${esc(c.pricingLede)}</p>

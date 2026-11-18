@@ -229,6 +229,11 @@ export interface Copy {
   minutesLabel: string;
   services: Service[];
 
+  /** Who comes, where, and what happens when something goes wrong: the first thing a family wants to know, above the plans.
+   *  Only what is true today. Today there is one assistant, so the page says so. */
+  trustHeading: string;
+  trust: { title: string; body: string }[];
+
   pricingHeading: string;
   pricingLede: string;
   perMonth: string;
@@ -339,6 +344,15 @@ export const COPY: Record<Lang, Copy> = {
       { title: "Check-ins and SOS", priceNote: "On every plan", body: "A guardian is alerted the moment a check-in is missed." },
     ],
 
+    trustHeading: "Who comes, where, and what happens if something goes wrong",
+    trust: [
+      { title: "Who comes", body: "You see your assistant's photo and short bio and choose who comes. Right now there is one assistant, the founder; more will join. You can each share a selfie before you meet." },
+      { title: "Where", body: "All of Puerto Rico. Texas and Los Angeles are next." },
+      { title: "If something goes wrong", body: "In an emergency, call 911 first: we are not an emergency service. For anything else, message us on WhatsApp and a person answers." },
+      { title: "If your assistant is running late", body: "They call you themselves, tell you why, and give an approximate arrival time." },
+      { title: "Your money", body: "Your assistant never uses your own card: they pay with one made for that task, capped at your limit. They can say no to anything unsafe." },
+    ],
+
     pricingHeading: "What it costs",
     pricingLede: `${PLAN_COUNT_WORDS.en[releasedPlans().length]} plans, from everyday help to a desk that answers 24/7. Swipe across.`,
     perMonth: "/month",
@@ -406,6 +420,15 @@ export const COPY: Record<Lang, Copy> = {
       { title: "Pasar a ver a alguien", category: "check-in-person", body: "Alguien va, mira, y te dice." },
       { title: "Coordinar un viaje", priceNote: "A la tarifa del proveedor", body: "Lo reservamos y lo seguimos — sin recargo sobre la tarifa." },
       { title: "Registros y SOS", priceNote: "En todos los planes", body: "Un guardián recibe alerta en el momento en que se falla un registro." },
+    ],
+
+    trustHeading: "Quién llega, dónde, y qué pasa si algo sale mal",
+    trust: [
+      { title: "Quién llega", body: "Ves la foto y una breve biografía de tu asistente y eliges quién va. Por ahora hay un solo asistente, el fundador; se sumarán más. Antes de encontrarse, cada uno puede compartir una selfie." },
+      { title: "Dónde", body: "Todo Puerto Rico. Texas y Los Ángeles vienen después." },
+      { title: "Si algo sale mal", body: "En una emergencia, llama primero al 911: no somos un servicio de emergencia. Para cualquier otra cosa, escríbenos por WhatsApp y te contesta una persona." },
+      { title: "Si tu asistente se atrasa", body: "Te llama directamente, te explica el motivo y te da una hora aproximada de llegada." },
+      { title: "Tu dinero", body: "Tu asistente nunca usa tu tarjeta: paga con una hecha para esa tarea, con tu tope. Puede negarse a cualquier cosa que no sea segura." },
     ],
 
     pricingHeading: "Cuánto cuesta",
