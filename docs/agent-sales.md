@@ -26,8 +26,22 @@ likes. The payment answer carries an `X-Safehubby-Pass` header to send back on e
 visit. When the hour is over, it pays again. The payment goes through the same checks as the store:
 verified, then settled, and only then is the page served.
 
-Never charged: people with a browser, **search engines** (Googlebot, bingbot, DuckDuckBot, Applebot
-are not in the list), the **blog** (`/blog`, `/es/blog`), the agent store, the whole API, `robots.txt`,
+Also asked to pay, because they hide what they are:
+- scripts and headless browsers that give themselves away (`python-requests`, `Go-http-client`,
+  `HeadlessChrome` and similar; plain `curl` and `wget` are left out because people and health checks use them);
+- a "browser" that sends **neither a language nor a Sec-Fetch header**, which every real browser does
+  (an old iPhone sends a language, so it is let in);
+- a visitor that says it is **Googlebot or bingbot** but whose address does not belong to Google or Microsoft
+  (checked the way the engines publish: the address's name must end in their domain and point back to the same
+  address). If that check cannot be made (a DNS outage), the visitor is let in, so the site's ranking is never hurt;
+- optionally, an address that loads more pages than `X402_SITE_PASS_PAGE_LIMIT` in ten minutes (off by default,
+  because many phones in Puerto Rico can share one address).
+
+A crawler that copies a real browser perfectly, headers included, still reads the site free. If the charge
+catches a real person by mistake, the payment request tells them to write on WhatsApp.
+
+Never charged: people with a browser, **real search engines** (the real Googlebot and bingbot, checked
+as above), link previews (WhatsApp, iMessage, Slack, Telegram), the **blog** (`/blog`, `/es/blog`), the agent store, the whole API, `robots.txt`,
 `sitemap.xml`, `llms.txt`, the chat box script, and any file such as a script or an image.
 
 It is on whenever paid access is on. Turn it off alone with `X402_SITE_PASS` = `off`.

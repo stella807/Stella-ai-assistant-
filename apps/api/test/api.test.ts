@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
-import { createServer as createHttpServer } from "node:http";
+import { createServer as createHttpServer, request as httpRequest } from "node:http";
 import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
@@ -2964,7 +2964,7 @@ describe("biweekly payroll", () => {
       process.env.X402_FACILITATOR_URL = `http://127.0.0.1:${(fac.address() as AddressInfo).port}`;
     });
     afterEach(async () => {
-      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE"]) delete process.env[k];
+      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE", "X402_SITE_PASS_PAGE_LIMIT"]) delete process.env[k];
       seen.length = 0;
       await new Promise((r) => fac.close(r));
     });
@@ -3028,6 +3028,12 @@ describe("biweekly payroll", () => {
     describe("the $8.99 site pass for AI crawlers", () => {
       const GPT = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
       const page = (path: string, headers: Record<string, string> = {}) => fetch(`${base}${path}`, { headers });
+      /** Sends exactly the headers given and nothing else, as a script would. (fetch adds its own language and Sec-Fetch headers.) */
+      const raw = (path: string, headers: Record<string, string> = {}) => new Promise<{ status: number }>((resolve, reject) => {
+        const u = new URL(`${base}${path}`);
+        const r = httpRequest({ host: u.hostname, port: u.port, path: u.pathname, method: "GET", headers }, (res) => { res.resume(); resolve({ status: res.statusCode ?? 0 }); });
+        r.on("error", reject); r.end();
+      });
       const payFor = async (path: string, headers: Record<string, string>) => {
         const { encodePaymentSignatureHeader } = await import("@x402/core/http");
         const required: any = await (await page(path, headers)).json();
@@ -3036,6 +3042,10 @@ describe("biweekly payroll", () => {
       };
 
       it("asks a named AI crawler for $8.99 to read a page, and nobody else", async () => {
+        const { dnsFor } = await import("../src/visitor-kind.ts");
+        const realDns = dnsFor.current;
+        dnsFor.current = { reverse: async () => ["crawl-1.googlebot.com", "msnbot-1.search.msn.com"], lookup: async () => ["::1", "127.0.0.1", "::ffff:127.0.0.1", "66.249.66.1"] };
+        try {
         const res = await page("/careers", GPT);
         expect(res.status).toBe(402);
         const body: any = await res.json();
@@ -3045,6 +3055,7 @@ describe("biweekly payroll", () => {
           expect((await page("/careers", { "user-agent": ua })).status, ua).not.toBe(402);
         }
         expect((await page("/careers")).status).not.toBe(402);
+        } finally { dnsFor.current = realDns; }
       });
 
       it("never charges for the blog, the store, the API or the files search tools and pages need", async () => {
@@ -3074,6 +3085,40 @@ describe("biweekly payroll", () => {
         expect((await page("/careers", { ...GPT, "x-safehubby-pass": old })).status).toBe(402);
         const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
         expect(sales.byProduct["site-pass"]).toEqual({ count: 1, units: 8_990_000 });
+      });
+
+      it("also asks the ones that pretend: scripts, a browser with no browser headers, and a fake Googlebot", async () => {
+        const { dnsFor } = await import("../src/visitor-kind.ts");
+        const realDns = dnsFor.current;
+        const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        try {
+          expect((await raw("/careers", { "user-agent": "python-requests/2.31.0" })).status).toBe(402);
+          expect((await raw("/careers", { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0 Safari/537.36" })).status).toBe(402);
+          expect((await raw("/careers", { "user-agent": CHROME })).status).toBe(402);
+          // A real person's browser, an old phone and a link preview are never asked.
+          expect((await raw("/careers", { "user-agent": CHROME, "accept-language": "es-PR,es;q=0.9", "sec-fetch-mode": "navigate" })).status).not.toBe(402);
+          expect((await raw("/careers", { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) AppleWebKit/605.1.15 Version/15.6 Mobile/15E148 Safari/604.1", "accept-language": "es-PR" })).status).not.toBe(402);
+          expect((await raw("/careers", { "user-agent": "WhatsApp/2.23.20.0" })).status).not.toBe(402);
+          // Someone who says they are Googlebot is checked against where they really come from.
+          const GOOGLE = { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" };
+          dnsFor.current = { reverse: async () => ["crawl-1.googlebot.com"], lookup: async () => ["::1", "127.0.0.1", "::ffff:127.0.0.1"] };
+          expect((await raw("/careers", GOOGLE)).status).not.toBe(402);
+          dnsFor.current = { reverse: async () => ["scraper.example.net"], lookup: async () => [] };
+          expect((await raw("/careers", { ...GOOGLE, "x-forwarded-for": "9.9.9.9" })).status).toBe(402);
+        } finally { dnsFor.current = realDns; }
+      });
+
+      it("can also flag an address that reads far too many pages, when that is switched on, and it is off otherwise", async () => {
+        const CHROME = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36";
+        const real = { "user-agent": CHROME, "accept-language": "en-US", "sec-fetch-mode": "navigate" };
+        for (let i = 0; i < 12; i++) expect((await page("/careers", real)).status).not.toBe(402);
+        process.env.X402_SITE_PASS_PAGE_LIMIT = "3";
+        try {
+          const codes: number[] = [];
+          for (let i = 0; i < 6; i++) codes.push((await page("/careers", real)).status);
+          expect(codes.slice(0, 3)).not.toContain(402);
+          expect(codes.slice(3)).toContain(402);
+        } finally { delete process.env.X402_SITE_PASS_PAGE_LIMIT; }
       });
 
       it("charges nothing at all when paid access is off or the pass is switched off", async () => {
