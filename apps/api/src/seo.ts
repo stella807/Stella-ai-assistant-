@@ -1,5 +1,5 @@
 import {
-  SITE_SERVICES, STAFF_ROLE_ES, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, whatsappLink, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
+  CONTACT_EMAIL, SITE_SERVICES, STAFF_ROLE_ES, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, whatsappLink, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
   type ServiceId, type SiteLang, type SiteRoute, type StaffRole,
 } from "@safehubby/core";
 
@@ -71,7 +71,6 @@ export interface SeoPage {
 }
 
 const HERO_IMAGE = "/img/hero-luxury.jpg";
-const CONTACT_EMAIL = "contact@safehubby.com";
 
 export const escapeHtml = (text: string): string =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");

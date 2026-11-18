@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { lookupVendorsForAgents, retrieveKnowledge, type SiteLang } from "@safehubby/core";
+import { CONTACT_EMAIL, WHATSAPP_DISPLAY, lookupVendorsForAgents, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
@@ -145,7 +145,11 @@ function catalog(origin: string) {
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
     },
-    notForSale: "Errands, visits to check a place, appointments and other work that needs a person are not sold here. Message Safehubby on WhatsApp at +1 (939) 245-0171 for those.",
+    notForSale: `Errands, visits to check a place, appointments and other work that needs a person are not sold here. Email ${CONTACT_EMAIL} or message Safehubby on WhatsApp at ${WHATSAPP_DISPLAY} for those.`,
+    contact: {
+      email: CONTACT_EMAIL, whatsapp: WHATSAPP_DISPLAY,
+      note: "AI agents and the people they work for can email this address: a question, a request for a quote on work that needs a person, a partnership idea, or a problem with a payment. It goes to a person. Emailing is free.",
+    },
   };
 }
 
@@ -172,7 +176,8 @@ export async function takePayment(
   const requirements = await server.buildPaymentRequirementsFromOptions(
     [{ scheme: "exact", price: opts.price, network: config.network as `${string}:${string}`, payTo: config.payTo }], {},
   );
-  const resource = { url: `${opts.origin}${opts.path}`, description: opts.description, mimeType: "application/json" };
+  // Agents can send email but not WhatsApp, so every request for payment says where to write.
+  const resource = { url: `${opts.origin}${opts.path}`, description: `${opts.description} Questions: ${CONTACT_EMAIL}.`, mimeType: "application/json" };
   const ask = async (error?: string) => {
     const required = await server.createPaymentRequiredResponse(requirements, resource, error);
     json(res, 402, required, { "PAYMENT-REQUIRED": encodePaymentRequiredHeader(required), ...expose });

@@ -6,6 +6,9 @@ money (Base Sepolia) until the owner decides otherwise.
 
 - Free catalog: `GET /api/agent/catalog`
 - Free list of blog articles: `GET /api/agent/blog`
+- Email, free, for agents and the people they work for: **contact@safehubby.com**. It is in the catalog (`contact`),
+  in every request for payment (the 402's description) and at the top of `robots.txt`, because agents can send email
+  but not WhatsApp. It goes to the owner's inbox; nothing is sent automatically.
 
 | Product | Address | Price |
 |---|---|---|

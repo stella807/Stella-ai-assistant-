@@ -11,6 +11,9 @@ export const WHATSAPP_NUMBER = "19392450171";
 /** The number as people read it. */
 export const WHATSAPP_DISPLAY = "+1 (939) 245-0171";
 
+/** Safehubby's one email address, for people and for AI agents (which can send email but not WhatsApp). */
+export const CONTACT_EMAIL = "contact@safehubby.com";
+
 const GREETING = {
   en: "Hi! I'd like to know more about Safehubby.",
   es: "¡Hola! Quiero saber más sobre Safehubby.",

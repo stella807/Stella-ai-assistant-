@@ -3150,6 +3150,17 @@ describe("biweekly payroll", () => {
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
     });
 
+    it("tells every agent how to email us: in the catalog and in every request for payment", async () => {
+      const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+      expect(c.contact.email).toBe("contact@safehubby.com");
+      expect(c.notForSale).toContain("contact@safehubby.com");
+      const required: any = await (await raw()).json();
+      expect(required.resource.description).toContain("contact@safehubby.com");
+      const gpt = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
+      const page: any = await (await fetch(`${base}/careers`, { headers: gpt })).json();
+      expect(page.resource.description).toContain("contact@safehubby.com");
+    });
+
     it("sells a blog article as clean text for a cent, and lists the articles for free", async () => {
       const list: any = await (await fetch(`${base}/api/agent/blog`)).json();
       expect(list.articles.length).toBeGreaterThan(5);

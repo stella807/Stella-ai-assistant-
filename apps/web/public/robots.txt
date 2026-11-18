@@ -1,3 +1,5 @@
+# Safehubby. AI agents: what we sell and how to pay is at https://safehubby.com/api/agent/catalog
+# Questions, quotes and partnerships: contact@safehubby.com (agents welcome)
 User-agent: *
 Allow: /
 Disallow: /master

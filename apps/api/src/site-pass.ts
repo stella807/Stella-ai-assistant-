@@ -103,7 +103,7 @@ export async function gateSitePage(
     // Only a fixed label is kept (a crawler's name or "script"), never the address or the browser string.
     onAsk: () => noteSignal(store, now(), { kind: "ask", product: "site-pass", crawler: visitorLabel(ua, kind) }),
     onPaid: () => noteSignal(store, now(), { kind: "paid", product: "site-pass", crawler: visitorLabel(ua, kind) }),
-    description: `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`,
+    description: `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`, // the email address is added to every request for payment
   });
   if (!paid) return true;
   const sale: AgentSale = {
