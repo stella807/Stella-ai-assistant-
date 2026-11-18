@@ -14,7 +14,7 @@ export function AgentSalesSection() {
     <section className="card stack" aria-label="Sales to AI agents">
       <h3 style={{ margin: 0 }}>Sales to AI agents</h3>
       <p className="tiny muted" style={{ margin: 0 }}>
-        Other AI agents can pay per request for our vendor research, plan and price facts, and a clean-text copy of each blog
+        Other AI agents can pay per request for plan and price facts and a clean-text copy of each blog
         article, in USDC. People and search engines read the blog free. The server only has your receiving address: it can never
         send money.
       </p>
@@ -28,7 +28,7 @@ export function AgentSalesSection() {
       ))}
       {s.recent.map((r) => (
         <p key={r.id} className="tiny" style={{ margin: 0 }}>
-          {new Date(r.at).toLocaleString()} · {r.product ?? "vendors"} · {usd(Number(r.amount))}{r.transaction ? ` · ${r.transaction.slice(0, 10)}…` : ""}
+          {new Date(r.at).toLocaleString()} · {r.product ?? "vendor lookup (removed)"} · {usd(Number(r.amount))}{r.transaction ? ` · ${r.transaction.slice(0, 10)}…` : ""}
         </p>
       ))}
     </section>

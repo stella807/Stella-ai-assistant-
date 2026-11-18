@@ -12,7 +12,7 @@ describe("how the owner's numbers are written", () => {
 
   it("uses names the owner knows, and leaves an unknown product as it is", () => {
     expect(productName("site-pass")).toBe("Website visit pass");
-    expect(productName("vendors")).toBe("Vendor lookup");
+    expect(productName("vendors")).toBe("Vendor lookup (removed)");
     expect(productName("facts")).toBe("Plans and prices facts");
     expect(productName("blog")).toBe("Blog article copy");
     expect(productName("new-thing")).toBe("new-thing");

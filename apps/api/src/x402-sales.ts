@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { CONTACT_EMAIL, WHATSAPP_DISPLAY, lookupVendorsForAgents, retrieveKnowledge, type SiteLang } from "@safehubby/core";
+import { CONTACT_EMAIL, WHATSAPP_DISPLAY, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
@@ -65,16 +65,6 @@ const langOf = (u: URL): SiteLang => (u.searchParams.get("lang") === "es" ? "es"
 
 export const PRODUCTS: Product[] = [
   {
-    id: "vendors", title: "Vendor lookup",
-    description: "Safehubby's research on event vendors, hotel programs and airport VIP / meet-and-greet services in Puerto Rico, the US and worldwide, with where each was found. A phone or email only where the business publishes it.",
-    path: "/api/agent/vendors", usage: "GET ?q=&category=&place=&limit= (limit up to 25)", defaultPrice: "$0.05",
-    respond(u) {
-      const query = { q: u.searchParams.get("q") ?? "", category: u.searchParams.get("category") ?? "", place: u.searchParams.get("place") ?? "", limit: Number(u.searchParams.get("limit")) || 10 };
-      const found = lookupVendorsForAgents(query);
-      return { status: 200, body: found, results: found.results.length, summary: JSON.stringify(query), words: [query.q, query.category, query.place].filter(Boolean).join(" ") };
-    },
-  },
-  {
     id: "facts", title: "Safehubby plans and prices",
     description: "The facts that answer a question about Safehubby's plans, prices, the Wingman Club, secure transport and safety rules, as structured text. The prices are read from the same list the app charges from.",
     path: "/api/agent/facts", usage: "GET ?q=your question", defaultPrice: "$0.01",
@@ -98,7 +88,7 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || (p.id === "vendors" ? process.env.X402_PRICE?.trim() : "") || p.defaultPrice;
+const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
 
 let cached: { key: string; server: Promise<x402ResourceServer> } | null = null;
 function serverFor(c: Config): Promise<x402ResourceServer> {
@@ -123,10 +113,9 @@ const json = (res: ServerResponse, status: number, body: unknown, headers: Recor
 };
 
 const productFor = (pathname: string): Product | undefined =>
-  pathname === "/api/agent/vendors" ? PRODUCTS[0]
-    : pathname === "/api/agent/facts" ? PRODUCTS[1]
-      : pathname.startsWith("/api/agent/blog/") && pathname.length > "/api/agent/blog/".length ? PRODUCTS[2]
-        : undefined;
+  pathname === "/api/agent/facts" ? PRODUCTS[0]
+    : pathname.startsWith("/api/agent/blog/") && pathname.length > "/api/agent/blog/".length ? PRODUCTS[1]
+      : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
 export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || productFor(pathname) !== undefined;

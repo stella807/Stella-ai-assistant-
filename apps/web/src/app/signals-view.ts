@@ -4,7 +4,7 @@ export interface AskedPaid { asked: number; paid: number }
 
 const NAMES: Record<string, string> = {
   "site-pass": "Website visit pass",
-  vendors: "Vendor lookup",
+  vendors: "Vendor lookup (removed)",
   facts: "Plans and prices facts",
   blog: "Blog article copy",
 };

@@ -12,12 +12,11 @@ money (Base Sepolia) until the owner decides otherwise.
 
 | Product | Address | Price |
 |---|---|---|
-| Vendor lookup (event vendors, hotel programs, airport VIP services) | `/api/agent/vendors?q=&category=&place=&limit=` | $0.05 |
 | Plans and prices facts | `/api/agent/facts?q=` | $0.01 |
 | One blog article as clean text | `/api/agent/blog/{slug}?lang=en` | $0.01 |
 
 Add `?info` to any product address for a free description. Prices can be changed with
-`X402_PRICE_VENDORS`, `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
+`X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
 
 ## The site pass: $8.99 a visit for AI crawlers to read the website
 
@@ -76,6 +75,13 @@ kept, only whether it could answer.** Days older than 90 are forgotten.
 Limits, said plainly: "asked" counts requests that were shown a price, not different visitors (a crawler that ignores the
 price and keeps fetching counts each time). With only a few requests the numbers say nothing; the page says so until there
 are at least ten.
+
+## The vendor list is not for sale
+
+Safehubby's vendor research (event vendors, hotel programs, airport VIP services) is what clients pay for, so it is
+not sold to AI agents in any form. A vendor lookup was sold for a short time and has been removed: `/api/agent/vendors`
+no longer exists. Agents who want a vendor are told to email contact@safehubby.com, which makes them a lead instead of
+a way around Safehubby. The owner's own vendor records in the portal are untouched.
 
 ## What is not paywalled, and why
 

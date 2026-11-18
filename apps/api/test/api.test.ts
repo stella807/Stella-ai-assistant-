@@ -2968,7 +2968,7 @@ describe("biweekly payroll", () => {
       seen.length = 0;
       await new Promise((r) => fac.close(r));
     });
-    const raw = (headers: Record<string, string> = {}, q = "?category=airport-vip&place=puerto%20rico") => fetch(`${base}/api/agent/vendors${q}`, { headers });
+    const raw = (headers: Record<string, string> = {}, q = "?q=How%20much%20is%20Premium%20per%20month%3F") => fetch(`${base}/api/agent/facts${q}`, { headers });
 
     it("is off unless switched on, and refuses real money until the owner allows it", async () => {
       delete process.env.X402_ENABLED;
@@ -2978,14 +2978,14 @@ describe("biweekly payroll", () => {
       expect((await raw()).status).toBe(503);
     });
 
-    it("asks for 5 cents of test USDC to the owner's address, and gives nothing away unpaid", async () => {
+    it("asks for a cent of test USDC to the owner's address, and gives nothing away unpaid", async () => {
       const res = await raw();
       expect(res.status).toBe(402);
       const body: any = await res.json();
       expect(body.results).toBeUndefined();
-      expect(body.accepts[0]).toMatchObject({ scheme: "exact", network: "eip155:84532", amount: "50000", payTo: PAY_TO });
+      expect(body.accepts[0]).toMatchObject({ scheme: "exact", network: "eip155:84532", amount: "10000", payTo: PAY_TO });
       expect(res.headers.get("payment-required")).toBeTruthy();
-      expect((await (await raw({}, "?info")).json())).toMatchObject({ price: "$0.05", testMoneyOnly: true });
+      expect((await (await raw({}, "?info")).json())).toMatchObject({ price: "$0.01", testMoneyOnly: true });
     });
 
     it("answers once the payment is verified and settled, and records the sale for the owner", async () => {
@@ -2995,11 +2995,11 @@ describe("biweekly payroll", () => {
       const res = await raw({ "payment-signature": sig });
       expect(res.status).toBe(200);
       const body: any = await res.json();
-      expect(body.results.length).toBeGreaterThan(0);
+      expect(body.facts.length).toBeGreaterThan(0);
       expect(res.headers.get("payment-response")).toBeTruthy();
       expect(seen.some((u) => u.endsWith("/settle"))).toBe(true);
       const sales = (await callAdmin("GET", "/api/master/agent-sales")).json;
-      expect(sales).toMatchObject({ enabled: true, count: 1, totalUnits: 50000 });
+      expect(sales).toMatchObject({ enabled: true, count: 1, totalUnits: 10000 });
       expect(sales.recent[0]).toMatchObject({ payer: "0xbuyer", transaction: "0xtx" });
     });
 
@@ -3144,10 +3144,16 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "facts", "vendors"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
+    });
+
+    it("does not sell the vendor list at all: that is what clients pay Safehubby for", async () => {
+      expect((await fetch(`${base}/api/agent/vendors?q=airport`)).status).toBe(404);
+      const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+      expect(JSON.stringify(c)).not.toMatch(/vendor/i);
     });
 
     it("tells every agent how to email us: in the catalog and in every request for payment", async () => {
@@ -3216,11 +3222,11 @@ describe("biweekly payroll", () => {
       });
 
       it("counts a search that finds nothing as a question nobody could answer, and does not count a request that was refused", async () => {
-        await fetch(`${base}/api/agent/vendors?q=zzzzqqqq-no-such-thing&place=atlantis`);
-        await fetch(`${base}/api/agent/facts?q=`);
+        await fetch(`${base}/api/agent/facts?q=zzzzqqqq-no-such-thing`);
+        await fetch(`${base}/api/agent/blog/no-such-article`);
         const s: any = await signalsNow();
         expect(s.unanswered.map((q: any) => q.text).join(" ")).toContain("zzzzqqqq-no-such-thing");
-        expect(s.products.facts).toBeUndefined();
+        expect(s.products.blog).toBeUndefined();
       });
 
       it("names the crawler that hit the site pass and whether it paid, and keeps no address and no browser string", async () => {

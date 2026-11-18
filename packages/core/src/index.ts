@@ -80,7 +80,6 @@ export * from "./ride-coordination.ts";
 export * from "./resume.ts";
 export * from "./vendors.ts";
 export * from "./bizdev.ts";
-export * from "./agent-vendor-lookup.ts";
 export * from "./knowledge.ts";
 export * from "./business.ts";
 export * from "./pnl.ts";

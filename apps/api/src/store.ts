@@ -267,7 +267,7 @@ export interface Db {
   clubRsvps?: ClubRsvp[];
   /** Per month ("2026-12"): whether the club has locked the outing in or called it off. */
   clubMonths?: Record<string, ClubMonthState>;
-  /** Paid vendor lookups sold to other AI agents over x402; see x402-sales.ts. */
+  /** What other AI agents paid for over x402 (plans/prices facts, blog copies, site passes); see x402-sales.ts. Old records may name a vendor lookup that is no longer sold. */
   agentSales?: import("./x402-sales.ts").AgentSale[];
   /** What visitors do, as counts by day (no addresses, no names); see signals.ts. Days older than 90 are forgotten. */
   signals?: import("./signals.ts").SignalsDb["signals"];
