@@ -159,3 +159,22 @@ describe("the blog's pages", () => {
     ]);
   });
 });
+
+describe("the clean-text copy sold to agents", () => {
+  it("gives every article, in both languages, as readable text with its title, and no markup", async () => {
+    const { articleText, findArticle } = await import("../src/blog.ts");
+    for (const a of ARTICLES) {
+      for (const lang of ["en", "es"] as const) {
+        const t = articleText(a, lang);
+        expect(t.startsWith(`# ${a.title[lang]}`)).toBe(true);
+        expect(t).not.toMatch(/<[a-z][^>]*>/i);
+        expect(findArticle(a.slug[lang], lang)).toBe(a);
+      }
+    }
+  });
+  it("keeps where each company's facts were read, and when", async () => {
+    const { articleText } = await import("../src/blog.ts");
+    const a = ARTICLES.find((x) => x.companies?.length)!;
+    expect(articleText(a, "en")).toContain(`read in ${a.companies![0]!.checked}`);
+  });
+});

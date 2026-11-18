@@ -256,3 +256,30 @@ export function blogSitemapUrls(origin: string, articles: readonly Article[] = A
   const pages = [{ en: BLOG.en, es: BLOG.es }, ...newestFirst(articles).map((a) => ({ en: articlePath(a, "en"), es: articlePath(a, "es") }))];
   return pages.flatMap((p) => LANGS.map((lang) => ({ loc: `${origin}${p[lang]}`, alternates: alternates(origin, p.en, p.es) })));
 }
+
+/** Plain text of one article, for software that reads it (the paid agent copy). Facts about other companies keep their source and the month it was read. */
+export function articleText(a: Article, lang: SiteLang): string {
+  const out: string[] = [`# ${a.title[lang]}`, "", a.description[lang], "", `Published ${a.publishedOn}${a.updatedOn ? `, updated ${a.updatedOn}` : ""}.`, ""];
+  for (const b of a.blocks) {
+    if ("h2" in b) out.push(`## ${b.h2[lang]}`, "");
+    else if ("p" in b) out.push(b.p[lang], "");
+    else if ("ul" in b) out.push(...b.ul.map((i) => `- ${i[lang]}`), "");
+    else {
+      out.push(`| ${b.table.head.map((h) => h[lang]).join(" | ")} |`, `| ${b.table.head.map(() => "---").join(" | ")} |`);
+      out.push(...b.table.rows.map((r) => `| ${r.map((c) => c[lang]).join(" | ")} |`), "");
+    }
+  }
+  if (a.faq?.length) out.push("## Questions", "", ...a.faq.flatMap((f) => [`**${f.q[lang]}**`, f.a[lang], ""]));
+  if (a.companies?.length) out.push("## Where the facts come from", "", ...a.companies.map((c) => `- ${c.name}: ${c.source}, read in ${c.checked}.`), "");
+  if (a.sources?.length) out.push(...a.sources.map((s) => `- ${s.name[lang]}: ${s.url}, read in ${s.checked}.`), "");
+  return out.join("\n").trim() + "\n";
+}
+
+/** The articles as a list for agents to choose from: free, no text. */
+export function articleIndex(lang: SiteLang, articles: readonly Article[] = ARTICLES) {
+  return newestFirst(articles).map((a) => ({ slug: a.slug[lang], title: a.title[lang], description: a.description[lang], publishedOn: a.publishedOn, updatedOn: a.updatedOn }));
+}
+
+export function findArticle(slug: string, lang: SiteLang, articles: readonly Article[] = ARTICLES): Article | undefined {
+  return articles.find((a) => a.slug[lang] === slug.toLowerCase());
+}

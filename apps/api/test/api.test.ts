@@ -3003,6 +3003,63 @@ describe("biweekly payroll", () => {
       expect(sales.recent[0]).toMatchObject({ payer: "0xbuyer", transaction: "0xtx" });
     });
 
+    it("lists what is for sale for free, and never offers work that needs a person", async () => {
+      const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+      expect(c.available).toBe(true);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "facts", "vendors"]);
+      expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
+      expect(c.notForSale).toMatch(/person/i);
+      expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
+    });
+
+    it("sells a blog article as clean text for a cent, and lists the articles for free", async () => {
+      const list: any = await (await fetch(`${base}/api/agent/blog`)).json();
+      expect(list.articles.length).toBeGreaterThan(5);
+      const slug = list.articles[0].slug;
+      const first = await fetch(`${base}/api/agent/blog/${slug}`);
+      expect(first.status).toBe(402);
+      const required: any = await first.json();
+      expect(required.accepts[0].amount).toBe("10000");
+      const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+      const paid = await fetch(`${base}/api/agent/blog/${slug}`, { headers: { "payment-signature": sig } });
+      expect(paid.status).toBe(200);
+      const body: any = await paid.json();
+      expect(body.text.startsWith("# ")).toBe(true);
+      const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
+      expect(sales.byProduct.blog).toEqual({ count: 1, units: 10000 });
+    });
+
+    it("never charges for an article that does not exist", async () => {
+      const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+      const required: any = await (await fetch(`${base}/api/agent/blog/no-such-article`)).json();
+      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+      const res = await fetch(`${base}/api/agent/blog/no-such-article`, { headers: { "payment-signature": sig } });
+      expect(res.status).toBe(404);
+      expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
+    });
+
+    it("sells the plans and prices facts for a cent, with the real price in them", async () => {
+      const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+      const url = `${base}/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`;
+      const required: any = await (await fetch(url)).json();
+      expect(required.accepts[0].amount).toBe("10000");
+      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+      const body: any = await (await fetch(url, { headers: { "payment-signature": sig } })).json();
+      expect(JSON.stringify(body.facts)).toContain("$93.99");
+    });
+
+    it("keeps the human blog and every page free for people and search engines", async () => {
+      for (const path of ["/blog", "/es/blog", "/", "/sitemap.xml"]) {
+        const res = await fetch(`${base}${path}`, { headers: { "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1)" } });
+        expect(res.status, path).not.toBe(402);
+      }
+      const list: any = await (await fetch(`${base}/api/agent/blog`)).json();
+      const article = await fetch(`${base}/blog/${list.articles[0].slug}`);
+      expect(article.status).toBe(200);
+      expect(await article.text()).toContain("<h1");
+    });
+
     it("gives nothing when settlement fails", async () => {
       settleOk = false;
       const { encodePaymentSignatureHeader } = await import("@x402/core/http");

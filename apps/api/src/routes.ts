@@ -6833,9 +6833,11 @@ export const routes: Record<string, Handler> = {
     requireAdmin(ctx, "money");
     const sales = ctx.store.data.agentSales ?? [];
     const config = x402Config();
+    const by: Record<string, { count: number; units: number }> = {};
+    for (const s of sales) { const k = s.product ?? "vendors"; by[k] = { count: (by[k]?.count ?? 0) + 1, units: (by[k]?.units ?? 0) + Number(s.amount || 0) }; }
     return {
-      enabled: !("error" in config), status: "error" in config ? config.error : `On, ${config.price} a lookup, ${config.network === X402_TESTNET ? "test money only" : config.network}`,
-      count: sales.length, totalUnits: sales.reduce((a, s) => a + Number(s.amount || 0), 0), recent: sales.slice(-20).reverse(),
+      enabled: !("error" in config), status: "error" in config ? config.error : `On for AI agents, ${config.network === X402_TESTNET ? "test money only" : config.network}`,
+      count: sales.length, totalUnits: sales.reduce((a, s) => a + Number(s.amount || 0), 0), byProduct: by, recent: sales.slice(-20).reverse(),
     };
   },
 

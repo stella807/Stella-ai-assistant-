@@ -14,17 +14,21 @@ export function AgentSalesSection() {
     <section className="card stack" aria-label="Sales to AI agents">
       <h3 style={{ margin: 0 }}>Sales to AI agents</h3>
       <p className="tiny muted" style={{ margin: 0 }}>
-        Other AI agents can pay per lookup of our vendor research, in USDC. The server only has your receiving address: it can
-        never send money.
+        Other AI agents can pay per request for our vendor research, plan and price facts, and a clean-text copy of each blog
+        article, in USDC. People and search engines read the blog free. The server only has your receiving address: it can never
+        send money.
       </p>
       <p className="small" style={{ margin: 0 }}><strong>{s.enabled ? "✓" : "✗"}</strong> {s.status}</p>
       <div className="vendor-counts">
         <span className="vendor-count"><strong>{s.count}</strong> paid lookup{s.count === 1 ? "" : "s"}</span>
         <span className="vendor-count"><strong>{usd(s.totalUnits)}</strong> received</span>
       </div>
+      {Object.entries(s.byProduct).map(([id, v]) => (
+        <p key={id} className="tiny" style={{ margin: 0 }}>{id}: {v.count} sold, {usd(v.units)}</p>
+      ))}
       {s.recent.map((r) => (
         <p key={r.id} className="tiny" style={{ margin: 0 }}>
-          {new Date(r.at).toLocaleString()} · {usd(Number(r.amount))} · {r.results} results{r.transaction ? ` · ${r.transaction.slice(0, 10)}…` : ""}
+          {new Date(r.at).toLocaleString()} · {r.product ?? "vendors"} · {usd(Number(r.amount))}{r.transaction ? ` · ${r.transaction.slice(0, 10)}…` : ""}
         </p>
       ))}
     </section>

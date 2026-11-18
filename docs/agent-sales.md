@@ -1,33 +1,43 @@
-# Selling the vendor lookup to AI agents (x402)
+# Selling to AI agents (x402)
 
-Other AI agents can pay 5 cents in USDC to search Safehubby's vendor research:
-event vendors, hotel programs and airport VIP services. Only the published
-research is sold, never your own notes, quotes or contacts.
+Other AI agents can pay in USDC, per request, for what Safehubby can deliver by
+software. Everything is off until `X402_ENABLED` is `true`, and it uses test
+money (Base Sepolia) until the owner decides otherwise.
 
-- Address: `GET /api/agent/vendors?q=&category=&place=&limit=`
-- Free description: `GET /api/agent/vendors?info`
-- Without payment the server answers `402` with the price (x402 version 2).
-  An agent pays and asks again with a `PAYMENT-SIGNATURE` header. The answer
-  is sent only after the payment is settled.
-- Sales show in the owner portal under Money, then Sales to AI agents.
+- Free catalog: `GET /api/agent/catalog`
+- Free list of blog articles: `GET /api/agent/blog`
 
-## Turn it on with test money (Railway, API service Variables)
+| Product | Address | Price |
+|---|---|---|
+| Vendor lookup (event vendors, hotel programs, airport VIP services) | `/api/agent/vendors?q=&category=&place=&limit=` | $0.05 |
+| Plans and prices facts | `/api/agent/facts?q=` | $0.01 |
+| One blog article as clean text | `/api/agent/blog/{slug}?lang=en` | $0.01 |
 
-1. Make a wallet, for example Coinbase Wallet. Copy its **receiving address**
-   (it starts with `0x`). Never put its secret phrase or private key anywhere.
-2. Add:
-   - `X402_ENABLED` = `true`
-   - `X402_PAY_TO` = your receiving address
-3. Redeploy. It uses Base Sepolia, a practice network where the money is not
-   real, through the public test facilitator at x402.org.
-4. To test a purchase yourself, get free test USDC for Base Sepolia from
-   Circle's faucet (faucet.circle.com) in a second wallet.
+Add `?info` to any product address for a free description. Prices can be changed with
+`X402_PRICE_VENDORS`, `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
 
-## Going live (later, only when you decide)
+## What is not paywalled, and why
 
-Real money needs both `X402_NETWORK` = `eip155:8453` (Base) and
-`X402_ALLOW_MAINNET` = `yes`, plus a facilitator that handles real payments
-(`X402_FACILITATOR_URL`; the x402.org one is for test money only). Without
-`X402_ALLOW_MAINNET`, a real-money network is refused.
+The website and the human blog stay free for people and for search engines.
+A paywall on the blog's own pages would remove it from search results, and
+showing a paywall only to crawlers is against search engines' rules. Only the
+separate clean-text copy made for agents is paid. Member services (rides,
+errands, hospital companions) are sold through plans and Stripe, to signed-in
+members, not through x402.
 
-Optional: `X402_PRICE` (default `$0.05`).
+## What is not for sale yet
+
+Work that needs a person: errands and pickups, a visit to check a place,
+appointment booking, a human task API. Payment is not taken for work nobody has
+agreed to do. These can be added once an assistant confirms availability before
+the payment is requested. Business-verification reports and qualified leads need
+a data source that is allowed to be resold, which is not in place.
+
+## Money
+
+The server only holds a receiving address (`X402_PAY_TO`). It never holds a
+private key, so it cannot send money. Real money needs `X402_NETWORK` =
+`eip155:8453` and `X402_ALLOW_MAINNET` = `yes`, plus a facilitator that handles
+real payments (`X402_FACILITATOR_URL`; the x402.org one is test-only).
+A product's answer is sent only after the payment is verified and settled.
+An unknown article or an empty question is refused before any money moves.
