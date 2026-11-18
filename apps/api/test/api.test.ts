@@ -3216,8 +3216,12 @@ describe("biweekly payroll", () => {
         expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
-        expect(c.comingLater).toMatch(/NFT/);
-        expect(c.comingLater).toMatch(/not available yet/i);
+        expect(c.comingLater).toBeUndefined();
+        expect(c.nfts.url).toBe("https://rarible.com/thesmurfetfuturenft");
+        expect(c.nfts.note).toMatch(/made with AI/i);
+        expect(c.nfts.note).toMatch(/not (an )?investment/i);
+        expect(c.nfts.note).not.toMatch(/value will|will rise|profit|return/i);
+        expect(JSON.stringify(c.products)).not.toMatch(/nft/i);
       });
     });
 

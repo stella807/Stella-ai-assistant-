@@ -178,7 +178,11 @@ function catalog(origin: string) {
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
     },
-    comingLater: "NFTs: a collector corner with links to Safehubby's NFTs is planned. It is not available yet, and what it will cost or whether the site pass covers it is not decided. Email "+CONTACT_EMAIL+" to be told when it opens.",
+    // The owner's NFT collection on Rarible. Sold there, never through this server: it holds no wallet and moves no money.
+    nfts: {
+      url: process.env.NFT_URL?.trim() || "https://rarible.com/thesmurfetfuturenft",
+      note: "The owner's NFT collection, sold on Rarible, not through this site. The pieces are made with AI and edited by the artist; check the page for what is listed and what each costs. This is art, not an investment: nothing here suggests a piece will keep or gain value, and Safehubby gives no financial advice. Email "+CONTACT_EMAIL+" with questions.",
+    },
     notForSale: `Errands, visits to check a place, appointments and other work that needs a person are not sold here. Email ${CONTACT_EMAIL} or message Safehubby on WhatsApp at ${WHATSAPP_DISPLAY} for those.`,
     contact: {
       email: CONTACT_EMAIL, whatsapp: WHATSAPP_DISPLAY,

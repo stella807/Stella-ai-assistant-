@@ -85,10 +85,13 @@ Limits, said plainly: "asked" counts requests that were shown a price, not diffe
 price and keeps fetching counts each time). With only a few requests the numbers say nothing; the page says so until there
 are at least ten.
 
-## Coming later: NFTs
+## The owner's NFTs
 
-The free catalog tells agents a collector corner for Safehubby NFTs is planned, not available yet, with price and pass
-coverage undecided (`comingLater`). Remove or update that line when it opens.
+The free catalog has an `nfts` entry that points agents to the owner's collection on Rarible
+(`NFT_URL`, default `https://rarible.com/thesmurfetfuturenft`). They are sold on Rarible, never through this server, which
+holds no wallet. The note says the pieces are made with AI, are art and not an investment, and promises no value. Nothing
+is posted anywhere about them without the owner's go. Only pieces the owner has shown the rights to should be listed
+(see `/home/user/cryptic-future-nft/README.md`).
 
 ## The vendor list is not for sale
 
