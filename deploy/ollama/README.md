@@ -14,9 +14,11 @@ Claude instead, when those are set up (see `apps/api/src/adapters/llm.ts`).
 - **Tools:** it can fill in a form for the app, such as a service request.
   The app must still check every value before using it. In testing it once
   picked "hospital companion" where "wellness check" was right.
-- **Speed:** measured on 4 CPU cores with no GPU. A short answer takes about
-  6 to 10 seconds, at about 9 word pieces per second.
-- **Size:** a 2.5 GB download and about 3.6 GB of memory while loaded.
+- **Speed:** measured with no GPU. On 4 CPU cores a short answer takes about
+  6 to 10 seconds. Held to 2 cores, it takes about 7 to 20 seconds.
+- **Size:** a 2.5 GB download and about 3.5 GB of memory while loaded.
+- **Drafts tested:** four real assistant notes, in English and Spanish. Each
+  came back accurate, with nothing invented, in 7 to 14 seconds on 2 cores.
 
 Other models tested on the same 4 cores:
 
@@ -48,6 +50,9 @@ Railway has no GPUs, so this runs on CPUs. That is enough for short answers.
    minutes. The log says `[ollama] ready` when it is done.
 6. Open the **API** service's Variables and add:
    - `OLLAMA_URL` = `http://${{ollama.RAILWAY_PRIVATE_DOMAIN}}:11434`
+   - `OLLAMA_NUM_THREAD` = the number of vCPUs you gave the ollama service
+     (for example `4`). Ollama otherwise counts all the cores of Railway's
+     machine, not your share of them, and runs slower.
    - Optional: `OLLAMA_FEATURES` = `AI_ASSIST` to use it only for the
      assistants' drafting help and keep Claude for everything else.
 7. Redeploy the API. In the owner portal, go to **Setup**, then **Our own
@@ -63,7 +68,8 @@ Railway charges for memory and CPU while they are used: $10 per GB of memory
 per month, $20 per vCPU per month, and $0.15 per GB of volume per month.
 Check the current prices on Railway before deciding.
 
-- **Memory:** the model stays loaded, about 4 GB, so about **$40 a month**.
+- **Memory:** the model stays loaded, about 3.5 to 4 GB, so about **$35 to $40
+  a month, even with no visitors at all**. This is the main cost.
   Setting `OLLAMA_KEEP_ALIVE=10m` unloads it when idle and costs less, but the
   first answer after a quiet spell then waits a few extra seconds.
 - **CPU:** about 10 seconds on 4 vCPU per answer, roughly 30 cents per 1,000
@@ -75,6 +81,9 @@ Check the current prices on Railway before deciding.
 | 100 | about $41 |
 | 1,000 | about $42 |
 | 10,000 | about $56 |
+
+Compare these with your monthly Claude bill before switching: if Claude costs
+less than about $40 a month at your traffic, our own model only pays off later.
 
 At 10,000 a month, people may wait at busy times: it answers one question at a
 time. If that happens, the API can be pointed at a GPU provider instead by

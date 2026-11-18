@@ -207,7 +207,11 @@ async function completeOllama(
         // Kept loaded between questions: loading the model again takes several seconds.
         keep_alive: env("OLLAMA_KEEP_ALIVE") ?? "24h",
         messages: [{ role: "system", content: input.system }, ...input.messages],
-        options: { num_predict: input.maxTokens, temperature: input.temperature ?? 0.2, num_ctx: Number(env("OLLAMA_NUM_CTX")) || 4096 },
+        options: {
+          num_predict: input.maxTokens, temperature: input.temperature ?? 0.2, num_ctx: Number(env("OLLAMA_NUM_CTX")) || 4096,
+          // Ollama counts the host's cores, not the share Railway gives the service; more threads than CPUs slows it down.
+          ...(Number(env("OLLAMA_NUM_THREAD")) > 0 ? { num_thread: Number(env("OLLAMA_NUM_THREAD")) } : {}),
+        },
       }),
       signal: controller.signal,
     });

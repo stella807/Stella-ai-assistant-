@@ -50,7 +50,9 @@ export function OwnAiSection() {
           {line(status.reachable, "The AI server is running", `The AI server is not answering${status.error ? ` (${status.error})` : ""}`)}
           {status.reachable && line(status.installed, `The model is downloaded: ${status.model}`, `The model is still downloading: ${status.model}`)}
           {status.reachable && status.installed && line(status.loaded, "Loaded and ready", "Not loaded yet: the first answer will take a few seconds longer")}
-          <li className="tiny muted">Used for: {status.features === "all" ? "every AI feature" : status.features}</li>
+          <li className="tiny muted">
+            Used for: {status.features === "all" ? "the assistants' draft messages, the one AI feature so far" : status.features}
+          </li>
         </ul>
       )}
       {status?.configured && (

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CLAUDE_MODEL, DEFAULT_OLLAMA_MODEL, llmComplete, llmConfigured, llmProviderName, resolveLlm } from "../src/adapters/llm.ts";
 
 const KEYS = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_BASE", "SITE_CHAT_API_BASE", "SITE_CHAT_API_KEY", "SITE_CHAT_MODEL", "AI_ASSIST_API_BASE", "AI_ASSIST_API_KEY", "AI_ASSIST_MODEL", "LLM_GATEWAY_URL", "LLM_GATEWAY_KEY", "LLM_GATEWAY_MODEL",
-  "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_FEATURES", "OLLAMA_API_KEY", "OLLAMA_TIMEOUT_MS", "OLLAMA_NUM_CTX", "AI_ASSIST_OLLAMA_MODEL", "SITE_CHAT_OLLAMA_MODEL"];
+  "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_FEATURES", "OLLAMA_API_KEY", "OLLAMA_TIMEOUT_MS", "OLLAMA_NUM_CTX", "OLLAMA_NUM_THREAD", "AI_ASSIST_OLLAMA_MODEL", "SITE_CHAT_OLLAMA_MODEL"];
 const realFetch = globalThis.fetch;
 const calls: { url: string; headers: Record<string, string>; body: any }[] = [];
 
@@ -195,6 +195,16 @@ describe("our own model, on Ollama", () => {
       messages: [{ role: "system", content: "Be brief." }, { role: "user", content: "Hola" }],
       options: { num_predict: 120, num_ctx: 4096 },
     });
+  });
+
+  it("uses as many threads as the CPUs the service was given, when told", async () => {
+    process.env.OLLAMA_URL = "http://ollama:11434";
+    stub(ollamaReply("ok"));
+    await ask();
+    expect(calls[0]!.body.options.num_thread).toBeUndefined();
+    process.env.OLLAMA_NUM_THREAD = "4";
+    await ask();
+    expect(calls[1]!.body.options.num_thread).toBe(4);
   });
 
   it("drops any reasoning a thinking model writes before its answer", async () => {
