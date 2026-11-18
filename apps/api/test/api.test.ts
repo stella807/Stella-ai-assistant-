@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "brief", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3197,9 +3197,23 @@ describe("biweekly payroll", () => {
         expect(JSON.stringify([d, b])).not.toMatch(/vendor/i);
       });
 
+      it("gives an airport directory (names and codes only) free with the pass, and says nothing about any service there", async () => {
+        const url = `${base}/api/agent/airports?q=${encodeURIComponent("san juan")}`;
+        const required: any = await (await fetch(url)).json();
+        expect(required.accepts[0].amount).toBe("10000");
+        const pass = await buyPass();
+        const res = await fetch(url, { headers: { "x-safehubby-pass": pass } });
+        expect(res.status).toBe(200);
+        const body: any = await res.json();
+        expect(body.results[0]).toMatchObject({ city: "San Juan", country: "Puerto Rico", airports: [{ code: "SJU" }] });
+        const all: any = await (await fetch(`${base}/api/agent/airports?limit=100`, { headers: { "x-safehubby-pass": pass } })).json();
+        expect(all.total).toBeGreaterThan(50);
+        expect(JSON.stringify(all)).not.toMatch(/vip|phone|@|https?:|concierge|meet and greet/i);
+      });
+
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["blog", "brief", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.comingLater).toMatch(/NFT/);

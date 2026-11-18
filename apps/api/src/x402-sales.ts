@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { CONTACT_EMAIL, WHATSAPP_DISPLAY, buildKnowledge, retrieveKnowledge, type SiteLang } from "@safehubby/core";
+import { CONTACT_EMAIL, WHATSAPP_DISPLAY, buildKnowledge, lookupAirports, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
@@ -116,6 +116,16 @@ export const PRODUCTS: Product[] = [
       return { status: 200, body: { forward }, results: 1, summary: "brief", words: "" };
     },
   },
+  {
+    id: "airports", title: "Airport directory",
+    description: "Airports in the cities Safehubby covers: name, three-letter code, city and country. Names and codes only. Free with a site pass.",
+    path: "/api/agent/airports", usage: "GET ?q=city, country, airport name or code&country=&limit= (limit up to 100)", defaultPrice: "$0.01",
+    respond(u) {
+      const query = { q: u.searchParams.get("q") ?? "", country: u.searchParams.get("country") ?? "", limit: Number(u.searchParams.get("limit")) || 25 };
+      const found = lookupAirports(query);
+      return { status: 200, body: found, results: found.results.length, summary: JSON.stringify(query).slice(0, 200), words: [query.q, query.country].filter(Boolean).join(" ") };
+    },
+  },
 ];
 
 const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
@@ -147,7 +157,8 @@ const productFor = (pathname: string): Product | undefined =>
     : pathname.startsWith("/api/agent/blog/") && pathname.length > "/api/agent/blog/".length ? PRODUCTS[1]
       : pathname === "/api/agent/digest" ? PRODUCTS[2]
         : pathname === "/api/agent/brief" ? PRODUCTS[3]
-          : undefined;
+          : pathname === "/api/agent/airports" ? PRODUCTS[4]
+            : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
 export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || productFor(pathname) !== undefined;
@@ -162,7 +173,7 @@ function catalog(origin: string) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
-      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest and the brief to forward to a person, with no further payment. Not included: anything that needs a person.",
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person and the airport directory, with no further payment. Not included: anything that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
