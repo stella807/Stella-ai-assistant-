@@ -15,6 +15,7 @@ import { ProfitCalculatorSection } from "./ProfitCalculatorSection.tsx";
 import { dollarsToCents } from "../app/dollars-input.ts";
 import { VendorsSection } from "./VendorsSection.tsx";
 import { BizDevSection } from "./BizDevSection.tsx";
+import { OwnAiSection } from "./OwnAiSection.tsx";
 
 /**
  * The master (owner/secretary) dashboard — a third area of the app, reached
@@ -373,6 +374,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       {tab === "money" && overview.money && <Fold title="Money"><MoneySection money={overview.money} /></Fold>}
       {tab === "money" && overview.money && <Fold title="Payout sheet"><PayoutSheetSection /></Fold>}
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Free each month"><FreebiesSection /></Fold>}
+      {tab === "setup" && overview.account.role === "owner" && <Fold title="Our own AI"><OwnAiSection /></Fold>}
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Event vendors"><VendorsSection /></Fold>}
 
       {tab === "setup" && overview.account.role === "owner" && <Fold title="Free and Basic plans" open><PlansOnOfferSection /></Fold>}

@@ -7,6 +7,11 @@ import type {
 } from "@safehubby/core";
 import type { BizLeadView } from "./app/bizdev-view.ts";
 
+/** Safehubby's own model server, as the owner portal sees it. */
+export type OwnAiStatus = {
+  configured: boolean; model?: string; features?: string; reachable?: boolean; installed?: boolean; loaded?: boolean; error?: string;
+};
+
 /** Everything the owner's business-development desk shows, in one load. */
 export type BizDesk = {
   leads: BizLeadView[]; drafts: BizDraft[]; suppressions: BizSuppression[]; settings: BizSettings; stats: BizStats; audit: BizAuditEntry[];
@@ -931,6 +936,8 @@ export const api = {
   masterAddVendor: (v: { listId?: string; name: string; category: VendorCategory; area?: string; offers?: string; sourceUrl?: string; contactName?: string; phone?: string; email?: string; notes?: string }) =>
     request<{ vendor: Vendor }>("POST", "/api/master/vendors", v),
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
+  ownAiStatus: () => request<{ ollama: OwnAiStatus }>("GET", "/api/master/ai"),
+  ownAiTest: (question: string) => request<{ text: string; seconds: number; model: string }>("POST", "/api/master/ai/test", { question }),
   bizDesk: () => request<BizDesk>("GET", "/api/master/bizdev"),
   bizAddLead: (lead: Record<string, unknown>) => request<{ lead: BizLeadView }>("POST", "/api/master/bizdev/leads", lead),
   bizUpdateLead: (id: string, change: Record<string, unknown>) => request<{ lead: BizLeadView }>("POST", `/api/master/bizdev/leads/${id}`, change),

@@ -24,7 +24,7 @@ const SYSTEM_PROMPT =
 export const aiAssist: AiAssistPort = {
   status: statusFor(
     "ai-assist", llmProviderName("AI_ASSIST"), llmConfigured("AI_ASSIST"),
-    "An ANTHROPIC_API_KEY (Claude), the LiteLLM gateway (LLM_GATEWAY_URL and LLM_GATEWAY_KEY), " +
+    "OLLAMA_URL (our own model, see deploy/ollama), an ANTHROPIC_API_KEY (Claude), the LiteLLM gateway (LLM_GATEWAY_URL and LLM_GATEWAY_KEY), " +
     "or an OpenAI-compatible endpoint with AI_ASSIST_API_BASE and AI_ASSIST_API_KEY. " +
     "AI_ASSIST_MODEL is optional.",
   ),

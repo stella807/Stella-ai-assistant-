@@ -103,6 +103,7 @@ import { eliteDesk } from "./adapters/elite-desk.ts";
 import { cryptoReady, cryptoRequires } from "./adapters/openreceive.ts";
 import { startCryptoLoad } from "./crypto-loads.ts";
 import { aiAssist } from "./adapters/ai-assist.ts";
+import { askOllama, ollamaHealth } from "./adapters/llm.ts";
 import { createSetupToken, exchangeSetupToken, paypalClientId, paypalProcessor } from "./adapters/paypal.ts";
 import { refundPlanCharge, cancelStripeSubscription, connectAccountStatus, connectOnboardingLink, connectPayoutsReady, createConnectAccount, transferToWorker, createCheckoutSession, createSetupIntent, ensureStripeCustomer, stripeMethodCustomer, stripeProcessor, stripePublishableKey } from "./adapters/stripe.ts";
 import { placeSearch } from "./adapters/places-search.ts";
@@ -6819,6 +6820,23 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
     return { ok: true };
+  },
+
+  /** Owner: whether Safehubby's own model (Ollama) is reachable, has its model and has it loaded. */
+  "GET /api/master/ai": async (ctx) => {
+    requireAdmin(ctx, "write");
+    return { ollama: await ollamaHealth() };
+  },
+
+  /** Owner: one test question to our own model, answered by it alone (no fallback), with how long it took. */
+  "POST /api/master/ai/test": async (ctx, _p, body) => {
+    requireAdmin(ctx, "write");
+    const question = cleanText(body?.question, 300) || "¿Qué hace Safehubby?";
+    try {
+      return await askOllama(question);
+    } catch (err) {
+      throw new HttpError(502, err instanceof Error ? err.message.slice(0, 200) : "Our AI did not answer.");
+    }
   },
 
   /* Business development: investors, customers and partners. Owner only (money scope to look, write to change).

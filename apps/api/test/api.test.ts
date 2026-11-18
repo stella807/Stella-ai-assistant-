@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import { createApp, makeCtx } from "../src/server.ts";
 import { Store } from "../src/store.ts";
 import { SEED } from "../src/seed.ts";
@@ -2933,6 +2934,58 @@ describe("biweekly payroll", () => {
       await callAdmin("POST", `/api/master/vendors/${added.json.vendor.id}/delete`, {});
       const left = (await callAdmin("GET", "/api/master/vendors")).json.vendors;
       expect(left.some((v: { id: string }) => v.id === added.json.vendor.id)).toBe(false);
+    });
+  });
+
+  describe("the owner's view of our own AI (Ollama)", () => {
+    useAdminKey();
+    let fake: ReturnType<typeof createHttpServer>;
+    const asked: any[] = [];
+    beforeEach(async () => {
+      fake = createHttpServer((rq, rs) => {
+        let raw = "";
+        rq.on("data", (c) => { raw += c; });
+        rq.on("end", () => {
+          rs.setHeader("content-type", "application/json");
+          if (rq.url === "/api/tags") return rs.end(JSON.stringify({ models: [{ name: "qwen3:4b-instruct-2507-q4_K_M" }] }));
+          if (rq.url === "/api/ps") return rs.end(JSON.stringify({ models: [] }));
+          if (rq.url === "/api/chat") { asked.push(JSON.parse(raw)); return rs.end(JSON.stringify({ message: { content: "Safehubby ayuda con mandados." } })); }
+          rs.statusCode = 404; rs.end("{}");
+        });
+      });
+      await new Promise<void>((r) => fake.listen(0, "127.0.0.1", r));
+      process.env.OLLAMA_URL = `http://127.0.0.1:${(fake.address() as AddressInfo).port}`;
+    });
+    afterEach(async () => {
+      delete process.env.OLLAMA_URL;
+      asked.length = 0;
+      await new Promise((r) => fake.close(r));
+    });
+
+    it("is the owner's alone", async () => {
+      expect((await call("GET", "/api/master/ai")).status).toBe(401);
+      expect((await call("POST", "/api/master/ai/test", {}, jordan)).status).toBe(401);
+    });
+
+    it("says whether the model server answers and has the model", async () => {
+      const res = await callAdmin("GET", "/api/master/ai");
+      expect(res.json.ollama).toMatchObject({ configured: true, reachable: true, installed: true, loaded: false, model: "qwen3:4b-instruct-2507-q4_K_M" });
+    });
+
+    it("asks our model a test question and says how long it took", async () => {
+      const res = await callAdmin("POST", "/api/master/ai/test", { question: "¿Qué hacen?" });
+      expect(res.status).toBe(200);
+      expect(res.json.text).toBe("Safehubby ayuda con mandados.");
+      expect(typeof res.json.seconds).toBe("number");
+      expect(asked[0].messages.at(-1)).toEqual({ role: "user", content: "¿Qué hacen?" });
+    });
+
+    it("reports a server it cannot reach, and says when it is not set up", async () => {
+      process.env.OLLAMA_URL = "http://127.0.0.1:9";
+      expect((await callAdmin("GET", "/api/master/ai")).json.ollama).toMatchObject({ configured: true, reachable: false });
+      expect((await callAdmin("POST", "/api/master/ai/test", {})).status).toBe(502);
+      delete process.env.OLLAMA_URL;
+      expect((await callAdmin("GET", "/api/master/ai")).json.ollama).toEqual({ configured: false });
     });
   });
 

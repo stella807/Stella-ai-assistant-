@@ -28,3 +28,6 @@ logs `LLM gateway failed` (see `apps/api/src/adapters/llm.ts`).
 Remove `LLM_GATEWAY_URL` to go back to calling Claude directly.
 
 Set a monthly spending limit on each key in the Anthropic and Google consoles.
+
+To have Safehubby's own model answer first, with this gateway and Claude as
+fallbacks, see `deploy/ollama/README.md`.
