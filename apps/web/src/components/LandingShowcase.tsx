@@ -2,20 +2,21 @@ import { useEffect, type CSSProperties } from "react";
 import { siteRouteFor, type ServiceId } from "@safehubby/core";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 
-const MARQUEE: TranslationKey[] = ["show.marq1", "show.marq2", "show.marq3", "show.marq4", "show.marq5", "show.marq6", "show.marq7"];
+// The people-first services lead; jets and yachts come last.
+const MARQUEE: TranslationKey[] = ["show.marq7", "show.marq5", "show.marq6", "show.marq4", "show.marq3", "show.marq2", "show.marq1"];
 
 const CARDS: { photo: string; service?: ServiceId; title: TranslationKey; text: TranslationKey; tag: TranslationKey }[] = [
-  { photo: "jet", service: "jets", title: "show.jet", text: "show.jetText", tag: "show.jetTag" },
-  { photo: "lounge", service: "lounges", title: "show.lounge", text: "show.loungeText", tag: "show.loungeTag" },
-  { photo: "yacht", title: "show.yacht", text: "show.yachtText", tag: "show.yachtTag" },
-  { photo: "hotel", title: "show.hotel", text: "show.hotelText", tag: "show.hotelTag" },
   { photo: "ride", title: "show.ride", text: "show.rideText", tag: "show.rideTag" },
+  { photo: "hotel", title: "show.hotel", text: "show.hotelText", tag: "show.hotelTag" },
+  { photo: "lounge", service: "lounges", title: "show.lounge", text: "show.loungeText", tag: "show.loungeTag" },
   { photo: "venue", title: "show.venue", text: "show.venueText", tag: "show.venueTag" },
+  { photo: "jet", service: "jets", title: "show.jet", text: "show.jetText", tag: "show.jetTag" },
+  { photo: "yacht", title: "show.yacht", text: "show.yachtText", tag: "show.yachtTag" },
 ];
 
 /**
- * Between the hero and the swipeable presentation: a ticker of what Safehubby
- * arranges, photographs of it, and the four promises that make it safe to try.
+ * Between the family section and the swipeable presentation: a ticker of what Safehubby
+ * arranges, the four promises that make it safe to try, then photographs of what it arranges, jets last.
  * Pure presentation. It links nowhere and replaces nothing: the carousel below
  * still holds every price, comparison, sign-up and job link.
  */
@@ -45,23 +46,6 @@ export function LandingShowcase() {
         </div>
       </div>
 
-      <section className="show-section" aria-labelledby="show-title">
-        <p className="show-kicker">{t("show.kicker")}</p>
-        <h2 id="show-title" className="show-title">{t("show.title")}</h2>
-        <div className="show-grid">
-          {CARDS.map((c, i) => (
-            <article key={c.photo} id={c.service ? `show-${c.service}` : undefined} className="show-card show-spot" style={{ "--i": i } as CSSProperties}>
-              <img src={`/img/showcase-${c.photo}.jpg`} alt={t(c.title)} loading="lazy" width={1100} height={825} />
-              <span className="show-tag">{t(c.tag)}</span>
-              <div className="show-card-text">
-                <h3>{t(c.title)}</h3>
-                <p>{t(c.text)}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <section className="show-section" aria-labelledby="show-trust">
         <p className="show-kicker">{t("show.trustKicker")}</p>
         <h2 id="show-trust" className="show-title">{t("show.trustTitle")}</h2>
@@ -88,6 +72,23 @@ export function LandingShowcase() {
           </div>
         </div>
       </section>
+      <section className="show-section" aria-labelledby="show-title">
+        <p className="show-kicker">{t("show.kicker")}</p>
+        <h2 id="show-title" className="show-title">{t("show.title")}</h2>
+        <div className="show-grid">
+          {CARDS.map((c, i) => (
+            <article key={c.photo} id={c.service ? `show-${c.service}` : undefined} className="show-card show-spot" style={{ "--i": i } as CSSProperties}>
+              <img src={`/img/showcase-${c.photo}.jpg`} alt={t(c.title)} loading="lazy" width={1100} height={825} />
+              <span className="show-tag">{t(c.tag)}</span>
+              <div className="show-card-text">
+                <h3>{t(c.title)}</h3>
+                <p>{t(c.text)}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
     </div>
   );
 }

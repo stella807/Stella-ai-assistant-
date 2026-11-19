@@ -11,6 +11,7 @@ import { FirstAssistantCard } from "./FirstAssistantCard.tsx";
 import { ComparisonSection } from "./ComparisonSection.tsx";
 import { LuxuryHero } from "./LuxuryHero.tsx";
 import { LandingShowcase } from "./LandingShowcase.tsx";
+import { FamilySection } from "./FamilySection.tsx";
 import { useLanguage, type TranslationKey } from "../i18n.tsx";
 import { incomingReferralCode } from "../referral.ts";
 import { launchNote } from "../launch.ts";
@@ -72,6 +73,12 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
     // every other screen stays a readable column (styles/desktop.css).
     <div className="stack landing">
       <LuxuryHero
+        onStart={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}
+        onPrices={() => carousel.current?.goTo(2)}
+      />
+
+      {/* The people most likely to need this come first: family off the island with a parent here. Jets and yachts come later. */}
+      <FamilySection
         onStart={() => { setStartInSignup(true); carousel.current?.goTo(SIGNUP_SLIDE); }}
         onPrices={() => carousel.current?.goTo(2)}
       />

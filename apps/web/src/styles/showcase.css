@@ -78,3 +78,16 @@
   .show-tile { min-height: 170px; }
   .show-tile-big { min-height: 230px; }
 }
+
+/* The family section, first under the hero (components/FamilySection.tsx): a short list, read top to bottom, with one clear button. */
+.family-lead { margin: 14px 0 0; font-size: 17px; line-height: 1.5; color: var(--muted); max-width: 46ch; }
+.family-list { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; }
+.family-list li { display: grid; align-content: start; gap: 4px; padding: 16px 18px; border: 1px solid rgba(217, 178, 106, .22); border-radius: 18px; background: rgba(255, 255, 255, .03); }
+.family-list strong { font: 400 clamp(19px, 1.7vw, 23px)/1.15 Georgia, "Times New Roman", serif; color: inherit; }
+.family-list span { font-size: 15px; line-height: 1.45; color: var(--muted); }
+.family-cta { display: grid; gap: 10px; margin-top: 18px; }
+@media (min-width: 720px) {
+  .family-list { grid-template-columns: repeat(2, 1fr); }
+  .family-cta { grid-template-columns: repeat(2, minmax(0, 260px)); }
+}
+:root[data-theme="light"] .family-list li { border-color: rgba(0, 0, 0, .1); background: rgba(0, 0, 0, .02); }
