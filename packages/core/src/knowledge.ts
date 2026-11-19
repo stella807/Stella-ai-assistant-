@@ -12,7 +12,7 @@ export interface Knowledge { id: string; title: string; text: string; keywords: 
 
 const plan = (p: ReturnType<typeof releasedPlans>[number]): Knowledge => {
   const monthly = formatPrice(p.monthlyCents);
-  const parts = [`${p.name} costs ${monthly}${p.monthlyCents ? " a month" : ""}.`];
+  const parts = [p.monthlyCents ? `${p.name} costs ${monthly} a month.` : `${p.name} is free.`];
   if (p.annualCents > 0) parts.push(`Paid yearly it is ${formatPrice(p.annualCents)}, which saves ${annualSavingsPercent(p)}%.`);
   parts.push(p.seats === 1 ? "It covers 1 person." : `It covers ${p.seats} people.`);
   if (p.includedConciergeHours) parts.push(`It includes ${p.includedConciergeHours} hours of personal-assistant time each month.`);

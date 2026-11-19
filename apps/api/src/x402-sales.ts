@@ -10,6 +10,7 @@ import { noteSignal } from "./signals.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
 import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
+import { BOOKS, readBook } from "./books.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
@@ -61,7 +62,7 @@ export interface Product {
   usage: string;
   defaultPrice: string;
   /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
-  respond(url: URL, origin: string): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string };
+  respond(url: URL, origin: string): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
 }
 
 const langOf = (u: URL): SiteLang => (u.searchParams.get("lang") === "es" ? "es" : "en");
@@ -144,6 +145,17 @@ export const PRODUCTS: Product[] = [
       };
     },
   },
+  {
+    id: "books", title: "Books (PDF)",
+    description: "Practical guides as PDF files, written by Safehubby: traveling with an older parent, hiring and working with a concierge, and visiting Puerto Rico. General information, not medical, legal or financial advice. List them free at /api/agent/books. Free with a site pass.",
+    path: "/api/agent/books/{slug}", usage: "GET /api/agent/books/{slug} returns the PDF (list free at /api/agent/books)", defaultPrice: "$1.00",
+    respond(u) {
+      const slug = decodeURIComponent(u.pathname.split("/").pop() ?? "");
+      const data = readBook(slug);
+      if (!data) return { status: 404, body: { error: "No book has that slug. See /api/agent/books for the list." }, results: 0, summary: slug.slice(0, 80) };
+      return { status: 200, body: null, results: 1, summary: `book/${slug}`, words: `book/${slug}`, file: { data, filename: `${slug}.pdf` } };
+    },
+  },
 ];
 
 const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
@@ -177,10 +189,11 @@ const productFor = (pathname: string): Product | undefined =>
         : pathname === "/api/agent/brief" ? PRODUCTS[3]
           : pathname === "/api/agent/airports" ? PRODUCTS[4]
             : pathname.startsWith("/api/agent/checklists/") && pathname.length > "/api/agent/checklists/".length ? PRODUCTS[5]
-              : undefined;
+              : pathname.startsWith("/api/agent/books/") && pathname.length > "/api/agent/books/".length ? PRODUCTS[6]
+                : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
-export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/checklists" || productFor(pathname) !== undefined;
+export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
 /** The signing key, made the first time it is needed. Only the public half is ever shown. */
@@ -191,10 +204,13 @@ export function signingKeyFor(store: StoreLike): SigningKeyRecord {
 }
 
 /** Sends a product's answer with a signature over the exact bytes and the address that was asked. */
-function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string) {
-  const text = JSON.stringify(body);
+function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string, file?: { data: Buffer; filename: string }) {
+  const text: string | Buffer = file ? file.data : JSON.stringify(body);
   const expose = [headers["access-control-expose-headers"], "X-Safehubby-Signature"].filter(Boolean).join(", ");
-  res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", ...headers, "access-control-expose-headers": expose, "X-Safehubby-Signature": signResponse(signingKeyFor(store), text, target, now) });
+  res.writeHead(200, {
+    "content-type": file ? "application/pdf" : "application/json", "cache-control": "no-store", ...(file ? { "content-disposition": `attachment; filename="${file.filename}"`, "content-length": String(file.data.length) } : {}),
+    ...headers, "access-control-expose-headers": expose, "X-Safehubby-Signature": signResponse(signingKeyFor(store), text, target, now),
+  });
   res.end(text);
 }
 
@@ -207,7 +223,7 @@ function catalog(origin: string, store: StoreLike) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
-      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory and the checklists (English and Spanish), all with no further payment, and every answer is signed. Not included: anything that needs a person.",
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish) and the books (PDF), all with no further payment, and every answer is signed. Not included: anything that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
@@ -285,6 +301,12 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin, store));
   // The public key, free, so an agent can check an answer without trusting anything else.
   if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, { alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how }); }
+  if (url.pathname === "/api/agent/books") {
+    return json(res, 200, {
+      price: priceOf(PRODUCTS.find((p) => p.id === "books")!), note: "PDF files. Free with a site pass. Each answer is signed over the exact file; the sha256 here lets you check you got the whole book.",
+      books: BOOKS.map((b) => ({ slug: b.slug, title: b.title, subtitle: b.subtitle, description: b.description, language: b.language, pages: b.pages, bytes: b.bytes, sha256: b.sha256, endpoint: `${origin}/api/agent/books/${b.slug}` })),
+    });
+  }
   if (url.pathname === "/api/agent/checklists") {
     const lang = langOf(url);
     return json(res, 200, { lang, price: "see /api/agent/catalog (free with a site pass)", checklists: checklistIndex(lang).map((c) => ({ ...c, endpoint: `${origin}/api/agent/checklists/${c.slug}?lang=${lang}` })) });
@@ -306,7 +328,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
 
   const answer = product.respond(url, origin);
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
-  if (holdsPass && answer.status === 200) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname);
+  if (holdsPass && answer.status === 200) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file);
   const paid = await takePayment(req, res, {
     path: url.pathname, origin, price, description: product.description,
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
@@ -325,5 +347,5 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     payer: paid.payer, transaction: paid.transaction, query: answer.summary.slice(0, 300), results: answer.results,
   };
   store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
-  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname);
+  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname, answer.file);
 }

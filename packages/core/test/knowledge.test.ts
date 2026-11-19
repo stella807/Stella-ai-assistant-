@@ -13,6 +13,12 @@ describe("what the AI knows about Safehubby", () => {
     expect(text).toContain(formatPrice(CLUB_MONTHLY_DUES_CENTS));
   });
 
+  it("says the free plan is free, not that it costs Free", () => {
+    const text = buildKnowledge().map((k) => k.text).join("\n");
+    expect(text).not.toMatch(/costs Free/);
+    expect(buildKnowledge().find((k) => k.id === "plan-free")?.text).toMatch(/^Free is free\./);
+  });
+
   it("does not describe a plan that is not offered", () => {
     const text = buildKnowledge().map((k) => k.text).join("\n");
     const held = PLANS.filter((p) => !releasedPlans().some((r) => r.id === p.id));

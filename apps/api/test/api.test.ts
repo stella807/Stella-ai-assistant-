@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "checklists", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3272,9 +3272,50 @@ describe("biweekly payroll", () => {
         expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
       });
 
+      it("sells the books as PDFs: free list, a dollar each, free with the pass, signed over the exact file", async () => {
+        const { verifyResponse } = await import("../src/attestation.ts");
+        const { createHash } = await import("node:crypto");
+        const list: any = await (await fetch(`${base}/api/agent/books`)).json();
+        expect(list.books.map((b: any) => b.slug).sort()).toEqual(["hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+        for (const b of list.books) expect(b).toMatchObject({ title: expect.any(String), description: expect.any(String), pages: expect.any(Number), sha256: expect.stringMatching(/^[0-9a-f]{64}$/), endpoint: expect.stringContaining("/api/agent/books/") });
+        const one = list.books.find((b: any) => b.slug === "traveling-with-an-older-parent");
+        const url = `${base}/api/agent/books/${one.slug}`;
+        const required: any = await (await fetch(url)).json();
+        expect(required.accepts[0].amount).toBe("1000000");
+        const pass = await buyPass();
+        const res = await fetch(url, { headers: { "x-safehubby-pass": pass } });
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe("application/pdf");
+        expect(res.headers.get("content-disposition")).toContain(`${one.slug}.pdf`);
+        const bytes = Buffer.from(await res.arrayBuffer());
+        expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+        expect(createHash("sha256").update(bytes).digest("hex")).toBe(one.sha256);
+        const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+        expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, bytes, `/api/agent/books/${one.slug}`)).toBe(true);
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.sitePass.includes).toMatch(/books/i);
+      });
+
+      it("never charges for a book that does not exist, and a paid book is delivered whole", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const pay = async (url: string) => {
+          const required: any = await (await fetch(url)).json();
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          return fetch(url, { headers: { "payment-signature": sig } });
+        };
+        expect((await pay(`${base}/api/agent/books/no-such-book`)).status).toBe(404);
+        expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
+        const res = await pay(`${base}/api/agent/books/visiting-puerto-rico`);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("payment-response")).toBeTruthy();
+        expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
+        const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
+        expect(sales.byProduct.books).toEqual({ count: 1, units: 1_000_000 });
+      });
+
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "brief", "checklists", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);

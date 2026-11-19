@@ -14,6 +14,13 @@ describe("proving an answer came from Safehubby, and when", () => {
     expect(verifyResponse(key.publicKeyPem, header, body, path)).toBe(true);
   });
 
+  it("signs a file as exactly as it signs text, byte for byte", () => {
+    const file = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0xff, 0x00, 0x80]);
+    const header = signResponse(key, file, "/api/agent/books/x", at);
+    expect(verifyResponse(key.publicKeyPem, header, file, "/api/agent/books/x")).toBe(true);
+    expect(verifyResponse(key.publicKeyPem, header, Buffer.from([...file, 0]), "/api/agent/books/x")).toBe(false);
+  });
+
   it("fails if a single character of the answer, the address asked, or the date changes", () => {
     const header = signResponse(key, body, path, at);
     expect(verifyResponse(key.publicKeyPem, header, body.replace("93.99", "9.99"), path)).toBe(false);

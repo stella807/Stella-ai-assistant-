@@ -19,18 +19,18 @@ export function newSigningKey(): SigningKeyRecord {
   return { keyId: keyIdFor(publicKeyPem), privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(), publicKeyPem };
 }
 
-const message = (body: string, path: string, created: string) =>
-  `safehubby-v1\n${path}\n${created}\n${createHash("sha256").update(body, "utf8").digest("hex")}`;
+const message = (body: string | Buffer, path: string, created: string) =>
+  `safehubby-v1\n${path}\n${created}\n${createHash("sha256").update(body).digest("hex")}`;
 
 /** The value of the X-Safehubby-Signature header. */
-export function signResponse(key: SigningKeyRecord, body: string, path: string, created: Date): string {
+export function signResponse(key: SigningKeyRecord, body: string | Buffer, path: string, created: Date): string {
   const at = created.toISOString();
   const sig = sign(null, Buffer.from(message(body, path, at)), createPrivateKey(key.privateKeyPem)).toString("base64");
   return `keyId="${key.keyId}"; alg="ed25519"; created="${at}"; sig="${sig}"`;
 }
 
 /** What an agent does with the public key. Never throws: a bad header is simply not valid. */
-export function verifyResponse(publicKeyPem: string, header: string, body: string, path: string): boolean {
+export function verifyResponse(publicKeyPem: string, header: string, body: string | Buffer, path: string): boolean {
   try {
     const field = (name: string) => new RegExp(`${name}="([^"]*)"`).exec(header)?.[1];
     const created = field("created"); const sig = field("sig");

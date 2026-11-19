@@ -1,0 +1,38 @@
+[
+  {
+    "slug": "hiring-and-working-with-a-concierge",
+    "title": "Hiring and Working with a Concierge",
+    "subtitle": "A buyer's guide to personal concierge, errand and assistant services",
+    "description": "A buyer's guide to personal concierge, errand and assistant services: what a concierge is, how services charge, eleven questions to ask before hiring, trust and safety habits, how to ask clearly, hiring for an older parent, what to do when something goes wrong, plus a request template and a comparison table.",
+    "language": "en",
+    "pages": 18,
+    "bytes": 110641,
+    "sha256": "3731c3372fd5f500a56b7c9a07dc662d8a98a8c7c998d55c10b460feca50333b",
+    "sourceSha256": "516a6b17e024935959f1308a0025f61432c76d8a67c14ed1aa8d755a037882f9",
+    "file": "hiring-and-working-with-a-concierge.pdf"
+  },
+  {
+    "slug": "traveling-with-an-older-parent",
+    "title": "Traveling with an Older Parent",
+    "subtitle": "A practical guide for the person who plans the trip",
+    "description": "A practical guide for the person who plans a trip with an older parent: what to ask the doctor, how to arrange airport assistance, medicine and documents, packing, arrival, where to stay, what to do when something goes wrong, plus a master checklist, a medical information card and an itinerary to share.",
+    "language": "en",
+    "pages": 19,
+    "bytes": 123172,
+    "sha256": "ef82b5d96a4f9141cf3196768d6872b958227d522952b1c75b22672740214978",
+    "sourceSha256": "3af32b5f777a320851f34fc0b4382cf9fb9a625df29180f2ad3acf15531dda6e",
+    "file": "traveling-with-an-older-parent.pdf"
+  },
+  {
+    "slug": "visiting-puerto-rico",
+    "title": "Visiting Puerto Rico",
+    "subtitle": "A practical guide for visitors, and for the people who help them",
+    "description": "A practical planning guide for visitors to Puerto Rico and the people who help them: the basics, getting there and around, weather and hurricane season, the island in six parts, planning for travelers who need more support, safety, a flexible five-day plan, a packing list and questions for your lodging.",
+    "language": "en",
+    "pages": 16,
+    "bytes": 104295,
+    "sha256": "5567d20e40a11af3b6806526caa5f4b20293ce93b64b3251ffc628e0e87594d3",
+    "sourceSha256": "d2009dd7d065c7d1fcc346cd3b064b2e8bcb36ace71e014410ba4881c5ec2a13",
+    "file": "visiting-puerto-rico.pdf"
+  }
+]
