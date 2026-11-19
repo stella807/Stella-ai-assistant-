@@ -14,6 +14,8 @@ is zero. Kept here so the next decision starts from what was said, not from memo
 
 - **Checked today** (`/api/agent/checked`, `src/local-checks.ts`): what someone from Safehubby saw on the ground, dated and attributed, with a time after
   which it is no longer sold. Charged for each answer, even with a pass. Nothing is invented: no fresh check means no answer and no charge.
+- **Live answers** (`/api/agent/live`, `src/live-feeds.ts`, $0.10): the same want, with no person needed. Official storm and flood alerts for
+  Puerto Rico and US airport delays, read when asked, dated, source named. It runs by itself.
 - **Recording it:** the owner records a check from the Money tab ("Checked today"), or with `POST /api/master/local-checks`.
 - **Recording what agents ask for and do not get:** a question with no fresh check is kept as the words asked (trimmed, capped, no address or name),
   and shows in Signals under "Searches with no answer". That list is the evidence for which checks are worth making.

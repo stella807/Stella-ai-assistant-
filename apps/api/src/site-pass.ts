@@ -96,7 +96,7 @@ export async function requirePass(req: IncomingMessage, res: ServerResponse, sto
   if (!sitePassOn()) return true; // paid access is off: the store itself answers 503
   if (holdsPass(req, store, now())) return true;
   const paid = await sellPass(req, res, store, now, origin, path,
-    `Safehubby site pass (${passLength(passMinutes())}): the access needed to buy the books. After you have it, each book costs ${bookPrice} more. The pass also covers the website's pages, facts, blog copies, the weekly digest, the brief, the airport directory, the checklists, the request check and the alerts feed with no further payment. Checked-today answers cost extra each time. Send the pass back in an X-Safehubby-Pass header.`,
+    `Safehubby site pass (${passLength(passMinutes())}): the access needed to buy the books. After you have it, each book costs ${bookPrice} more. The pass also covers the website's pages, facts, blog copies, the weekly digest, the brief, the airport directory, the checklists, the request check and the alerts feed with no further payment. Checked-today and live answers cost extra each time. Send the pass back in an X-Safehubby-Pass header.`,
     "book-request");
   if (!paid) return false;
   // The pass and payment headers were set on the response above; writeHead keeps them.

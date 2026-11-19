@@ -22,7 +22,8 @@ money (Base Sepolia) until the owner decides otherwise.
 | Currency check: is an answer you hold still current? Give the SHA-256 of the response body; get a signed `current` or `changed` | `/api/agent/currency/{sha256}` | $0.02 |
 | Request check: send a request you are about to give a person (JSON); get what is missing, stop signs, what only the person may decide, and plain text to send | `/api/agent/check?request={JSON}` | $0.03 |
 | Alerts feed: what changed since you last asked, and the hurricane-season calendar | `/api/agent/alerts?since=&lang=` | $0.02 |
-| Checked today: what a person from Safehubby saw on the ground, dated and attributed, sold only while fresh | `/api/agent/checked?q=` | $0.05 (charged each time, even with a pass) |
+| Checked today: what a person from Safehubby saw on the ground, dated and attributed, sold only while fresh | `/api/agent/checked?q=` | $0.10 (charged each time, even with a pass) |
+| Live answers: storm and flood alerts for Puerto Rico (National Weather Service) and US and Puerto Rico airport delays (FAA), read when asked, dated, source named | `/api/agent/live?q=` | $0.10 (charged each time, even with a pass) |
 | Approval page: plain text an agent shows the person it works for, with the live prices (free, no pass needed) | `/api/agent/approval?lang=en\|es` | free |
 
 Add `?info` to any product address for a free description. Prices can be changed with
@@ -233,3 +234,13 @@ of the question's words, and at least one that names the place or thing, so "cli
 too. No fresh match: 404 before payment, and the words are kept in Signals as something agents wanted and did not get. It is `alwaysPaid`: charged
 even to a holder of a pass, and the pass is not needed. Record checks in the owner portal (Money tab) or with `POST /api/master/local-checks`.
 The record of what agents said they would pay for is in `docs/agent-demand.md`.
+
+## Live answers (nobody has to do anything)
+
+`src/live-feeds.ts`. Two free public sources, read on request: the National Weather Service's active alerts for Puerto Rico, and the FAA's airport
+status feed. The question is routed by its words (storm, flood, alert, warning in English or Spanish go to the weather; an airport code such as SJU, or
+an airport word with a US or Puerto Rico city, goes to the FAA). Each answer names its source and when it was read, and says plainly when nothing
+is listed (the FAA lists only airports with something to report). A copy is kept for 5 minutes so many agents asking together do not hammer the
+sources; if a source is down a copy up to 15 minutes old may be served, never older. If a source cannot be reached or none covers the question: 404
+before payment, and the words are kept in Signals as something agents wanted. Links and phone numbers from the sources are removed. It is not a
+forecast and not a promise about any flight. To add a source, add a parser, a route in `routeLive`, and tests with a canned copy of its answer.

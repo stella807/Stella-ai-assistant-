@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3340,6 +3340,49 @@ describe("biweekly payroll", () => {
         expect(noPass.resource.description).toMatch(/\$0\.05/);
       });
 
+      describe("live answers: official sources, read when asked, nobody to do anything", () => {
+        const NWS = JSON.stringify({ features: [{ properties: { id: "x1", event: "Flash Flood Warning", severity: "Severe", headline: "Flash Flood Warning for Naguabo", areaDesc: "Naguabo, PR", senderName: "NWS San Juan PR", sent: "2026-11-19T21:00:00Z", expires: "2026-11-19T23:00:00Z" } }] });
+        const liveUrl = (q: string) => `${base}/api/agent/live?q=${encodeURIComponent(q)}`;
+        const payFor = async (url: string) => {
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const required: any = await (await fetch(url)).json();
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          return { required, res: await fetch(url, { headers: { "payment-signature": sig } }) };
+        };
+        beforeEach(async () => { const m = await import("../src/live-feeds.ts"); m.clearLiveCache(); m.setLiveFetcher(async (u: string) => (u.includes("weather.gov") ? new Response(NWS) : new Response("no", { status: 503 }))); });
+        afterEach(async () => { const m = await import("../src/live-feeds.ts"); m.setLiveFetcher(undefined); m.clearLiveCache(); });
+
+        it("sells a live answer for ten cents, signed, naming the source, and charges a pass holder too", async () => {
+          const { verifyResponse } = await import("../src/attestation.ts");
+          const pass = await buyPass();
+          const held = await fetch(liveUrl("storm warnings puerto rico"), { headers: { "x-safehubby-pass": pass } });
+          expect(held.status).toBe(402);
+          const { required, res } = await payFor(liveUrl("storm warnings puerto rico"));
+          expect(required.accepts[0].amount).toBe("100000");
+          expect(res.status).toBe(200);
+          const text = await res.text();
+          expect(JSON.parse(text)).toMatchObject({ source: "National Weather Service", summary: expect.stringMatching(/1 active alert/) });
+          const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+          expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/live?q=${encodeURIComponent("storm warnings puerto rico")}`)).toBe(true);
+        });
+
+        it("never charges when no source covers the question, and keeps the words as something agents wanted", async () => {
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          const { res } = await payFor(liveUrl("is the pharmacy open"));
+          expect(res.status).toBe(404);
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+          const signals: any = (await callAdmin("GET", "/api/master/signals")).json;
+          expect(signals.unanswered.map((u: any) => u.text)).toContain("is the pharmacy open");
+        });
+
+        it("never charges when the official source is down", async () => {
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          const { res } = await payFor(liveUrl("SJU delays"));
+          expect(res.status).toBe(404);
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        });
+      });
+
       describe("checked today: what a person saw on the ground", () => {
         const seenAt = () => new Date(clock.getTime() - 20 * 60_000).toISOString();
         const record = (over: Record<string, unknown> = {}) => callAdmin("POST", "/api/master/local-checks", { kind: "open", place: "Farmacia Central, Santurce", subject: "Open today", statement: "Open, counter staffed.", observedAt: seenAt(), checkedBy: "Maria", evidence: "photo", ...over });
@@ -3359,7 +3402,7 @@ describe("biweekly payroll", () => {
           const { verifyResponse } = await import("../src/attestation.ts");
           await record();
           const required: any = await (await fetch(checkedUrl("pharmacy open santurce"))).json();
-          expect(required.accepts[0].amount).toBe("50000");
+          expect(required.accepts[0].amount).toBe("100000");
           const pass = await buyPass();
           const withPass = await fetch(checkedUrl("pharmacy open santurce"), { headers: { "x-safehubby-pass": pass } });
           expect(withPass.status).toBe(402);
@@ -3580,7 +3623,7 @@ describe("biweekly payroll", () => {
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);

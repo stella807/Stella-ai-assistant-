@@ -10,6 +10,7 @@ import { buildApprovalPack } from "./approval-pack.ts";
 import { checkRequest } from "./request-check.ts";
 import { noticesSince, seasonOn } from "./notices.ts";
 import { freshCount, searchChecks } from "./local-checks.ts";
+import { answerLive } from "./live-feeds.ts";
 import { noteSignal } from "./signals.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { createHash } from "node:crypto";
@@ -58,6 +59,8 @@ export function x402Config(): Config | { error: string } {
   return { payTo, network, facilitator, live, facilitatorName: facilitator === PAYAI_FACILITATOR ? "PayAI" : new URL(facilitator).hostname };
 }
 
+export type ProductAnswer = { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
+
 /** A paid product: its price, what it is, and what it returns for a request (or nothing, for a request it cannot answer). */
 export interface Product {
   id: string;
@@ -74,7 +77,7 @@ export interface Product {
   /** A price for this particular request when it differs from the product's usual one (one book costs more than the rest). */
   priceFor?(u: URL): string | undefined;
   /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
-  respond(url: URL, origin: string, store: StoreLike, now?: Date): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
+  respond(url: URL, origin: string, store: StoreLike, now?: Date): ProductAnswer | Promise<ProductAnswer>;
 }
 
 const langOf = (u: URL): SiteLang => (u.searchParams.get("lang") === "es" ? "es" : "en");
@@ -173,7 +176,7 @@ export const PRODUCTS: Product[] = [
     id: "currency", title: "Currency check",
     description: "Is an answer you hold still current? Give the SHA-256 (hex) of the exact bytes you were sent, from any signed answer, and get a signed reply: current if the same request would give the same answer today, changed if not. The signature on the answer proves where it came from; this says whether it is still true to what we publish. Never charged for an answer we did not issue. Free with a site pass.",
     path: "/api/agent/currency/{sha256}", usage: "GET /api/agent/currency/{sha256 of the response body, 64 hex characters}", defaultPrice: "$0.02",
-    respond(u, origin, store, at) {
+    async respond(u, origin, store, at) {
       const hash = decodeURIComponent(u.pathname.split("/").pop() ?? "").toLowerCase();
       if (!/^[0-9a-f]{64}$/.test(hash)) return { status: 404, body: { error: "Give the 64-character SHA-256 (hex) of the response body you hold." }, results: 0, summary: "currency/invalid" };
       const receipt = store.data.receipts?.find((r) => r.sha256 === hash);
@@ -182,7 +185,7 @@ export const PRODUCTS: Product[] = [
       let status: "current" | "changed" | "unknown" = "unknown";
       if (product) {
         try {
-          const again = product.respond(new URL(`${origin}${receipt.target}`), origin, store, at);
+          const again = await product.respond(new URL(`${origin}${receipt.target}`), origin, store, at);
           const bytes: string | Buffer = again.file ? again.file.data : JSON.stringify(again.body);
           status = again.status === 200 && createHash("sha256").update(bytes).digest("hex") === hash ? "current" : "changed";
         } catch { status = "unknown"; }
@@ -227,7 +230,7 @@ export const PRODUCTS: Product[] = [
   {
     id: "checked", title: "Checked today",
     description: "What a person from Safehubby saw on the ground in Puerto Rico, dated and attributed: whether a place is open, whether something is in stock, how long a line was. Each answer says when it was seen, who saw it, whether there is a photo or receipt, and until when it can be trusted. An expired check is never sold. Nothing is guessed: with no fresh check for your question, there is no answer and you are not charged. Charged for each answer, even with a site pass.",
-    path: "/api/agent/checked", usage: "GET ?q=place, thing or question in a few words&limit= (up to 25)", defaultPrice: "$0.05", alwaysPaid: true,
+    path: "/api/agent/checked", usage: "GET ?q=place, thing or question in a few words&limit= (up to 25)", defaultPrice: "$0.10", alwaysPaid: true,
     respond(u, _origin, store, at) {
       const q = (u.searchParams.get("q") ?? "").trim().slice(0, 100);
       const now = at ?? new Date();
@@ -241,6 +244,15 @@ export const PRODUCTS: Product[] = [
         status: 200, results: found.fresh.length, summary: "checked", words: q,
         body: { q, asOf: now.toISOString(), results: found.fresh, note: "Each result was seen by the person named, at the time shown. It can be out of date after validUntil. A check says what was seen then, not what is true now." },
       };
+    },
+  },
+  {
+    id: "live", title: "Live answers",
+    description: "Right-now answers from official public sources, read when you ask and dated: active storm and flood alerts for Puerto Rico (National Weather Service), and delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Charged for each answer, even with a site pass.",
+    path: "/api/agent/live", usage: "GET ?q=storm warnings puerto rico | SJU delays | flood alert (a few words)", defaultPrice: "$0.10", alwaysPaid: true,
+    async respond(u, _origin, _store, at) {
+      const answer = await answerLive(u.searchParams.get("q") ?? "", at ?? new Date());
+      return answer;
     },
   },
 ];
@@ -281,6 +293,7 @@ const productFor = (pathname: string): Product | undefined =>
                   : pathname === "/api/agent/check" ? PRODUCTS[8]
                     : pathname === "/api/agent/alerts" ? PRODUCTS[9]
                       : pathname === "/api/agent/checked" ? PRODUCTS[10]
+                        : pathname === "/api/agent/live" ? PRODUCTS[11]
                   : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
@@ -342,7 +355,7 @@ function catalog(origin: string, store: StoreLike) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
-      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Checked-today answers (what a person saw on the ground) are charged for each answer, with or without a pass. Not included: errands, visits and other work that needs a person.",
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Checked-today answers (what a person saw on the ground) and live answers (official storm and airport status, read when you ask) are charged for each answer, with or without a pass. Not included: errands, visits and other work that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
@@ -468,7 +481,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const price = priceOf(product, url);
   if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
-  const answer = product.respond(url, origin, store, now());
+  const answer = await product.respond(url, origin, store, now());
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
   if (holdsPass && answer.status === 200 && !product.requiresPass && !product.alwaysPaid) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file, product.id);
   const paid = await takePayment(req, res, {

@@ -22,6 +22,12 @@ export const NOTICES: Notice[] = [
     text: w("The request check says what a request is missing before you send it to a person. The approval page is plain text an agent can show the person it works for. Both are listed in the catalog.",
       "La revisión de pedidos dice qué le falta a un pedido antes de enviarlo a una persona. La página de aprobación es texto que un agente puede mostrarle a la persona para la que trabaja. Ambas están en el catálogo."),
   },
+  {
+    id: "live-answers", at: "2026-11-19T00:00:00Z", kind: "new",
+    title: w("New: live answers, read from official sources when you ask", "Nuevo: respuestas en vivo, leídas de fuentes oficiales cuando usted pregunta"),
+    text: w("Active storm and flood alerts for Puerto Rico from the National Weather Service, and delays, ground programs and closures at US and Puerto Rico airports from the FAA. Each answer names its source and the time it was read. If a source cannot be reached you are not charged.",
+      "Alertas activas de tormentas e inundaciones para Puerto Rico del Servicio Nacional de Meteorología, y retrasos, programas en tierra y cierres en aeropuertos de EE. UU. y Puerto Rico de la FAA. Cada respuesta indica su fuente y la hora en que se leyó. Si no se puede alcanzar la fuente, no se cobra."),
+  },
 ];
 
 const day = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
