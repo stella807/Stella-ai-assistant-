@@ -19,6 +19,20 @@ export function newSigningKey(): SigningKeyRecord {
   return { keyId: keyIdFor(publicKeyPem), privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(), publicKeyPem };
 }
 
+/**
+ * A key made from a secret the owner keeps (in Railway's variables), so the same key comes back after the database is rebuilt
+ * and answers signed years ago still verify. The secret is hashed to the 32 bytes an Ed25519 key is made from.
+ */
+export function keyFromSeed(seed: string): SigningKeyRecord {
+  if (seed.length < 32) throw new Error("The signing secret must be at least 32 characters.");
+  const raw = createHash("sha256").update(`safehubby-signing-key-v1\n${seed}`).digest();
+  // PKCS#8 wrapper for a raw Ed25519 seed.
+  const der = Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), raw]);
+  const privateKey = createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+  const publicKeyPem = createPublicKey(privateKey).export({ type: "spki", format: "pem" }).toString();
+  return { keyId: keyIdFor(publicKeyPem), privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }).toString(), publicKeyPem };
+}
+
 const message = (body: string | Buffer, path: string, created: string) =>
   `safehubby-v1\n${path}\n${created}\n${createHash("sha256").update(body).digest("hex")}`;
 

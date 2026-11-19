@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "currency", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3364,9 +3364,76 @@ describe("biweekly payroll", () => {
         expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
       });
 
+      describe("the currency check: is an answer I hold still current?", () => {
+        const sha = async (res: Response) => (await import("node:crypto")).createHash("sha256").update(Buffer.from(await res.arrayBuffer())).digest("hex");
+        const factsUrlFn = () => `${base}/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`;
+
+        it("says an answer bought earlier is still current, signed, for two cents, and free with the pass", async () => {
+          const { verifyResponse } = await import("../src/attestation.ts");
+          const pass = await buyPass();
+          const bought = await fetch(factsUrlFn(), { headers: { "x-safehubby-pass": pass } });
+          const hash = await sha(bought);
+          const url = `${base}/api/agent/currency/${hash}`;
+          const required: any = await (await fetch(url)).json();
+          expect(required.accepts[0].amount).toBe("20000");
+          const res = await fetch(url, { headers: { "x-safehubby-pass": pass } });
+          expect(res.status).toBe(200);
+          const text = await res.text();
+          expect(JSON.parse(text)).toMatchObject({ sha256: hash, found: true, product: "facts", status: "current", keyId: expect.stringMatching(/^[0-9a-f]{16}$/) });
+          const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+          expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/currency/${hash}`)).toBe(true);
+        });
+
+        it("says an answer has changed when what it would say today is different", async () => {
+          const pass = await buyPass();
+          await fetch(factsUrlFn(), { headers: { "x-safehubby-pass": pass } });
+          const old = "b".repeat(64);
+          store.update((db) => { db.receipts = [...(db.receipts ?? []), { sha256: old, product: "facts", target: `/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`, at: clock.toISOString(), keyId: "x" }]; });
+          const body: any = await (await fetch(`${base}/api/agent/currency/${old}`, { headers: { "x-safehubby-pass": pass } })).json();
+          expect(body).toMatchObject({ found: true, status: "changed", product: "facts" });
+        });
+
+        it("never charges for an answer it never issued, nor for something that is not a fingerprint", async () => {
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const tryPaying = async (url: string) => {
+            const required: any = await (await fetch(url)).json();
+            const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+            return fetch(url, { headers: { "payment-signature": sig } });
+          };
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          expect((await tryPaying(`${base}/api/agent/currency/${"c".repeat(64)}`)).status).toBe(404);
+          expect((await tryPaying(`${base}/api/agent/currency/not-a-hash`)).status).toBe(404);
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        });
+
+        it("keeps no more than a fingerprint, the product, the address asked and the time: never a payer or an address", async () => {
+          const pass = await buyPass();
+          await fetch(factsUrlFn(), { headers: { "x-safehubby-pass": pass } });
+          const stored = JSON.stringify(store.data.receipts);
+          expect(stored).not.toMatch(/0xbuyer|127\.0\.0\.1|mozilla/i);
+          expect(Object.keys(store.data.receipts![0]!).sort()).toEqual(["at", "keyId", "product", "sha256", "target"]);
+        });
+      });
+
+      it("says in the catalog that a signature stays valid after the pass ends, and keeps old keys public", async () => {
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.signing.afterExpiry).toMatch(/still valid after your pass ends/i);
+        const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+        expect(Array.isArray(k.retired)).toBe(true);
+        process.env.SIGNING_SEED = "first-secret-first-secret-first-secret-0123456789";
+        const one: any = await (await fetch(`${base}/api/agent/key`)).json();
+        process.env.SIGNING_SEED = "second-secret-second-secret-second-secret-0123456789";
+        const two: any = await (await fetch(`${base}/api/agent/key`)).json();
+        delete process.env.SIGNING_SEED;
+        expect(two.keyId).not.toBe(one.keyId);
+        expect(two.retired.map((r: any) => r.keyId)).toContain(one.keyId);
+        expect(two.retired.find((r: any) => r.keyId === one.keyId).publicKeyPem).toBe(one.publicKeyPem);
+        expect(JSON.stringify(two)).not.toMatch(/PRIVATE/);
+      });
+
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "currency", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newSigningKey, signResponse, verifyResponse } from "../src/attestation.ts";
+import { keyFromSeed, newSigningKey, signResponse, verifyResponse } from "../src/attestation.ts";
 
 describe("proving an answer came from Safehubby, and when", () => {
   const key = newSigningKey();
@@ -37,5 +37,23 @@ describe("proving an answer came from Safehubby, and when", () => {
   it("names a key by a short fingerprint of its public half, so a changed key is noticed", () => {
     expect(key.keyId).toMatch(/^[0-9a-f]{16}$/);
     expect(newSigningKey().keyId).not.toBe(key.keyId);
+  });
+});
+
+describe("a signing key that survives losing the database", () => {
+  const seed = "a-long-random-secret-the-owner-keeps-in-railway-0123456789";
+  it("is the same key every time from the same secret, and a different one from another", () => {
+    const a = keyFromSeed(seed), b = keyFromSeed(seed), c = keyFromSeed(seed + "x");
+    expect(a.keyId).toBe(b.keyId);
+    expect(a.publicKeyPem).toBe(b.publicKeyPem);
+    expect(c.keyId).not.toBe(a.keyId);
+  });
+  it("signs and checks like any other key, so an old answer still verifies after the database is rebuilt", () => {
+    const body = JSON.stringify({ facts: ["Premium costs a month."] });
+    const header = signResponse(keyFromSeed(seed), body, "/api/agent/facts?q=premium", new Date("2026-11-19T12:00:00Z"));
+    expect(verifyResponse(keyFromSeed(seed).publicKeyPem, header, body, "/api/agent/facts?q=premium")).toBe(true);
+  });
+  it("never accepts a secret too short to be one", () => {
+    expect(() => keyFromSeed("short")).toThrow(/at least 32/);
   });
 });

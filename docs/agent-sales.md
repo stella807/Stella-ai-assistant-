@@ -19,6 +19,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Airport directory: name, code, city and country for the cities Safehubby covers (names and codes only, nothing about any service) | `/api/agent/airports?q=&country=&limit=` | $0.01 |
 | Checklists to hand to a person, English and Spanish: a day at the hospital with a parent, arriving at an airport with an older relative, questions to ask before hiring a concierge (general information, not medical or legal advice) | `/api/agent/checklists/{slug}?lang=en\|es` (list free at `/api/agent/checklists`) | $0.02 |
 | Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico (16 to 19 pages each; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`; needs a site pass first) | $0.50 |
+| Currency check: is an answer you hold still current? Give the SHA-256 of the response body; get a signed `current` or `changed` | `/api/agent/currency/{sha256}` | $0.02 |
 
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
@@ -26,7 +27,7 @@ Add `?info` to any product address for a free description. Prices can be changed
 ## The site pass: $2.99 a visit for AI crawlers to read the website
 
 **A pass includes the whole store.** During the visit, plans and prices facts, blog articles as clean text, the digest,
-the brief, the airport directory and the checklists answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
+the brief, the airport directory, the checklists and the currency check answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
 cents each; the pass is the cheap way in. The digest and brief are built only from what Safehubby has published (articles
 with their dates, the live plan list). There is no vendor list in any of it. Anything that needs a person is not
 included. There is no cap per visit yet; if one agent abuses it, add one.
@@ -112,6 +113,22 @@ the path and query that were asked, the `created` time, and the SHA-256 (hex) of
 knows the answer is unchanged, was made at that time, and answers the question it asked. This proves where an answer came
 from; it does not make the content true beyond what Safehubby publishes. The private key is made on first use, kept in the
 database (`signingKey`) and never sent. If the database is lost a new key is made and the key id changes, so verifiers notice.
+
+### After the pass ends, and when the key changes
+
+A signature stays valid after a pass ends: keep the answer and its header and check them any time with the free public key. The
+public key and every earlier public key are listed at `/api/agent/key` (`retired`), so an old answer still verifies after a key
+change. Only public halves are ever shown. Set **`SIGNING_SEED`** in Railway (any random secret of at least 32 characters) and the
+key is made from it, so it also survives a rebuilt database; the key in use before is moved to the retired list, not lost. Keep
+that secret like a password and never paste it in chat.
+
+**The currency check** is the one paid part of this. A signature proves where an answer came from and when. It cannot say
+whether it is still what we publish. Give `/api/agent/currency/{sha256}` the SHA-256 (hex) of the exact bytes you were sent and
+the reply, itself signed, says `current` (the same request gives the same answer today) or `changed`. The store keeps, for each
+answer it signs, only a fingerprint, the product, the address asked and the time (`receipts`, the latest 20,000), never a payer or
+an address. A fingerprint it never issued, or that is not 64 hex characters, is answered 404 and not charged. Price:
+`X402_PRICE_CURRENCY` (default $0.02), free with a pass. Verifying a signature stays free and always will: a check that cost
+money could not be trusted.
 
 ```js
 import { createHash, createPublicKey, verify } from "node:crypto";

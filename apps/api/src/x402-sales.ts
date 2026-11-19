@@ -8,7 +8,8 @@ import { newId, type StoreLike } from "./store.ts";
 import { sitePassInfo } from "./site-pass-info.ts";
 import { noteSignal } from "./signals.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
-import { newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
+import { createHash } from "node:crypto";
+import { keyFromSeed, newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
 import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
@@ -65,7 +66,7 @@ export interface Product {
   /** Sold only to someone who already holds a site pass, and charged for even then: the pass is the access, not the price. */
   requiresPass?: boolean;
   /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
-  respond(url: URL, origin: string): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
+  respond(url: URL, origin: string, store: StoreLike): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
 }
 
 const langOf = (u: URL): SiteLang => (u.searchParams.get("lang") === "es" ? "es" : "en");
@@ -159,6 +160,30 @@ export const PRODUCTS: Product[] = [
       return { status: 200, body: null, results: 1, summary: `book/${slug}`, words: `book/${slug}`, file: { data, filename: `${slug}.pdf` } };
     },
   },
+  {
+    id: "currency", title: "Currency check",
+    description: "Is an answer you hold still current? Give the SHA-256 (hex) of the exact bytes you were sent, from any signed answer, and get a signed reply: current if the same request would give the same answer today, changed if not. The signature on the answer proves where it came from; this says whether it is still true to what we publish. Never charged for an answer we did not issue. Free with a site pass.",
+    path: "/api/agent/currency/{sha256}", usage: "GET /api/agent/currency/{sha256 of the response body, 64 hex characters}", defaultPrice: "$0.02",
+    respond(u, origin, store) {
+      const hash = decodeURIComponent(u.pathname.split("/").pop() ?? "").toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(hash)) return { status: 404, body: { error: "Give the 64-character SHA-256 (hex) of the response body you hold." }, results: 0, summary: "currency/invalid" };
+      const receipt = store.data.receipts?.find((r) => r.sha256 === hash);
+      if (!receipt) return { status: 404, body: { error: "This answer was not issued by this store, or is too old to be checked. You are not charged." }, results: 0, summary: `currency/${hash.slice(0, 12)}` };
+      const product = PRODUCTS.find((p) => p.id === receipt.product && p.id !== "currency");
+      let status: "current" | "changed" | "unknown" = "unknown";
+      if (product) {
+        try {
+          const again = product.respond(new URL(`${origin}${receipt.target}`), origin, store);
+          const bytes: string | Buffer = again.file ? again.file.data : JSON.stringify(again.body);
+          status = again.status === 200 && createHash("sha256").update(bytes).digest("hex") === hash ? "current" : "changed";
+        } catch { status = "unknown"; }
+      }
+      return {
+        status: 200, results: 1, summary: `currency/${receipt.product}`, words: "",
+        body: { sha256: hash, found: true, product: receipt.product, issuedAt: receipt.at, keyId: receipt.keyId, status, checkedAt: new Date().toISOString() },
+      };
+    },
+  },
 ];
 
 export const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
@@ -193,22 +218,50 @@ const productFor = (pathname: string): Product | undefined =>
           : pathname === "/api/agent/airports" ? PRODUCTS[4]
             : pathname.startsWith("/api/agent/checklists/") && pathname.length > "/api/agent/checklists/".length ? PRODUCTS[5]
               : pathname.startsWith("/api/agent/books/") && pathname.length > "/api/agent/books/".length ? PRODUCTS[6]
-                : undefined;
+                : pathname.startsWith("/api/agent/currency/") && pathname.length > "/api/agent/currency/".length ? PRODUCTS[7]
+                  : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
 export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
-/** The signing key, made the first time it is needed. Only the public half is ever shown. */
+/**
+ * The signing key. With SIGNING_SEED set (a secret of at least 32 characters in Railway's variables) the key comes from it, so
+ * it survives a rebuilt database; otherwise one is made the first time it is needed and kept in the database. If the key ever
+ * changes, the old public half is kept (never the private one) so older signatures still verify. Only public halves are shown.
+ */
 export function signingKeyFor(store: StoreLike): SigningKeyRecord {
-  let key = store.data.signingKey;
-  if (!key) { key = newSigningKey(); store.update((db) => { db.signingKey = key; }); }
-  return key;
+  const seed = process.env.SIGNING_SEED?.trim();
+  const current = store.data.signingKey;
+  if (seed && seed.length >= 32) {
+    const key = keyFromSeed(seed);
+    if (current?.keyId !== key.keyId) {
+      store.update((db) => {
+        if (current) db.signingKeyHistory = [...(db.signingKeyHistory ?? []), { keyId: current.keyId, publicKeyPem: current.publicKeyPem, retiredAt: new Date().toISOString() }];
+        db.signingKey = key;
+      });
+    }
+    return key;
+  }
+  if (current) return current;
+  const made = newSigningKey();
+  store.update((db) => { db.signingKey = made; });
+  return made;
 }
 
 /** Sends a product's answer with a signature over the exact bytes and the address that was asked. */
-function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string, file?: { data: Buffer; filename: string }) {
+const RECEIPT_LIMIT = 20_000;
+
+function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string, file?: { data: Buffer; filename: string }, productId?: string) {
   const text: string | Buffer = file ? file.data : JSON.stringify(body);
+  // Only a fingerprint, what it was, the address asked and when: so the answer can later be checked for currency. Never a payer.
+  if (productId && productId !== "currency") {
+    const sha256 = createHash("sha256").update(text).digest("hex");
+    const keyId = signingKeyFor(store).keyId;
+    if (!store.data.receipts?.some((r) => r.sha256 === sha256)) {
+      store.update((db) => { db.receipts = [...(db.receipts ?? []), { sha256, product: productId, target: target.slice(0, 300), at: now.toISOString(), keyId }].slice(-RECEIPT_LIMIT); });
+    }
+  }
   const expose = [headers["access-control-expose-headers"], "X-Safehubby-Signature"].filter(Boolean).join(", ");
   res.writeHead(200, {
     "content-type": file ? "application/pdf" : "application/json", "cache-control": "no-store", ...(file ? { "x-robots-tag": "noindex, nofollow", "content-disposition": `attachment; filename="${file.filename}"`, "content-length": String(file.data.length) } : {}),
@@ -238,6 +291,7 @@ function catalog(origin: string, store: StoreLike) {
     },
     signing: {
       alg: "ed25519", keyId: signingKeyFor(store).keyId, key: `${origin}/api/agent/key`,
+      afterExpiry: "A signature is still valid after your pass ends. Keep the answer and its X-Safehubby-Signature header, and check them any time with the public key, which stays free. Old keys stay listed at the key address. To ask whether an answer you hold is still current, use the currency check.",
       how: "Every answer from the paid items has an X-Safehubby-Signature header. Check it with the public key at the key address: the signed message is the text 'safehubby-v1', the path and query you asked, the created time and the SHA-256 of the exact response body, each on its own line. If it checks, the answer is unchanged and was made at the created time.",
     },
     notForSale: `Errands, visits to check a place, appointments and other work that needs a person are not sold here. Email ${CONTACT_EMAIL} or message Safehubby on WhatsApp at ${WHATSAPP_DISPLAY} for those.`,
@@ -314,7 +368,11 @@ export function refuseBrowser(req: IncomingMessage, res: ServerResponse): boolea
 export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false): Promise<void> {
   if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin, store));
   // The public key, free, so an agent can check an answer without trusting anything else.
-  if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, { alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how }); }
+  if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, {
+      alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how,
+      // Earlier keys stay public so an old answer still verifies after the key changes.
+      retired: (store.data.signingKeyHistory ?? []).map((r) => ({ keyId: r.keyId, publicKeyPem: r.publicKeyPem, retiredAt: r.retiredAt })),
+    }); }
   if ((url.pathname === "/api/agent/books" || url.pathname.startsWith("/api/agent/books/")) && refuseBrowser(req, res)) return;
   if (url.pathname === "/api/agent/books") {
     return json(res, 200, {
@@ -342,9 +400,9 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const price = priceOf(product);
   if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
-  const answer = product.respond(url, origin);
+  const answer = product.respond(url, origin, store);
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
-  if (holdsPass && answer.status === 200 && !product.requiresPass) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file);
+  if (holdsPass && answer.status === 200 && !product.requiresPass) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file, product.id);
   const paid = await takePayment(req, res, {
     path: url.pathname, origin, price, description: product.description,
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
@@ -363,5 +421,5 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     payer: paid.payer, transaction: paid.transaction, query: answer.summary.slice(0, 300), results: answer.results,
   };
   store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
-  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname, answer.file);
+  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname, answer.file, product.id);
 }
