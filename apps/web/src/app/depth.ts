@@ -11,13 +11,23 @@ export function depthProgress(top: number, height: number, viewportHeight: numbe
 const TARGETS = ".landing .card, .landing .banner";
 
 /**
+ * Where the tilt is left off: phones and touch screens, where a card drawn in 3D has its text blurred, and wherever motion is
+ * reduced. atmosphere.css flattens the cards under the same conditions (minus reduced motion, which it handles on its own).
+ */
+export const DEPTH_OFF_QUERY = "(prefers-reduced-motion: reduce), (max-width: 720px), (hover: none)";
+
+export function depthAllowed(matchMedia: ((q: string) => { matches: boolean }) | undefined): boolean {
+  return !matchMedia?.(DEPTH_OFF_QUERY).matches;
+}
+
+/**
  * Sets --p on each card as the page scrolls. Only cards near the screen are
  * measured, and only on animation frames, so scrolling stays smooth. Done here
  * rather than with CSS scroll timelines because the cards sit inside the
  * carousel, whose own scroller would otherwise be the one they were measured against.
  */
 export function installDepth(): void {
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  if (!depthAllowed(window.matchMedia?.bind(window))) return;
   const near = new Set<HTMLElement>();
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {

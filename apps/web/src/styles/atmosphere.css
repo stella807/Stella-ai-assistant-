@@ -209,6 +209,12 @@ html.fog-on body::before { display: none; }
 .landing .card > h2, .landing .card > h3 {
   filter: blur(calc(max(0, var(--p, 0) * var(--p, 0) - .45) * 16px));
 }
+/* On phones and touch screens a card drawn in 3D has its text rasterized and blurred, so the cards stay flat and sharp there.
+   app/depth.ts leaves the tilt off under the same conditions (DEPTH_OFF_QUERY). */
+@media (max-width: 720px), (hover: none) {
+  .landing .card, .landing .banner { transform: none; opacity: 1; transition: none; }
+  .landing .card > h2, .landing .card > h3 { filter: none; }
+}
 
 .lux-btn:hover, .landing .btn:hover { animation: split-flash .5s ease; }
 
@@ -225,7 +231,7 @@ html.fog-on body::before { display: none; }
 
 /* The copy laid over a line while it scrambles; the real text underneath is hidden until it settles. */
 .scrambling { position: relative; color: transparent !important; text-shadow: none !important; }
-.scramble-overlay { position: absolute; left: 0; top: 0; white-space: nowrap; color: var(--gold, #d9b26a); }
+.scramble-overlay { position: absolute; left: 0; right: 0; top: 0; text-align: inherit; white-space: nowrap; overflow: hidden; color: var(--gold, #d9b26a); }
 :root[data-theme="light"] .scramble-overlay { color: var(--accent); }
 
 /* Phones and touch tablets (app/motion.ts): cards hold still and the glass blur is lighter, which cheap phones struggle to redraw while scrolling. */
