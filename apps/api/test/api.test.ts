@@ -3272,7 +3272,7 @@ describe("biweekly payroll", () => {
         expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
       });
 
-      it("sells the books as PDFs: free list, a dollar each, free with the pass, signed over the exact file", async () => {
+      it("sells the books as PDFs: free list, two dollars each, free with the pass, signed over the exact file", async () => {
         const { verifyResponse } = await import("../src/attestation.ts");
         const { createHash } = await import("node:crypto");
         const list: any = await (await fetch(`${base}/api/agent/books`)).json();
@@ -3281,7 +3281,7 @@ describe("biweekly payroll", () => {
         const one = list.books.find((b: any) => b.slug === "traveling-with-an-older-parent");
         const url = `${base}/api/agent/books/${one.slug}`;
         const required: any = await (await fetch(url)).json();
-        expect(required.accepts[0].amount).toBe("1000000");
+        expect(required.accepts[0].amount).toBe("2000000");
         const pass = await buyPass();
         const res = await fetch(url, { headers: { "x-safehubby-pass": pass } });
         expect(res.status).toBe(200);
@@ -3294,6 +3294,30 @@ describe("biweekly payroll", () => {
         expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, bytes, `/api/agent/books/${one.slug}`)).toBe(true);
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
         expect(c.sitePass.includes).toMatch(/books/i);
+      });
+
+      it("keeps the books from people: a browser is refused, with or without a pass or a payment, and nothing is settled", async () => {
+        const pass = await buyPass();
+        const settles = seen.filter((u) => u.endsWith("/settle")).length;
+        const asPerson = (path: string, extra: Record<string, string> = {}) => new Promise<{ status: number; type: string; body: string }>((resolve, reject) => {
+          const u = new URL(`${base}${path}`);
+          const r = httpRequest({ host: u.hostname, port: u.port, path: u.pathname + u.search, method: "GET", headers: { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document", accept: "text/html,application/xhtml+xml", "accept-language": "es-PR,es;q=0.9", "user-agent": "Mozilla/5.0 (iPhone) Safari/604.1", ...extra } }, (res) => {
+            let body = ""; res.on("data", (c) => { body += c; }); res.on("end", () => resolve({ status: res.statusCode ?? 0, type: String(res.headers["content-type"] ?? ""), body }));
+          });
+          r.on("error", reject); r.end();
+        });
+        for (const path of ["/api/agent/books", "/api/agent/books/traveling-with-an-older-parent"]) {
+          const plain = await asPerson(path);
+          expect(plain.status, path).toBe(403);
+          expect(plain.body, path).toMatch(/for AI agents/i);
+          expect(plain.body, path).toContain("contact@safehubby.com");
+          expect(plain.body, path).not.toMatch(/%PDF|\$/);
+          expect((await asPerson(path, { "x-safehubby-pass": pass })).status, path).toBe(403);
+        }
+        expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        // Software is still served.
+        expect((await fetch(`${base}/api/agent/books`)).status).toBe(200);
+        expect((await fetch(`${base}/api/agent/books/traveling-with-an-older-parent`, { headers: { "x-safehubby-pass": pass } })).headers.get("x-robots-tag")).toMatch(/noindex/);
       });
 
       it("never charges for a book that does not exist, and a paid book is delivered whole", async () => {
@@ -3310,7 +3334,7 @@ describe("biweekly payroll", () => {
         expect(res.headers.get("payment-response")).toBeTruthy();
         expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
         const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
-        expect(sales.byProduct.books).toEqual({ count: 1, units: 1_000_000 });
+        expect(sales.byProduct.books).toEqual({ count: 1, units: 2_000_000 });
       });
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {

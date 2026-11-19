@@ -11,6 +11,7 @@ import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
 import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
+import { looksLikePersonInBrowser } from "./visitor-kind.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
 
 /**
@@ -147,8 +148,8 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "books", title: "Books (PDF)",
-    description: "Practical guides as PDF files, written by Safehubby: traveling with an older parent, hiring and working with a concierge, and visiting Puerto Rico. General information, not medical, legal or financial advice. List them free at /api/agent/books. Free with a site pass.",
-    path: "/api/agent/books/{slug}", usage: "GET /api/agent/books/{slug} returns the PDF (list free at /api/agent/books)", defaultPrice: "$1.00",
+    description: "Practical guides as PDF files, written by Safehubby for AI agents (they are not shown to people in a browser): traveling with an older parent, hiring and working with a concierge, and visiting Puerto Rico. General information, not medical, legal or financial advice. List them free at /api/agent/books. Free with a site pass.",
+    path: "/api/agent/books/{slug}", usage: "GET /api/agent/books/{slug} returns the PDF (list free at /api/agent/books)", defaultPrice: "$2.00",
     respond(u) {
       const slug = decodeURIComponent(u.pathname.split("/").pop() ?? "");
       const data = readBook(slug);
@@ -208,7 +209,7 @@ function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, 
   const text: string | Buffer = file ? file.data : JSON.stringify(body);
   const expose = [headers["access-control-expose-headers"], "X-Safehubby-Signature"].filter(Boolean).join(", ");
   res.writeHead(200, {
-    "content-type": file ? "application/pdf" : "application/json", "cache-control": "no-store", ...(file ? { "content-disposition": `attachment; filename="${file.filename}"`, "content-length": String(file.data.length) } : {}),
+    "content-type": file ? "application/pdf" : "application/json", "cache-control": "no-store", ...(file ? { "x-robots-tag": "noindex, nofollow", "content-disposition": `attachment; filename="${file.filename}"`, "content-length": String(file.data.length) } : {}),
     ...headers, "access-control-expose-headers": expose, "X-Safehubby-Signature": signResponse(signingKeyFor(store), text, target, now),
   });
   res.end(text);
@@ -296,11 +297,23 @@ export async function takePayment(
   return { amount: match.amount, payer: settled.payer, transaction: settled.transaction, network: config.network, headers: { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled), ...expose } };
 }
 
+const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+/** The books are for AI agents. A person opening one in a browser is told so and given somewhere to go; nothing is shown or charged. */
+function refuseBrowser(req: IncomingMessage, res: ServerResponse): boolean {
+  const h = req.headers;
+  if (!looksLikePersonInBrowser({ "sec-fetch-mode": first(h["sec-fetch-mode"]), "sec-fetch-dest": first(h["sec-fetch-dest"]), accept: first(h.accept), "accept-language": first(h["accept-language"]) })) return false;
+  res.writeHead(403, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" });
+  res.end(`These books are for AI agents, so they are not shown in a browser.\n\nIf you are a person, read the blog at https://safehubby.com/blog or write to ${CONTACT_EMAIL}.\n`);
+  return true;
+}
+
 /** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
 export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false): Promise<void> {
   if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin, store));
   // The public key, free, so an agent can check an answer without trusting anything else.
   if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, { alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how }); }
+  if ((url.pathname === "/api/agent/books" || url.pathname.startsWith("/api/agent/books/")) && refuseBrowser(req, res)) return;
   if (url.pathname === "/api/agent/books") {
     return json(res, 200, {
       price: priceOf(PRODUCTS.find((p) => p.id === "books")!), note: "PDF files. Free with a site pass. Each answer is signed over the exact file; the sha256 here lets you check you got the whole book.",

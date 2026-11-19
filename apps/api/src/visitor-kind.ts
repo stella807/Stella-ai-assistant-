@@ -30,6 +30,17 @@ export function visitorLabel(userAgent: string | undefined, kind: VisitorKind): 
   return "busy-address";
 }
 
+/**
+ * Whether a request looks like a person opening an address in a browser, as opposed to software asking for a file. A
+ * browser says it is navigating to a document and asks for a web page in a language. Software (fetch, curl, scripts)
+ * asks for data. This is a practical filter, not a lock: anyone can set headers by hand, and an agent driving a real browser
+ * looks like a person. It is used to keep the agents-only books from people who happen across them.
+ */
+export function looksLikePersonInBrowser(headers: Headers): boolean {
+  if (headers["sec-fetch-mode"] === "navigate" || headers["sec-fetch-dest"] === "document") return true;
+  return /\btext\/html\b/i.test(headers.accept ?? "") && !!headers["accept-language"] && headers["accept-language"] !== "*";
+}
+
 export type VisitorKind = "ai" | "automation" | "browser-lookalike" | "search-claim" | "normal";
 
 type Headers = Record<string, string | undefined>;

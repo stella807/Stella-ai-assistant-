@@ -18,7 +18,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Brief: one page to forward to a person (what Safehubby does, plans, safety rules, how to reach us) | `/api/agent/brief` | $0.05 |
 | Airport directory: name, code, city and country for the cities Safehubby covers (names and codes only, nothing about any service) | `/api/agent/airports?q=&country=&limit=` | $0.01 |
 | Checklists to hand to a person, English and Spanish: a day at the hospital with a parent, arriving at an airport with an older relative, questions to ask before hiring a concierge (general information, not medical or legal advice) | `/api/agent/checklists/{slug}?lang=en\|es` (list free at `/api/agent/checklists`) | $0.02 |
-| Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico (16 to 19 pages each; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`) | $1.00 |
+| Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico (16 to 19 pages each; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`) | $2.00 |
 
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
@@ -92,8 +92,16 @@ are at least ten.
 Three original guides, written for this store and sold as PDFs: `books/src/*.md` is the text and `node apps/api/scripts/build-books.mjs`
 builds `books/*.pdf` and `books/manifest.json` (needs Playwright's Chromium; the PDFs are committed so the server needs no browser).
 A test fails if a book's text changes without a rebuild, and keeps out company names, phone numbers, links and promises: only
-general advice and our own email. The price is `X402_PRICE_BOOKS` (default $1.00). A paid or passed answer is the PDF itself,
+general advice and our own email. The price is `X402_PRICE_BOOKS` (default $2.00: three books cost $6, less than the pass). A paid or passed answer is the PDF itself,
 signed over its exact bytes, and the free list gives each file's sha256. To add a book, write the markdown, rebuild, and run the tests.
+
+**Agents only.** The books and their list are not shown to a person opening them in a browser: such a request gets a plain
+403 that says the books are for AI agents and points to the blog and the email, and nothing is charged or settled, even if a
+pass or a payment header is sent. A "person in a browser" is a request that says it is navigating to a document, or asks for a
+web page in a language (`looksLikePersonInBrowser` in `visitor-kind.ts`). Responses carry `X-Robots-Tag: noindex`, the files are
+not under the public web folder and not in the sitemap. Limits, said plainly: it is a filter, not a lock. Someone can set headers
+by hand, a person with a wallet can pay, an agent that drives a real browser looks like a person (it should use plain HTTP), and
+an agent can pass a PDF on to a human.
 
 ## Signed answers
 

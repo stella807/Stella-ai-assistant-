@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PageRateTracker, classifyVisitor, verifySearchEngine, visitorLabel, type Dns } from "../src/visitor-kind.ts";
+import { PageRateTracker, classifyVisitor, looksLikePersonInBrowser, verifySearchEngine, visitorLabel, type Dns } from "../src/visitor-kind.ts";
 
 const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const OLD_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Mobile/15E148 Safari/604.1";
@@ -85,5 +85,23 @@ describe("naming a visitor for the owner's numbers, without keeping anything per
     expect(visitorLabel("Mozilla/5.0 (compatible; Googlebot/2.1)", "search-claim")).toBe("fake-googlebot");
     expect(visitorLabel("Mozilla/5.0 (compatible; bingbot/2.0)", "search-claim")).toBe("fake-bingbot");
     expect(visitorLabel("anything", "normal")).toBe("busy-address");
+  });
+});
+
+describe("telling a person in a browser from software asking for a file", () => {
+  const person = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document", accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "accept-language": "es-PR,es;q=0.9" };
+  it("recognises someone opening an address in a browser, on a computer or a phone", () => {
+    expect(looksLikePersonInBrowser(person)).toBe(true);
+    expect(looksLikePersonInBrowser({ "sec-fetch-mode": "navigate" })).toBe(true);
+    expect(looksLikePersonInBrowser({ "sec-fetch-dest": "document" })).toBe(true);
+    // An older phone sends no Sec-Fetch headers but does ask for a web page in a language.
+    expect(looksLikePersonInBrowser({ accept: "text/html,application/xhtml+xml", "accept-language": "es-PR" })).toBe(true);
+  });
+  it("lets software through: fetch, curl, scripts and anything asking for data", () => {
+    expect(looksLikePersonInBrowser({})).toBe(false);
+    expect(looksLikePersonInBrowser({ accept: "*/*" })).toBe(false);
+    expect(looksLikePersonInBrowser({ accept: "application/json", "accept-language": "*" })).toBe(false);
+    expect(looksLikePersonInBrowser({ "sec-fetch-mode": "cors", "sec-fetch-dest": "empty", accept: "*/*", "accept-language": "*" })).toBe(false);
+    expect(looksLikePersonInBrowser({ accept: "application/pdf" })).toBe(false);
   });
 });
