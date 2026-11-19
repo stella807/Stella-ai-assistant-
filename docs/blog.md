@@ -46,6 +46,16 @@ and stays believable, by being blunt only about things that can be checked.
 6. **Both languages, in full.** Same content, same blocks.
 7. **Each article links** to at least one other article and to the home page.
 
+## The series on families split between Puerto Rico and the US
+
+Twelve articles dated 2026-11-19 for people who left family in Puerto Rico to work in the US: checking on a parent, medicines,
+the first 24 hours of a hospital stay, guilt and the honest talk, siblings sharing care, hurricane season, appointments, food
+and groceries, paying for help safely, scams, loneliness, and when a parent should stop driving. They name no company and quote
+no statistic: general, practical advice, each with a plain "How Safehubby helps" section that says only what the service does
+today (check-ins, location sharing and SOS are free; errands, rides, assistant time, a hospital day) and, where it matters, that
+Safehubby is new and still small. They link to each other and to the older articles. Dating all twelve the same day was a choice:
+the one-a-week rhythm below is a habit, not a rule, and no test enforces it.
+
 ## What to write next
 
 One a week. Each review of a named service applies the five questions from
