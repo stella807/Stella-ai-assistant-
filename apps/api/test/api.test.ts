@@ -3272,28 +3272,61 @@ describe("biweekly payroll", () => {
         expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
       });
 
-      it("sells the books as PDFs: free list, two dollars each, free with the pass, signed over the exact file", async () => {
+      it("sells the books as PDFs behind the pass: the pass is the access, then each book costs 50 cents", async () => {
         const { verifyResponse } = await import("../src/attestation.ts");
         const { createHash } = await import("node:crypto");
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
         const list: any = await (await fetch(`${base}/api/agent/books`)).json();
         expect(list.books.map((b: any) => b.slug).sort()).toEqual(["hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+        expect(list.price).toBe("$0.50");
+        expect(list.requires).toMatch(/pass/i);
         for (const b of list.books) expect(b).toMatchObject({ title: expect.any(String), description: expect.any(String), pages: expect.any(Number), sha256: expect.stringMatching(/^[0-9a-f]{64}$/), endpoint: expect.stringContaining("/api/agent/books/") });
         const one = list.books.find((b: any) => b.slug === "traveling-with-an-older-parent");
         const url = `${base}/api/agent/books/${one.slug}`;
-        const required: any = await (await fetch(url)).json();
-        expect(required.accepts[0].amount).toBe("2000000");
+        // No pass: what is asked for is the pass, not the book.
+        const noPass: any = await (await fetch(url)).json();
+        expect(noPass.accepts[0].amount).toBe("8990000");
+        expect(noPass.resource.description).toMatch(/books/i);
+        // A pass alone does not give the book: with it, the book itself is charged for.
         const pass = await buyPass();
-        const res = await fetch(url, { headers: { "x-safehubby-pass": pass } });
+        const settlesBefore = seen.filter((u) => u.endsWith("/settle")).length;
+        const withPass = await fetch(url, { headers: { "x-safehubby-pass": pass } });
+        expect(withPass.status).toBe(402);
+        const needBook: any = await withPass.json();
+        expect(needBook.accepts[0].amount).toBe("500000");
+        expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settlesBefore);
+        // Pass and payment together: the file.
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: needBook.resource, accepted: needBook.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        const res = await fetch(url, { headers: { "x-safehubby-pass": pass, "payment-signature": sig } });
         expect(res.status).toBe(200);
         expect(res.headers.get("content-type")).toBe("application/pdf");
         expect(res.headers.get("content-disposition")).toContain(`${one.slug}.pdf`);
+        expect(res.headers.get("x-robots-tag")).toMatch(/noindex/);
         const bytes = Buffer.from(await res.arrayBuffer());
         expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
         expect(createHash("sha256").update(bytes).digest("hex")).toBe(one.sha256);
         const k: any = await (await fetch(`${base}/api/agent/key`)).json();
         expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, bytes, `/api/agent/books/${one.slug}`)).toBe(true);
+        const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
+        expect(sales.byProduct.books).toEqual({ count: 1, units: 500_000 });
+        expect(sales.byProduct["site-pass"].count).toBe(1);
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.sitePass.includes).toMatch(/books/i);
+        expect(c.sitePass.includes).toMatch(/books.*separately/i);
+      });
+
+      it("buying the pass from a book address issues the pass and says what to do next, without giving the book", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const url = `${base}/api/agent/books/visiting-puerto-rico`;
+        const required: any = await (await fetch(url)).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        const res = await fetch(url, { headers: { "payment-signature": sig } });
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toMatch(/json/);
+        expect(res.headers.get("x-safehubby-pass")).toMatch(/^0xbuyer\.\d+\./);
+        const body: any = await res.json();
+        expect(body.next).toMatch(/X-Safehubby-Pass/i);
+        expect(body.next).toMatch(/50 cents|\$0\.50/);
+        expect(JSON.stringify(body)).not.toContain("%PDF");
       });
 
       it("keeps the books from people: a browser is refused, with or without a pass or a payment, and nothing is settled", async () => {
@@ -3317,24 +3350,17 @@ describe("biweekly payroll", () => {
         expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
         // Software is still served.
         expect((await fetch(`${base}/api/agent/books`)).status).toBe(200);
-        expect((await fetch(`${base}/api/agent/books/traveling-with-an-older-parent`, { headers: { "x-safehubby-pass": pass } })).headers.get("x-robots-tag")).toMatch(/noindex/);
       });
 
-      it("never charges for a book that does not exist, and a paid book is delivered whole", async () => {
+      it("never charges for a book that does not exist", async () => {
         const { encodePaymentSignatureHeader } = await import("@x402/core/http");
-        const pay = async (url: string) => {
-          const required: any = await (await fetch(url)).json();
-          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
-          return fetch(url, { headers: { "payment-signature": sig } });
-        };
-        expect((await pay(`${base}/api/agent/books/no-such-book`)).status).toBe(404);
-        expect(seen.some((u) => u.endsWith("/settle"))).toBe(false);
-        const res = await pay(`${base}/api/agent/books/visiting-puerto-rico`);
-        expect(res.status).toBe(200);
-        expect(res.headers.get("payment-response")).toBeTruthy();
-        expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe("%PDF-");
-        const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
-        expect(sales.byProduct.books).toEqual({ count: 1, units: 2_000_000 });
+        const pass = await buyPass();
+        const settles = seen.filter((u) => u.endsWith("/settle")).length;
+        const url = `${base}/api/agent/books/no-such-book`;
+        const required: any = await (await fetch(url, { headers: { "x-safehubby-pass": pass } })).json();
+        const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        expect((await fetch(url, { headers: { "x-safehubby-pass": pass, "payment-signature": sig } })).status).toBe(404);
+        expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
       });
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {

@@ -62,6 +62,8 @@ export interface Product {
   path: string;
   usage: string;
   defaultPrice: string;
+  /** Sold only to someone who already holds a site pass, and charged for even then: the pass is the access, not the price. */
+  requiresPass?: boolean;
   /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
   respond(url: URL, origin: string): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
 }
@@ -148,8 +150,8 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "books", title: "Books (PDF)",
-    description: "Practical guides as PDF files, written by Safehubby for AI agents (they are not shown to people in a browser): traveling with an older parent, hiring and working with a concierge, and visiting Puerto Rico. General information, not medical, legal or financial advice. List them free at /api/agent/books. Free with a site pass.",
-    path: "/api/agent/books/{slug}", usage: "GET /api/agent/books/{slug} returns the PDF (list free at /api/agent/books)", defaultPrice: "$2.00",
+    description: "Practical guides as PDF files, written by Safehubby for AI agents (they are not shown to people in a browser): traveling with an older parent, hiring and working with a concierge, and visiting Puerto Rico. General information, not medical, legal or financial advice. List them free at /api/agent/books. Needs a site pass first (the pass is the access), then each book costs extra.",
+    path: "/api/agent/books/{slug}", usage: "GET /api/agent/books/{slug} returns the PDF (list free at /api/agent/books)", defaultPrice: "$0.50", requiresPass: true,
     respond(u) {
       const slug = decodeURIComponent(u.pathname.split("/").pop() ?? "");
       const data = readBook(slug);
@@ -159,7 +161,7 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
+export const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
 
 let cached: { key: string; server: Promise<x402ResourceServer> } | null = null;
 function serverFor(c: Config): Promise<x402ResourceServer> {
@@ -224,7 +226,7 @@ function catalog(origin: string, store: StoreLike) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
-      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish) and the books (PDF), all with no further payment, and every answer is signed. Not included: anything that needs a person.",
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory and the checklists (English and Spanish), all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Not included: anything that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
@@ -300,7 +302,7 @@ export async function takePayment(
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 /** The books are for AI agents. A person opening one in a browser is told so and given somewhere to go; nothing is shown or charged. */
-function refuseBrowser(req: IncomingMessage, res: ServerResponse): boolean {
+export function refuseBrowser(req: IncomingMessage, res: ServerResponse): boolean {
   const h = req.headers;
   if (!looksLikePersonInBrowser({ "sec-fetch-mode": first(h["sec-fetch-mode"]), "sec-fetch-dest": first(h["sec-fetch-dest"]), accept: first(h.accept), "accept-language": first(h["accept-language"]) })) return false;
   res.writeHead(403, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" });
@@ -316,7 +318,8 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   if ((url.pathname === "/api/agent/books" || url.pathname.startsWith("/api/agent/books/")) && refuseBrowser(req, res)) return;
   if (url.pathname === "/api/agent/books") {
     return json(res, 200, {
-      price: priceOf(PRODUCTS.find((p) => p.id === "books")!), note: "PDF files. Free with a site pass. Each answer is signed over the exact file; the sha256 here lets you check you got the whole book.",
+      price: priceOf(PRODUCTS.find((p) => p.id === "books")!), requires: "A site pass first (the pass is the access to buy), then this price for each book. Ask for a book without a pass and you are asked to buy the pass.",
+      note: "PDF files. Each answer is signed over the exact file; the sha256 here lets you check you got the whole book.",
       books: BOOKS.map((b) => ({ slug: b.slug, title: b.title, subtitle: b.subtitle, description: b.description, language: b.language, pages: b.pages, bytes: b.bytes, sha256: b.sha256, endpoint: `${origin}/api/agent/books/${b.slug}` })),
     });
   }
@@ -341,7 +344,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
 
   const answer = product.respond(url, origin);
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
-  if (holdsPass && answer.status === 200) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file);
+  if (holdsPass && answer.status === 200 && !product.requiresPass) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file);
   const paid = await takePayment(req, res, {
     path: url.pathname, origin, price, description: product.description,
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),

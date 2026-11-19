@@ -64,6 +64,47 @@ function secretFor(store: StoreLike): string {
   return secret;
 }
 
+/**
+ * Asks for the price of a pass, or takes it. Returns true when a pass was just paid for and sold (the pass headers are on the
+ * response and the sale is recorded); false when the request for payment was sent instead. Only a fixed label is kept for the
+ * owner's numbers (a crawler's name or "script"), never the address or the browser string.
+ */
+async function sellPass(req: IncomingMessage, res: ServerResponse, store: StoreLike, now: () => Date, origin: string, path: string, description: string, label: string): Promise<boolean> {
+  const paid = await takePayment(req, res, {
+    path, origin, price: sitePassPrice(), description,
+    onAsk: () => noteSignal(store, now(), { kind: "ask", product: "site-pass", crawler: label }),
+    onPaid: () => noteSignal(store, now(), { kind: "paid", product: "site-pass", crawler: label }),
+  });
+  if (!paid) return false;
+  const sale: AgentSale = {
+    id: newId("sal"), at: now().toISOString(), product: "site-pass", network: paid.network, amount: paid.amount,
+    payer: paid.payer, transaction: paid.transaction, query: path.slice(0, 120), results: 1,
+  };
+  store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
+  for (const [k, v] of Object.entries(paid.headers)) res.setHeader(k, v);
+  res.setHeader("X-Safehubby-Pass", makePass(secretFor(store), paid.payer ?? "unknown", now(), passMinutes()));
+  res.setHeader("Access-Control-Expose-Headers", "X-Safehubby-Pass, PAYMENT-RESPONSE");
+  return true;
+}
+
+/**
+ * For the books: the pass is the access to buy them. With a valid pass the request goes on (and the book is charged for);
+ * without one, the pass is asked for, and when it is paid the pass is issued with a note on what to do next. Returns true
+ * only when the request should go on to the book.
+ */
+export async function requirePass(req: IncomingMessage, res: ServerResponse, store: StoreLike, now: () => Date, origin: string, path: string, bookPrice: string): Promise<boolean> {
+  if (!sitePassOn()) return true; // paid access is off: the store itself answers 503
+  if (holdsPass(req, store, now())) return true;
+  const paid = await sellPass(req, res, store, now, origin, path,
+    `Safehubby site pass (${passMinutes()} minutes): the access needed to buy the books. After you have it, each book costs ${bookPrice} more. The pass also covers the website's pages, facts, blog copies, the weekly digest, the brief, the airport directory and the checklists with no further payment. Send the pass back in an X-Safehubby-Pass header.`,
+    "book-request");
+  if (!paid) return false;
+  // The pass and payment headers were set on the response above; writeHead keeps them.
+  res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+  res.end(JSON.stringify({ pass: "issued", validForMinutes: passMinutes(), next: `Repeat this request with the X-Safehubby-Pass header from this response. The book then costs ${bookPrice}, paid the same way.` }));
+  return false;
+}
+
 /** Whether a request carries a valid, unexpired pass. Never makes the secret: with none, no pass can exist. */
 export function holdsPass(req: IncomingMessage, store: StoreLike, now: Date): boolean {
   const secret = store.data.sitePassSecret;
@@ -104,22 +145,9 @@ export async function gateSitePage(
   const held = req.headers[PASS_HEADER];
   if (passIsValid(secret, Array.isArray(held) ? held[0] : held, now())) return false;
 
-  const price = sitePassPrice();
-  const paid = await takePayment(req, res, {
-    path: pathname, origin: getOrigin(), price,
-    // Only a fixed label is kept (a crawler's name or "script"), never the address or the browser string.
-    onAsk: () => noteSignal(store, now(), { kind: "ask", product: "site-pass", crawler: visitorLabel(ua, kind) }),
-    onPaid: () => noteSignal(store, now(), { kind: "paid", product: "site-pass", crawler: visitorLabel(ua, kind) }),
-    description: `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`, // the email address is added to every request for payment
-  });
+  const paid = await sellPass(req, res, store, now, getOrigin(), pathname,
+    `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`,
+    visitorLabel(ua, kind));
   if (!paid) return true;
-  const sale: AgentSale = {
-    id: newId("sal"), at: now().toISOString(), product: "site-pass", network: paid.network, amount: paid.amount,
-    payer: paid.payer, transaction: paid.transaction, query: pathname.slice(0, 120), results: 1,
-  };
-  store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
-  for (const [k, v] of Object.entries(paid.headers)) res.setHeader(k, v);
-  res.setHeader("X-Safehubby-Pass", makePass(secret, paid.payer ?? "unknown", now(), passMinutes()));
-  res.setHeader("Access-Control-Expose-Headers", "X-Safehubby-Pass, PAYMENT-RESPONSE");
   return false;
 }

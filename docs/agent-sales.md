@@ -18,7 +18,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Brief: one page to forward to a person (what Safehubby does, plans, safety rules, how to reach us) | `/api/agent/brief` | $0.05 |
 | Airport directory: name, code, city and country for the cities Safehubby covers (names and codes only, nothing about any service) | `/api/agent/airports?q=&country=&limit=` | $0.01 |
 | Checklists to hand to a person, English and Spanish: a day at the hospital with a parent, arriving at an airport with an older relative, questions to ask before hiring a concierge (general information, not medical or legal advice) | `/api/agent/checklists/{slug}?lang=en\|es` (list free at `/api/agent/checklists`) | $0.02 |
-| Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico (16 to 19 pages each; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`) | $2.00 |
+| Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico (16 to 19 pages each; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`; needs a site pass first) | $0.50 |
 
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
@@ -26,7 +26,7 @@ Add `?info` to any product address for a free description. Prices can be changed
 ## The site pass: $8.99 a visit for AI crawlers to read the website
 
 **A pass includes the whole store.** During the visit, plans and prices facts, blog articles as clean text, the digest,
-the brief, the airport directory, the checklists and the books answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
+the brief, the airport directory and the checklists answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
 cents each; the pass is the cheap way in. The digest and brief are built only from what Safehubby has published (articles
 with their dates, the live plan list). There is no vendor list in any of it. Anything that needs a person is not
 included. There is no cap per visit yet; if one agent abuses it, add one.
@@ -92,7 +92,7 @@ are at least ten.
 Three original guides, written for this store and sold as PDFs: `books/src/*.md` is the text and `node apps/api/scripts/build-books.mjs`
 builds `books/*.pdf` and `books/manifest.json` (needs Playwright's Chromium; the PDFs are committed so the server needs no browser).
 A test fails if a book's text changes without a rebuild, and keeps out company names, phone numbers, links and promises: only
-general advice and our own email. The price is `X402_PRICE_BOOKS` (default $2.00: three books cost $6, less than the pass). A paid or passed answer is the PDF itself,
+general advice and our own email. **The pass is the access to buy them, and each book costs extra:** `X402_PRICE_BOOKS` (default $0.50). A book address asked for without a pass is answered with a request to buy the pass; when the pass is paid it is issued with a note saying to repeat the request, and the book is then charged for on top. The books are not free with the pass. A paid answer is the PDF itself,
 signed over its exact bytes, and the free list gives each file's sha256. To add a book, write the markdown, rebuild, and run the tests.
 
 **Agents only.** The books and their list are not shown to a person opening them in a browser: such a request gets a plain
