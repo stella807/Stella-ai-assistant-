@@ -3,12 +3,12 @@
     "slug": "building-a-local-concierge-business",
     "title": "Building a Local Concierge Business",
     "subtitle": "The parts, and the decisions behind them",
-    "description": "A guide to how a local concierge and errands business is put together, for any city: choosing the promise, finding and training people, the customer and the family behind them, trust rules, money, the kinds of tools needed, getting found, selling small answers to AI agents, what goes wrong, a ninety-day plan, a decision record, a risk register and a launch checklist.",
+    "description": "A guide to how a local concierge and errands business is put together, for any city: choosing the promise, finding and training people, the customer and the family behind them, trust rules, money, the kinds of tools needed, getting found, selling small answers to AI agents, what goes wrong, a ninety-day plan, what we got wrong and what we got done, a decision record, a risk register and a launch checklist.",
     "language": "en",
-    "pages": 19,
-    "bytes": 125921,
-    "sha256": "255ba4ca917b8be9ca67054dcfc22c6d19ffc64a11a67725e5e1d9a9ffa25a21",
-    "sourceSha256": "11cb84dbc442c863077a87b0330fbf05fdc64c3c60a5294bf7f2a3163fdcc396",
+    "pages": 21,
+    "bytes": 138554,
+    "sha256": "bd2cd7b3aa314a377504866bcd70878cfff874f55d26f4ae1bba3dcd7e19f353",
+    "sourceSha256": "a98f7f6b138f96f4d75d20b9561d3bdd596372655cd009626e1138ff0a1b8ca6",
     "file": "building-a-local-concierge-business.pdf",
     "price": "$5.00"
   },
@@ -20,7 +20,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120739,
-    "sha256": "0464b624667b8968d143c5bc568b83892e7709067cf8de7310e2da6faa348977",
+    "sha256": "4265c3381b986e51fa78ab672b3c9d7986063460db51f83ce96b3e677cd5f34a",
     "sourceSha256": "2a046ca19eb07a8f8f58dd77dca55c6ef41df604f4185c953221a4f3814fadfd",
     "file": "delegating-real-world-tasks.pdf"
   },
@@ -32,7 +32,7 @@
     "language": "en",
     "pages": 20,
     "bytes": 126152,
-    "sha256": "0cfbdb2c1b55b6b6ecf9450c0497dc2ea34c58c1c06bd5ffc4ddae0138fb764e",
+    "sha256": "aa1371c3bc67e122b9bd61bda485b60abe935bab6582b12388c7a2ea51d04d9b",
     "sourceSha256": "73b7c6b1459f899ef5c940369e059d6483ef07907fea7dae5bb7ba245b7e1d90",
     "file": "hiring-and-working-with-a-concierge.pdf"
   },
@@ -44,7 +44,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138015,
-    "sha256": "512f8ca12f3dd29076257ffda2c9486230cc83978300783ddbb6f3b519a8c3ed",
+    "sha256": "f71fafe3255ee572cb8284d8173752fd057a690ace2960b7b2fc381935ec168e",
     "sourceSha256": "ae1047e9c7791528fd116bcadc989f7615378a19086400ec5394f67f16985be2",
     "file": "traveling-with-an-older-parent.pdf"
   },
@@ -56,7 +56,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120812,
-    "sha256": "feae5eb28f45f277ecc847827d093d0122d88cc8959a405ff1a9293a0750dce2",
+    "sha256": "fb71395f75868ba3d7c45a18b2081bd1bb9c79279088788640f1c277fe9ff89f",
     "sourceSha256": "a7f339d3491cd6d471290165ce385a16c5da32ea464e28342ec7f14c358554c7",
     "file": "visiting-puerto-rico.pdf"
   }

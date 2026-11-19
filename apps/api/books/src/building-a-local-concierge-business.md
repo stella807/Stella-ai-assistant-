@@ -1,4 +1,4 @@
-<!-- description: A guide to how a local concierge and errands business is put together, for any city: choosing the promise, finding and training people, the customer and the family behind them, trust rules, money, the kinds of tools needed, getting found, selling small answers to AI agents, what goes wrong, a ninety-day plan, a decision record, a risk register and a launch checklist. -->
+<!-- description: A guide to how a local concierge and errands business is put together, for any city: choosing the promise, finding and training people, the customer and the family behind them, trust rules, money, the kinds of tools needed, getting found, selling small answers to AI agents, what goes wrong, a ninety-day plan, what we got wrong and what we got done, a decision record, a risk register and a launch checklist. -->
 <!-- price: $5.00 -->
 # Building a Local Concierge Business
 *The parts, and the decisions behind them*
@@ -185,6 +185,34 @@ The agent's owner usually has to approve the first purchase. Write a plain page 
 - Keep the promise narrow.
 - Ask each customer what they would change.
 - Decide what to add, and what to refuse, from what they actually asked.
+
+## 11. What we got wrong, and what we got done
+
+This chapter is about Safehubby itself, written plainly. A book on building a business should say how one was built, including the parts that went badly. The details are left out. The lessons are not.
+
+**Mistakes, and what each one taught us**
+
+- **We put work in the wrong place.** A page was built and checked in one site, and only later did we find that the address people visit is served by a different one. *Lesson: before you build, check which system your customers actually reach.*
+- **One rule was applied to everyone.** A worker requirement that belongs to one kind of job was written as if it applied to every job. It was caught and replaced with requirements for each role. *Lesson: write requirements role by role, and have a person read the final wording.*
+- **We called something finished when it was not.** We said there was nothing left to do about search engines, when a person still had to verify the site and submit the sitemap. *Lesson: separate "I did my part" from "it is done."*
+- **We priced by guess.** The first price for AI agents was set too high, then lowered. It did not turn out to be the real obstacle: the person who controls an agent has to approve the first purchase. *Lesson: find the real obstacle before you spend time on the price.*
+- **We went with a connection that looked real and was not.** Some data sources ran on sample data without that being obvious. *Lesson: keep a written list of what is switched on, what is off, and what is pretend.*
+- **We published a detail without asking.** A piece of contact information went into material meant for the public before the owner had agreed. It was removed the same day. *Lesson: ask before publishing anything about a person, even when you believe they would not mind.*
+- **We believed a replay of the same request would give the same result.** Reposting identical text after a failure returned the same failure. *Lesson: when something fails, change what caused it, not only the timing.*
+
+**What we got done**
+
+- A bilingual website in English and Spanish, with a careers area where each role lists what an applicant needs.
+- A blog of 22 articles, each with its own topic, each linking to other pages that exist.
+- A paid store for AI agents, with signed answers, a public key that stays free, retired keys kept so old answers still check, and a check that says whether an answer is still current.
+- Five books in PDF form for AI agents, including this one, and free checklists in two languages.
+- A request check, an alerts feed and an approval page for the person an agent works for.
+- A record that counts what was asked without keeping addresses or the text of private requests.
+- More than a thousand automated tests and a set of live checks that run before a change goes out.
+
+**What we have not done yet.** We have no confirmed sales to AI agents, and we are still finding the first customers. We are building this in public, and we are telling you so rather than let this chapter read as a success story. That is the same rule we ask of any service you hire: say what was checked and what was not.
+
+**The pattern.** Most of the mistakes were not about technology. They were about assuming, not asking: assuming the right place, assuming the same rule fits everyone, assuming the work was finished, assuming a price was the problem. The habit that fixed most of them was small: write down what you are assuming, and check it before you build on it.
 
 ## Appendix A. Decision record
 
