@@ -10,7 +10,7 @@ import { buildApprovalPack } from "./approval-pack.ts";
 import { checkRequest } from "./request-check.ts";
 import { noticesSince, seasonOn } from "./notices.ts";
 import { freshCount, searchChecks } from "./local-checks.ts";
-import { answerLive } from "./live-feeds.ts";
+import { answerLive, isPowerOnly } from "./live-feeds.ts";
 import { noteSignal } from "./signals.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { createHash } from "node:crypto";
@@ -251,7 +251,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "live", title: "Live answers",
-    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise days are not included (no free official schedule); history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass.",
+    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise ships in San Juan are left out until the port operator gives permission to use its schedule; history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass.",
     includes: [
       "Weather alerts for Puerto Rico (National Weather Service)",
       "GOES-East satellite: when its latest pictures of Puerto Rico were made, and their official addresses (NOAA)",
@@ -260,15 +260,18 @@ export const PRODUCTS: Product[] = [
       "Airport status now: delays, ground programs, closures (FAA)",
       "Signs of delays before they are posted: lightning or low cloud at the field, the FAA arrival rate, the 24-hour airport forecast, the FAA's plan for the day, big airports delayed now",
       "For SJU, BQN and PSE: a year of on-time history by hour and day, busiest departure hours, when security lines usually build, and the causes of delay (US DOT)",
+      "For SJU, cruise ships in San Juan today and the next two days, once the port operator allows it",
     ],
     limits: [
       "Not a forecast and not a prediction about any flight: it shows official data and signs that often come before delays.",
       "Security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read.",
-      "Cruise days are not included: there is no free official cruise schedule.",
+      "Cruise ships in San Juan are added to SJU answers only once San Juan Cruise Port gives written permission to use its schedule; until then they are left out.",
       "History covers October 2025 to September 2026 and only the carriers that report to the US DOT.",
       "A part is null when its source could not be reached; with no weather service or FAA status, there is no answer and no charge.",
     ],
-    path: "/api/agent/live", usage: "GET ?q=storm warnings puerto rico | satellite puerto rico | hurricane | SJU delays | power outage puerto rico (a few words)", defaultPrice: "$0.10", alwaysPaid: true,
+    path: "/api/agent/live", usage: "GET ?q=storm warnings puerto rico | satellite puerto rico | hurricane | SJU delays | power outage puerto rico (a few words). $0.25 for weather and airport answers, $0.10 for power alone.", defaultPrice: "$0.25", alwaysPaid: true,
+    // A power question reads one source; weather and airport answers read up to ten, so they cost more.
+    priceFor: (u) => (isPowerOnly(u.searchParams.get("q") ?? "") ? "$0.10" : undefined),
     async respond(u, _origin, _store, at) {
       const answer = await answerLive(u.searchParams.get("q") ?? "", at ?? new Date());
       const self = PRODUCTS.find((p) => p.id === "live")!;
@@ -472,7 +475,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   // For the person an agent works for: free, and built from the live prices.
   if (url.pathname === "/api/agent/approval") {
     const info = sitePassInfo();
-    return json(res, 200, buildApprovalPack({ origin, lang: langOf(url), pass: { price: info.price, length: passLength(info.minutes) }, items: PRODUCTS.filter((p) => !p.requiresPass).map((p) => ({ id: p.id, title: p.title, price: priceOf(p) })) }));
+    return json(res, 200, buildApprovalPack({ origin, lang: langOf(url), pass: { price: info.price, length: passLength(info.minutes) }, items: PRODUCTS.filter((p) => !p.requiresPass).map((p) => ({ id: p.id, title: p.id === "live" ? `${p.title} (power alone $0.10)` : p.title, price: priceOf(p) })) }));
   }
   if ((url.pathname === "/api/agent/books" || url.pathname.startsWith("/api/agent/books/")) && refuseBrowser(req, res)) return;
   if (url.pathname === "/api/agent/books") {

@@ -69,6 +69,7 @@ const HUBS = ["ATL", "BOS", "BWI", "CLT", "DCA", "DEN", "DFW", "DTW", "EWR", "FL
 const METAR_URL = (ids: string[]) => `https://aviationweather.gov/api/data/metar?ids=${ids.join(",")}&hours=2&format=json`;
 const EVENTS_URL = "https://nasstatus.faa.gov/api/airport-events";
 const LUMA_URL = "https://api.miluma.lumapr.com/miluma-outage-api/outage/regionsWithoutService";
+const CRUISE_URL = (from: string, to: string, start: number) => `https://sanjuancruiseport.com/wp-content/themes/mbcglobalports/includes/api/schedule.php?startIndex=${start}&site_id=40&lang=en&param2=${from}&param4=${to}`;
 const NHC_URL = "https://www.nhc.noaa.gov/CurrentStorms.json";
 /** GOES-19 is the GOES-East satellite; NOAA publishes its latest pictures of the Puerto Rico sector at these fixed addresses. */
 const SAT_BASE = "https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/pr";
@@ -194,6 +195,50 @@ export function parseLuma(text: string): PowerRegion[] | null {
   })).sort((a: PowerRegion, b: PowerRegion) => b.withoutPower - a.withoutPower);
 }
 
+export interface CruiseCall { ship: string; line: string; berth: string; arrives: string | null; departs: string | null }
+const MONTH_NUM: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+/** "21 Nov 2026 | 05:00" in Puerto Rico time (UTC minus 4, all year) to UTC. */
+const prTime = (t: string) => {
+  const m = /(\d{1,2})\s+(\w{3})\w*\s+(\d{4})\s*\|\s*(\d{1,2}):(\d{2})/.exec(t);
+  const mon = m ? MONTH_NUM[m[2]!.toLowerCase()] : undefined;
+  return m && mon !== undefined ? new Date(Date.UTC(Number(m[3]), mon, Number(m[1]), Number(m[4]) + 4, Number(m[5]))).toISOString() : null;
+};
+
+/** The port operator's schedule rows: ship, line, berth, arrival and departure. */
+export function parseCruise(html: string): CruiseCall[] {
+  const field = (row: string, cls: string) => scrub((new RegExp(`class="${cls}">([\\s\\S]*?)</div>(?=<div class=|</div>|$)`).exec(row)?.[1] ?? "").replace(/<div class="hide-mobile[^"]*">[^<]*<\/div>/g, "").replace(/<[^>]+>/g, " "), 80);
+  return html.split('class="schedule-item-row"').slice(1, 60).map((row) => ({
+    ship: field(row, "shipname"), line: field(row, "cruiseline"), berth: field(row, "berth"), arrives: prTime(field(row, "eta")), departs: prTime(field(row, "etd")),
+  })).filter((c) => c.ship);
+}
+
+/** Puerto Rico's local date, n days from now, as YYYY-MM-DD. */
+const prDate = (now: Date, n = 0) => new Date(now.getTime() - 4 * 3_600_000 + n * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Cruise ships in San Juan today and the next two days, from San Juan Cruise Port's public schedule. Its terms do not allow
+ * commercial reuse without written consent, so it stays off until CRUISE_SCHEDULE_ENABLED=1 is set after the port agrees.
+ */
+async function cruiseReport(now: Date) {
+  if (process.env.CRUISE_SCHEDULE_ENABLED?.trim() !== "1") return { enabled: false as const, note: "Cruise ships in port are left out until San Juan Cruise Port gives written permission to use its schedule." };
+  const from = prDate(now), to = prDate(now, 2);
+  const calls: CruiseCall[] = [];
+  for (let start = 0; start < 50; start += 10) {
+    const page = await read(CRUISE_URL(from, to, start), { "user-agent": "safehubby.com" }, now);
+    if (page === null) return null;
+    const rows = parseCruise(page);
+    calls.push(...rows);
+    if (rows.length < 10) break;
+  }
+  const days = [0, 1, 2].map((n) => {
+    const date = prDate(now, n);
+    const dayStart = Date.parse(`${date}T04:00:00Z`), dayEnd = dayStart + 86_400_000;
+    const ships = calls.filter((c) => c.arrives && c.departs && Date.parse(c.arrives) < dayEnd && Date.parse(c.departs) > dayStart);
+    return { date, shipsInPort: ships.length, ships };
+  });
+  return { enabled: true as const, source: "San Juan Cruise Port schedule", days, note: "Ships in port each day, Puerto Rico time. On busy cruise days passengers fly in and out of SJU and the roads near the piers fill up." };
+}
+
 export interface PlanItem { when: string; what: string }
 
 /** The FAA's operations plan for the day: what it expects or calls possible. Its link is left out. */
@@ -250,6 +295,9 @@ const WEATHER = /\b(satellites?|satelites?|clouds?|nubes|cyclones?|ciclon(?:es)?
 const POWER = /\b(power|outages?|electricity|blackouts?|luma|luz|apagon(?:es)?|energia|electrica|sin servicio)\b/;
 const AIRPORT_WORD = /\b(airports?|aeropuertos?|flights?|vuelos?|delays?|delayed|retrasos?|retrasado|ground (stop|delay)|closure|closed)\b/;
 
+/** Power alone is one source, so it costs less than the weather bundle or an airport answer. */
+export const isPowerOnly = (q: string) => routeLive(q)?.source === "power";
+
 export type Route = { source: "weather" } | { source: "power" } | { source: "airport"; codes: string[] };
 
 export function routeLive(q: string): Route | null {
@@ -287,13 +335,14 @@ async function powerReport(now: Date) {
 async function airportReport(codes: string[], now: Date) {
   const prCodes = codes.filter((c) => PR_NAMES[c.toLowerCase()]);
   // The current status is required; the look-ahead sources add to it when they can be reached.
-  const [text, planText, tafText, gtwoText, metarText, eventsText] = await Promise.all([
+  const [text, planText, tafText, gtwoText, metarText, eventsText, cruise] = await Promise.all([
     read(FAA_URL, {}, now),
     read(PLAN_URL, {}, now),
     read(TAF_URL(codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
     prCodes.length ? read(GTWO_URL, { "user-agent": "safehubby.com" }, now) : Promise.resolve(null),
     read(METAR_URL(codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
     read(EVENTS_URL, {}, now),
+    codes.includes("SJU") ? cruiseReport(now) : Promise.resolve(null),
   ]);
   const parsed = text === null ? null : codes.map((code) => ({ code, status: parseFaa(text, code) }));
   if (!parsed || parsed.some((p) => !p.status)) return null;
@@ -312,6 +361,8 @@ async function airportReport(codes: string[], now: Date) {
     const field = metarText === null ? null : atTheField(metarText, icaoFor(p.code), now);
     const rates = eventsText === null ? null : faaRates(eventsText, p.code);
     const history = historyFor(p.code, now);
+    const cruiseHere = p.code === "SJU" ? cruise : null;
+    const today = cruiseHere && cruiseHere.enabled ? cruiseHere.days[0] : null;
     const signals = [
       ...(field?.lightning ? [`At the field now: lightning or thunderstorms (${field.ageMinutes} minutes ago). Ground crews usually stop work outside when lightning is close, so departures can stall before any delay is posted.`] : []),
       ...(field && /IFR/.test(field.flightCategory ?? "") ? [`At the field now: low cloud or poor visibility (${field.flightCategory}), which lowers how many flights can land each hour.`] : []),
@@ -322,8 +373,9 @@ async function airportReport(codes: string[], now: Date) {
       ...(delayedHubsNow.length ? [`Delays now at ${delayedHubsNow.map((h) => h.code).join(", ")}: a flight from there may arrive late.`] : []),
       ...(tropicalOutlook?.systems ?? []).filter((x) => x.chance7dPercent >= 40).map((x) => `A storm may form within 7 days (${x.chance7dPercent}% chance): ${short(x.text, 90)}`),
       ...(history ? historySignals(history) : []),
+      ...(today && today.shipsInPort >= 3 ? [`${today.shipsInPort} cruise ships in San Juan today (${today.ships.map((c) => c.ship).join(", ")}): cruise passengers fly in and out, so SJU security lines and nearby roads get busier.`] : []),
     ];
-    return { code: p.code, updatedAt: p.status!.updatedAt, issues: p.status!.issues, outlook: { signals, atTheField: field, faaRates: rates, forecast, faaPlan, delayedHubsNow, tropicalOutlook, history } };
+    return { code: p.code, updatedAt: p.status!.updatedAt, issues: p.status!.issues, outlook: { signals, atTheField: field, faaRates: rates, forecast, faaPlan, delayedHubsNow, tropicalOutlook, history, cruise: cruiseHere } };
   });
   const listed = airports.filter((a) => a.issues.length);
   const ahead = airports.reduce((n, a) => n + a.outlook.signals.length - a.issues.length, 0);

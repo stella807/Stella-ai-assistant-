@@ -3358,7 +3358,7 @@ describe("biweekly payroll", () => {
           const held = await fetch(liveUrl("storm warnings puerto rico"), { headers: { "x-safehubby-pass": pass } });
           expect(held.status).toBe(402);
           const { required, res } = await payFor(liveUrl("storm warnings puerto rico"));
-          expect(required.accepts[0].amount).toBe("100000");
+          expect(required.accepts[0].amount).toBe("250000");
           expect(res.status).toBe(200);
           const text = await res.text();
           expect(JSON.parse(text)).toMatchObject({ source: "National Weather Service", summary: expect.stringMatching(/1 active alert/) });
@@ -3373,6 +3373,15 @@ describe("biweekly payroll", () => {
           expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
           const signals: any = (await callAdmin("GET", "/api/master/signals")).json;
           expect(signals.unanswered.map((u: any) => u.text)).toContain("is the pharmacy open");
+        });
+
+        it("charges $0.25 for weather and airport answers and $0.10 for a power question alone", async () => {
+          expect(((await (await fetch(liveUrl("SJU delays"))).json()) as any).accepts[0].amount).toBe("250000");
+          expect(((await (await fetch(liveUrl("power outage puerto rico"))).json()) as any).accepts[0].amount).toBe("100000");
+          const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+          expect(c.products.find((p: any) => p.id === "live").price).toBe("$0.25");
+          const approval: any = await (await fetch(`${base}/api/agent/approval`)).json();
+          expect(approval.forPerson).toMatch(/Live answers \(power alone \$0\.10\): \$0\.25/);
         });
 
         it("tells an agent what it gets and what it does not, before paying and in the answer", async () => {

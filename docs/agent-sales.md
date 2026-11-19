@@ -23,7 +23,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Request check: send a request you are about to give a person (JSON); get what is missing, stop signs, what only the person may decide, and plain text to send | `/api/agent/check?request={JSON}` | $0.03 |
 | Alerts feed: what changed since you last asked, and the hurricane-season calendar | `/api/agent/alerts?since=&lang=` | $0.02 |
 | Checked today: what a person from Safehubby saw on the ground, dated and attributed, sold only while fresh | `/api/agent/checked?q=` | $0.10 (charged each time, even with a pass) |
-| Live answers: storm and flood alerts for Puerto Rico (National Weather Service) and US and Puerto Rico airport delays (FAA), read when asked, dated, source named | `/api/agent/live?q=` | $0.10 (charged each time, even with a pass) |
+| Live answers: storm and flood alerts for Puerto Rico (National Weather Service) and US and Puerto Rico airport delays (FAA), read when asked, dated, source named | `/api/agent/live?q=` | $0.25 for weather and airport answers, $0.10 for a power question alone (charged each time, even with a pass) |
 | Approval page: plain text an agent shows the person it works for, with the live prices (free, no pass needed) | `/api/agent/approval?lang=en\|es` | free |
 
 Add `?info` to any product address for a free description. Prices can be changed with
@@ -299,3 +299,13 @@ Two things asked for are stood in for, and the answer says so:
 
 To refresh: download the monthly zips from `transtats.bts.gov/PREZIP/` (`On_Time_Reporting_Carrier_On_Time_Performance_1987_present_YYYY_M.zip`)
 and run `node apps/api/scripts/build-airport-history.mjs <zips>`.
+
+### What is still left out, and the price
+
+- **Cruise ships in San Juan** (`cruiseReport` in `src/live-feeds.ts`, SJU answers only): built from San Juan Cruise Port's public schedule
+  (the operator of the cruise piers, in partnership with the Ports Authority): ships in port today and the next two days, and a signal when three
+  or more are in. **Off by default**: the port's legal page does not allow commercial reuse of its content without written consent. Once the
+  port agrees in writing, set `CRUISE_SCHEDULE_ENABLED=1` in Railway. Until then answers say it is left out and why, and nothing is fetched.
+- **TSA checkpoint counts**: TSA's reading room refuses automated downloads from here, so security-line hours still use scheduled departures.
+- **Price**: live answers are $0.25 for weather and airport questions (they read up to ten sources plus a year of history) and $0.10 for a
+  power question alone (`priceFor`). `X402_PRICE_LIVE` overrides the $0.25. The change is announced in the alerts feed (`live-answers-price`).

@@ -68,7 +68,8 @@ describe("the hurricane-season calendar and the notices", () => {
     const now = new Date("2026-11-20T00:00:00Z");
     const all = noticesSince(now);
     expect(all.length).toBeGreaterThan(1);
-    expect(noticesSince(now, new Date("2026-11-19T12:00:00Z"))).toEqual([]);
+    expect(noticesSince(now, new Date("2026-11-19T23:30:00Z"))).toEqual([]);
+    expect(noticesSince(now, new Date("2026-11-19T12:00:00Z")).map((n) => n.id)).toEqual(["live-answers-price"]);
     expect(noticesSince(now, new Date("2026-11-01T00:00:00Z")).map((n) => n.id)).toContain("book-delegating");
     for (const n of all) { expect(n.title.en && n.title.es && n.text.en && n.text.es).toBeTruthy(); expect(new Date(n.at).getTime()).not.toBeNaN(); }
   });

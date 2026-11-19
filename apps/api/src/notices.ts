@@ -28,6 +28,12 @@ export const NOTICES: Notice[] = [
     text: w("Active storm and flood alerts for Puerto Rico from the National Weather Service, and delays, ground programs and closures at US and Puerto Rico airports from the FAA. Each answer names its source and the time it was read. If a source cannot be reached you are not charged.",
       "Alertas activas de tormentas e inundaciones para Puerto Rico del Servicio Nacional de Meteorología, y retrasos, programas en tierra y cierres en aeropuertos de EE. UU. y Puerto Rico de la FAA. Cada respuesta indica su fuente y la hora en que se leyó. Si no se puede alcanzar la fuente, no se cobra."),
   },
+  {
+    id: "live-answers-price", at: "2026-11-19T23:00:00Z", kind: "new",
+    title: w("Live answers now cover much more, at $0.25", "Las respuestas en vivo ahora cubren mucho más, a $0.25"),
+    text: w("Weather answers now bundle the satellite, tropical storms, power across the island and Puerto Rico's airports; airport answers add signs of delays before they are posted and a year of on-time history. Weather and airport answers are $0.25; a power question alone stays $0.10. You are still not charged when there is no answer.",
+      "Las respuestas del tiempo ahora incluyen el satélite, las tormentas tropicales, la luz en toda la isla y los aeropuertos de Puerto Rico; las de aeropuertos añaden señales de retrasos antes de que se anuncien y un año de historial de puntualidad. Tiempo y aeropuertos cuestan $0.25; una pregunta solo de luz sigue a $0.10. Si no hay respuesta, no se cobra."),
+  },
 ];
 
 const day = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));

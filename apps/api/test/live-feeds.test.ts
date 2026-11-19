@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { answerLive, clearLiveCache, icaoFor, parseFaa, parseNws, routeLive, setLiveFetcher } from "../src/live-feeds.ts";
+import { answerLive, clearLiveCache, icaoFor, parseCruise, parseFaa, parseNws, routeLive, setLiveFetcher } from "../src/live-feeds.ts";
 
 const NWS = JSON.stringify({ features: [
   { properties: { id: "a1", event: "Flash Flood Warning", severity: "Severe", headline: "Flash Flood Warning issued for Naguabo", areaDesc: "Naguabo, PR", sent: "2026-11-19T21:00:00+00:00", expires: "2026-11-19T22:00:00+00:00", senderName: "NWS San Juan PR", instruction: "Move to higher ground. Call 555-123-4567 or see https://x.example", description: "Heavy rain." } },
@@ -316,5 +316,44 @@ describe("a year of history with every Puerto Rico airport answer", () => {
     setLiveFetcher(fake({ "airport-status-information": FAA }));
     const o = ((await answerLive("JFK delays", now)).body as any).airports[0].outlook;
     expect(o.history).toBeNull();
+  });
+});
+
+describe("cruise ships in San Juan, only with the port's permission", () => {
+  const row = (eta: string, etd: string, ship: string, line: string, berth: string) => `<div class="schedule-item-row"><div class="eta"><div class="hide-mobile mobile-schedule-title">Arrival</div>${eta}</div><div class="etd"><div class="hide-mobile mobile-schedule-title">Departure</div>${etd}</div><div class="shipname"><div class="hide-mobile mobile-schedule-title">Ship</div>${ship}</div><div class="cruiseline"><div class="hide-mobile mobile-schedule-title">Cruise Line</div>${line}</div><div class="berth"><div class="hide-mobile mobile-schedule-title">Berth</div>${berth}</div></div>`;
+  const PAGE = `<div id="cruiseTableContainer">${row("19 Nov 2026 | 09:00", "21 Nov 2026 | 18:00", "Ship One", "Line A", "PIER 3W")}${row("19 Nov 2026 | 05:00", "19 Nov 2026 | 18:00", "Ship Two", "Line B", "PIER 4E")}${row("19 Nov 2026 | 06:00", "19 Nov 2026 | 20:00", "Ship Three", "Line C", "PANAMERICAN E")}${row("20 Nov 2026 | 06:00", "20 Nov 2026 | 20:00", "Ship Four", "Line D", "PIER 1")}</div>`;
+  const prev = process.env.CRUISE_SCHEDULE_ENABLED;
+  afterEach(() => { if (prev === undefined) delete process.env.CRUISE_SCHEDULE_ENABLED; else process.env.CRUISE_SCHEDULE_ENABLED = prev; });
+
+  it("reads each ship's arrival and departure in Puerto Rico time", () => {
+    const ships = parseCruise(PAGE);
+    expect(ships).toHaveLength(4);
+    expect(ships[1]).toEqual({ ship: "Ship Two", line: "Line B", berth: "PIER 4E", arrives: "2026-11-19T09:00:00.000Z", departs: "2026-11-19T22:00:00.000Z" });
+  });
+
+  it("stays off, and says why, until the port has agreed", async () => {
+    delete process.env.CRUISE_SCHEDULE_ENABLED;
+    const calls: string[] = [];
+    setLiveFetcher(fake({ "airport-status-information": FAA, "sanjuancruiseport.com": PAGE }, calls));
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.cruise).toMatchObject({ enabled: false });
+    expect(o.cruise.note).toMatch(/permission/i);
+    expect(calls.some((c) => c.includes("sanjuancruiseport"))).toBe(false);
+  });
+
+  it("when switched on, counts the ships in port each day and warns about a busy cruise day at SJU", async () => {
+    process.env.CRUISE_SCHEDULE_ENABLED = "1";
+    setLiveFetcher(fake({ "airport-status-information": FAA, "sanjuancruiseport.com": PAGE }));
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.cruise.enabled).toBe(true);
+    expect(o.cruise.days[0]).toMatchObject({ date: "2026-11-19", shipsInPort: 3 });
+    expect(o.signals.join(" ")).toMatch(/3 cruise ships in San Juan today/);
+  });
+
+  it("gives cruise ships only with SJU, not with other airports", async () => {
+    process.env.CRUISE_SCHEDULE_ENABLED = "1";
+    setLiveFetcher(fake({ "airport-status-information": FAA, "sanjuancruiseport.com": PAGE }));
+    const o = ((await answerLive("BQN delays", now)).body as any).airports[0].outlook;
+    expect(o.cruise).toBeNull();
   });
 });
