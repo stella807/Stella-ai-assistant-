@@ -92,3 +92,44 @@ describe("answering", () => {
     expect((await answerLive("flood", new Date(now.getTime() + 20 * 60_000))).status).toBe(404);
   });
 });
+
+describe("satellite pictures and tropical storms, read with the weather", () => {
+  const STORMS = JSON.stringify({ activeStorms: [{ id: "al122026", name: "Kirk", classification: "HU", intensity: "85", pressure: "975", latitudeNumeric: 19.0, longitudeNumeric: -64.0, movementDir: 285, movementSpeed: 12, lastUpdate: "2026-11-19T21:00:00.000Z", publicAdvisory: { url: "https://x.example/a" } }] });
+  const sat = (lastModified: string) => async (url: string, init?: { method?: string }) => {
+    if (url.includes("weather.gov")) return new Response(NWS);
+    if (url.includes("nhc.noaa.gov")) return new Response(STORMS);
+    if (url.includes("cdn.star.nesdis.noaa.gov") && init?.method === "HEAD") return new Response(null, { status: 200, headers: { "last-modified": lastModified } });
+    return new Response("no", { status: 503 });
+  };
+
+  it("names the satellite, when its last picture of Puerto Rico was made, and where the official picture is", async () => {
+    setLiveFetcher(sat("Thu, 19 Nov 2026 21:20:00 GMT"));
+    const body: any = (await answerLive("storm warnings", now)).body;
+    expect(body.satellite).toMatchObject({ satellite: "GOES-19 (GOES-East)", operator: "NOAA NESDIS", area: "Puerto Rico" });
+    expect(body.satellite.images.geocolor).toMatchObject({ madeAt: "2026-11-19T21:20:00.000Z", ageMinutes: 10, image: "https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/pr/GEOCOLOR/latest.jpg" });
+    expect(body.satellite.images.infrared.image).toContain("/pr/13/latest.jpg");
+  });
+
+  it("lists active tropical storms with how far each is from Puerto Rico, and no links from the source", async () => {
+    setLiveFetcher(sat("Thu, 19 Nov 2026 21:20:00 GMT"));
+    const body: any = (await answerLive("hurricane", now)).body;
+    expect(body.tropical.source).toBe("National Hurricane Center");
+    expect(body.tropical.storms[0]).toMatchObject({ name: "Kirk", type: "Hurricane", windKnots: 85, pressureMb: 975 });
+    expect(body.tropical.storms[0].kmFromPuertoRico).toBeGreaterThan(200);
+    expect(body.tropical.storms[0].kmFromPuertoRico).toBeLessThan(400);
+    expect(JSON.stringify(body.tropical)).not.toContain("x.example");
+    expect(body.summary).toMatch(/1 active tropical storm/i);
+  });
+
+  it("still answers from the weather service when the satellite and storm sources are down, and says so", async () => {
+    setLiveFetcher(fake({ "weather.gov": NWS }));
+    const r = await answerLive("flood", now);
+    expect(r.status).toBe(200);
+    expect((r.body as any).satellite).toBeNull();
+    expect((r.body as any).tropical).toBeNull();
+  });
+
+  it("sends satellite and cloud questions to the weather, in English or Spanish", () => {
+    for (const q of ["satellite picture puerto rico", "imagen de satelite", "nubes", "tropical cyclone"]) expect(routeLive(q), q).toEqual({ source: "weather" });
+  });
+});

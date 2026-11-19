@@ -237,8 +237,11 @@ The record of what agents said they would pay for is in `docs/agent-demand.md`.
 
 ## Live answers (nobody has to do anything)
 
-`src/live-feeds.ts`. Two free public sources, read on request: the National Weather Service's active alerts for Puerto Rico, and the FAA's airport
-status feed. The question is routed by its words (storm, flood, alert, warning in English or Spanish go to the weather; an airport code such as SJU, or
+`src/live-feeds.ts`. Free public sources, read on request: the National Weather Service's active alerts for Puerto Rico, NOAA's GOES-East
+(GOES-19) satellite pictures of Puerto Rico (the time each latest picture was made, from its Last-Modified header, and its official address;
+the picture is not downloaded), the National Hurricane Center's active storms (with distance from Puerto Rico; advisory links left out), and
+the FAA's airport status feed. The weather service is required for a weather answer; the satellite and hurricane parts are `null` when
+those sources cannot be reached. The question is routed by its words (storm, flood, alert, warning, satellite, clouds, hurricane, cyclone in English or Spanish go to the weather; an airport code such as SJU, or
 an airport word with a US or Puerto Rico city, goes to the FAA). Each answer names its source and when it was read, and says plainly when nothing
 is listed (the FAA lists only airports with something to report). A copy is kept for 5 minutes so many agents asking together do not hammer the
 sources; if a source is down a copy up to 15 minutes old may be served, never older. If a source cannot be reached or none covers the question: 404
