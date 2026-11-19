@@ -5,7 +5,10 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { CONTACT_EMAIL, WHATSAPP_DISPLAY, buildKnowledge, lookupAirports, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
-import { sitePassInfo } from "./site-pass-info.ts";
+import { sitePassInfo, passLength } from "./site-pass-info.ts";
+import { buildApprovalPack } from "./approval-pack.ts";
+import { checkRequest } from "./request-check.ts";
+import { noticesSince, seasonOn } from "./notices.ts";
 import { noteSignal } from "./signals.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { createHash } from "node:crypto";
@@ -184,6 +187,37 @@ export const PRODUCTS: Product[] = [
       };
     },
   },
+  {
+    id: "check", title: "Request check",
+    description: "Before you hand a task to a person, send the request as JSON (task, needed_by, from, to, spend_cap, if_unavailable, proof_wanted, contact, private_details_shared). You get back what is missing, stop signs (gift cards, crypto, card numbers, no spending cap), what only the person may decide (a key, a door code, a health detail), warnings, and the request as plain text. Rules from the book Delegating Real-World Tasks. Nothing you send is kept. A request that cannot be read is refused before any payment. Free with a site pass.",
+    path: "/api/agent/check", usage: "GET ?request={url-encoded JSON, under 2,000 characters}", defaultPrice: "$0.03",
+    respond(u) {
+      const raw = u.searchParams.get("request") ?? "";
+      let parsed: unknown;
+      try { parsed = raw.length > 0 && raw.length <= 2000 ? JSON.parse(raw) : undefined; } catch { parsed = undefined; }
+      const result = checkRequest(parsed);
+      if ("error" in result) return { status: 400, body: result, results: 0, summary: "check/unreadable" };
+      // The request itself is the person's business: only that a check happened is counted.
+      return { status: 200, body: result, results: 1, summary: "check", words: "" };
+    },
+  },
+  {
+    id: "alerts", title: "Alerts feed",
+    description: "What changed at Safehubby since the time you last asked (new books and products), and where the Atlantic hurricane-season calendar stands. Every agent keeps its own place: pass the asOf from your last answer as since. Not a weather forecast and not an official warning. English or Spanish. Free with a site pass.",
+    path: "/api/agent/alerts", usage: "GET ?since=ISO time&lang=en|es (leave since out to get everything)", defaultPrice: "$0.02",
+    respond(u) {
+      const rawSince = u.searchParams.get("since");
+      const since = rawSince ? new Date(rawSince) : undefined;
+      if (since && Number.isNaN(since.getTime())) return { status: 400, body: { error: "since must be a time such as 2026-11-19T00:00:00Z." }, results: 0, summary: "alerts/invalid" };
+      const lang = langOf(u);
+      const now = new Date();
+      const notices = noticesSince(now, since).map((n) => ({ id: n.id, at: n.at, kind: n.kind, title: n.title[lang], text: n.text[lang] }));
+      return {
+        status: 200, results: notices.length, summary: "alerts", words: "",
+        body: { lang, asOf: now.toISOString(), since: since?.toISOString() ?? null, season: seasonOn(now), notices, note: "Notices about what Safehubby publishes and the hurricane-season calendar. Not a weather forecast and not an official warning: for storms, follow the National Weather Service and local officials." },
+      };
+    },
+  },
 ];
 
 export const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
@@ -219,10 +253,12 @@ const productFor = (pathname: string): Product | undefined =>
             : pathname.startsWith("/api/agent/checklists/") && pathname.length > "/api/agent/checklists/".length ? PRODUCTS[5]
               : pathname.startsWith("/api/agent/books/") && pathname.length > "/api/agent/books/".length ? PRODUCTS[6]
                 : pathname.startsWith("/api/agent/currency/") && pathname.length > "/api/agent/currency/".length ? PRODUCTS[7]
+                  : pathname === "/api/agent/check" ? PRODUCTS[8]
+                    : pathname === "/api/agent/alerts" ? PRODUCTS[9]
                   : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
-export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || productFor(pathname) !== undefined;
+export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/approval" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
 /**
@@ -279,7 +315,7 @@ function catalog(origin: string, store: StoreLike) {
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
-      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory and the checklists (English and Spanish), all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Not included: anything that needs a person.",
+      includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Not included: anything that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
@@ -373,6 +409,11 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
       // Earlier keys stay public so an old answer still verifies after the key changes.
       retired: (store.data.signingKeyHistory ?? []).map((r) => ({ keyId: r.keyId, publicKeyPem: r.publicKeyPem, retiredAt: r.retiredAt })),
     }); }
+  // For the person an agent works for: free, and built from the live prices.
+  if (url.pathname === "/api/agent/approval") {
+    const info = sitePassInfo();
+    return json(res, 200, buildApprovalPack({ origin, lang: langOf(url), pass: { price: info.price, length: passLength(info.minutes) }, items: PRODUCTS.filter((p) => !p.requiresPass).map((p) => ({ id: p.id, title: p.title, price: priceOf(p) })) }));
+  }
   if ((url.pathname === "/api/agent/books" || url.pathname.startsWith("/api/agent/books/")) && refuseBrowser(req, res)) return;
   if (url.pathname === "/api/agent/books") {
     return json(res, 200, {

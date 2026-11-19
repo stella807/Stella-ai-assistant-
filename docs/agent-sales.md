@@ -20,6 +20,9 @@ money (Base Sepolia) until the owner decides otherwise.
 | Checklists to hand to a person, English and Spanish: a day at the hospital with a parent, arriving at an airport with an older relative, questions to ask before hiring a concierge (general information, not medical or legal advice) | `/api/agent/checklists/{slug}?lang=en\|es` (list free at `/api/agent/checklists`) | $0.02 |
 | Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico, delegating real-world tasks to human assistants (18 to 21 pages each; each opens with a quick reference for agents; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`; needs a site pass first) | $0.50 |
 | Currency check: is an answer you hold still current? Give the SHA-256 of the response body; get a signed `current` or `changed` | `/api/agent/currency/{sha256}` | $0.02 |
+| Request check: send a request you are about to give a person (JSON); get what is missing, stop signs, what only the person may decide, and plain text to send | `/api/agent/check?request={JSON}` | $0.03 |
+| Alerts feed: what changed since you last asked, and the hurricane-season calendar | `/api/agent/alerts?since=&lang=` | $0.02 |
+| Approval page: plain text an agent shows the person it works for, with the live prices (free, no pass needed) | `/api/agent/approval?lang=en\|es` | free |
 
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
@@ -198,3 +201,18 @@ not in Railway or Stripe: you move it from there.
 After the 1,000 free payments, create a key in PayAI's merchant dashboard
 (merchant.payai.network) and add `PAYAI_API_KEY_ID` and `PAYAI_API_KEY_SECRET`.
 The server signs with them locally and never sends the secret.
+
+## The request check, the alerts feed and the approval page
+
+**Request check** (`src/request-check.ts`). Applies the rules in the book *Delegating Real-World Tasks* to a request an agent is about to give a
+person. It is deterministic and keeps nothing: the signals count that a check happened, never what was in it. A request that cannot be read
+(not JSON, not an object, a field over 500 characters, over 2,000 characters in all) is refused with 400 before any payment moves.
+It accepts the field names the books use (`what`, `where_from`, `where_to`, `confirm_with`) as well as the short ones.
+
+**Alerts feed** (`src/notices.ts`). For many agents at once: nothing is stored per agent. Each agent passes the `asOf` from its last answer as
+`since`. Notices are written by hand in `NOTICES` with the date they took effect (add one when something an agent would care about changes),
+plus the Atlantic hurricane-season calendar computed from the date. They are notices about what Safehubby publishes, never weather
+forecasts or warnings, and the feed says so. An unreadable `since` is refused with 400 before any payment.
+
+**Approval page** (`src/approval-pack.ts`). Free. Built from the live prices so it cannot disagree with what is charged. It gives email
+only, never a phone number, and promises nothing about results.

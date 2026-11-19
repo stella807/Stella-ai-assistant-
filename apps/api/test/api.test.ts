@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "currency", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checklists", "currency", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3260,6 +3260,73 @@ describe("biweekly payroll", () => {
         expect(body.forPerson).toContain("contact@safehubby.com");
         const spanish: any = await (await fetch(`${base}/api/agent/checklists/dia-en-el-hospital-con-un-familiar?lang=es`, { headers: { "x-safehubby-pass": pass } })).json();
         expect(spanish.forPerson).toMatch(/consejo m[eé]dico/i);
+      });
+
+      describe("the request check, the alerts feed and the approval page", () => {
+        const goodRequest = { task: "Pick up the prescription for Garcia at the pharmacy on Main Street", needed_by: "2026-12-03 17:00, firm", from: "Pharmacy", to: "Front desk, ask for Rosa", spend_cap: "$15 including fees", if_unavailable: "call_me", proof_wanted: "photo and receipt", contact: "the family, by message", private_details_shared: "none" };
+        const checkUrl = (r: unknown) => `${base}/api/agent/check?request=${encodeURIComponent(JSON.stringify(r))}`;
+
+        it("checks a request before it goes to a person: three cents, free with the pass, signed, and nothing kept", async () => {
+          const { verifyResponse } = await import("../src/attestation.ts");
+          const required: any = await (await fetch(checkUrl(goodRequest))).json();
+          expect(required.accepts[0].amount).toBe("30000");
+          const pass = await buyPass();
+          const res = await fetch(checkUrl({ ...goodRequest, spend_cap: "no limit" }), { headers: { "x-safehubby-pass": pass } });
+          const text = await res.text();
+          const body = JSON.parse(text);
+          expect(body.readyToSend).toBe(false);
+          expect(body.stopSigns.join(" ")).toMatch(/cap/i);
+          const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+          expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/check?request=${encodeURIComponent(JSON.stringify({ ...goodRequest, spend_cap: "no limit" }))}`)).toBe(true);
+          expect(JSON.stringify(store.data.signals ?? {})).not.toContain("Garcia");
+          const ok: any = await (await fetch(checkUrl(goodRequest), { headers: { "x-safehubby-pass": pass } })).json();
+          expect(ok.readyToSend).toBe(true);
+        });
+
+        it("never charges for a request it cannot read", async () => {
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          for (const url of [`${base}/api/agent/check`, `${base}/api/agent/check?request=not-json`, checkUrl("just words")]) {
+            const required: any = await (await fetch(url)).json();
+            const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+            expect((await fetch(url, { headers: { "payment-signature": sig } })).status, url).toBe(400);
+          }
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        });
+
+        it("tells many agents what is new since each last asked, and the hurricane calendar, for two cents", async () => {
+          const required: any = await (await fetch(`${base}/api/agent/alerts`)).json();
+          expect(required.accepts[0].amount).toBe("20000");
+          const pass = await buyPass();
+          const first: any = await (await fetch(`${base}/api/agent/alerts?since=2026-01-01T00:00:00Z`, { headers: { "x-safehubby-pass": pass } })).json();
+          expect(first.notices.map((n: any) => n.id)).toContain("book-delegating");
+          expect(first.season).toHaveProperty("inSeason");
+          expect(first.note).toMatch(/not (a )?(weather )?forecast|not official/i);
+          const later: any = await (await fetch(`${base}/api/agent/alerts?since=${encodeURIComponent(first.asOf)}`, { headers: { "x-safehubby-pass": pass } })).json();
+          expect(later.notices).toEqual([]);
+          const es: any = await (await fetch(`${base}/api/agent/alerts?since=2026-01-01T00:00:00Z&lang=es`, { headers: { "x-safehubby-pass": pass } })).json();
+          expect(es.notices[0].title).toMatch(/[áéíóúñ]|libro|temporada|tienda/i);
+        });
+
+        it("never charges for a since that is not a time", async () => {
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const url = `${base}/api/agent/alerts?since=yesterday-ish`;
+          const required: any = await (await fetch(url)).json();
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          expect((await fetch(url, { headers: { "payment-signature": sig } })).status).toBe(400);
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        });
+
+        it("gives the person an agent works for a free page with the real prices, in English and Spanish", async () => {
+          const en: any = await (await fetch(`${base}/api/agent/approval`)).json();
+          expect(en.forPerson).toContain("$2.99");
+          expect(en.forPerson).toContain("$0.03");
+          expect(en.forPerson).toContain("contact@safehubby.com");
+          expect(en.forPerson).not.toMatch(/939/);
+          const es: any = await (await fetch(`${base}/api/agent/approval?lang=es`)).json();
+          expect(es.forPerson).toMatch(/Pase del sitio/);
+        });
       });
 
       it("never charges for a checklist that does not exist", async () => {
@@ -3433,7 +3500,7 @@ describe("biweekly payroll", () => {
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "blog", "books", "brief", "checklists", "currency", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checklists", "currency", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);
