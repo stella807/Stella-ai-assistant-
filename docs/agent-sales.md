@@ -261,3 +261,16 @@ Every airport answer also has `outlook`, built from free official sources read o
 
 `outlook.signals` puts them in one list of plain lines. It is called an outlook, not a prediction about any flight, and a part is `null` when its
 source could not be reached; the current FAA status is still required for any airport answer.
+
+### Before anyone else: at the field, FAA rates, and power
+
+- **At the field now** (`atTheField`): the airport's latest observation (METAR, last 2 hours, Aviation Weather Center). Lightning or thunderstorms
+  near the field are flagged first: ground crews stop work outside when lightning is close, which stalls departures before the FAA posts any delay.
+  Low cloud (IFR, LIFR) lowers how many flights can land per hour. Two or more special reports (SPECI) in an hour mean the weather is changing
+  fast. `TSNO` (sensor off) is not read as a thunderstorm.
+- **FAA rates** (`faaRates`): the arrival rate and runways the FAA has set, from `nasstatus.faa.gov/api/airport-events`, when it publishes them
+  (mostly the larger airports).
+- **Power in Puerto Rico** (`?q=power outage`, `apagón`, `luz`): LUMA Energy's public outage map by region, with customers out, planned
+  outages and load shedding (rolling cuts when generation is short). Useful before sending anyone to a shop that may be closed. The endpoint is
+  the one LUMA's own map uses; if it changes or is blocked, the answer is refused and nothing is charged. Check LUMA's terms before relying on it
+  heavily.

@@ -219,3 +219,63 @@ describe("small things the real sources showed", () => {
     expect(o.delayedHubsNow.map((h: any) => h.code)).not.toContain("LAX");
   });
 });
+
+describe("signs at the airport before the FAA posts anything, and power on the island", () => {
+  const METAR = JSON.stringify([
+    { icaoId: "TJSJ", reportTime: "2026-11-19T21:20:00.000Z", metarType: "SPECI", fltCat: "IFR", rawOb: "SPECI TJSJ 192120Z 09018G28KT 2SM +TSRA BKN008CB OVC020 26/24 A2996 RMK AO2 LTG DSNT ALQDS TSB15 $" },
+    { icaoId: "TJSJ", reportTime: "2026-11-19T20:56:00.000Z", metarType: "METAR", fltCat: "VFR", rawOb: "METAR TJSJ 192056Z 11007KT 10SM FEW031 29/23 A2995 RMK AO2 $" },
+  ]);
+  const EVENTS = JSON.stringify([{ airportId: "SJU", airportConfig: { airportId: "SJU", arrivalRunwayConfig: "08", departureRunwayConfig: "08", arrivalRate: 24, sourceTimeStamp: "2026-11-19T21:00:00Z" } }]);
+  const LUMA = JSON.stringify({ regions: [
+    { name: "Bayamon", totalClients: 216496, totalClientsWithoutService: 21000, totalClientsAffectedByPlannedOutage: 50, totalClientsAffectedByLoadShed: 20000, percentageClientsWithoutService: 9.7 },
+    { name: "Carolina", totalClients: 141663, totalClientsWithoutService: 1, totalClientsAffectedByPlannedOutage: 0, totalClientsAffectedByLoadShed: 0, percentageClientsWithoutService: 0 },
+  ] });
+  const src = () => async (url: string) => {
+    if (url.includes("api/data/metar")) return new Response(METAR);
+    if (url.includes("airport-events")) return new Response(EVENTS);
+    if (url.includes("airport-status-information")) return new Response(FAA);
+    if (url.includes("lumapr.com")) return new Response(LUMA);
+    return new Response("no", { status: 503 });
+  };
+
+  it("reads the airport's latest observation and flags lightning and low cloud before any delay is posted", async () => {
+    setLiveFetcher(src());
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.atTheField).toMatchObject({ station: "TJSJ", observedAt: "2026-11-19T21:20:00.000Z", ageMinutes: 10, flightCategory: "IFR", lightning: true, specialReportsLastHour: 1 });
+    expect(o.signals.join(" ")).toMatch(/lightning/i);
+    expect(o.signals.join(" ")).toMatch(/ground crews/i);
+  });
+
+  it("shows the arrival rate the FAA has set for the airport, when it publishes one", async () => {
+    setLiveFetcher(src());
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.faaRates).toEqual({ arrivalsPerHour: 24, arrivalRunways: "08", departureRunways: "08", setAt: "2026-11-19T21:00:00.000Z" });
+  });
+
+  it("answers power questions from the island's power company map, with load shedding called out", async () => {
+    setLiveFetcher(src());
+    expect(routeLive("power outage puerto rico")).toEqual({ source: "power" });
+    expect(routeLive("apagón en bayamón")).toEqual({ source: "power" });
+    expect(routeLive("hay luz en carolina")).toEqual({ source: "power" });
+    const r = await answerLive("power outage puerto rico", now);
+    expect(r.status).toBe(200);
+    const b: any = r.body;
+    expect(b.source).toBe("LUMA Energy outage map");
+    expect(b.regions[0]).toMatchObject({ name: "Bayamon", withoutPower: 21000, percentWithoutPower: 9.7, loadShed: 20000 });
+    expect(b.summary).toMatch(/21,001 customers/);
+    expect(b.summary).toMatch(/load shed/i);
+  });
+
+  it("refuses power questions when the power map cannot be read", async () => {
+    setLiveFetcher(fake({}));
+    expect((await answerLive("apagon", now)).status).toBe(404);
+  });
+});
+
+describe("the airport observation, read carefully", () => {
+  it("does not take a remark that the thunderstorm sensor is off for a thunderstorm", async () => {
+    setLiveFetcher(fake({ "api/data/metar": JSON.stringify([{ icaoId: "TJSJ", reportTime: "2026-11-19T21:20:00.000Z", metarType: "METAR", fltCat: "VFR", rawOb: "METAR TJSJ 192120Z 09010KT 10SM FEW030 29/23 A2996 RMK AO2 TSNO $" }]), "airport-status-information": FAA }));
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.atTheField.lightning).toBe(false);
+  });
+});

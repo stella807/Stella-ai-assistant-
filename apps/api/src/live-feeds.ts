@@ -3,7 +3,9 @@
  * Puerto Rico, the GOES-East weather satellite's latest pictures of Puerto Rico and the National Hurricane Center's active storms
  * (both NOAA), and the FAA's airport status (delays, ground programs, closures). For airports it also looks ahead: the airport's
  * forecast (TAF, from the Aviation Weather Center), the FAA's plan for the day (what it calls possible), big airports delayed now
- * (a flight from one can arrive late), and for Puerto Rico the hurricane center's chances of a storm forming. Every answer names its source and says when it
+ * (a flight from one can arrive late), and for Puerto Rico the hurricane center's chances of a storm forming. It also reads the airport's
+ * latest observation (METAR): lightning near the field stops ground crews, which stalls departures before any delay is posted. And it
+ * answers power questions for Puerto Rico from LUMA's public outage map, including load shedding (planned rolling cuts). Every answer names its source and says when it
  * was read. An answer is never made up: a source that is down, or a question no source covers, gives no answer and no charge.
  * A copy is kept for five minutes so many agents asking at once do not hammer the sources; if a source is down, a copy up to
  * fifteen minutes old may still be served, and no older one.
@@ -63,6 +65,9 @@ const TAF_URL = (ids: string[]) => `https://aviationweather.gov/api/data/taf?ids
 const GTWO_URL = "https://www.nhc.noaa.gov/gtwo.xml";
 /** Big US airports: a delay at one now can make a flight from there arrive late anywhere. */
 const HUBS = ["ATL", "BOS", "BWI", "CLT", "DCA", "DEN", "DFW", "DTW", "EWR", "FLL", "IAD", "IAH", "JFK", "LAS", "LAX", "LGA", "MCO", "MIA", "MSP", "ORD", "PHL", "PHX", "SEA", "SFO", "TPA"];
+const METAR_URL = (ids: string[]) => `https://aviationweather.gov/api/data/metar?ids=${ids.join(",")}&hours=2&format=json`;
+const EVENTS_URL = "https://nasstatus.faa.gov/api/airport-events";
+const LUMA_URL = "https://api.miluma.lumapr.com/miluma-outage-api/outage/regionsWithoutService";
 const NHC_URL = "https://www.nhc.noaa.gov/CurrentStorms.json";
 /** GOES-19 is the GOES-East satellite; NOAA publishes its latest pictures of the Puerto Rico sector at these fixed addresses. */
 const SAT_BASE = "https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/pr";
@@ -142,6 +147,52 @@ export function forecastHazards(text: string, icao: string, now: Date): { statio
   return { station: icao, issuedAt: iso(taf.issueTime), hazards };
 }
 
+export interface AtTheField { station: string; observedAt: string | null; ageMinutes: number | null; flightCategory: string | null; lightning: boolean; thunderstorm: boolean; specialReportsLastHour: number; observation: string }
+
+/**
+ * The airport's latest observation. Lightning near the field matters most: ground crews stop work outside when it is close, so
+ * departures stall before the FAA posts any delay. Special reports (SPECI) are issued when the weather changes fast.
+ */
+export function atTheField(text: string, icao: string, now: Date): AtTheField | null {
+  let data: any;
+  try { data = JSON.parse(text); } catch { return null; }
+  const obs = (Array.isArray(data) ? data : []).filter((m: any) => m?.icaoId === icao).sort((a: any, b: any) => String(b.reportTime).localeCompare(String(a.reportTime)));
+  const latest = obs[0];
+  if (!latest) return null;
+  // TSNO is a remark that the thunderstorm sensor is off, not a thunderstorm.
+  const raw = scrub(latest.rawOb, 300).replace(/\bTSNO\b/g, "");
+  const main = raw.split(" RMK ")[0]!;
+  const at = iso(latest.reportTime);
+  return {
+    station: icao, observedAt: at, ageMinutes: at ? Math.max(0, Math.round((now.getTime() - new Date(at).getTime()) / 60_000)) : null,
+    flightCategory: latest.fltCat ? scrub(latest.fltCat, 6) : null,
+    lightning: /\bLTG|\bTS|VCTS|TSB\d/.test(raw), thunderstorm: /(^|\s)[+-]?(VC)?TS/.test(main) || /\bCB\b|\d{3}CB/.test(main),
+    specialReportsLastHour: obs.filter((m: any) => m.metarType === "SPECI" && now.getTime() - new Date(m.reportTime).getTime() <= 3_600_000).length,
+    observation: raw,
+  };
+}
+
+/** The arrival rate and runways the FAA has set for an airport, when it publishes them (mostly for the larger ones). */
+export function faaRates(text: string, code: string) {
+  let data: any;
+  try { data = JSON.parse(text); } catch { return null; }
+  const c = (Array.isArray(data) ? data : []).find((e: any) => e?.airportId === code)?.airportConfig;
+  if (!c) return null;
+  return { arrivalsPerHour: num(c.arrivalRate), arrivalRunways: scrub(c.arrivalRunwayConfig, 40), departureRunways: scrub(c.departureRunwayConfig, 40), setAt: iso(c.sourceTimeStamp) };
+}
+
+export interface PowerRegion { name: string; customers: number; withoutPower: number; percentWithoutPower: number; plannedOutage: number; loadShed: number }
+
+export function parseLuma(text: string): PowerRegion[] | null {
+  let data: any;
+  try { data = JSON.parse(text); } catch { return null; }
+  if (!Array.isArray(data?.regions)) return null;
+  return data.regions.slice(0, 20).map((r: any): PowerRegion => ({
+    name: scrub(r.name, 40), customers: num(r.totalClients) ?? 0, withoutPower: num(r.totalClientsWithoutService) ?? 0,
+    percentWithoutPower: num(r.percentageClientsWithoutService) ?? 0, plannedOutage: num(r.totalClientsAffectedByPlannedOutage) ?? 0, loadShed: num(r.totalClientsAffectedByLoadShed) ?? 0,
+  })).sort((a: PowerRegion, b: PowerRegion) => b.withoutPower - a.withoutPower);
+}
+
 export interface PlanItem { when: string; what: string }
 
 /** The FAA's operations plan for the day: what it expects or calls possible. Its link is left out. */
@@ -195,13 +246,15 @@ const CITY_CODES: [string, string[]][] = [
   ...AIRPORTS.filter((e) => e.country === "United States").map((e): [string, string[]] => [plain(e.city), e.airports.map((a) => a.code.toUpperCase())]),
 ];
 const WEATHER = /\b(satellites?|satelites?|clouds?|nubes|cyclones?|ciclon(?:es)?|storms?|hurricanes?|tropical|weather|floods?|flooding|alerts?|warnings?|advisor(?:y|ies)|rain|tormentas?|huracan(?:es)?|inundacion(?:es)?|lluvia|alertas?|avisos?|clima)\b/;
+const POWER = /\b(power|outages?|electricity|blackouts?|luma|luz|apagon(?:es)?|energia|electrica|sin servicio)\b/;
 const AIRPORT_WORD = /\b(airports?|aeropuertos?|flights?|vuelos?|delays?|delayed|retrasos?|retrasado|ground (stop|delay)|closure|closed)\b/;
 
-export type Route = { source: "weather" } | { source: "airport"; codes: string[] };
+export type Route = { source: "weather" } | { source: "power" } | { source: "airport"; codes: string[] };
 
 export function routeLive(q: string): Route | null {
   const text = plain(q.trim().slice(0, 100));
   if (!text) return null;
+  if (POWER.test(text)) return { source: "power" };
   const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
   const found = tokens.filter((t) => t.length === 3 && KNOWN.has(t)).map((t) => KNOWN.get(t)!);
   if (found.length) return { source: "airport", codes: [...new Set(found.filter((f) => f.us).map((f) => f.code))] };
@@ -219,6 +272,22 @@ export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
   const q = rawQ.trim().slice(0, 100);
   const route = routeLive(q);
   if (!route) return none(q, "No live source covers this. Live answers cover storm and flood alerts for Puerto Rico and US airport delays, such as SJU delays.");
+  if (route.source === "power") {
+    const text = await read(LUMA_URL, { "user-agent": "safehubby.com" }, now);
+    const regions = text === null ? null : parseLuma(text);
+    if (!regions) return none(q, "The power company's outage map could not be read just now.");
+    const out = regions.reduce((n, r) => n + r.withoutPower, 0), all = regions.reduce((n, r) => n + r.customers, 0), shed = regions.reduce((n, r) => n + r.loadShed, 0);
+    const worst = regions[0];
+    return {
+      status: 200, results: regions.length, summary: "live/power", words: q.toLowerCase(),
+      body: {
+        q, source: "LUMA Energy outage map", asOf: now.toISOString(), regions,
+        island: { customers: all, withoutPower: out, percentWithoutPower: all ? Math.round((out / all) * 10000) / 100 : 0, loadShed: shed },
+        summary: `${out.toLocaleString("en-US")} customers without power across Puerto Rico${all ? ` (${(Math.round((out / all) * 10000) / 100).toString()}%)` : ""}.${worst && worst.withoutPower ? ` Most affected: ${worst.name} (${worst.percentWithoutPower}%).` : ""}${shed ? ` ${shed.toLocaleString("en-US")} affected by load shedding (planned rolling cuts when there is not enough power).` : " No load shedding."}`,
+        note: "Read from the power company's public outage map when you asked, by region. A shop or pharmacy in a region with many customers out may be closed or running on a generator; check before sending someone.",
+      },
+    };
+  }
   if (route.source === "weather") {
     // The weather service is the answer; the satellite and the hurricane center add to it when they can be reached.
     const [text, stormText, ...sats] = await Promise.all([
@@ -251,11 +320,13 @@ export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
   if (!route.codes.length) return none(q, "The FAA feed covers airports in the United States and Puerto Rico only.");
   const prCodes = route.codes.filter((c) => PR_NAMES[c.toLowerCase()]);
   // The current status is the answer; the look-ahead sources add to it when they can be reached.
-  const [text, planText, tafText, gtwoText] = await Promise.all([
+  const [text, planText, tafText, gtwoText, metarText, eventsText] = await Promise.all([
     read(FAA_URL, {}, now),
     read(PLAN_URL, {}, now),
     read(TAF_URL(route.codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
     prCodes.length ? read(GTWO_URL, { "user-agent": "safehubby.com" }, now) : Promise.resolve(null),
+    read(METAR_URL(route.codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
+    read(EVENTS_URL, {}, now),
   ]);
   const parsed = text === null ? null : route.codes.map((code) => ({ code, status: parseFaa(text, code) }));
   if (!parsed || parsed.some((p) => !p.status)) return none(q, "The FAA airport status could not be read just now.");
@@ -271,14 +342,19 @@ export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
     const faaPlan = plan === null ? null : { forThisAirport: plan.filter(mine), elsewhere: plan.filter((e) => !mine(e)).slice(0, 15) };
     const delayedHubsNow = hubsNow.filter((h) => h.code !== p.code).map((h) => ({ code: h.code, issues: h.issues.map((i) => i.kind) }));
     const tropicalOutlook = PR_NAMES[p.code.toLowerCase()] && tropical ? { source: "National Hurricane Center", ...tropical } : null;
+    const field = metarText === null ? null : atTheField(metarText, icaoFor(p.code), now);
+    const rates = eventsText === null ? null : faaRates(eventsText, p.code);
     const signals = [
+      ...(field?.lightning ? [`At the field now: lightning or thunderstorms (${field.ageMinutes} minutes ago). Ground crews usually stop work outside when lightning is close, so departures can stall before any delay is posted.`] : []),
+      ...(field && /IFR/.test(field.flightCategory ?? "") ? [`At the field now: low cloud or poor visibility (${field.flightCategory}), which lowers how many flights can land each hour.`] : []),
+      ...(field && field.specialReportsLastHour >= 2 ? [`At the field: ${field.specialReportsLastHour} special weather reports in the last hour, which means the weather is changing fast.`] : []),
       ...p.status!.issues.map((i) => `Now: ${i.kind}${i.reason ? ` (${i.reason})` : ""}.`),
       ...(forecast?.hazards ?? []).map((h) => `Forecast: ${h.what.join(", ")} ${hhmm(h.from)} to ${hhmm(h.to)}${h.chancePercent ? ` (${h.chancePercent}% chance)` : ""}.`),
       ...(faaPlan?.forThisAirport ?? []).map((e) => `FAA plan: ${e.what}${e.when ? ` ${e.when}Z` : ""}.`),
       ...(delayedHubsNow.length ? [`Delays now at ${delayedHubsNow.map((h) => h.code).join(", ")}: a flight from there may arrive late.`] : []),
       ...(tropicalOutlook?.systems ?? []).filter((x) => x.chance7dPercent >= 40).map((x) => `A storm may form within 7 days (${x.chance7dPercent}% chance): ${short(x.text, 90)}`),
     ];
-    return { code: p.code, updatedAt: p.status!.updatedAt, issues: p.status!.issues, outlook: { signals, forecast, faaPlan, delayedHubsNow, tropicalOutlook } };
+    return { code: p.code, updatedAt: p.status!.updatedAt, issues: p.status!.issues, outlook: { signals, atTheField: field, faaRates: rates, forecast, faaPlan, delayedHubsNow, tropicalOutlook } };
   });
   const listed = airports.filter((a) => a.issues.length);
   const ahead = airports.reduce((n, a) => n + a.outlook.signals.length - a.issues.length, 0);
@@ -288,7 +364,7 @@ export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
       q, source: "FAA National Airspace System Status", asOf: now.toISOString(), airports,
       summary: `${listed.length ? `${listed.map((a) => `${a.code}: ${a.issues.map((i) => i.kind).join(", ")}`).join("; ")}.` : `No delay, ground program or closure is listed for ${airports.map((a) => a.code).join(", ")}.`} ${ahead ? `${ahead} sign${ahead === 1 ? "" : "s"} of possible delays ahead; see outlook.signals.` : "No signs of delays ahead in the forecast or the FAA plan."}`,
       note: "The FAA lists only airports with something to report, so an airport that is not listed has no reported delay at the time shown. Conditions can change at any time. Not a forecast, and not a promise about any flight.",
-      outlookNote: "The outlook reads the airport's official forecast (Aviation Weather Center), the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.",
+      outlookNote: "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.",
     },
   };
 }
