@@ -46,7 +46,7 @@ import {
   DESK_TASK_ACCESS_RULE, DESK_TASK_KINDS, deskTaskAllowanceFor, deskTasksUsedIn, monthBoundsFor,
   remainingDeskTasks, validateDeskTask,
   errandCreditCover, errandCreditFor, errandCreditUsedIn, includedGrabAllowanceFor, includedGrabsUsedIn, isGrabIncluded, remainingIncludedGrabs, hourlyServiceFee, includedHoursUsedIn, includedHoursUsedByKindIn, includedHoursSplit,
-  errandPayoutCents, errandFeeCents, openingsFor, OPEN_POSITIONS, payLabelFor, locationForOnBehalf, type ErrandTierId,
+  errandPayoutCents, errandFeeCents, openingsFor, OPEN_POSITIONS, payLabelFor, requirementsFor, locationForOnBehalf, type ErrandTierId,
   type OnBehalfOf,
   CLUB_DISCLOSURES, CLUB_EXPERIENCES, CLUB_MONTHLY_DUES_CENTS, CLUB_PLAN_ID, type ClubRsvp, CLUB_PERKS, eventExtraCents, isIncludedEvent,
   minMembersForOverhead, overheadCovered, pickMonthlyExperience, clubMonthKey,
@@ -1245,7 +1245,7 @@ export function staffRoleListing(ctx: Ctx) {
   return STAFF_ROLES.map((r) => {
     const hired = ctx.store.data.assistants.filter((a) => a.role === r.id && isOnRoster(a, ctx.now())).length;
     const openings = openingsFor(r.id, hired, ctx.store.data.hiringTargets);
-    return { ...r, pay: payLabelFor(r.id, "en", rates), payEs: payLabelFor(r.id, "es", rates), openings, hiring: openings > 0 };
+    return { ...r, pay: payLabelFor(r.id, "en", rates), payEs: payLabelFor(r.id, "es", rates), requirements: requirementsFor(r.id, "en"), requirementsEs: requirementsFor(r.id, "es"), openings, hiring: openings > 0 };
   });
 }
 

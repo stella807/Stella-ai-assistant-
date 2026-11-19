@@ -1,5 +1,5 @@
 import {
-  CONTACT_EMAIL, SITE_SERVICES, STAFF_ROLE_ES, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, whatsappLink, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor,
+  CONTACT_EMAIL, SITE_SERVICES, STAFF_ROLE_ES, WHATSAPP_DISPLAY, WHATSAPP_NUMBER, whatsappLink, alternateSiteRoute, indexableSiteRoutes, isPrivateSitePath, siteRouteFor, sitePathFor, requirementsLine,
   type ServiceId, type SiteLang, type SiteRoute, type StaffRole,
 } from "@safehubby/core";
 
@@ -147,7 +147,6 @@ const WORDS = {
     payLabel: "Pay",
     whereLabel: "Where",
     requirementsLabel: "To apply",
-    requirements: "A firearms license, consent to a background check, and a short note on your experience. Bodyguards also need a security-guard license.",
     apply: "Apply now",
     allJobs: "All open jobs",
     driveTitle: "Driver jobs in Puerto Rico | Drive for Safehubby",
@@ -290,7 +289,6 @@ const WORDS = {
     payLabel: "Paga",
     whereLabel: "Dónde",
     requirementsLabel: "Para solicitar",
-    requirements: "Una licencia de armas, tu consentimiento para una verificación de antecedentes y una nota breve sobre tu experiencia. Los guardaespaldas también necesitan licencia de guardia de seguridad.",
     apply: "Solicitar ahora",
     allJobs: "Todos los empleos disponibles",
     driveTitle: "Empleo de chofer en Puerto Rico | Maneja con Safehubby",
@@ -576,7 +574,7 @@ function jobBody(f: SeoFacts, route: SiteRoute, role: SeoRole): string {
     `<p>${escapeHtml(roleDescription(role, route.lang))}</p>`,
     `<p><strong>${escapeHtml(w.payLabel)}:</strong> ${escapeHtml(rolePay(role, route.lang))}.</p>`,
     `<p><strong>${escapeHtml(w.whereLabel)}:</strong> ${escapeHtml(listOf(f.markets, route.lang))}.</p>`,
-    `<p><strong>${escapeHtml(w.requirementsLabel)}:</strong> ${escapeHtml(w.requirements)}</p>`,
+    `<p><strong>${escapeHtml(w.requirementsLabel)}:</strong> ${escapeHtml(requirementsLine(role.id, route.lang))}</p>`,
     `<p>${link(sitePathFor("careers", route.lang), w.allJobs)} · ${link(sitePathFor("home", route.lang), w.home)}</p>`,
   ].join(""));
 }
@@ -651,7 +649,7 @@ export function seoPageFor(pathname: string, f: SeoFacts): SeoPage {
     ...base,
     title: w.jobTitle(label),
     description: clip(`${roleDescription(role, route.lang)} ${rolePay(role, route.lang)}.`, 160),
-    jsonLd: jobJsonLd(f, role, route.lang, canonical, w.requirements),
+    jsonLd: jobJsonLd(f, role, route.lang, canonical, requirementsLine(role.id, route.lang)),
     body: jobBody(f, route, role),
   };
 }

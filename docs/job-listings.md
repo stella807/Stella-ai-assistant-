@@ -1,5 +1,14 @@
 # Job listings
 
+> **What applicants are told they need now lives in code:** `requirementsFor` in `packages/core/src/open-positions.ts`, shown on
+> the application screen and on the public careers pages, in both languages. Everyone who goes out to customers (assistants,
+> hospital caretakers, errand runners, bodyguards) needs a current Certificado de Antecedentes Penales, a CPR certification or a
+> security-guard license, customer service experience, and experience with older adults as customers; only a bodyguard also needs
+> a firearms license and a guard license (Ley 108). Nothing screens anyone by a mental-health history. The "What you need" lists
+> below are the older drafts and are not what the site says. Where they say Safehubby provides liability insurance, the site says
+> workers bring their own.
+
+
 One listing per role the app actually needs. Every rate here is read from the
 code that pays it, not written fresh for a job post:
 

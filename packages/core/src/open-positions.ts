@@ -2,6 +2,7 @@ import { ERRAND_MILEAGE_CENTS, ERRAND_TIERS, errandPayoutCents } from "./errand-
 import { ARMED_HOURLY_PAYOUT_CENTS, HOSPITAL_DAY_PAYOUT_CENTS, PA_HOURLY_RATE_CENTS, liveArmedHourlyPayCents, liveHospitalDayPayCents, livePaHourlyPayCents } from "./concierge.ts";
 import { jobPayRates } from "./pricing-overrides.ts";
 import { STAFF_ROLES, type StaffRole } from "./staffing.ts";
+import { INSURED_ROLES } from "./credentials.ts";
 
 /**
  * Who we are hiring right now, and what each role pays — as an applicant sees it.
@@ -133,3 +134,34 @@ export function payDeltasFrom(overrides: Parameters<typeof jobPayRates>[0]): { p
   const diff = (role: StaffRole) => (r[role] === undefined ? 0 : r[role]! - defaultJobPayCents(role));
   return { paHourly: diff("personal-assistant"), hospitalDay: diff("caretaker"), errand: diff("errand-runner"), armedHourly: diff("bodyguard") };
 }
+
+/**
+ * What an applicant needs, as the careers page and the job listings say it. Everyone who goes out to customers (assistants,
+ * hospital caretakers, errand runners, bodyguards) is asked for the same four things, at the owner's direction: a current
+ * Certificado de Antecedentes Penales, a CPR certification or a security-guard license, customer service experience, and
+ * experience with older adults as customers. Only a bodyguard also needs a firearms license, and a guard license (Ley 108).
+ * The other jobs are asked for the consent and the note the application collects. Nothing here screens anyone by a
+ * mental-health history: whatever a firearms licence requires of its holder is the licensing authority's rule, not ours.
+ *
+ * These are what a reviewer checks by eye before hiring (see credentials.ts); the application does not verify a document.
+ */
+export function requirementsFor(role: StaffRole, language: "en" | "es" = "en"): string[] {
+  const es = language === "es";
+  const field = INSURED_ROLES.includes(role);
+  const out: string[] = [];
+  if (field) {
+    out.push(es ? "Un Certificado de Antecedentes Penales vigente" : "A current Certificado de Antecedentes Penales (Puerto Rico certificate of criminal record)");
+    out.push(es ? "Una certificación de RCP, o una licencia de guardia de seguridad, vigentes" : "A current CPR certification, or a security-guard license");
+    out.push(es ? "Experiencia en servicio al cliente" : "Experience in customer service");
+    out.push(es ? "Experiencia con personas mayores como clientes" : "Experience with older adults as customers");
+  }
+  if (role === "bodyguard") {
+    out.push(es ? "Licencia de armas y licencia de guardia de seguridad vigentes (Ley 108)" : "A current firearms license and security-guard license (Ley 108)");
+  }
+  out.push(es ? "Tu consentimiento para una verificación de antecedentes" : "Consent to a background check");
+  out.push(es ? "Una nota breve sobre tu experiencia" : "A short note on your experience");
+  return out;
+}
+
+/** The requirements as one sentence, for a job listing. */
+export const requirementsLine = (role: StaffRole, language: "en" | "es" = "en"): string => `${requirementsFor(role, language).join("; ")}.`;

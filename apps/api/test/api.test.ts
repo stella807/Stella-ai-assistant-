@@ -5620,6 +5620,21 @@ describe("hiring somebody and actually sending them to a job", () => {
     expect(roles.some((r) => r.id === "driver")).toBe(false);
   });
 
+  it("tells applicants what they need for each role, in both languages: the same four things for anyone who goes out to customers", async () => {
+    const res = await call("GET", "/api/staff/roles");
+    const roles = res.json.roles as { id: string; requirements: string[]; requirementsEs: string[] }[];
+    for (const id of ["personal-assistant", "caretaker", "errand-runner", "bodyguard"]) {
+      const r = roles.find((x) => x.id === id)!;
+      expect(r.requirements.join(" "), id).toContain("Certificado de Antecedentes Penales");
+      expect(r.requirements.join(" "), id).toMatch(/CPR certification, or a security-guard license/);
+      expect(r.requirementsEs.length, id).toBe(r.requirements.length);
+      expect(r.requirementsEs.join(" "), id).toMatch(/servicio al cliente/);
+    }
+    expect(roles.find((x) => x.id === "personal-assistant")!.requirements.join(" ")).not.toMatch(/firearm/i);
+    expect(roles.find((x) => x.id === "bodyguard")!.requirements.join(" ")).toMatch(/firearms license/);
+    for (const r of roles) expect(r.requirements.join(" "), r.id).not.toMatch(/mental/i);
+  });
+
   it("lists the roles we are hiring for first", async () => {
     // An applicant should see the open jobs before the closed ones.
     const roles = (await call("GET", "/api/staff/roles")).json.roles as { id: string; hiring: boolean }[];

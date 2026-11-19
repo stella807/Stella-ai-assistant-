@@ -18,6 +18,7 @@ const facts: SeoFacts = {
     { id: "driver", label: "Driver", description: "Drive people home.", pay: "Paid per trip — see the driver application for the rates", payEs: "Pago por viaje: las tarifas están en la solicitud para manejar", openings: 3 },
     { id: "personal-assistant", label: "Personal assistant", description: "Go to people in person.", pay: "$35.00 an hour; $150.00 for a hospital day (up to 12 hours)", payEs: "$35.00 la hora; $150.00 por un día de hospital (hasta 12 horas)", openings: 5 },
     { id: "caretaker", label: "Hospital caretaker", description: "Stay with a patient through a hospital day.", pay: "$150.00 per hospital day (up to 12 hours)", payEs: "$150.00 por un día de hospital (hasta 12 horas)", openings: 0 },
+    { id: "bodyguard", label: "Bodyguard", description: "Stay with someone who needs protection.", pay: "$75.00 an hour, armed", payEs: "$75.00 la hora, armado", openings: 2 },
   ],
   hiringOpenedOn: "2026-10-28",
 };
@@ -105,8 +106,27 @@ describe("job listings", () => {
       baseSalary: { currency: "USD", value: { value: 35, unitText: "HOUR" } },
     });
     expect(job.description).toContain("Go to people in person.");
-    expect(job.description).toContain("firearms license");
+    // An assistant works unarmed: the listing asks for the same four things as every customer-facing job, and no firearms license.
+    expect(job.description).toContain("Certificado de Antecedentes Penales");
+    expect(job.description).toContain("CPR certification, or a security-guard license");
+    expect(job.description).not.toMatch(/firearms/i);
     expect(job.jobLocation).toHaveLength(3);
+  });
+
+  it("asks for the firearms and guard licenses only on the bodyguard's page", () => {
+    const body = seoPageFor("/careers/bodyguard", facts);
+    expect(String(body.jsonLd[0] && (body.jsonLd[0] as { description: string }).description)).toContain("firearms license and security-guard license (Ley 108)");
+    expect(body.body).toContain("firearms license and security-guard license (Ley 108)");
+    const assistant = seoPageFor("/careers/personal-assistant", facts);
+    expect(assistant.body).toContain("Certificado de Antecedentes Penales");
+    expect(assistant.body).not.toMatch(/firearms/i);
+  });
+
+  it("says it in Spanish too, on the Spanish page", () => {
+    const page = seoPageFor("/es/trabajo/personal-assistant", facts);
+    expect(page.body).toContain("Certificado de Antecedentes Penales");
+    expect(page.body).toMatch(/servicio al cliente/);
+    expect(page.body).not.toMatch(/licencia de armas/);
   });
 
   it("lists it in Spanish on the Spanish page", () => {

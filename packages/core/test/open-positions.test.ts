@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ERRAND_MILEAGE_CENTS, ERRAND_TIERS, OPEN_POSITIONS, PA_HOURLY_RATE_CENTS, STAFF_ROLES,
-  errandPayoutCents, openingsFor, payLabelFor,
+  errandPayoutCents, openingsFor, payLabelFor, requirementsFor, requirementsLine,
 } from "../src/index.ts";
 
 const usd = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -72,5 +72,55 @@ describe("how many people we are looking for", () => {
     // A role stays at zero once it is filled, however many more are hired.
     expect(openingsFor("errand-runner", OPEN_POSITIONS["errand-runner"])).toBe(0);
     expect(openingsFor("errand-runner", 99)).toBe(0);
+  });
+});
+
+describe("what an applicant is told they need", () => {
+  const FIELD = ["personal-assistant", "caretaker", "errand-runner", "bodyguard"] as const;
+
+  it("asks everyone who goes out to customers for the same four things, in English and Spanish", () => {
+    for (const role of FIELD) {
+      const en = requirementsLine(role, "en");
+      expect(en, role).toContain("Certificado de Antecedentes Penales");
+      expect(en, role).toMatch(/CPR certification, or a security-guard license/);
+      expect(en, role).toMatch(/customer service/i);
+      expect(en, role).toMatch(/older adults/i);
+      const es = requirementsLine(role, "es");
+      expect(es, role).toContain("Certificado de Antecedentes Penales");
+      expect(es, role).toMatch(/certificaci[oó]n de RCP, o una licencia de guardia de seguridad/);
+      expect(es, role).toMatch(/servicio al cliente/i);
+      expect(es, role).toMatch(/personas mayores/i);
+      expect(requirementsFor(role, "es").length, role).toBe(requirementsFor(role, "en").length);
+    }
+  });
+
+  it("asks for firearms licenses only for armed work: a bodyguard, never an assistant, a caretaker or an errand runner", () => {
+    expect(requirementsLine("bodyguard", "en")).toMatch(/firearms license/i);
+    expect(requirementsLine("bodyguard", "es")).toMatch(/licencia de armas/i);
+    for (const role of ["personal-assistant", "caretaker", "errand-runner"] as const) {
+      expect(requirementsLine(role, "en"), role).not.toMatch(/firearm/i);
+      expect(requirementsLine(role, "es"), role).not.toMatch(/arma/i);
+    }
+  });
+
+  it("never screens anyone by a mental-health history: the only such rule is the firearms licence's own, which is the licensing authority's", () => {
+    for (const role of STAFF_ROLES) for (const lang of ["en", "es"] as const) {
+      expect(requirementsLine(role.id, lang), `${role.id} ${lang}`).not.toMatch(/mental|psychiatr|psicol|salud mental/i);
+    }
+  });
+
+  it("asks desk and professional jobs only for the background-check consent and a note, not CPR or customer-facing experience", () => {
+    for (const role of ["web-developer", "lawyer", "secretary", "physician"] as const) {
+      const en = requirementsLine(role, "en");
+      expect(en, role).toMatch(/background check/i);
+      expect(en, role).not.toMatch(/CPR|older adults|Certificado/);
+    }
+  });
+
+  it("is a plain list of sentences with no price in it, so it cannot go stale", () => {
+    for (const role of STAFF_ROLES) for (const line of requirementsFor(role.id, "en")) {
+      expect(line.length).toBeGreaterThan(10);
+      expect(line).not.toMatch(/\$\d/);
+    }
   });
 });

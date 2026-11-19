@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type HiringBenefit, type StaffRoleInfo } from "../api.ts";
 import { readFileAsBase64 } from "../files.ts";
-import { MAX_RESUME_BYTES, STAFF_ROLES, payLabelFor, publicBenefits, type StaffRole } from "@safehubby/core";
+import { MAX_RESUME_BYTES, STAFF_ROLES, payLabelFor, publicBenefits, requirementsFor, type StaffRole } from "@safehubby/core";
 import { useLanguage } from "../i18n.tsx";
 import { PublicWorkerPay } from "./PublicPricing.tsx";
 import { BENEFIT_ES, ROLE_ES, careersWords } from "../app/careers-copy.ts";
@@ -185,6 +185,17 @@ export function StaffSignupScreen({ onBack, initialRole }: { onBack: () => void;
             </button>
           ))}
         </div>
+
+        {/* What the chosen job asks of an applicant, from the same list the careers pages use. A reviewer checks the
+            documents before hiring; this page only says what they are. */}
+        {role && (
+          <div className="card card-quiet stack" style={{ gap: 6 }}>
+            <strong className="small">{w.needs}</strong>
+            <ul className="tiny muted" style={{ margin: 0, paddingLeft: 18 }}>
+              {requirementsFor(role as StaffRole, lang).map((line) => <li key={line}>{line}</li>)}
+            </ul>
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="s-name">{w.name}</label>

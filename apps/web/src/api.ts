@@ -325,6 +325,9 @@ export interface StaffRoleInfo {
   /** What it pays, in a sentence — built on the server from the real rates. */
   pay: string;
   payEs?: string;
+  /** What an applicant needs for this role, one line each, in each language. */
+  requirements?: string[];
+  requirementsEs?: string[];
   /** How many people we are still looking for. Zero means not hiring yet. */
   openings: number;
   hiring: boolean;
