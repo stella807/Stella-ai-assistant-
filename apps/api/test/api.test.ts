@@ -3375,6 +3375,21 @@ describe("biweekly payroll", () => {
           expect(signals.unanswered.map((u: any) => u.text)).toContain("is the pharmacy open");
         });
 
+        it("tells an agent what it gets and what it does not, before paying and in the answer", async () => {
+          const required: any = await (await fetch(liveUrl("storm warnings puerto rico"))).json();
+          expect(required.resource.description).toMatch(/TSA/);
+          expect(required.resource.description).toMatch(/cruise/i);
+          const info: any = await (await fetch(`${base}/api/agent/live?info`)).json();
+          expect(info.includes.length).toBeGreaterThan(4);
+          expect(info.limits.join(" ")).toMatch(/cruise/i);
+          const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+          expect(c.products.find((p: any) => p.id === "live").limits.join(" ")).toMatch(/TSA/);
+          const { res } = await payFor(liveUrl("storm warnings puerto rico"));
+          const body: any = await res.json();
+          expect(body.whatYouGet.includes.length).toBeGreaterThan(4);
+          expect(body.whatYouGet.limits.join(" ")).toMatch(/not a forecast|not a prediction/i);
+        });
+
         it("never charges when the official source is down", async () => {
           const settles = seen.filter((u) => u.endsWith("/settle")).length;
           const { res } = await payFor(liveUrl("SJU delays"));

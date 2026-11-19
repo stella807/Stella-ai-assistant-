@@ -72,6 +72,9 @@ export interface Product {
   defaultPrice: string;
   /** Sold only to someone who already holds a site pass, and charged for even then: the pass is the access, not the price. */
   requiresPass?: boolean;
+  /** What an answer contains, and what it does not: shown in the catalog, in ?info and in every paid answer, so nobody pays for something they did not expect. */
+  includes?: string[];
+  limits?: string[];
   /** Charged even to a holder of a site pass, and the pass is not needed: for what is made for each asker by a person, not copied from a page. */
   alwaysPaid?: boolean;
   /** A price for this particular request when it differs from the product's usual one (one book costs more than the rest). */
@@ -248,11 +251,28 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "live", title: "Live answers",
-    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Charged for each answer, even with a site pass.",
+    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise days are not included (no free official schedule); history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass.",
+    includes: [
+      "Weather alerts for Puerto Rico (National Weather Service)",
+      "GOES-East satellite: when its latest pictures of Puerto Rico were made, and their official addresses (NOAA)",
+      "Active tropical storms and their distance from Puerto Rico, and the chances of one forming in 2 and 7 days (National Hurricane Center)",
+      "Power outages across Puerto Rico by region, with load shedding (LUMA's public outage map)",
+      "Airport status now: delays, ground programs, closures (FAA)",
+      "Signs of delays before they are posted: lightning or low cloud at the field, the FAA arrival rate, the 24-hour airport forecast, the FAA's plan for the day, big airports delayed now",
+      "For SJU, BQN and PSE: a year of on-time history by hour and day, busiest departure hours, when security lines usually build, and the causes of delay (US DOT)",
+    ],
+    limits: [
+      "Not a forecast and not a prediction about any flight: it shows official data and signs that often come before delays.",
+      "Security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read.",
+      "Cruise days are not included: there is no free official cruise schedule.",
+      "History covers October 2025 to September 2026 and only the carriers that report to the US DOT.",
+      "A part is null when its source could not be reached; with no weather service or FAA status, there is no answer and no charge.",
+    ],
     path: "/api/agent/live", usage: "GET ?q=storm warnings puerto rico | satellite puerto rico | hurricane | SJU delays | power outage puerto rico (a few words)", defaultPrice: "$0.10", alwaysPaid: true,
     async respond(u, _origin, _store, at) {
       const answer = await answerLive(u.searchParams.get("q") ?? "", at ?? new Date());
-      return answer;
+      const self = PRODUCTS.find((p) => p.id === "live")!;
+      return answer.status === 200 ? { ...answer, body: { ...(answer.body as object), whatYouGet: { includes: self.includes, limits: self.limits } } } : answer;
     },
   },
 ];
@@ -352,7 +372,7 @@ function catalog(origin: string, store: StoreLike) {
     seller: "Safehubby", site: origin, payment: on ? { protocol: "x402", version: 2, network: config.network, testMoneyOnly: !config.live, currency: "USDC" } : null,
     available: on, note: on ? undefined : config.error,
     checkedNow: freshCount(store.data.localChecks ?? [], new Date()),
-    products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
+    products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, ...(p.includes ? { includes: p.includes } : {}), ...(p.limits ? { limits: p.limits } : {}), endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
       includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Checked-today answers (what a person saw on the ground) and live answers (official storm and airport status, read when you ask) are charged for each answer, with or without a pass. Not included: errands, visits and other work that needs a person.",
@@ -479,7 +499,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const config = x402Config();
   if ("error" in config) return json(res, 503, { error: config.error });
   const price = priceOf(product, url);
-  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
+  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, ...(product.includes ? { includes: product.includes } : {}), ...(product.limits ? { limits: product.limits } : {}), usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
   const answer = await product.respond(url, origin, store, now());
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
