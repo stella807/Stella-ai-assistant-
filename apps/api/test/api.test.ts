@@ -3287,6 +3287,7 @@ describe("biweekly payroll", () => {
         const noPass: any = await (await fetch(url)).json();
         expect(noPass.accepts[0].amount).toBe("8990000");
         expect(noPass.resource.description).toMatch(/books/i);
+        expect(noPass.resource.description).not.toMatch(/\d{3,} minutes/);
         // A pass alone does not give the book: with it, the book itself is charged for.
         const pass = await buyPass();
         const settlesBefore = seen.filter((u) => u.endsWith("/settle")).length;

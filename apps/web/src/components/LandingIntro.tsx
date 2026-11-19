@@ -5,6 +5,7 @@ import { LeadershipSection, MissionSection, WhatWeDoSection } from "./AboutScree
 import { AuthScreen } from "./AuthScreen.tsx";
 import { NewsletterSignup } from "./NewsletterSignup.tsx";
 import { PublicPricing } from "./PublicPricing.tsx";
+import { TrustSection } from "./TrustSection.tsx";
 import { Footer } from "./Footer.tsx";
 import { FirstAssistantCard } from "./FirstAssistantCard.tsx";
 import { ComparisonSection } from "./ComparisonSection.tsx";
@@ -133,6 +134,8 @@ export function LandingIntro({ onSignedIn, onDrive, onWorkWithUs, launch }: {
           {/* The launch banner sits above every slide, so repeating its
               sentence inside this card said the same thing twice on one
               screen. */}
+          {/* Who comes, where, and what to do in a problem come before the plans: trust first, price second. */}
+          <TrustSection />
           <PublicPricing onGetStarted={() => setStartInSignup(true)} />
         </section>
 

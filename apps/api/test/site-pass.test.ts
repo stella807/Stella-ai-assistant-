@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isAiAgent, isGatedPath, makePass, passIsValid } from "../src/site-pass.ts";
+import { passLength } from "../src/site-pass-info.ts";
 
 describe("which visitors are AI crawlers and agents", () => {
   it("recognises the named AI crawlers and assistants", () => {
@@ -45,5 +46,17 @@ describe("the visit pass", () => {
     expect(passIsValid(secret, `0xother.${exp}.${sig}`, now)).toBe(false);
     expect(passIsValid("another-secret", pass, now)).toBe(false);
     for (const junk of ["", "x", "a.b", "a.b.c", "..", `${payer}.abc.${sig}`]) expect(passIsValid(secret, junk, now)).toBe(false);
+  });
+});
+
+describe("how long a visit is said to last", () => {
+  it("says minutes, hours or days, whichever a person would say, never a big number of minutes", () => {
+    expect(passLength(1)).toBe("1 minute");
+    expect(passLength(60)).toBe("60 minutes");
+    expect(passLength(180)).toBe("3 hours");
+    expect(passLength(1440)).toBe("24 hours");
+    expect(passLength(2880)).toBe("2 days");
+    expect(passLength(43200)).toBe("30 days");
+    expect(passLength(10080)).toBe("7 days");
   });
 });

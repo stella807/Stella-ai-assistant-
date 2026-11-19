@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { takePayment, x402Config, type AgentSale } from "./x402-sales.ts";
 import { newId, type StoreLike } from "./store.ts";
-import { sitePassInfo } from "./site-pass-info.ts";
+import { passLength, sitePassInfo } from "./site-pass-info.ts";
 import { PageRateTracker, classifyVisitor, verifySearchEngine, visitorLabel } from "./visitor-kind.ts";
 import { noteSignal } from "./signals.ts";
 
@@ -96,7 +96,7 @@ export async function requirePass(req: IncomingMessage, res: ServerResponse, sto
   if (!sitePassOn()) return true; // paid access is off: the store itself answers 503
   if (holdsPass(req, store, now())) return true;
   const paid = await sellPass(req, res, store, now, origin, path,
-    `Safehubby site pass (${passMinutes()} minutes): the access needed to buy the books. After you have it, each book costs ${bookPrice} more. The pass also covers the website's pages, facts, blog copies, the weekly digest, the brief, the airport directory and the checklists with no further payment. Send the pass back in an X-Safehubby-Pass header.`,
+    `Safehubby site pass (${passLength(passMinutes())}): the access needed to buy the books. After you have it, each book costs ${bookPrice} more. The pass also covers the website's pages, facts, blog copies, the weekly digest, the brief, the airport directory and the checklists with no further payment. Send the pass back in an X-Safehubby-Pass header.`,
     "book-request");
   if (!paid) return false;
   // The pass and payment headers were set on the response above; writeHead keeps them.
@@ -146,7 +146,7 @@ export async function gateSitePage(
   if (passIsValid(secret, Array.isArray(held) ? held[0] : held, now())) return false;
 
   const paid = await sellPass(req, res, store, now, getOrigin(), pathname,
-    `Safehubby site pass: one visit (${passMinutes()} minutes) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`,
+    `Safehubby site pass: one visit (${passLength(passMinutes())}) to safehubby.com for AI crawlers and agents, as many pages as you like. The blog, the agent store and the API are not covered and never need it. Send the pass back in an X-Safehubby-Pass header. If you are a person, write to us on WhatsApp at +1 (939) 245-0171.`,
     visitorLabel(ua, kind));
   if (!paid) return true;
   return false;
