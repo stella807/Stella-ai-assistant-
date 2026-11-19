@@ -282,3 +282,20 @@ National Weather Service alerts, the GOES-East satellite pictures, active tropic
 and the FAA status with the delay outlook for SJU, BQN and PSE (`puertoRicoAirports`). `bundle` lists what is in it. Only the weather service
 is required; each other part is `null` when its source could not be read, and the summary says what it found in one paragraph. Power and
 airport questions on their own still work as before.
+
+### A year of history for Puerto Rico's airports
+
+`src/airport-history.ts` reads `data/pr-airport-history.json`, built by `scripts/build-airport-history.mjs` from a year of the US DOT Bureau
+of Transportation Statistics on-time records (public domain; only carriers that report to BTS). Today it covers 1 October 2025 to 30 September
+2026. For SJU, BQN and PSE it gives, for Puerto Rico's local time (UTC minus 4, all year): the next six hours as they usually go on this day of
+the week (departures, share 15+ minutes late, cancellations, average delay, taxi-out), the busiest departure hours today with the windows when
+security lines usually build, the busiest days of the week, this month last year, and the causes of delay (at SJU, late-arriving aircraft cause
+more than half of delay minutes). Two lines can join `outlook.signals`: an hour that usually runs late, and a busy departure hour coming up.
+
+Two things asked for are stood in for, and the answer says so:
+- **Security lines.** TSA's hourly checkpoint counts refuse automated downloads from here, so scheduled departures by hour stand in for them.
+- **Cruise days.** No free official cruise schedule was found (the schedules online are compiled by private sites), so cruise days are not
+  guessed; the busiest days of the week in the data are shown instead.
+
+To refresh: download the monthly zips from `transtats.bts.gov/PREZIP/` (`On_Time_Reporting_Carrier_On_Time_Performance_1987_present_YYYY_M.zip`)
+and run `node apps/api/scripts/build-airport-history.mjs <zips>`.

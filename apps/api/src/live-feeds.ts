@@ -11,6 +11,7 @@
  * fifteen minutes old may still be served, and no older one.
  */
 import { AIRPORTS } from "@safehubby/core";
+import { historyFor, historySignals } from "./airport-history.ts";
 
 type Fetcher = (url: string, init?: { method?: string; headers?: Record<string, string>; signal?: AbortSignal }) => Promise<Response>;
 let fetcher: Fetcher = (url, init) => fetch(url, init);
@@ -310,6 +311,7 @@ async function airportReport(codes: string[], now: Date) {
     const tropicalOutlook = PR_NAMES[p.code.toLowerCase()] && tropical ? { source: "National Hurricane Center", ...tropical } : null;
     const field = metarText === null ? null : atTheField(metarText, icaoFor(p.code), now);
     const rates = eventsText === null ? null : faaRates(eventsText, p.code);
+    const history = historyFor(p.code, now);
     const signals = [
       ...(field?.lightning ? [`At the field now: lightning or thunderstorms (${field.ageMinutes} minutes ago). Ground crews usually stop work outside when lightning is close, so departures can stall before any delay is posted.`] : []),
       ...(field && /IFR/.test(field.flightCategory ?? "") ? [`At the field now: low cloud or poor visibility (${field.flightCategory}), which lowers how many flights can land each hour.`] : []),
@@ -319,8 +321,9 @@ async function airportReport(codes: string[], now: Date) {
       ...(faaPlan?.forThisAirport ?? []).map((e) => `FAA plan: ${e.what}${e.when ? ` ${e.when}Z` : ""}.`),
       ...(delayedHubsNow.length ? [`Delays now at ${delayedHubsNow.map((h) => h.code).join(", ")}: a flight from there may arrive late.`] : []),
       ...(tropicalOutlook?.systems ?? []).filter((x) => x.chance7dPercent >= 40).map((x) => `A storm may form within 7 days (${x.chance7dPercent}% chance): ${short(x.text, 90)}`),
+      ...(history ? historySignals(history) : []),
     ];
-    return { code: p.code, updatedAt: p.status!.updatedAt, issues: p.status!.issues, outlook: { signals, atTheField: field, faaRates: rates, forecast, faaPlan, delayedHubsNow, tropicalOutlook } };
+    return { code: p.code, updatedAt: p.status!.updatedAt, issues: p.status!.issues, outlook: { signals, atTheField: field, faaRates: rates, forecast, faaPlan, delayedHubsNow, tropicalOutlook, history } };
   });
   const listed = airports.filter((a) => a.issues.length);
   const ahead = airports.reduce((n, a) => n + a.outlook.signals.length - a.issues.length, 0);
@@ -331,7 +334,7 @@ async function airportReport(codes: string[], now: Date) {
 }
 
 const AIRPORT_NOTE = "The FAA lists only airports with something to report, so an airport that is not listed has no reported delay at the time shown. Conditions can change at any time. Not a forecast, and not a promise about any flight.";
-const OUTLOOK_NOTE = "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.";
+const OUTLOOK_NOTE = "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook and a year of on-time history by hour (US DOT) with the busy hours for security lines. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.";
 const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
 
 export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {

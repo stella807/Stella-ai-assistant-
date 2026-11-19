@@ -302,3 +302,19 @@ describe("the Puerto Rico weather bundle", () => {
     expect(b.puertoRicoAirports).toBeNull();
   });
 });
+
+describe("a year of history with every Puerto Rico airport answer", () => {
+  it("adds what usually happens at this hour and day, and the busy hours for security lines", async () => {
+    setLiveFetcher(fake({ "airport-status-information": FAA }));
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.history.localTime).toMatch(/Thursday 17:30/);
+    expect(o.history.nextHours[0].hourLocal).toBe("17:00");
+    expect(o.history.securityLines.busiestDepartureHoursToday.length).toBe(3);
+  });
+
+  it("has no history for an airport outside Puerto Rico", async () => {
+    setLiveFetcher(fake({ "airport-status-information": FAA }));
+    const o = ((await answerLive("JFK delays", now)).body as any).airports[0].outlook;
+    expect(o.history).toBeNull();
+  });
+});
