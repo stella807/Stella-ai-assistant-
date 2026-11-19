@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { answerLive, clearLiveCache, parseFaa, parseNws, routeLive, setLiveFetcher } from "../src/live-feeds.ts";
+import { answerLive, clearLiveCache, icaoFor, parseFaa, parseNws, routeLive, setLiveFetcher } from "../src/live-feeds.ts";
 
 const NWS = JSON.stringify({ features: [
   { properties: { id: "a1", event: "Flash Flood Warning", severity: "Severe", headline: "Flash Flood Warning issued for Naguabo", areaDesc: "Naguabo, PR", sent: "2026-11-19T21:00:00+00:00", expires: "2026-11-19T22:00:00+00:00", senderName: "NWS San Juan PR", instruction: "Move to higher ground. Call 555-123-4567 or see https://x.example", description: "Heavy rain." } },
@@ -131,5 +131,91 @@ describe("satellite pictures and tropical storms, read with the weather", () => 
 
   it("sends satellite and cloud questions to the weather, in English or Spanish", () => {
     for (const q of ["satellite picture puerto rico", "imagen de satelite", "nubes", "tropical cyclone"]) expect(routeLive(q), q).toEqual({ source: "weather" });
+  });
+});
+
+describe("knowing airport delays before they happen", () => {
+  const t = (iso: string) => Date.parse(iso) / 1000;
+  const TAF = JSON.stringify([{ icaoId: "TJSJ", issueTime: "2026-11-19T17:30:00.000Z", rawTAF: "TAF TJSJ 191730Z ...", fcsts: [
+    { timeFrom: t("2026-11-19T18:00:00Z"), timeTo: t("2026-11-19T22:00:00Z"), wspd: 16, visib: "6+", wxString: "VCSH", clouds: [{ cover: "FEW", base: 2500 }] },
+    { timeFrom: t("2026-11-19T22:00:00Z"), timeTo: t("2026-11-20T04:00:00Z"), fcstChange: "PROB", probability: 30, wspd: 15, wgst: 32, visib: 2, wxString: "TSRA", clouds: [{ cover: "BKN", base: 800 }] },
+    { timeFrom: t("2026-11-21T00:00:00Z"), timeTo: t("2026-11-21T06:00:00Z"), wspd: 40, visib: "6+", wxString: "TSRA", clouds: [] },
+  ] }]);
+  const PLAN = JSON.stringify({ link: "https://x.example", terminalPlanned: [{ time: "", event: "AFTER 2300\t-SJU GROUND STOP POSSIBLE" }, { time: "", event: "AFTER 0000\t-SAN GROUND DELAY PROGRAM POSSIBLE" }], enRoutePlanned: [{ time: "", event: "UNTIL 0000\t-MIA/FLL/DJT CDRS/SWAP POSSIBLE" }] });
+  const FAA_HUBS = FAA.replace("<ARPT>LAS</ARPT>", "<ARPT>MIA</ARPT>");
+  const GTWO = `<rss><channel><item><title>Atlantic Tropical Weather Outlook</title><description><![CDATA[<div>Tropical Weather Outlook<br>For the North Atlantic...Caribbean Sea and the Gulf of America:<br><br>Offshore of the Southeast U.S. Coast:<br>A low may form east of Florida. See ocean.weather.gov/x.php<br>* Formation chance through 48 hours...low...30 percent.<br>* Formation chance through 7 days...medium...60 percent.<br>&&<br>more</div>]]></description></item></channel></rss>`;
+  const all = () => async (url: string) => {
+    if (url.includes("aviationweather.gov")) return new Response(TAF);
+    if (url.includes("operations-plan")) return new Response(PLAN);
+    if (url.includes("airport-status-information")) return new Response(FAA_HUBS);
+    if (url.includes("gtwo.xml")) return new Response(GTWO);
+    return new Response("no", { status: 503 });
+  };
+
+  it("reads the airport's forecast for the next 24 hours and names what could delay flights, with its chance", async () => {
+    setLiveFetcher(all());
+    const body: any = (await answerLive("SJU delays", now)).body;
+    const o = body.airports[0].outlook;
+    expect(o.forecast.station).toBe("TJSJ");
+    expect(o.forecast.hazards).toEqual([{ from: "2026-11-19T22:00:00.000Z", to: "2026-11-20T04:00:00.000Z", chancePercent: 30, what: ["thunderstorms", "low clouds", "low visibility", "gusts to 32 knots"] }]);
+  });
+
+  it("lists what the FAA plans or calls possible for this airport, and for the rest of the country", async () => {
+    setLiveFetcher(all());
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.faaPlan.forThisAirport).toEqual([{ when: "AFTER 2300", what: "SJU GROUND STOP POSSIBLE" }]);
+    expect(o.faaPlan.elsewhere.map((e: any) => e.what)).toContain("MIA/FLL/DJT CDRS/SWAP POSSIBLE");
+    expect(JSON.stringify(o.faaPlan)).not.toContain("x.example");
+  });
+
+  it("names big US airports delayed right now, since a flight from one of them can arrive late", async () => {
+    setLiveFetcher(all());
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.delayedHubsNow.map((h: any) => h.code)).toContain("MIA");
+    expect(o.delayedHubsNow.map((h: any) => h.code)).not.toContain("SJU");
+  });
+
+  it("gives Puerto Rico airports the hurricane center's formation chances, without its links", async () => {
+    setLiveFetcher(all());
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.tropicalOutlook.systems[0]).toMatchObject({ chance48hPercent: 30, chance7dPercent: 60 });
+    expect(o.tropicalOutlook.systems[0].text).toMatch(/east of Florida/);
+    expect(JSON.stringify(o.tropicalOutlook)).not.toMatch(/ocean\.weather\.gov|https?:/);
+  });
+
+  it("sums up the signals in one line, and calls it an outlook, not a prediction about any flight", async () => {
+    setLiveFetcher(all());
+    const body: any = (await answerLive("SJU delays", now)).body;
+    expect(body.airports[0].outlook.signals.length).toBeGreaterThanOrEqual(3);
+    expect(body.outlookNote).toMatch(/not a prediction/i);
+  });
+
+  it("still gives the current status when the forecast sources are down", async () => {
+    setLiveFetcher(fake({ "airport-status-information": FAA }));
+    const body: any = (await answerLive("SJU delays", now)).body;
+    expect(body.airports[0].issues[0].kind).toBe("ground delay program");
+    expect(body.airports[0].outlook).toMatchObject({ forecast: null, faaPlan: null });
+  });
+
+  it("knows the forecast station for each airport", () => {
+    expect(icaoFor("SJU")).toBe("TJSJ");
+    expect(icaoFor("BQN")).toBe("TJBQ");
+    expect(icaoFor("JFK")).toBe("KJFK");
+    expect(icaoFor("HNL")).toBe("PHNL");
+  });
+});
+
+describe("small things the real sources showed", () => {
+  it("leaves the chance empty when the forecast gives none, rather than saying zero", async () => {
+    const t = (iso: string) => Date.parse(iso) / 1000;
+    setLiveFetcher(fake({ "aviationweather.gov": JSON.stringify([{ icaoId: "TJSJ", fcsts: [{ timeFrom: t("2026-11-19T22:00:00Z"), timeTo: t("2026-11-20T02:00:00Z"), probability: null, wxString: "TSRA", clouds: [] }] }]), "airport-status-information": FAA }));
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.forecast.hazards[0].chancePercent).toBeNull();
+  });
+
+  it("does not call a big airport delayed because of a closure notice that may close it only to some flights", async () => {
+    setLiveFetcher(fake({ "airport-status-information": FAA.replace("<ARPT>PSE</ARPT>", "<ARPT>LAX</ARPT>") }));
+    const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
+    expect(o.delayedHubsNow.map((h: any) => h.code)).not.toContain("LAX");
   });
 });

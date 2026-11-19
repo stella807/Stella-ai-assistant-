@@ -247,3 +247,17 @@ is listed (the FAA lists only airports with something to report). A copy is kept
 sources; if a source is down a copy up to 15 minutes old may be served, never older. If a source cannot be reached or none covers the question: 404
 before payment, and the words are kept in Signals as something agents wanted. Links and phone numbers from the sources are removed. It is not a
 forecast and not a promise about any flight. To add a source, add a parser, a route in `routeLive`, and tests with a canned copy of its answer.
+
+### Airport outlook: signs of delays before they happen
+
+Every airport answer also has `outlook`, built from free official sources read on request:
+- **The airport's forecast (TAF)** from the Aviation Weather Center (`aviationweather.gov/api/data/taf`), next 24 hours: thunderstorms, ceilings
+  under 1,000 feet, visibility under 3 miles, snow or ice, gusts of 30 knots or wind of 25, each with its time window and chance when the forecast
+  gives one. Station codes: `icaoFor` (TJSJ for SJU, K plus the code in the lower 48, P/TI/PG codes for the islands).
+- **The FAA's operations plan** (`nasstatus.faa.gov/api/operations-plan`): ground stops, delay programs and reroutes the FAA calls possible today,
+  split into this airport and elsewhere.
+- **Big airports delayed now** (from the same FAA status feed, closure notices left out): a flight from one can arrive late.
+- **For Puerto Rico airports, the hurricane center's Atlantic outlook** (`gtwo.xml`): each area it watches with its 2- and 7-day formation chances.
+
+`outlook.signals` puts them in one list of plain lines. It is called an outlook, not a prediction about any flight, and a part is `null` when its
+source could not be reached; the current FAA status is still required for any airport answer.
