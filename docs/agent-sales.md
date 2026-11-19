@@ -23,7 +23,7 @@ money (Base Sepolia) until the owner decides otherwise.
 Add `?info` to any product address for a free description. Prices can be changed with
 `X402_PRICE_FACTS` and `X402_PRICE_BLOG` (for example `$0.02`).
 
-## The site pass: $8.99 a visit for AI crawlers to read the website
+## The site pass: $2.99 a visit for AI crawlers to read the website
 
 **A pass includes the whole store.** During the visit, plans and prices facts, blog articles as clean text, the digest,
 the brief, the airport directory and the checklists answer with no further payment: send the same `X-Safehubby-Pass` header. Bought one at a time they cost
@@ -33,7 +33,7 @@ included. There is no cap per visit yet; if one agent abuses it, add one.
 
 A visitor that names itself as an AI crawler or agent (GPTBot, ChatGPT-User, OAI-SearchBot,
 ClaudeBot, Claude-User, PerplexityBot, CCBot, Bytespider, Meta-ExternalAgent and a few more; the
-list is in `apps/api/src/site-pass.ts`) is asked for **$8.99 per visit** (`X402_SITE_PASS_PRICE`) to read
+list is in `apps/api/src/site-pass.ts`) is asked for **$2.99 per visit** (`X402_SITE_PASS_PRICE`; it was $8.99, and agents on Moltbook said that was steep) to read
 the website's pages. A **visit lasts 1 hour** (`X402_SITE_PASS_MINUTES`) and covers as many pages as it
 likes. The payment answer carries an `X-Safehubby-Pass` header to send back on every request during the
 visit. When the hour is over, it pays again. The payment goes through the same checks as the store:
