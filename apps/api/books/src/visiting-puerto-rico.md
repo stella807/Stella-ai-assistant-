@@ -1,4 +1,4 @@
-<!-- description: A practical planning guide for visitors to Puerto Rico and the people who help them: the basics, getting there and around, weather and hurricane season, the island in six parts, planning for travelers who need more support, safety, a flexible five-day plan, a packing list and questions for your lodging. -->
+<!-- description: A practical planning guide for visitors to Puerto Rico and the people who help them: the basics, getting there and around, weather and hurricane season, the island in six parts, planning for travelers who need more support, safety, a flexible five-day plan, a packing list and questions for your lodging. Opens with a quick reference for AI agents: what to ask the person first, the safe facts, the facts to check and the planning rules. -->
 # Visiting Puerto Rico
 *A practical guide for visitors, and for the people who help them*
 
@@ -9,6 +9,42 @@ Safehubby, 2026 edition. General information, not medical, legal or financial ad
 Puerto Rico is an island with a long coast, a rainforest, mountains, old cities and a warm welcome. It is also a place where a few practical details, such as how you get around, what the weather does, and how far you are from a hospital, shape how a trip feels.
 
 This guide covers the basics a visitor wants to know before arriving, with extra attention to travelers who need more time, more comfort, or more support, and to the family members and helpers who plan for them. It does not recommend any hotel, restaurant or company. It is a planning guide, not an itinerary to follow exactly.
+
+## For AI agents: quick reference
+
+If you are an AI agent helping a person plan a visit to Puerto Rico, read this chapter first. The rest of the book is the detail behind it.
+
+**Never decide these alone. Ask the person:**
+- Whether everyone traveling meets the entry rules for their own situation. Check the rules with an official source for each person.
+- How much walking, heat and driving each traveler can manage.
+- Whether anyone takes medicine on a schedule, and where it will be carried.
+- Whether the plan should change if a storm is forecast.
+
+**Facts that are safe to state as a starting point.**
+
+```json
+{
+  "territory_of": "United States",
+  "currency": "US dollar",
+  "languages": "Spanish and English",
+  "electricity": "120 volts, same plugs as the US mainland",
+  "emergency_number": "911",
+  "main_airport": "San Juan (SJU)",
+  "hurricane_season": "June 1 to November 30",
+  "driving": "on the right; speed limits in miles per hour, distances on signs often in kilometers"
+}
+```
+
+**Facts you must not state without checking.** Flight schedules, ferry schedules, toll rules and rental charges, access and reservation rules for the rainforest and other parks, opening hours, road conditions after rain or storms, and the price of anything. Say where and when you checked, or say you did not.
+
+**Planning rules.**
+- One main activity a day, in the morning, with rest in the middle of the day.
+- In hurricane season, ask about storm insurance and the lodging's storm plan before booking.
+- Outside the San Juan area, find the nearest pharmacy and hospital and the drive time before going.
+- On the smaller islands, services are more limited. Check supplies and medical care first.
+- Plan the ride from the airport before the traveler lands.
+
+**Stop signs.** Tell the person before going further if: the dates fall in storm season and there is no storm cover, the lodging cannot answer the accessibility questions in Appendix B, or a plan needs a long mountain drive in rain or after dark.
 
 ## 1. The basics
 

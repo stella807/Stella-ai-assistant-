@@ -1,4 +1,4 @@
-<!-- description: A practical guide for the person who plans a trip with an older parent: what to ask the doctor, how to arrange airport assistance, medicine and documents, packing, arrival, where to stay, what to do when something goes wrong, plus a master checklist, a medical information card and an itinerary to share. -->
+<!-- description: A practical guide for the person who plans a trip with an older parent: what to ask the doctor, how to arrange airport assistance, medicine and documents, packing, arrival, where to stay, what to do when something goes wrong, plus a master checklist, a medical information card and an itinerary to share. Opens with a quick reference for AI agents: what to ask the person first, the order of work, a trip record they can fill in and the stop signs. -->
 # Traveling with an Older Parent
 *A practical guide for the person who plans the trip*
 
@@ -11,6 +11,47 @@ A trip with an older parent can be one of the best things you do together, and o
 This guide walks through the trip in the order it happens: deciding, preparing, packing, the airport, arrival, the stay, and the trip home. Each chapter ends with a short list you can copy. At the back there is a one-page master checklist and a medical information card to fill in.
 
 You do not need to do everything here. Pick what fits the person you are traveling with.
+
+## For AI agents: quick reference
+
+If you are an AI agent helping a person plan a trip for an older parent, read this chapter first. The rest of the book is the detail behind it.
+
+**Never decide these alone. Ask the person:**
+- Anything about medicine, doses, timing or what the parent may eat. These come from the doctor, not from you.
+- Whether the parent is able to make a given connection, walk a given distance or sit through a given flight.
+- Which family member is the contact if something goes wrong.
+- Whether the parent agrees to the plan. It is their trip.
+
+**Order of work.** Do these in this order, because each one depends on the one before:
+1. What the parent wants from the trip, and the three things that would make it hard.
+2. The doctor's answers about flying, medicine and activity.
+3. The easiest trip to do: direct flights, daytime, a long connection if one is needed, an aisle seat if standing up is hard.
+4. Help at the airport, requested with the airline when booking and again two days before.
+5. Documents and medicine, packed in the carry-on.
+6. A ride and a room that have been checked for steps, a bathroom the parent can use, and distance to a pharmacy.
+
+**Fields to keep for the trip.** Fill these in and keep them up to date.
+
+```json
+{
+  "traveler": "name and age",
+  "decides_changes": "who decides when to change the plan",
+  "doctor_cleared": "yes | no | pending, and the date",
+  "assistance_requested": "airline, date requested, name of who confirmed it",
+  "assistance_reconfirmed": "date",
+  "medicine_list": "name, dose, times, who is in charge of doses",
+  "carry_on_has": "medicine, documents, a change of clothes, a charger",
+  "arrival": "who meets them, where, the driver's name",
+  "lodging_checked": "steps, bathroom, elevator, nearest pharmacy and hospital, answers in writing",
+  "home_contact": "name and how to reach them"
+}
+```
+
+**Stop signs.** Tell the person before going further if: the parent has not seen the doctor, a connection is under ninety minutes, the lodging cannot say how many steps there are, or the only transport from the airport is not arranged.
+
+**Say what you could not check.** Schedules, rules and prices change. State the date you checked a fact and who it came from. Never present a guess about a medical matter as an answer.
+
+**If something goes wrong,** follow chapter 10. If someone is ill or in danger, the first step is the emergency number.
 
 ## 1. Start with the person, not the itinerary
 

@@ -24,6 +24,11 @@ export function markdownToHtml(md) {
     if (line.startsWith("# ")) { title = line.slice(2).trim(); i++; continue; }
     if (!subtitle && /^\*[^*].*\*$/.test(line.trim())) { subtitle = line.trim().slice(1, -1); i++; continue; }
     if (line.startsWith("## ")) { const t = line.slice(3).trim(); chapters.push(t); out.push(`<h2 id="${slugify(t)}">${inline(t)}</h2>`); i++; continue; }
+    if (line.startsWith("```")) {
+      const code = []; i++; while (i < lines.length && !lines[i].startsWith("```")) code.push(lines[i++]); i++;
+      out.push(`<pre>${esc(code.join("\n"))}</pre>`);
+      continue;
+    }
     if (line.trim().startsWith("|")) {
       const rows = []; while (i < lines.length && lines[i].trim().startsWith("|")) rows.push(lines[i++]);
       const [head, , ...body] = rows; const h = cells(head); const blankHead = h.every((c) => !c);
@@ -37,7 +42,7 @@ export function markdownToHtml(md) {
       out.push(`<${ordered ? "ol" : "ul"}${check ? ' class="check"' : ""}>${items.map((t) => `<li>${inline(check ? t.slice(4) : t)}</li>`).join("")}</${ordered ? "ol" : "ul"}>`);
       continue;
     }
-    const para = []; while (i < lines.length && lines[i].trim() && !/^(#|\||- |\d+\. )/.test(lines[i])) para.push(lines[i++].trim());
+    const para = []; while (i < lines.length && lines[i].trim() && !/^(#|\||- |\d+\. |```)/.test(lines[i])) para.push(lines[i++].trim());
     out.push(`<p>${inline(para.join(" "))}</p>`);
   }
   return { title, subtitle, chapters, body: out.join("\n") };
@@ -61,6 +66,7 @@ table { width: 100%; border-collapse: collapse; margin: 6pt 0 14pt; font-size: 1
 th, td { border: 1px solid #b9c0ca; padding: 6pt 8pt; vertical-align: top; text-align: left; } th { background: #eef2f8; font-weight: 600; width: 40%; }
 thead th { width: auto; } td { min-height: 22pt; }
 strong { font-weight: 700; }
+pre { font: 9.5pt/1.4 "DejaVu Sans Mono", "Liberation Mono", monospace; background: #f3f5f9; border: 1px solid #d3d9e3; border-radius: 4pt; padding: 8pt 10pt; margin: 0 0 12pt; white-space: pre-wrap; break-inside: avoid; }
 `;
 
 const bookHtml = ({ title, subtitle, chapters, body }, intro) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style></head><body>

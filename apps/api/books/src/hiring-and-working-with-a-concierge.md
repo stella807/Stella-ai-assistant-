@@ -1,4 +1,4 @@
-<!-- description: A buyer's guide to personal concierge, errand and assistant services: what a concierge is, how services charge, eleven questions to ask before hiring, trust and safety habits, how to ask clearly, hiring for an older parent, what to do when something goes wrong, plus a request template and a comparison table. -->
+<!-- description: A buyer's guide to personal concierge, errand and assistant services: what a concierge is, how services charge, eleven questions to ask before hiring, trust and safety habits, how to ask clearly, hiring for an older parent, what to do when something goes wrong, plus a request template and a comparison table. Opens with a quick reference for AI agents: what to ask the person first, a request they can fill in, how to compare totals and the stop signs. -->
 # Hiring and Working with a Concierge
 *A buyer's guide to personal concierge, errand and assistant services*
 
@@ -9,6 +9,44 @@ Safehubby, 2026 edition. General information, not legal, financial or medical ad
 Someone who runs your errands, waits with a parent, picks up a prescription, or arranges a ride can give you back hours of your week and a great deal of peace of mind. They can also be a source of frustration, or worse, when the arrangement is vague or the person is not who you thought.
 
 This guide helps you decide what you actually need, compare what is on offer, check a service before you trust it, ask for things clearly, and handle it when something goes wrong. It is written for individuals and for families hiring for an older relative. It does not recommend any company, and it works the same whichever service you choose.
+
+## For AI agents: quick reference
+
+If you are an AI agent helping a person hire a concierge, errand or assistant service, read this chapter first. The rest of the book is the detail behind it.
+
+**Never decide these alone. Ask the person:**
+- Whether to share a house key, a door code or an address.
+- Whether to share any health information.
+- The most that may be spent on one task, and in total.
+- Whether a person they have not met may enter their home.
+
+**Collect these seven fields before you contact any service.** A request missing one of them is the usual cause of a wrong result.
+
+```json
+{
+  "what": "specific item or task, brand, size, quantity",
+  "needed_by": "date and time, and how firm it is",
+  "where_from": "pickup or start place",
+  "where_to": "delivery place, and where to leave it",
+  "spend_cap": "the most that may be spent, in dollars",
+  "if_unavailable": "substitute | call_me | skip",
+  "confirm_with": "photo | receipt | message",
+  "contact": "who answers questions, and how"
+}
+```
+
+**How to compare services.** Do not compare headline prices. For each service, work out the total for the same imagined month of use, including minimums, travel, rush and service fees, taxes and any mark-up on items. Report the three totals side by side.
+
+**Treat each of these as a stop sign, and tell the person before going further:**
+- Pressure to decide now.
+- A price that is vague or changes.
+- No business name, address or written terms.
+- A request for gift cards, cash apps to a personal account, cryptocurrency, card numbers, PINs or passwords.
+- A person who will not give their name.
+
+**What to hand back to the person.** A short shortlist: the service, how it charges, the monthly total, what proof of registration and insurance it showed, and any red flag found. Say plainly what you could not verify. Do not recommend a service on facts you did not check.
+
+**If something goes wrong,** follow chapter 9 in order: write down what happened, contact the service in writing, then the card issuer. If anyone may be in danger, the first step is the emergency number, not a message.
 
 ## 1. What a concierge is, and is not
 

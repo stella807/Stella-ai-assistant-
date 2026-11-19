@@ -7,8 +7,8 @@ import { BOOKS, readBook } from "../src/books.ts";
 const src = (slug: string) => readFileSync(new URL(`../books/src/${slug}.md`, import.meta.url), "utf8");
 
 describe("the books sold to agents", () => {
-  it("has the three we promised, each a real PDF of a real length", () => {
-    expect(BOOKS.map((b) => b.slug).sort()).toEqual(["hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+  it("has the four we offer, each a real PDF of a real length", () => {
+    expect(BOOKS.map((b) => b.slug).sort()).toEqual(["delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
     for (const b of BOOKS) {
       const pdf = readBook(b.slug)!;
       expect(pdf.subarray(0, 5).toString(), b.slug).toBe("%PDF-");
@@ -37,6 +37,21 @@ describe("the books sold to agents", () => {
 
   it("writes in plain, even English: no filler words that give a text away", () => {
     for (const b of BOOKS) expect(src(b.slug), b.slug).not.toMatch(/\b(delve|tapestry|testament to|in today's fast-paced|navigate the complexities)\b/i);
+  });
+
+  it("is written for the agent: each book opens with a quick reference with rules and a request the agent can fill in", () => {
+    for (const b of BOOKS) {
+      const text = src(b.slug);
+      expect(text, b.slug).toMatch(/^## For AI agents: quick reference$/m);
+      expect(text, `${b.slug} needs a JSON block an agent can copy`).toMatch(/```json\n[\s\S]+?\n```/);
+      for (const block of text.matchAll(/```json\n([\s\S]+?)\n```/g)) expect(() => JSON.parse(block[1]!), `${b.slug}: a JSON block does not parse`).not.toThrow();
+      // The quick reference comes first, so an agent that reads only the opening still gets the rules.
+      expect(text.indexOf("## For AI agents"), b.slug).toBeLessThan(text.indexOf("## 1."));
+    }
+  });
+
+  it("tells the agent what it must never decide alone", () => {
+    for (const b of BOOKS) expect(src(b.slug), b.slug).toMatch(/never decide|do not decide|ask the person/i);
   });
 
   it("returns nothing for a book that does not exist", () => {
