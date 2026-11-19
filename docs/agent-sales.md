@@ -217,7 +217,7 @@ forecasts or warnings, and the feed says so. An unreadable `since` is refused wi
 **Approval page** (`src/approval-pack.ts`). Free. Built from the live prices so it cannot disagree with what is charged. It gives email
 only, never a phone number, and promises nothing about results.
 
-**One book can cost more than the rest.** A book's source may carry `<!-- price: $5.00 -->`; the build writes it into the manifest as `price`, and that
+**One book can cost more than the rest.** A book's source may carry `<!-- price: $0.05 -->`; the build writes it into the manifest as `price`, and that
 book is charged (and asked for in the pass reply) at that price. Books without one use `X402_PRICE_BOOKS` (default $0.50). Today only
-*Building a Local Concierge Business* has its own price. It describes the parts of such a business in general terms for any city and gives no
+*Building a Local Concierge Business* has its own price ($0.05). It describes the parts of such a business in general terms for any city and gives no
 vendor names, settings, pay rates or screening rules, on purpose.

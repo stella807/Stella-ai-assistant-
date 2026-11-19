@@ -7,10 +7,10 @@
     "language": "en",
     "pages": 21,
     "bytes": 138554,
-    "sha256": "bd2cd7b3aa314a377504866bcd70878cfff874f55d26f4ae1bba3dcd7e19f353",
-    "sourceSha256": "a98f7f6b138f96f4d75d20b9561d3bdd596372655cd009626e1138ff0a1b8ca6",
+    "sha256": "48c0fdeb1533ce9444c560fae51638bbf527d13b58c8dbacf5211c9caded8801",
+    "sourceSha256": "b28b6fdcc4d684e1aac30d033c20df2cf83e503cad9d8eaa56f28fba0ff0dbdb",
     "file": "building-a-local-concierge-business.pdf",
-    "price": "$5.00"
+    "price": "$0.05"
   },
   {
     "slug": "delegating-real-world-tasks",
@@ -20,7 +20,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120739,
-    "sha256": "4265c3381b986e51fa78ab672b3c9d7986063460db51f83ce96b3e677cd5f34a",
+    "sha256": "5ee8405b803b1de691c691d3b323d1ab321818b5084694c9bf2bd6203fdd54f7",
     "sourceSha256": "2a046ca19eb07a8f8f58dd77dca55c6ef41df604f4185c953221a4f3814fadfd",
     "file": "delegating-real-world-tasks.pdf"
   },
@@ -32,7 +32,7 @@
     "language": "en",
     "pages": 20,
     "bytes": 126152,
-    "sha256": "aa1371c3bc67e122b9bd61bda485b60abe935bab6582b12388c7a2ea51d04d9b",
+    "sha256": "efd5ba23a5b160da4ccd345fc80835d263185b436831879b4b7953265dc53579",
     "sourceSha256": "73b7c6b1459f899ef5c940369e059d6483ef07907fea7dae5bb7ba245b7e1d90",
     "file": "hiring-and-working-with-a-concierge.pdf"
   },
@@ -44,7 +44,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138015,
-    "sha256": "f71fafe3255ee572cb8284d8173752fd057a690ace2960b7b2fc381935ec168e",
+    "sha256": "8f9555682cbecb873ab08c752df85871f817d2e0437f49677310ffadf5e3bd2b",
     "sourceSha256": "ae1047e9c7791528fd116bcadc989f7615378a19086400ec5394f67f16985be2",
     "file": "traveling-with-an-older-parent.pdf"
   },
@@ -56,7 +56,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120812,
-    "sha256": "fb71395f75868ba3d7c45a18b2081bd1bb9c79279088788640f1c277fe9ff89f",
+    "sha256": "f64d2765aaebce2e8203e9773ae94ec8f2c72bda493221b143457da194f79dc9",
     "sourceSha256": "a7f339d3491cd6d471290165ce385a16c5da32ea464e28342ec7f14c358554c7",
     "file": "visiting-puerto-rico.pdf"
   }

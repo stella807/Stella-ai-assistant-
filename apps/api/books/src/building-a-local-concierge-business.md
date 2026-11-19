@@ -1,5 +1,5 @@
 <!-- description: A guide to how a local concierge and errands business is put together, for any city: choosing the promise, finding and training people, the customer and the family behind them, trust rules, money, the kinds of tools needed, getting found, selling small answers to AI agents, what goes wrong, a ninety-day plan, what we got wrong and what we got done, a decision record, a risk register and a launch checklist. -->
-<!-- price: $5.00 -->
+<!-- price: $0.05 -->
 # Building a Local Concierge Business
 *The parts, and the decisions behind them*
 
