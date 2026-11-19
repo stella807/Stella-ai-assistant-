@@ -268,68 +268,34 @@ export function routeLive(q: string): Route | null {
 export interface LiveAnswer { status: 200 | 404; body: unknown; results: number; summary: string; words: string }
 const none = (q: string, error: string): LiveAnswer => ({ status: 404, body: { error: `${error} You are not charged.` }, results: 0, summary: "live/none", words: q.trim().toLowerCase().slice(0, 100) });
 
-export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
-  const q = rawQ.trim().slice(0, 100);
-  const route = routeLive(q);
-  if (!route) return none(q, "No live source covers this. Live answers cover storm and flood alerts for Puerto Rico and US airport delays, such as SJU delays.");
-  if (route.source === "power") {
-    const text = await read(LUMA_URL, { "user-agent": "safehubby.com" }, now);
-    const regions = text === null ? null : parseLuma(text);
-    if (!regions) return none(q, "The power company's outage map could not be read just now.");
-    const out = regions.reduce((n, r) => n + r.withoutPower, 0), all = regions.reduce((n, r) => n + r.customers, 0), shed = regions.reduce((n, r) => n + r.loadShed, 0);
-    const worst = regions[0];
-    return {
-      status: 200, results: regions.length, summary: "live/power", words: q.toLowerCase(),
-      body: {
-        q, source: "LUMA Energy outage map", asOf: now.toISOString(), regions,
-        island: { customers: all, withoutPower: out, percentWithoutPower: all ? Math.round((out / all) * 10000) / 100 : 0, loadShed: shed },
-        summary: `${out.toLocaleString("en-US")} customers without power across Puerto Rico${all ? ` (${(Math.round((out / all) * 10000) / 100).toString()}%)` : ""}.${worst && worst.withoutPower ? ` Most affected: ${worst.name} (${worst.percentWithoutPower}%).` : ""}${shed ? ` ${shed.toLocaleString("en-US")} affected by load shedding (planned rolling cuts when there is not enough power).` : " No load shedding."}`,
-        note: "Read from the power company's public outage map when you asked, by region. A shop or pharmacy in a region with many customers out may be closed or running on a generator; check before sending someone.",
-      },
-    };
-  }
-  if (route.source === "weather") {
-    // The weather service is the answer; the satellite and the hurricane center add to it when they can be reached.
-    const [text, stormText, ...sats] = await Promise.all([
-      read(NWS_URL, { "user-agent": "safehubby.com", accept: "application/geo+json" }, now),
-      read(NHC_URL, { "user-agent": "safehubby.com" }, now),
-      ...Object.values(SAT_IMAGES).map((i) => madeAt(`${SAT_BASE}/${i.band}/latest.jpg`, now)),
-    ]);
-    if (text === null) return none(q, "The National Weather Service could not be reached just now.");
-    const alerts = parseNws(text);
-    const storms = stormText === null ? null : parseStorms(stormText);
-    const images = Object.fromEntries(Object.entries(SAT_IMAGES).flatMap(([name, i], n) => {
-      const made = sats[n];
-      return made ? [[name, { what: i.what, madeAt: made, ageMinutes: Math.max(0, Math.round((now.getTime() - new Date(made).getTime()) / 60_000)), image: `${SAT_BASE}/${i.band}/latest.jpg` }]] : [];
-    }));
-    const satellite = Object.keys(images).length ? { satellite: "GOES-19 (GOES-East)", operator: "NOAA NESDIS", area: "Puerto Rico", images, note: "The picture at each address is replaced every few minutes; madeAt is when the one there was made at the time you asked." } : null;
-    const tropical = storms === null ? null : { source: "National Hurricane Center", storms };
-    const parts = [
-      alerts.length ? `${alerts.length} active alert${alerts.length === 1 ? "" : "s"} for Puerto Rico.` : "No active weather alerts for Puerto Rico were listed.",
-      storms === null ? "" : storms.length ? `${storms.length} active tropical storm${storms.length === 1 ? "" : "s"} in the hurricane center's list.` : "No active tropical storms in the hurricane center's list.",
-    ].filter(Boolean);
-    return {
-      status: 200, results: alerts.length || 1, summary: "live/weather", words: q.toLowerCase(),
-      body: {
-        q, source: "National Weather Service", sourceNote: "Active alerts for Puerto Rico", asOf: now.toISOString(), alerts, satellite, tropical,
-        summary: parts.join(" "),
-        note: "Read from the National Weather Service, NOAA's GOES-East satellite and the National Hurricane Center when you asked. Alerts change quickly; for any storm follow the National Weather Service and local officials. Not a forecast. satellite or tropical is null when that source could not be reached.",
-      },
-    };
-  }
-  if (!route.codes.length) return none(q, "The FAA feed covers airports in the United States and Puerto Rico only.");
-  const prCodes = route.codes.filter((c) => PR_NAMES[c.toLowerCase()]);
-  // The current status is the answer; the look-ahead sources add to it when they can be reached.
+/** Power across Puerto Rico from LUMA's public outage map, or null when it cannot be read. */
+async function powerReport(now: Date) {
+  const text = await read(LUMA_URL, { "user-agent": "safehubby.com" }, now);
+  const regions = text === null ? null : parseLuma(text);
+  if (!regions) return null;
+  const out = regions.reduce((n, r) => n + r.withoutPower, 0), all = regions.reduce((n, r) => n + r.customers, 0), shed = regions.reduce((n, r) => n + r.loadShed, 0);
+  const pct = all ? Math.round((out / all) * 10000) / 100 : 0;
+  const worst = regions[0];
+  return {
+    source: "LUMA Energy outage map", regions, island: { customers: all, withoutPower: out, percentWithoutPower: pct, loadShed: shed },
+    summary: `${out.toLocaleString("en-US")} customers without power across Puerto Rico (${pct}%).${worst && worst.withoutPower ? ` Most affected: ${worst.name} (${worst.percentWithoutPower}%).` : ""}${shed ? ` ${shed.toLocaleString("en-US")} affected by load shedding (planned rolling cuts when there is not enough power).` : " No load shedding."}`,
+  };
+}
+
+/** Current FAA status for each airport plus the look-ahead outlook, or null when the FAA status cannot be read. */
+async function airportReport(codes: string[], now: Date) {
+  const prCodes = codes.filter((c) => PR_NAMES[c.toLowerCase()]);
+  // The current status is required; the look-ahead sources add to it when they can be reached.
   const [text, planText, tafText, gtwoText, metarText, eventsText] = await Promise.all([
     read(FAA_URL, {}, now),
     read(PLAN_URL, {}, now),
-    read(TAF_URL(route.codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
+    read(TAF_URL(codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
     prCodes.length ? read(GTWO_URL, { "user-agent": "safehubby.com" }, now) : Promise.resolve(null),
-    read(METAR_URL(route.codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
+    read(METAR_URL(codes.map(icaoFor)), { "user-agent": "safehubby.com" }, now),
     read(EVENTS_URL, {}, now),
   ]);
-  const parsed = text === null ? null : route.codes.map((code) => ({ code, status: parseFaa(text, code) }));
-  if (!parsed || parsed.some((p) => !p.status)) return none(q, "The FAA airport status could not be read just now.");
+  const parsed = text === null ? null : codes.map((code) => ({ code, status: parseFaa(text, code) }));
+  if (!parsed || parsed.some((p) => !p.status)) return null;
   const plan = planText === null ? null : parsePlan(planText);
   const tropical = gtwoText === null ? null : parseOutlook(gtwoText);
   // Closures are left out here: the FAA's closure list includes notices that close an airport only to some flights.
@@ -359,12 +325,69 @@ export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
   const listed = airports.filter((a) => a.issues.length);
   const ahead = airports.reduce((n, a) => n + a.outlook.signals.length - a.issues.length, 0);
   return {
-    status: 200, results: airports.length, summary: "live/airport", words: q.toLowerCase(),
-    body: {
-      q, source: "FAA National Airspace System Status", asOf: now.toISOString(), airports,
-      summary: `${listed.length ? `${listed.map((a) => `${a.code}: ${a.issues.map((i) => i.kind).join(", ")}`).join("; ")}.` : `No delay, ground program or closure is listed for ${airports.map((a) => a.code).join(", ")}.`} ${ahead ? `${ahead} sign${ahead === 1 ? "" : "s"} of possible delays ahead; see outlook.signals.` : "No signs of delays ahead in the forecast or the FAA plan."}`,
-      note: "The FAA lists only airports with something to report, so an airport that is not listed has no reported delay at the time shown. Conditions can change at any time. Not a forecast, and not a promise about any flight.",
-      outlookNote: "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.",
-    },
+    airports,
+    summary: `${listed.length ? `${listed.map((a) => `${a.code}: ${a.issues.map((i) => i.kind).join(", ")}`).join("; ")}.` : `No delay, ground program or closure is listed for ${airports.map((a) => a.code).join(", ")}.`} ${ahead ? `${ahead} sign${ahead === 1 ? "" : "s"} of possible delays ahead; see outlook.signals.` : "No signs of delays ahead in the forecast or the FAA plan."}`,
+  };
+}
+
+const AIRPORT_NOTE = "The FAA lists only airports with something to report, so an airport that is not listed has no reported delay at the time shown. Conditions can change at any time. Not a forecast, and not a promise about any flight.";
+const OUTLOOK_NOTE = "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.";
+const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
+
+export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
+  const q = rawQ.trim().slice(0, 100);
+  const route = routeLive(q);
+  if (!route) return none(q, "No live source covers this. Live answers cover weather in Puerto Rico (alerts, satellite, storms, power, airports), power outages, and US airport delays, such as SJU delays.");
+  if (route.source === "power") {
+    const power = await powerReport(now);
+    if (!power) return none(q, "The power company's outage map could not be read just now.");
+    return {
+      status: 200, results: power.regions.length, summary: "live/power", words: q.toLowerCase(),
+      body: { q, asOf: now.toISOString(), ...power, note: "Read from the power company's public outage map when you asked, by region. A shop or pharmacy in a region with many customers out may be closed or running on a generator; check before sending someone." },
+    };
+  }
+  if (route.source === "weather") {
+    // The weather bundle: the weather service is the answer; the satellite, the hurricane center, power and Puerto Rico's airports
+    // come with it when they can be reached, for the same price.
+    const [text, stormText, power, airports, ...sats] = await Promise.all([
+      read(NWS_URL, { "user-agent": "safehubby.com", accept: "application/geo+json" }, now),
+      read(NHC_URL, { "user-agent": "safehubby.com" }, now),
+      powerReport(now),
+      airportReport(PR_AIRPORTS, now),
+      ...Object.values(SAT_IMAGES).map((i) => madeAt(`${SAT_BASE}/${i.band}/latest.jpg`, now)),
+    ]);
+    if (text === null) return none(q, "The National Weather Service could not be reached just now.");
+    const alerts = parseNws(text);
+    const storms = stormText === null ? null : parseStorms(stormText);
+    const images = Object.fromEntries(Object.entries(SAT_IMAGES).flatMap(([name, i], n) => {
+      const made = sats[n];
+      return made ? [[name, { what: i.what, madeAt: made, ageMinutes: Math.max(0, Math.round((now.getTime() - new Date(made).getTime()) / 60_000)), image: `${SAT_BASE}/${i.band}/latest.jpg` }]] : [];
+    }));
+    const satellite = Object.keys(images).length ? { satellite: "GOES-19 (GOES-East)", operator: "NOAA NESDIS", area: "Puerto Rico", images, note: "The picture at each address is replaced every few minutes; madeAt is when the one there was made at the time you asked." } : null;
+    const tropical = storms === null ? null : { source: "National Hurricane Center", storms };
+    const parts = [
+      alerts.length ? `${alerts.length} active alert${alerts.length === 1 ? "" : "s"} for Puerto Rico.` : "No active weather alerts for Puerto Rico were listed.",
+      storms === null ? "" : storms.length ? `${storms.length} active tropical storm${storms.length === 1 ? "" : "s"} in the hurricane center's list.` : "No active tropical storms in the hurricane center's list.",
+      power ? `Power: ${power.summary}` : "",
+      airports ? `Airports: ${airports.summary}` : "",
+    ].filter(Boolean);
+    return {
+      status: 200, results: alerts.length || 1, summary: "live/weather", words: q.toLowerCase(),
+      body: {
+        q, bundle: ["weather alerts", "satellite", "tropical storms", "power outages", "Puerto Rico airports"],
+        source: "National Weather Service", sourceNote: "Active alerts for Puerto Rico", asOf: now.toISOString(), alerts, satellite, tropical,
+        power: power && { source: power.source, island: power.island, regions: power.regions, summary: power.summary },
+        puertoRicoAirports: airports && { source: "FAA National Airspace System Status", airports: airports.airports, summary: airports.summary, note: AIRPORT_NOTE, outlookNote: OUTLOOK_NOTE },
+        summary: parts.join(" "),
+        note: "The Puerto Rico weather bundle, read when you asked: the National Weather Service's alerts, NOAA's GOES-East satellite, the National Hurricane Center, the power company's outage map and the FAA's status and outlook for SJU, BQN and PSE. Alerts change quickly; for any storm follow the National Weather Service and local officials. Not a forecast. A part is null when its source could not be reached.",
+      },
+    };
+  }
+  if (!route.codes.length) return none(q, "The FAA feed covers airports in the United States and Puerto Rico only.");
+  const report = await airportReport(route.codes, now);
+  if (!report) return none(q, "The FAA airport status could not be read just now.");
+  return {
+    status: 200, results: report.airports.length, summary: "live/airport", words: q.toLowerCase(),
+    body: { q, source: "FAA National Airspace System Status", asOf: now.toISOString(), airports: report.airports, summary: report.summary, note: AIRPORT_NOTE, outlookNote: OUTLOOK_NOTE },
   };
 }

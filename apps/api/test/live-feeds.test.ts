@@ -54,9 +54,9 @@ describe("answering", () => {
     expect(one.body).toMatchObject({ source: "National Weather Service", asOf: now.toISOString() });
     expect((one.body as any).alerts[0].event).toBe("Flash Flood Warning");
     await answerLive("flood", new Date(now.getTime() + 60_000));
-    expect(calls.filter((c) => c.includes("weather.gov"))).toHaveLength(1);
+    expect(calls.filter((c) => c.includes("api.weather.gov"))).toHaveLength(1);
     await answerLive("flood", new Date(now.getTime() + 10 * 60_000));
-    expect(calls.filter((c) => c.includes("weather.gov"))).toHaveLength(2);
+    expect(calls.filter((c) => c.includes("api.weather.gov"))).toHaveLength(2);
   });
 
   it("says plainly when there is nothing active, which is itself an answer", async () => {
@@ -277,5 +277,28 @@ describe("the airport observation, read carefully", () => {
     setLiveFetcher(fake({ "api/data/metar": JSON.stringify([{ icaoId: "TJSJ", reportTime: "2026-11-19T21:20:00.000Z", metarType: "METAR", fltCat: "VFR", rawOb: "METAR TJSJ 192120Z 09010KT 10SM FEW030 29/23 A2996 RMK AO2 TSNO $" }]), "airport-status-information": FAA }));
     const o = ((await answerLive("SJU delays", now)).body as any).airports[0].outlook;
     expect(o.atTheField.lightning).toBe(false);
+  });
+});
+
+describe("the Puerto Rico weather bundle", () => {
+  const LUMA = JSON.stringify({ regions: [{ name: "Mayaguez", totalClients: 216605, totalClientsWithoutService: 5861, totalClientsAffectedByPlannedOutage: 511, totalClientsAffectedByLoadShed: 0, percentageClientsWithoutService: 2.71 }] });
+  it("brings power across the island and Puerto Rico's airports with every weather answer, for the same price", async () => {
+    setLiveFetcher(fake({ "weather.gov": NWS, "lumapr.com": LUMA, "airport-status-information": FAA }));
+    const r = await answerLive("storm warnings puerto rico", now);
+    expect(r.status).toBe(200);
+    const b: any = r.body;
+    expect(b.bundle).toEqual(["weather alerts", "satellite", "tropical storms", "power outages", "Puerto Rico airports"]);
+    expect(b.power.island).toMatchObject({ withoutPower: 5861 });
+    expect(b.puertoRicoAirports.airports.map((a: any) => a.code)).toEqual(["SJU", "BQN", "PSE"]);
+    expect(b.puertoRicoAirports.airports[0].issues[0].kind).toBe("ground delay program");
+    expect(b.summary).toMatch(/Power: 5,861 customers/);
+    expect(b.summary).toMatch(/Airports: SJU: ground delay program/);
+  });
+
+  it("still answers when power and the airports cannot be read, and marks them missing", async () => {
+    setLiveFetcher(fake({ "weather.gov": NWS }));
+    const b: any = (await answerLive("flood", now)).body;
+    expect(b.power).toBeNull();
+    expect(b.puertoRicoAirports).toBeNull();
   });
 });

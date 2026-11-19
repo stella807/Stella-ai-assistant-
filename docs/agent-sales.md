@@ -274,3 +274,11 @@ source could not be reached; the current FAA status is still required for any ai
   outages and load shedding (rolling cuts when generation is short). Useful before sending anyone to a shop that may be closed. The endpoint is
   the one LUMA's own map uses; if it changes or is blocked, the answer is refused and nothing is charged. Check LUMA's terms before relying on it
   heavily.
+
+### The Puerto Rico weather bundle
+
+A weather question (storm, flood, alert, hurricane, satellite, clouds, in English or Spanish) returns one bundle for the same $0.10:
+National Weather Service alerts, the GOES-East satellite pictures, active tropical storms, power outages across the island (LUMA, see above)
+and the FAA status with the delay outlook for SJU, BQN and PSE (`puertoRicoAirports`). `bundle` lists what is in it. Only the weather service
+is required; each other part is `null` when its source could not be read, and the summary says what it found in one paragraph. Power and
+airport questions on their own still work as before.
