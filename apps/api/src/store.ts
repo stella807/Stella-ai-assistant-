@@ -269,6 +269,8 @@ export interface Db {
   clubMonths?: Record<string, ClubMonthState>;
   /** What other AI agents paid for over x402 (plans/prices facts, blog copies, site passes); see x402-sales.ts. Old records may name a vendor lookup that is no longer sold. */
   agentSales?: import("./x402-sales.ts").AgentSale[];
+  /** "Checked today" facts recorded by a person who was there; see local-checks.ts. Old ones are forgotten. */
+  localChecks?: import("./local-checks.ts").LocalCheck[];
   /** What visitors do, as counts by day (no addresses, no names); see signals.ts. Days older than 90 are forgotten. */
   signals?: import("./signals.ts").SignalsDb["signals"];
   /** The key that signs every answer the agent store gives (attestation.ts); made on first use, the private half never leaves. */

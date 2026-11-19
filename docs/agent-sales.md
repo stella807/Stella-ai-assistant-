@@ -22,6 +22,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Currency check: is an answer you hold still current? Give the SHA-256 of the response body; get a signed `current` or `changed` | `/api/agent/currency/{sha256}` | $0.02 |
 | Request check: send a request you are about to give a person (JSON); get what is missing, stop signs, what only the person may decide, and plain text to send | `/api/agent/check?request={JSON}` | $0.03 |
 | Alerts feed: what changed since you last asked, and the hurricane-season calendar | `/api/agent/alerts?since=&lang=` | $0.02 |
+| Checked today: what a person from Safehubby saw on the ground, dated and attributed, sold only while fresh | `/api/agent/checked?q=` | $0.05 (charged each time, even with a pass) |
 | Approval page: plain text an agent shows the person it works for, with the live prices (free, no pass needed) | `/api/agent/approval?lang=en\|es` | free |
 
 Add `?info` to any product address for a free description. Prices can be changed with
@@ -221,3 +222,14 @@ only, never a phone number, and promises nothing about results.
 book is charged (and asked for in the pass reply) at that price. Books without one use `X402_PRICE_BOOKS` (default $0.50). Today only
 *Building a Local Concierge Business* has its own price ($0.05). It describes the parts of such a business in general terms for any city and gives no
 vendor names, settings, pay rates or screening rules, on purpose.
+
+## Checked today
+
+`src/local-checks.ts`. A person who was there records what they saw (open, in stock, a line, something else) with the time, their first name,
+and whether they kept a photo or a receipt (the photo is not stored). Each kind goes stale on its own: a line after 45 minutes, stock after 3 hours,
+opening hours after 6; the person may set a shorter time, never longer than a day. A stale check is never sold. A check older than 7 days is
+refused when recorded, and checks are forgotten after 14 days. Links, email addresses and phone numbers are refused. Matching needs at least half
+of the question's words, and at least one that names the place or thing, so "clinic open" does not return a pharmacy. Spanish place words match
+too. No fresh match: 404 before payment, and the words are kept in Signals as something agents wanted and did not get. It is `alwaysPaid`: charged
+even to a holder of a pass, and the pass is not needed. Record checks in the owner portal (Money tab) or with `POST /api/master/local-checks`.
+The record of what agents said they would pay for is in `docs/agent-demand.md`.

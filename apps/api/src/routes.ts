@@ -118,6 +118,7 @@ import { emailTo, guardianEmails, guardianMessages, guardianTexts, textKey, text
 import { sms } from "./adapters/sms.ts";
 import { collectSubscriptionCharges, renewDueSubscriptions, retryPastDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
+import { buildCheck, freshCount, prune } from "./local-checks.ts";
 import {
   ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword,
   normalizeEmail, SESSION_TTL_MS, secureFraction, sweepExpiredSessions, validatePassword, verifyPassword,
@@ -6840,6 +6841,29 @@ export const routes: Record<string, Handler> = {
     requireAdmin(ctx, "write");
     const id = req(p, "id");
     ctx.store.update((db) => { db.vendors = (db.vendors ?? []).filter((v) => v.id !== id); });
+    return { ok: true };
+  },
+
+  /**
+   * Owner: "checked today" facts, recorded by someone who was there. Agents said what they would pay for is what is true on the
+   * ground today and cannot be guessed. Nothing here is made up: with no fresh check, agents are told there is no answer.
+   */
+  "GET /api/master/local-checks": (ctx) => {
+    requireAdmin(ctx, "operations");
+    const all = ctx.store.data.localChecks ?? [];
+    return { checks: [...all].sort((a, b) => b.observedAt.localeCompare(a.observedAt)), freshNow: freshCount(all, ctx.now()) };
+  },
+  "POST /api/master/local-checks": (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    const made = buildCheck(body, ctx.now(), newId("chk"));
+    if ("error" in made) throw new HttpError(400, made.error);
+    ctx.store.update((db) => { db.localChecks = prune([...(db.localChecks ?? []), made], ctx.now()); });
+    return { ok: true, check: made };
+  },
+  "POST /api/master/local-checks/:id/delete": (ctx, p) => {
+    requireAdmin(ctx, "operations");
+    const id = req(p, "id");
+    ctx.store.update((db) => { db.localChecks = (db.localChecks ?? []).filter((c) => c.id !== id); });
     return { ok: true };
   },
 

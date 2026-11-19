@@ -387,6 +387,8 @@ export interface SeniorIdView {
   note?: string;
 }
 
+export type LocalCheckRow = { id: string; kind: string; place: string; subject: string; statement: string; observedAt: string; validUntil: string; checkedBy: string; evidence: string };
+
 export const api = {
   // What is free each month comes with the catalog and is applied at once, so
   // every screen that works out a price or a plan row uses what the server will.
@@ -951,6 +953,10 @@ export const api = {
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
   agentSales: () => request<{ enabled: boolean; status: string; count: number; totalUnits: number; byProduct: Record<string, { count: number; units: number }>;
     recent: { id: string; at: string; product?: string; amount: string; payer?: string; transaction?: string; query: string; results: number }[] }>("GET", "/api/master/agent-sales"),
+  localChecks: () => request<{ checks: LocalCheckRow[]; freshNow: number }>("GET", "/api/master/local-checks"),
+  addLocalCheck: (c: { kind: string; place: string; subject: string; statement: string; observedAt: string; checkedBy: string; evidence: string; validForMinutes?: number }) =>
+    request<{ ok: true }>("POST", "/api/master/local-checks", c),
+  deleteLocalCheck: (id: string) => request<{ ok: true }>("POST", `/api/master/local-checks/${id}/delete`, {}),
   signals: () => request<{
     products: Record<string, { asked: number; paid: number }>; last7: Record<string, { asked: number; paid: number }>;
     crawlers: { name: string; asked: number; paid: number }[]; queries: { text: string; count: number }[]; unanswered: { text: string; count: number }[];

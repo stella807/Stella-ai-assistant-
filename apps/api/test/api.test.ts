@@ -3144,7 +3144,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checklists", "currency", "digest", "facts"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3340,6 +3340,73 @@ describe("biweekly payroll", () => {
         expect(noPass.resource.description).toMatch(/\$0\.05/);
       });
 
+      describe("checked today: what a person saw on the ground", () => {
+        const seenAt = () => new Date(clock.getTime() - 20 * 60_000).toISOString();
+        const record = (over: Record<string, unknown> = {}) => callAdmin("POST", "/api/master/local-checks", { kind: "open", place: "Farmacia Central, Santurce", subject: "Open today", statement: "Open, counter staffed.", observedAt: seenAt(), checkedBy: "Maria", evidence: "photo", ...over });
+        const checkedUrl = (q: string) => `${base}/api/agent/checked?q=${encodeURIComponent(q)}`;
+
+        it("lets only the owner record a check, and refuses a check nobody stood behind", async () => {
+          expect((await callAdmin("POST", "/api/master/local-checks", { kind: "open" })).status).toBe(400);
+          expect((await record({ checkedBy: "" })).status).toBe(400);
+          const ok = await record();
+          expect(ok.status).toBe(200);
+          const list: any = (await callAdmin("GET", "/api/master/local-checks")).json;
+          expect(list.checks).toHaveLength(1);
+          expect(list.freshNow).toBe(1);
+        });
+
+        it("sells a fresh check for five cents even to someone who holds a pass, signed and dated", async () => {
+          const { verifyResponse } = await import("../src/attestation.ts");
+          await record();
+          const required: any = await (await fetch(checkedUrl("pharmacy open santurce"))).json();
+          expect(required.accepts[0].amount).toBe("50000");
+          const pass = await buyPass();
+          const withPass = await fetch(checkedUrl("pharmacy open santurce"), { headers: { "x-safehubby-pass": pass } });
+          expect(withPass.status).toBe(402);
+          const need: any = await withPass.json();
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: need.resource, accepted: need.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          const res = await fetch(checkedUrl("pharmacy open santurce"), { headers: { "payment-signature": sig } });
+          expect(res.status).toBe(200);
+          const text = await res.text();
+          const body = JSON.parse(text);
+          expect(body.results[0]).toMatchObject({ place: "Farmacia Central, Santurce", checkedBy: "Maria", ageMinutes: 20, fresh: true });
+          const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+          expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/checked?q=${encodeURIComponent("pharmacy open santurce")}`)).toBe(true);
+        });
+
+        it("never charges when nothing fresh matches, and remembers what was asked for so the owner can see it", async () => {
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          await record();
+          const q = "clinic open sunday";
+          const required: any = await (await fetch(checkedUrl(q))).json();
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          const res = await fetch(checkedUrl(q), { headers: { "payment-signature": sig } });
+          expect(res.status).toBe(404);
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+          const signals: any = (await callAdmin("GET", "/api/master/signals")).json;
+          expect(signals.unanswered.map((u: any) => u.text)).toContain(q);
+        });
+
+        it("does not hand out an expired check", async () => {
+          await record({ kind: "line", place: "Airport checkpoint B", subject: "Line", statement: "About 20 minutes.", observedAt: new Date(clock.getTime() - 120 * 60_000).toISOString() });
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const required: any = await (await fetch(checkedUrl("airport checkpoint line"))).json();
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          const res = await fetch(checkedUrl("airport checkpoint line"), { headers: { "payment-signature": sig } });
+          expect(res.status).toBe(404);
+          expect(((await res.json()) as any).error).toMatch(/not fresh|expired|too old|newest/i);
+        });
+
+        it("lets the owner delete a check", async () => {
+          await record();
+          const id = ((await callAdmin("GET", "/api/master/local-checks")).json as any).checks[0].id;
+          expect((await callAdmin("POST", `/api/master/local-checks/${id}/delete`, {})).status).toBe(200);
+          expect(((await callAdmin("GET", "/api/master/local-checks")).json as any).checks).toHaveLength(0);
+        });
+      });
+
       it("never charges for a checklist that does not exist", async () => {
         const { encodePaymentSignatureHeader } = await import("@x402/core/http");
         const url = `${base}/api/agent/checklists/no-such-list`;
@@ -3513,7 +3580,7 @@ describe("biweekly payroll", () => {
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checklists", "currency", "digest", "facts"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);
