@@ -325,6 +325,10 @@ describe("cruise ships in San Juan, only with the port's permission", () => {
   const prev = process.env.CRUISE_SCHEDULE_ENABLED;
   afterEach(() => { if (prev === undefined) delete process.env.CRUISE_SCHEDULE_ENABLED; else process.env.CRUISE_SCHEDULE_ENABLED = prev; });
 
+  it("leaves out the ferry, which shares the schedule but is not a cruise ship", () => {
+    expect(parseCruise(row("19 Nov 2026 | 08:00", "19 Nov 2026 | 19:00", "Kydon", "Ferries del Caribe", "PIER 15"))).toEqual([]);
+  });
+
   it("reads each ship's arrival and departure in Puerto Rico time", () => {
     const ships = parseCruise(PAGE);
     expect(ships).toHaveLength(4);

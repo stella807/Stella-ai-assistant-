@@ -209,7 +209,8 @@ export function parseCruise(html: string): CruiseCall[] {
   const field = (row: string, cls: string) => scrub((new RegExp(`class="${cls}">([\\s\\S]*?)</div>(?=<div class=|</div>|$)`).exec(row)?.[1] ?? "").replace(/<div class="hide-mobile[^"]*">[^<]*<\/div>/g, "").replace(/<[^>]+>/g, " "), 80);
   return html.split('class="schedule-item-row"').slice(1, 60).map((row) => ({
     ship: field(row, "shipname"), line: field(row, "cruiseline"), berth: field(row, "berth"), arrives: prTime(field(row, "eta")), departs: prTime(field(row, "etd")),
-  })).filter((c) => c.ship);
+  // The schedule also lists the ferry to the Dominican Republic; it is not a cruise ship.
+  })).filter((c) => c.ship && !/ferr/i.test(c.line));
 }
 
 /** Puerto Rico's local date, n days from now, as YYYY-MM-DD. */
