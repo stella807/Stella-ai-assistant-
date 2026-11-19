@@ -226,7 +226,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
         // A book is sold only to someone with a site pass: the pass is the access, and the book is charged for on top.
         if (url.pathname.startsWith("/api/agent/books/") && url.pathname.length > "/api/agent/books/".length) {
           if (refuseBrowser(req, res)) return;
-          const bookPrice = priceOf(PRODUCTS.find((p) => p.id === "books")!);
+          const bookPrice = priceOf(PRODUCTS.find((p) => p.id === "books")!, url);
           if (!(await requirePass(req, res, base.store, base.now, seoFactsFor(base).origin, req.url ?? url.pathname, bookPrice))) return;
         }
         return await handleAgentStore(req, res, url, base.store, base.now, seoFactsFor(base).origin, holdsPass(req, base.store, base.now()));

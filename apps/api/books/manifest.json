@@ -1,5 +1,18 @@
 [
   {
+    "slug": "building-a-local-concierge-business",
+    "title": "Building a Local Concierge Business",
+    "subtitle": "The parts, and the decisions behind them",
+    "description": "A guide to how a local concierge and errands business is put together, for any city: choosing the promise, finding and training people, the customer and the family behind them, trust rules, money, the kinds of tools needed, getting found, selling small answers to AI agents, what goes wrong, a ninety-day plan, a decision record, a risk register and a launch checklist.",
+    "language": "en",
+    "pages": 19,
+    "bytes": 125921,
+    "sha256": "255ba4ca917b8be9ca67054dcfc22c6d19ffc64a11a67725e5e1d9a9ffa25a21",
+    "sourceSha256": "11cb84dbc442c863077a87b0330fbf05fdc64c3c60a5294bf7f2a3163fdcc396",
+    "file": "building-a-local-concierge-business.pdf",
+    "price": "$5.00"
+  },
+  {
     "slug": "delegating-real-world-tasks",
     "title": "Delegating Real-World Tasks",
     "subtitle": "A playbook for AI agents that hand work to human assistants",
@@ -7,7 +20,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120739,
-    "sha256": "8320cee31a46654512671d989f4de4c483003f14d15bfce932a82b49a7a4ddcb",
+    "sha256": "0464b624667b8968d143c5bc568b83892e7709067cf8de7310e2da6faa348977",
     "sourceSha256": "2a046ca19eb07a8f8f58dd77dca55c6ef41df604f4185c953221a4f3814fadfd",
     "file": "delegating-real-world-tasks.pdf"
   },
@@ -19,7 +32,7 @@
     "language": "en",
     "pages": 20,
     "bytes": 126152,
-    "sha256": "3069244bed968ba22e6ac77801fa57c8048ccc84e13d4d2fe33459db5a4410e5",
+    "sha256": "0cfbdb2c1b55b6b6ecf9450c0497dc2ea34c58c1c06bd5ffc4ddae0138fb764e",
     "sourceSha256": "73b7c6b1459f899ef5c940369e059d6483ef07907fea7dae5bb7ba245b7e1d90",
     "file": "hiring-and-working-with-a-concierge.pdf"
   },
@@ -31,7 +44,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138015,
-    "sha256": "1384126b5665c5da6e096259029d2e573620c2b73c59431b19bcd584143bb8cf",
+    "sha256": "512f8ca12f3dd29076257ffda2c9486230cc83978300783ddbb6f3b519a8c3ed",
     "sourceSha256": "ae1047e9c7791528fd116bcadc989f7615378a19086400ec5394f67f16985be2",
     "file": "traveling-with-an-older-parent.pdf"
   },
@@ -43,7 +56,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120812,
-    "sha256": "c3e8a25ef51f3c274a2079b7fff396850952bba25200fbfd0d2a08094436e319",
+    "sha256": "feae5eb28f45f277ecc847827d093d0122d88cc8959a405ff1a9293a0750dce2",
     "sourceSha256": "a7f339d3491cd6d471290165ce385a16c5da32ea464e28342ec7f14c358554c7",
     "file": "visiting-puerto-rico.pdf"
   }

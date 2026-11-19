@@ -7,8 +7,8 @@ import { BOOKS, readBook } from "../src/books.ts";
 const src = (slug: string) => readFileSync(new URL(`../books/src/${slug}.md`, import.meta.url), "utf8");
 
 describe("the books sold to agents", () => {
-  it("has the four we offer, each a real PDF of a real length", () => {
-    expect(BOOKS.map((b) => b.slug).sort()).toEqual(["delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+  it("has the five we offer, each a real PDF of a real length", () => {
+    expect(BOOKS.map((b) => b.slug).sort()).toEqual(["building-a-local-concierge-business", "delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
     for (const b of BOOKS) {
       const pdf = readBook(b.slug)!;
       expect(pdf.subarray(0, 5).toString(), b.slug).toBe("%PDF-");
@@ -52,6 +52,12 @@ describe("the books sold to agents", () => {
 
   it("tells the agent what it must never decide alone", () => {
     for (const b of BOOKS) expect(src(b.slug), b.slug).toMatch(/never decide|do not decide|ask the person/i);
+  });
+
+  it("gives each book a price of its own only when its source says so", () => {
+    const priced = BOOKS.filter((b) => b.price);
+    expect(priced.map((b) => [b.slug, b.price])).toEqual([["building-a-local-concierge-business", "$5.00"]]);
+    for (const b of priced) expect(src(b.slug)).toMatch(/<!-- price: \$\d+\.\d\d -->/);
   });
 
   it("returns nothing for a book that does not exist", () => {

@@ -18,7 +18,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Brief: one page to forward to a person (what Safehubby does, plans, safety rules, how to reach us) | `/api/agent/brief` | $0.05 |
 | Airport directory: name, code, city and country for the cities Safehubby covers (names and codes only, nothing about any service) | `/api/agent/airports?q=&country=&limit=` | $0.01 |
 | Checklists to hand to a person, English and Spanish: a day at the hospital with a parent, arriving at an airport with an older relative, questions to ask before hiring a concierge (general information, not medical or legal advice) | `/api/agent/checklists/{slug}?lang=en\|es` (list free at `/api/agent/checklists`) | $0.02 |
-| Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico, delegating real-world tasks to human assistants (18 to 21 pages each; each opens with a quick reference for agents; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`; needs a site pass first) | $0.50 |
+| Books as PDF files: traveling with an older parent, hiring and working with a concierge, visiting Puerto Rico, delegating real-world tasks to human assistants, and building a local concierge business (18 to 21 pages each; each opens with a quick reference for agents; general information) | `/api/agent/books/{slug}` returns the PDF (list free at `/api/agent/books`; needs a site pass first) | $0.50 |
 | Currency check: is an answer you hold still current? Give the SHA-256 of the response body; get a signed `current` or `changed` | `/api/agent/currency/{sha256}` | $0.02 |
 | Request check: send a request you are about to give a person (JSON); get what is missing, stop signs, what only the person may decide, and plain text to send | `/api/agent/check?request={JSON}` | $0.03 |
 | Alerts feed: what changed since you last asked, and the hurricane-season calendar | `/api/agent/alerts?since=&lang=` | $0.02 |
@@ -93,7 +93,7 @@ are at least ten.
 
 ## The books
 
-Four original guides, each opening with an agent quick reference (rules, a JSON request to fill in, stop signs), written for this store and sold as PDFs: `books/src/*.md` is the text and `node apps/api/scripts/build-books.mjs`
+Five original guides, each opening with an agent quick reference (rules, a JSON request to fill in, stop signs), written for this store and sold as PDFs: `books/src/*.md` is the text and `node apps/api/scripts/build-books.mjs`
 builds `books/*.pdf` and `books/manifest.json` (needs Playwright's Chromium; the PDFs are committed so the server needs no browser).
 A test fails if a book's text changes without a rebuild, and keeps out company names, phone numbers, links and promises: only
 general advice and our own email. **The pass is the access to buy them, and each book costs extra:** `X402_PRICE_BOOKS` (default $0.50). A book address asked for without a pass is answered with a request to buy the pass; when the pass is paid it is issued with a note saying to repeat the request, and the book is then charged for on top. The books are not free with the pass. A paid answer is the PDF itself,
@@ -216,3 +216,8 @@ forecasts or warnings, and the feed says so. An unreadable `since` is refused wi
 
 **Approval page** (`src/approval-pack.ts`). Free. Built from the live prices so it cannot disagree with what is charged. It gives email
 only, never a phone number, and promises nothing about results.
+
+**One book can cost more than the rest.** A book's source may carry `<!-- price: $5.00 -->`; the build writes it into the manifest as `price`, and that
+book is charged (and asked for in the pass reply) at that price. Books without one use `X402_PRICE_BOOKS` (default $0.50). Today only
+*Building a Local Concierge Business* has its own price. It describes the parts of such a business in general terms for any city and gives no
+vendor names, settings, pay rates or screening rules, on purpose.

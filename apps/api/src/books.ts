@@ -7,6 +7,8 @@ import { readFileSync } from "node:fs";
 export interface Book {
   slug: string; title: string; subtitle: string; description: string; language: string;
   pages: number; bytes: number; sha256: string; sourceSha256: string; file: string;
+  /** Only when this book is priced differently from the rest; the book's source says so in a `price` comment. */
+  price?: string;
 }
 
 const dir = new URL("../books/", import.meta.url);

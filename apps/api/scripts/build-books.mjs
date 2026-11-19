@@ -80,6 +80,7 @@ const manifest = [];
 for (const f of files) {
   const source = readFileSync(join(root, "src", f), "utf8");
   const description = /<!--\s*description:\s*([\s\S]*?)\s*-->/.exec(source)?.[1] ?? "";
+  const price = /<!--\s*price:\s*(\$\d+\.\d\d)\s*-->/.exec(source)?.[1];
   const parsed = markdownToHtml(source);
   // The first paragraph after the subtitle is the edition line; it goes on the cover, not in the body.
   const intro = /<p>(Safehubby, [^<]*)<\/p>/.exec(parsed.body)?.[1].replace(/<[^>]+>/g, "") ?? "Safehubby";
@@ -95,7 +96,7 @@ for (const f of files) {
   await page.close();
   writeFileSync(join(root, `${slug}.pdf`), pdf);
   const pages = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-  manifest.push({ slug, title: parsed.title, subtitle: parsed.subtitle, description, language: "en", pages, bytes: pdf.length, sha256: createHash("sha256").update(pdf).digest("hex"), sourceSha256: createHash("sha256").update(source).digest("hex"), file: `${slug}.pdf` });
+  manifest.push({ slug, title: parsed.title, subtitle: parsed.subtitle, description, language: "en", pages, bytes: pdf.length, sha256: createHash("sha256").update(pdf).digest("hex"), sourceSha256: createHash("sha256").update(source).digest("hex"), file: `${slug}.pdf`, ...(price ? { price } : {}) });
   console.log(`${slug}: ${pages} pages, ${(pdf.length / 1024).toFixed(0)} KB`);
 }
 await browser.close();

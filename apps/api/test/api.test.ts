@@ -3329,6 +3329,17 @@ describe("biweekly payroll", () => {
         });
       });
 
+      it("charges five dollars for the one book that has its own price, and fifty cents for the rest", async () => {
+        const pass = await buyPass();
+        const dear: any = await (await fetch(`${base}/api/agent/books/building-a-local-concierge-business`, { headers: { "x-safehubby-pass": pass } })).json();
+        expect(dear.accepts[0].amount).toBe("5000000");
+        const cheap: any = await (await fetch(`${base}/api/agent/books/visiting-puerto-rico`, { headers: { "x-safehubby-pass": pass } })).json();
+        expect(cheap.accepts[0].amount).toBe("500000");
+        const noPass: any = await (await fetch(`${base}/api/agent/books/building-a-local-concierge-business`)).json();
+        expect(noPass.accepts[0].amount).toBe("2990000");
+        expect(noPass.resource.description).toMatch(/\$5\.00/);
+      });
+
       it("never charges for a checklist that does not exist", async () => {
         const { encodePaymentSignatureHeader } = await import("@x402/core/http");
         const url = `${base}/api/agent/checklists/no-such-list`;
@@ -3344,8 +3355,10 @@ describe("biweekly payroll", () => {
         const { createHash } = await import("node:crypto");
         const { encodePaymentSignatureHeader } = await import("@x402/core/http");
         const list: any = await (await fetch(`${base}/api/agent/books`)).json();
-        expect(list.books.map((b: any) => b.slug).sort()).toEqual(["delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+        expect(list.books.map((b: any) => b.slug).sort()).toEqual(["building-a-local-concierge-business", "delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
         expect(list.price).toBe("$0.50");
+        expect(list.books.find((b: any) => b.slug === "building-a-local-concierge-business").price).toBe("$5.00");
+        expect(list.books.find((b: any) => b.slug === "visiting-puerto-rico").price).toBe("$0.50");
         expect(list.requires).toMatch(/pass/i);
         for (const b of list.books) expect(b).toMatchObject({ title: expect.any(String), description: expect.any(String), pages: expect.any(Number), sha256: expect.stringMatching(/^[0-9a-f]{64}$/), endpoint: expect.stringContaining("/api/agent/books/") });
         const one = list.books.find((b: any) => b.slug === "traveling-with-an-older-parent");

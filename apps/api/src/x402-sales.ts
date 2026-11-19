@@ -68,6 +68,8 @@ export interface Product {
   defaultPrice: string;
   /** Sold only to someone who already holds a site pass, and charged for even then: the pass is the access, not the price. */
   requiresPass?: boolean;
+  /** A price for this particular request when it differs from the product's usual one (one book costs more than the rest). */
+  priceFor?(u: URL): string | undefined;
   /** `words` is what was searched for, in plain words, for the owner's numbers; empty when there is nothing to keep. */
   respond(url: URL, origin: string, store: StoreLike): { status: 200 | 400 | 404; body: unknown; results: number; summary: string; words?: string; file?: { data: Buffer; filename: string } };
 }
@@ -156,6 +158,7 @@ export const PRODUCTS: Product[] = [
     id: "books", title: "Books (PDF)",
     description: "Practical guides as PDF files, written by Safehubby for AI agents (they are not shown to people in a browser): traveling with an older parent, hiring and working with a concierge, and visiting Puerto Rico. General information, not medical, legal or financial advice. List them free at /api/agent/books. Needs a site pass first (the pass is the access), then each book costs extra.",
     path: "/api/agent/books/{slug}", usage: "GET /api/agent/books/{slug} returns the PDF (list free at /api/agent/books)", defaultPrice: "$0.50", requiresPass: true,
+    priceFor: (u) => BOOKS.find((b) => b.slug === decodeURIComponent(u.pathname.split("/").pop() ?? ""))?.price,
     respond(u) {
       const slug = decodeURIComponent(u.pathname.split("/").pop() ?? "");
       const data = readBook(slug);
@@ -220,7 +223,7 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-export const priceOf = (p: Product) => process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
+export const priceOf = (p: Product, u?: URL) => (u && p.priceFor?.(u)) || process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
 
 let cached: { key: string; server: Promise<x402ResourceServer> } | null = null;
 function serverFor(c: Config): Promise<x402ResourceServer> {
@@ -419,7 +422,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     return json(res, 200, {
       price: priceOf(PRODUCTS.find((p) => p.id === "books")!), requires: "A site pass first (the pass is the access to buy), then this price for each book. Ask for a book without a pass and you are asked to buy the pass.",
       note: "PDF files. Each answer is signed over the exact file; the sha256 here lets you check you got the whole book.",
-      books: BOOKS.map((b) => ({ slug: b.slug, title: b.title, subtitle: b.subtitle, description: b.description, language: b.language, pages: b.pages, bytes: b.bytes, sha256: b.sha256, endpoint: `${origin}/api/agent/books/${b.slug}` })),
+      books: BOOKS.map((b) => ({ slug: b.slug, price: b.price ?? priceOf(PRODUCTS.find((p) => p.id === "books")!), title: b.title, subtitle: b.subtitle, description: b.description, language: b.language, pages: b.pages, bytes: b.bytes, sha256: b.sha256, endpoint: `${origin}/api/agent/books/${b.slug}` })),
     });
   }
   if (url.pathname === "/api/agent/checklists") {
@@ -438,7 +441,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const product = productFor(url.pathname)!;
   const config = x402Config();
   if ("error" in config) return json(res, 503, { error: config.error });
-  const price = priceOf(product);
+  const price = priceOf(product, url);
   if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
   const answer = product.respond(url, origin, store);
