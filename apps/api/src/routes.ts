@@ -119,6 +119,7 @@ import { sms } from "./adapters/sms.ts";
 import { collectSubscriptionCharges, renewDueSubscriptions, retryPastDueSubscriptions } from "./billing.ts";
 import { newId, type StoreLike } from "./store.ts";
 import { buildCheck, freshCount, prune } from "./local-checks.ts";
+import { getCall, listNumbers, phoneCheckResult, startCall, usableCaller, vapiConfigured, vapiRequires } from "./adapters/vapi.ts";
 import {
   ASSISTANT_SESSION_TTL_MS, MASTER_SESSION_TTL_MS, RateLimiter, hashPassword, newSessionToken, newTempPassword,
   normalizeEmail, SESSION_TTL_MS, secureFraction, sweepExpiredSessions, validatePassword, verifyPassword,
@@ -6865,6 +6866,67 @@ export const routes: Record<string, Handler> = {
     const id = req(p, "id");
     ctx.store.update((db) => { db.localChecks = (db.localChecks ?? []).filter((c) => c.id !== id); });
     return { ok: true };
+  },
+
+  /**
+   * Owner: Sofía's phone checks (docs/phone-checks.md). One question to one business, started only by the owner, at most one call
+   * to a number per day and ten a day in all, US and Puerto Rico numbers only. A clear answer is saved to Checked today.
+   */
+  "GET /api/master/phone-checks": async (ctx) => {
+    requireAdmin(ctx, "operations");
+    const calls = [...(ctx.store.data.phoneChecks ?? [])].reverse().slice(0, 30);
+    if (!vapiConfigured()) return { configured: false, requires: vapiRequires, caller: null, calls };
+    let caller = null, problem: string | null = null;
+    try { caller = usableCaller(await listNumbers(), process.env.VAPI_PHONE_NUMBER_ID?.trim() || undefined); if (!caller) problem = "No number that can call out. Free Vapi numbers cannot call out: import a Twilio, Telnyx or Vonage number in Vapi."; }
+    catch (err) { problem = err instanceof Error ? err.message : "Vapi could not be reached."; }
+    return { configured: true, requires: vapiRequires, caller, problem, calls };
+  },
+  "POST /api/master/phone-checks": async (ctx, _p, body) => {
+    requireAdmin(ctx, "operations");
+    if (!vapiConfigured()) throw new HttpError(503, `Phone checks are not set up. ${vapiRequires}`);
+    const digits = String(body?.to ?? "").replace(/[^\d+]/g, "").replace(/^\+?1?(?=\d{10}$)/, "");
+    if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(digits)) throw new HttpError(400, "Give a US or Puerto Rico phone number, 10 digits.");
+    const to = `+1${digits}`;
+    const item = cleanText(body?.item, 80), place = cleanText(body?.place, 80);
+    if (item.length < 2 || place.length < 2) throw new HttpError(400, "Say what to ask about and which place you are calling.");
+    if (/https?:|@|\d{3}[-. ]?\d{3}[-. ]?\d{4}/.test(`${item} ${place}`)) throw new HttpError(400, "Leave links, emails and phone numbers out of the item and the place.");
+    const lang = body?.lang === "en" ? "en" : "es";
+    // One call to a number per Puerto Rico day, and ten a day in all, so a mistake or a loop cannot run up the bill.
+    const today = new Date(ctx.now().getTime() - 4 * 3_600_000).toISOString().slice(0, 10);
+    const sameDay = (c: { at: string }) => new Date(new Date(c.at).getTime() - 4 * 3_600_000).toISOString().slice(0, 10) === today;
+    const todays = (ctx.store.data.phoneChecks ?? []).filter(sameDay);
+    if (todays.some((c) => c.to === to)) throw new HttpError(429, "This number was already called today.");
+    if (todays.length >= 10) throw new HttpError(429, "Ten calls today already. Try again tomorrow.");
+    let caller;
+    try { caller = usableCaller(await listNumbers(), process.env.VAPI_PHONE_NUMBER_ID?.trim() || undefined); }
+    catch (err) { throw new HttpError(502, err instanceof Error ? err.message : "Vapi could not be reached."); }
+    if (!caller) throw new HttpError(409, "No number that can call out. Free Vapi numbers cannot call out: buy a Twilio number and import it in Vapi (Phone Numbers, Import, Twilio).");
+    let started;
+    try { started = await startCall({ phoneNumberId: caller.id, to, item, place, lang }); }
+    catch (err) { throw new HttpError(502, err instanceof Error ? err.message : "Vapi refused the call."); }
+    const record = { id: newId("pcall"), at: ctx.now().toISOString(), vapiCallId: started.id, to, item, place, lang, status: started.status, answer: null, notes: "" } as const;
+    ctx.store.update((db) => { db.phoneChecks = [...(db.phoneChecks ?? []), { ...record }].slice(-500); });
+    return { ok: true, call: record };
+  },
+  "POST /api/master/phone-checks/:id/refresh": async (ctx, p) => {
+    requireAdmin(ctx, "operations");
+    const id = req(p, "id");
+    const found = (ctx.store.data.phoneChecks ?? []).find((c) => c.id === id);
+    if (!found) throw new HttpError(404, "No such call.");
+    if (found.status === "ended") return { call: found };
+    let vapiCall: any;
+    try { vapiCall = await getCall(found.vapiCallId); }
+    catch (err) { throw new HttpError(502, err instanceof Error ? err.message : "Vapi could not be reached."); }
+    const result = phoneCheckResult(vapiCall);
+    let checkId: string | undefined;
+    if (result.done && result.answer) {
+      const said = result.answer === "yes" ? (found.lang === "es" ? "Hay en existencia, según una llamada." : "In stock, per a phone call.") : (found.lang === "es" ? "No hay en existencia, según una llamada." : "Not in stock, per a phone call.");
+      const made = buildCheck({ kind: "stock", place: found.place, subject: `${found.item}: ${found.lang === "es" ? "¿en existencia?" : "in stock?"}`, statement: `${said}${result.notes ? ` ${result.notes}` : ""}`, observedAt: vapiCall?.endedAt ?? ctx.now().toISOString(), checkedBy: "Sofía (automated phone call)", evidence: "call" }, ctx.now(), newId("chk"));
+      if (!("error" in made)) { checkId = made.id; ctx.store.update((db) => { db.localChecks = prune([...(db.localChecks ?? []), made], ctx.now()); }); }
+    }
+    const updated = { ...found, status: String(vapiCall?.status ?? found.status), ...(result.done ? { answer: result.answer, notes: result.notes } : {}), ...(checkId ? { checkId } : {}) };
+    ctx.store.update((db) => { db.phoneChecks = (db.phoneChecks ?? []).map((c) => (c.id === id ? updated : c)); });
+    return { call: updated };
   },
 
   /** Owner: what other AI agents have paid for the vendor lookup (x402), and whether it is on test money. */

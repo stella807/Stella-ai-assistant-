@@ -15,6 +15,12 @@ import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupReque
  *  than nested under the event, the same shape `Referral` and the other
  *  many-to-one records here use, so it survives a catalogue entry changing
  *  shape later. */
+/** One of Sofía's calls. `to` is a business number; nothing about the client is kept. */
+export interface PhoneCheck {
+  id: string; at: string; vapiCallId: string; to: string; item: string; place: string; lang: "es" | "en";
+  status: string; answer: "yes" | "no" | null; notes: string; checkId?: string;
+}
+
 export interface EliteEventRsvp {
   id: string;
   eventId: string;
@@ -271,6 +277,8 @@ export interface Db {
   agentSales?: import("./x402-sales.ts").AgentSale[];
   /** "Checked today" facts recorded by a person who was there; see local-checks.ts. Old ones are forgotten. */
   localChecks?: import("./local-checks.ts").LocalCheck[];
+  /** Sofía's calls through Vapi (adapters/vapi.ts): who was called, about what, and what came of it. */
+  phoneChecks?: PhoneCheck[];
   /** What visitors do, as counts by day (no addresses, no names); see signals.ts. Days older than 90 are forgotten. */
   signals?: import("./signals.ts").SignalsDb["signals"];
   /** The key that signs every answer the agent store gives (attestation.ts); made on first use, the private half never leaves. */

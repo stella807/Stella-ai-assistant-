@@ -5,7 +5,7 @@
  * No links, email addresses or phone numbers are kept, and nothing is invented: with no check, there is no answer.
  */
 export type CheckKind = "open" | "stock" | "line" | "other";
-export type Evidence = "photo" | "receipt" | "none";
+export type Evidence = "photo" | "receipt" | "call" | "none";
 export interface LocalCheck {
   id: string; kind: CheckKind; place: string; subject: string; statement: string;
   observedAt: string; validUntil: string; checkedBy: string; evidence: Evidence; recordedAt: string;
@@ -19,7 +19,7 @@ export const KEEP_DAYS = 14;
 const KEEP_MAX = 2000;
 const FUTURE_SLACK_MS = 5 * 60_000;
 const KINDS = new Set<string>(["open", "stock", "line", "other"]);
-const EVIDENCE = new Set<string>(["photo", "receipt", "none"]);
+const EVIDENCE = new Set<string>(["photo", "receipt", "call", "none"]);
 const CONTACT = /https?:|www\.|@|\b\d{3}[-. )]\s?\d{3}[-. ]\d{4}\b/i;
 const STOP = new Set(["the", "and", "for", "are", "was", "has", "have", "does", "this", "that", "with", "from", "now", "today", "right", "any", "there", "its"]);
 
@@ -37,7 +37,7 @@ export function buildCheck(input: unknown, now: Date, id: string): LocalCheck | 
   if (!checkedBy) return { error: "Say who was there. A check nobody stood behind is not sold." };
   if ([place, subject, statement, checkedBy].some((t) => CONTACT.test(t))) return { error: "Leave links, email addresses and phone numbers out of a check." };
   const evidence = clip(b.evidence, 10) || "none";
-  if (!EVIDENCE.has(evidence)) return { error: "evidence must be photo, receipt or none." };
+  if (!EVIDENCE.has(evidence)) return { error: "evidence must be photo, receipt, call or none." };
   const seen = new Date(typeof b.observedAt === "string" ? b.observedAt : "");
   if (Number.isNaN(seen.getTime())) return { error: "observedAt must be a time, such as 2026-11-19T14:30:00Z." };
   if (seen.getTime() > now.getTime() + FUTURE_SLACK_MS) return { error: "observedAt is in the future." };

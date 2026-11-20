@@ -19,6 +19,7 @@ import { OwnAiSection } from "./OwnAiSection.tsx";
 import { AgentSalesSection } from "./AgentSalesSection.tsx";
 import { SignalsSection } from "./SignalsSection.tsx";
 import { CheckedTodaySection } from "./CheckedTodaySection.tsx";
+import { SofiaCallsSection } from "./SofiaCallsSection.tsx";
 import { BusinessesSection } from "./BusinessesSection.tsx";
 
 /**
@@ -376,6 +377,7 @@ function Dashboard({ overview, onRefresh, onSignedOut }: {
       )}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Sales to AI agents"><AgentSalesSection /></Fold>}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Checked today: what you saw on the ground"><CheckedTodaySection /></Fold>}
+      {tab === "money" && overview.account.role === "owner" && <Fold title="Sofía: call to check"><SofiaCallsSection /></Fold>}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Signals: what visitors do"><SignalsSection /></Fold>}
       {tab === "money" && overview.account.role === "owner" && <Fold title="Investors, customers and partners"><BizDevSection /></Fold>}
       {tab === "money" && overview.money && <Fold title="Money"><MoneySection money={overview.money} /></Fold>}

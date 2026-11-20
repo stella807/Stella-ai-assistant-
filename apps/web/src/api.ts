@@ -387,6 +387,7 @@ export interface SeniorIdView {
   note?: string;
 }
 
+export type PhoneCheckRow = { id: string; at: string; to: string; item: string; place: string; lang: "es" | "en"; status: string; answer: "yes" | "no" | null; notes: string; checkId?: string };
 export type LocalCheckRow = { id: string; kind: string; place: string; subject: string; statement: string; observedAt: string; validUntil: string; checkedBy: string; evidence: string };
 
 export const api = {
@@ -953,6 +954,9 @@ export const api = {
   masterDeleteVendor: (id: string) => request<{ ok: true }>("POST", `/api/master/vendors/${id}/delete`, {}),
   agentSales: () => request<{ enabled: boolean; status: string; count: number; totalUnits: number; byProduct: Record<string, { count: number; units: number }>;
     recent: { id: string; at: string; product?: string; amount: string; payer?: string; transaction?: string; query: string; results: number }[] }>("GET", "/api/master/agent-sales"),
+  phoneChecks: () => request<{ configured: boolean; requires: string; caller: { id: string; number: string; provider: string } | null; problem?: string | null; calls: PhoneCheckRow[] }>("GET", "/api/master/phone-checks"),
+  startPhoneCheck: (c: { to: string; item: string; place: string; lang: "es" | "en" }) => request<{ ok: true; call: PhoneCheckRow }>("POST", "/api/master/phone-checks", c),
+  refreshPhoneCheck: (id: string) => request<{ call: PhoneCheckRow }>("POST", `/api/master/phone-checks/${id}/refresh`, {}),
   localChecks: () => request<{ checks: LocalCheckRow[]; freshNow: number }>("GET", "/api/master/local-checks"),
   addLocalCheck: (c: { kind: string; place: string; subject: string; statement: string; observedAt: string; checkedBy: string; evidence: string; validForMinutes?: number }) =>
     request<{ ok: true }>("POST", "/api/master/local-checks", c),

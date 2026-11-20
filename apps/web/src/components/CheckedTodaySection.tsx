@@ -57,7 +57,7 @@ export function CheckedTodaySection() {
       <label htmlFor="chk-by" className="tiny">Who was there (first name)</label>
       <input id="chk-by" value={form.checkedBy} maxLength={40} onChange={set("checkedBy")} />
       <label htmlFor="chk-evidence" className="tiny">Proof you kept</label>
-      <select id="chk-evidence" value={form.evidence} onChange={set("evidence")}><option value="photo">A photo</option><option value="receipt">A receipt</option><option value="none">None</option></select>
+      <select id="chk-evidence" value={form.evidence} onChange={set("evidence")}><option value="photo">A photo</option><option value="receipt">A receipt</option><option value="call">A phone call</option><option value="none">None</option></select>
       <button className="btn btn-primary btn-block" disabled={busy || !ready} onClick={save}>{busy ? "Saving…" : "Record this check"}</button>
       {error && <p className="tiny" role="alert">{error}</p>}
 

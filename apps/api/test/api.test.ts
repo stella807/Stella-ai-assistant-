@@ -3407,6 +3407,86 @@ describe("biweekly payroll", () => {
         });
       });
 
+      describe("Sofía's phone checks, through Vapi", () => {
+        const calls: { url: string; body: any }[] = [];
+        let callStatus: any = { status: "queued" };
+        let numbers: any[] = [{ id: "free1", provider: "vapi", number: "+15550001111" }, { id: "tw1", provider: "twilio", number: "+17875550100" }];
+        beforeEach(async () => {
+          calls.length = 0; callStatus = { status: "queued" }; numbers = [{ id: "free1", provider: "vapi", number: "+15550001111" }, { id: "tw1", provider: "twilio", number: "+17875550100" }];
+          process.env.VAPI_API_KEY = "test-vapi-key";
+          const { setVapiFetcher } = await import("../src/adapters/vapi.ts");
+          setVapiFetcher(async (url: string, init?: RequestInit) => {
+            calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null });
+            if (url.endsWith("/phone-number?limit=100")) return new Response(JSON.stringify(numbers));
+            if (url.endsWith("/call") && init?.method === "POST") return new Response(JSON.stringify({ id: `call_${calls.length}`, status: "queued" }), { status: 201 });
+            if (url.includes("/call/")) return new Response(JSON.stringify(callStatus));
+            return new Response("{}", { status: 404 });
+          });
+        });
+        afterEach(async () => { delete process.env.VAPI_API_KEY; const { setVapiFetcher } = await import("../src/adapters/vapi.ts"); setVapiFetcher(undefined); });
+        const start = (over: Record<string, unknown> = {}) => callAdmin("POST", "/api/master/phone-checks", { to: "787-292-2050", item: "insulina Lantus", place: "Walgreens Avenida La Sierra", lang: "es", ...over });
+
+        it("says what it needs when there is no key, and calls nothing", async () => {
+          delete process.env.VAPI_API_KEY;
+          const status: any = (await callAdmin("GET", "/api/master/phone-checks")).json;
+          expect(status.configured).toBe(false);
+          expect(status.requires).toMatch(/VAPI_API_KEY/);
+          expect((await start()).status).toBe(503);
+          expect(calls).toHaveLength(0);
+        });
+
+        it("refuses to call from a free Vapi number, which cannot call out", async () => {
+          numbers = [{ id: "free1", provider: "vapi", number: "+15550001111" }];
+          const res = await start();
+          expect(res.status).toBe(409);
+          expect(JSON.stringify(res.json)).toMatch(/Twilio/);
+        });
+
+        it("places one call from the imported number, for the owner only, and keeps it", async () => {
+          expect((await call("POST", "/api/master/phone-checks", { to: "7872922050", item: "x", place: "y" })).status).toBe(401);
+          const res: any = await start();
+          expect(res.status).toBe(200);
+          const sent = calls.find((c) => c.url.endsWith("/call"))!.body;
+          expect(sent.phoneNumberId).toBe("tw1");
+          expect(sent.customer.number).toBe("+17872922050");
+          expect(sent.assistant.maxDurationSeconds).toBe(300);
+          const list: any = (await callAdmin("GET", "/api/master/phone-checks")).json;
+          expect(list.configured).toBe(true);
+          expect(list.caller).toMatchObject({ provider: "twilio" });
+          expect(list.calls[0]).toMatchObject({ to: "+17872922050", item: "insulina Lantus", status: "queued" });
+        });
+
+        it("calls a number at most once a day, ten calls a day in all, and only US and Puerto Rico numbers", async () => {
+          expect((await start()).status).toBe(200);
+          expect((await start()).status).toBe(429);
+          expect((await start({ to: "+44 20 7946 0958" })).status).toBe(400);
+          expect((await start({ to: "123" })).status).toBe(400);
+          for (let i = 1; i <= 9; i++) expect((await start({ to: `787555${String(1000 + i)}` })).status, `call ${i}`).toBe(200);
+          expect((await start({ to: "7875559999" })).status).toBe(429);
+        });
+
+        it("reads the result and saves it to Checked today, marked as a phone call", async () => {
+          const id = ((await start()).json as any).call.id;
+          callStatus = { status: "ended", endedReason: "assistant-ended-call", endedAt: clock.toISOString(), analysis: { structuredData: { reachedPerson: true, inStock: "yes", notes: "Two boxes" } } };
+          const res: any = (await callAdmin("POST", `/api/master/phone-checks/${id}/refresh`, {})).json;
+          expect(res.call).toMatchObject({ status: "ended", answer: "yes", notes: "Two boxes" });
+          const checks: any = (await callAdmin("GET", "/api/master/local-checks")).json;
+          expect(checks.checks[0]).toMatchObject({ kind: "stock", place: "Walgreens Avenida La Sierra", checkedBy: "Sofía (automated phone call)", evidence: "call" });
+          expect(checks.checks[0].statement).toMatch(/Hay en existencia/);
+          // Reading it again does not save it twice.
+          await callAdmin("POST", `/api/master/phone-checks/${id}/refresh`, {});
+          expect(((await callAdmin("GET", "/api/master/local-checks")).json as any).checks).toHaveLength(1);
+        });
+
+        it("saves nothing to Checked today when nobody answered", async () => {
+          const id = ((await start()).json as any).call.id;
+          callStatus = { status: "ended", endedReason: "customer-did-not-answer" };
+          const res: any = (await callAdmin("POST", `/api/master/phone-checks/${id}/refresh`, {})).json;
+          expect(res.call).toMatchObject({ status: "ended", answer: null });
+          expect(((await callAdmin("GET", "/api/master/local-checks")).json as any).checks).toHaveLength(0);
+        });
+      });
+
       describe("checked today: what a person saw on the ground", () => {
         const seenAt = () => new Date(clock.getTime() - 20 * 60_000).toISOString();
         const record = (over: Record<string, unknown> = {}) => callAdmin("POST", "/api/master/local-checks", { kind: "open", place: "Farmacia Central, Santurce", subject: "Open today", statement: "Open, counter staffed.", observedAt: seenAt(), checkedBy: "Maria", evidence: "photo", ...over });
