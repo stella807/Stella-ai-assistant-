@@ -407,6 +407,49 @@ describe("pharmacies near a place in Puerto Rico", () => {
     expect(b.stockNote).toMatch(/Checked today/);
   });
 
+  const npi = (name: string, dba: string | null, street: string, city: string, phone: string, desc = "Pharmacy, Community/Retail Pharmacy") => ({
+    basic: { organization_name: name }, other_names: dba ? [{ type: "Doing Business As", code: "3", organization_name: dba }] : [],
+    addresses: [{ address_purpose: "LOCATION", address_1: street, city, state: "PR", telephone_number: phone }],
+    taxonomies: [{ desc, primary: true }],
+  });
+  const NPI = JSON.stringify({ result_count: 4, results: [
+    npi("WALGREEN OF PUERTO RICO INC", "WALGREENS #5555", "AVE LA SIERRA", "SAN JUAN", "787-292-2050"),
+    npi("FARMACIA CARIDAD INC", null, "AVE PONCE DE LEON 1000", "SAN JUAN", "787-555-0101"),
+    npi("FARMACIA EL AMAL LLC", null, "CALLE LOIZA 20", "SAN JUAN", "787-555-0177"),
+    npi("UNIVERSITY PEDIATRIC HOSPITAL", null, "CENTRO MEDICO", "SAN JUAN", "787-555-0444", "Pharmacy"),
+    npi("ALIVIA INFUSION SERVICES LLC", null, "EL TUQUE", "SAN JUAN", "787-555-0999", "Pharmacy, Home Infusion Therapy Pharmacy"),
+  ] });
+  const GEO_TOWN = JSON.stringify([{ name: "Hospital Auxilio Mutuo", lat: "18.4096", lon: "-66.0510", type: "hospital", address: { city: "San Juan" } }]);
+  const both = (list = LIST, npiText: string | null = NPI) => async (url: string) => {
+    if (url.includes("npiregistry")) return npiText === null ? new Response("down", { status: 503 }) : new Response(npiText);
+    if (url.includes("nominatim") && url.includes("%5Bpharmacy%5D")) return new Response(list);
+    if (url.includes("nominatim")) return new Response(GEO_TOWN);
+    return new Response("no", { status: 503 });
+  };
+
+  it("reads the federal pharmacy registry at the same time: fills missing phones and adds licensed pharmacies the map lacks", async () => {
+    setLiveFetcher(both());
+    const b: any = (await answerLive("pharmacy near Hospital Auxilio Mutuo", new Date("2026-11-20T01:30:00Z"))).body;
+    expect(b.sources.join(" ")).toMatch(/NPI|CMS/);
+    const caridad = b.pharmacies.find((p: any) => p.name === "Farmacia Caridad");
+    expect(caridad.phone).toBe("787-555-0101");
+    expect(b.alsoInTown.map((p: any) => p.name)).toEqual(["Farmacia El Amal"]);
+    expect(b.alsoInTown[0]).toMatchObject({ phone: "787-555-0177", town: "San Juan" });
+    expect(JSON.stringify(b)).not.toMatch(/INFUSION|Pediatric Hospital/i);
+  });
+
+  it("answers from the registry alone when the map lists nothing near, and from the map alone when the registry is down", async () => {
+    setLiveFetcher(both("[]"));
+    const a = await answerLive("pharmacy near Hospital Auxilio Mutuo", new Date("2026-11-20T01:30:00Z"));
+    expect(a.status).toBe(200);
+    expect((a.body as any).alsoInTown.length).toBe(3);
+    clearLiveCache();
+    setLiveFetcher(both(LIST, null));
+    const m: any = (await answerLive("pharmacy near Hospital Auxilio Mutuo", new Date("2026-11-20T01:30:00Z"))).body;
+    expect(m.pharmacies.length).toBe(3);
+    expect(m.alsoInTown).toEqual([]);
+  });
+
   it("charges for a real search that finds nothing near a real place, and says so plainly", async () => {
     setLiveFetcher(async (url: string) => (url.includes("%5Bpharmacy%5D") ? new Response("[]") : url.includes("nominatim") ? new Response(GEO) : new Response("no", { status: 503 })));
     const a = await answerLive("pharmacy near Hospital Auxilio Mutuo", now);

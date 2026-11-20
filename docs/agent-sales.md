@@ -363,3 +363,7 @@ The owner chose to charge for a search that was really made, even when it finds 
 - **Charged, answer says `found: false`:** a Checked today question with no fresh check; a pharmacy search near a real place in Puerto Rico where the map lists none.
 - **Not charged, refused before the payment settles:** a request that cannot be read, a question outside what the store covers, a place that cannot be found, a source that is down, an article, checklist or book slug that does not exist, and a currency check on an answer the store never issued.
 - The rule is stated before payment in the product descriptions (every 402), the approval page, `/openapi.json` and `/llms.txt`.
+
+## Pharmacies: two sources read at once
+
+A pharmacy question reads the map (OpenStreetMap via Nominatim: distance, hours, open now) and the federal NPI registry (CMS, public domain: licensed pharmacies by town, with street and phone) at the same time. A map entry missing a phone gets it from the registry when the name or phone matches; licensed walk-in pharmacies the map lacks are listed apart as `alsoInTown`, without distance or hours. Infusion, specialty, mail-order and hospital pharmacies are left out. Either source can be down and the other still answers; only when both have nothing is the search answered `found: false` (and charged).

@@ -454,22 +454,61 @@ async function airportReport(codes: string[], now: Date) {
 }
 
 /** Where a place in Puerto Rico is: the whole phrase first, then the town in it. Null when nothing found is in Puerto Rico. */
-async function locate(place: string, now: Date): Promise<{ name: string; lat: number; lon: number } | null> {
+async function locate(place: string, now: Date): Promise<{ name: string; lat: number; lon: number; town?: string } | null> {
   const town = PR_TOWNS.find((t) => new RegExp(`\\b${t}\\b`).test(place));
   for (const query of [place, town].filter((x, i, a): x is string => !!x && a.indexOf(x) === i)) {
-    const text = await nominatim(`q=${encodeURIComponent(`${query}, Puerto Rico`)}&limit=1`, now);
+    const text = await nominatim(`q=${encodeURIComponent(`${query}, Puerto Rico`)}&limit=1&addressdetails=1`, now);
     let found: any;
     try { found = text ? JSON.parse(text)?.[0] : null; } catch { found = null; }
     const lat = Number(found?.lat), lon = Number(found?.lon);
-    if (found && Number.isFinite(lat) && Number.isFinite(lon) && inPR(lat, lon)) return { name: scrub(found.name || query, 80), lat, lon };
+    const a = found?.address ?? {};
+    const townName = a.city || a.town || a.municipality || a.village || (town && query === town ? query : undefined);
+    if (found && Number.isFinite(lat) && Number.isFinite(lon) && inPR(lat, lon)) return { name: scrub(found.name || query, 80), lat, lon, ...(townName ? { town: scrub(townName, 60) } : {}) };
   }
   return null;
+}
+
+export interface RegistryPharmacy { name: string; address: string; town: string; phone: string | null }
+
+const fold = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const titled = (v: string) => v.toLowerCase().replace(/(^|[\s-])([a-zà-ÿ])/g, (_m, b: string, c: string) => b + c.toUpperCase());
+// Store numbers and company suffixes are noise when matching a registry name to a map name.
+const core = (v: string) => fold(v).replace(/#?\s*\d+$/, "").replace(/\b(INC|LLC|CORP|CORPORATION|CO|OF PUERTO RICO|PR|PSC)\b/g, "").replace(/\s+/g, " ").trim();
+const digits = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-10);
+
+/**
+ * Licensed retail pharmacies in a Puerto Rico town from the federal NPI registry (CMS, public domain): name, street and
+ * phone, no hours and no position. Read at the same time as the map, so it costs no extra wait. Null when unreachable.
+ */
+export async function registryPharmacies(town: string, now: Date): Promise<RegistryPharmacy[] | null> {
+  const city = fold(town);
+  const text = await read(`https://npiregistry.cms.hhs.gov/api/?version=2.1&taxonomy_description=pharmacy&city=${encodeURIComponent(city)}&state=PR&enumeration_type=NPI-2&limit=200`, { "user-agent": "safehubby.com" }, now);
+  if (text === null) return null;
+  let data: any;
+  try { data = JSON.parse(text); } catch { return null; }
+  const out: RegistryPharmacy[] = [];
+  for (const r of Array.isArray(data?.results) ? data.results : []) {
+    const loc = (r.addresses ?? []).find((a: any) => a.address_purpose === "LOCATION");
+    const kind = String((r.taxonomies ?? []).find((t: any) => t.primary)?.desc ?? "");
+    // Only pharmacies a person can walk into: not infusion, specialty, mail-order or nursing-home pharmacies.
+    if (!loc || fold(loc.city ?? "") !== city || !/^Pharmacy(, Community\/Retail Pharmacy)?$/.test(kind)) continue;
+    // A hospital's own pharmacy serves its patients, not someone walking in.
+    if (/HOSPITAL|MEDICAL CENTER|CENTRO MEDICO/.test(fold(r.basic?.organization_name ?? ""))) continue;
+    const dba = (r.other_names ?? []).find((n: any) => n.code === "3" || /doing business/i.test(n.type ?? ""))?.organization_name;
+    out.push({
+      name: scrub(titled(core(dba || r.basic?.organization_name || "Pharmacy")), 80),
+      address: scrub(titled([loc.address_1, loc.city].filter(Boolean).join(", ")), 120),
+      town: scrub(titled(loc.city), 60), phone: loc.telephone_number ? String(loc.telephone_number).slice(0, 40) : null,
+    });
+  }
+  return out;
 }
 
 async function pharmacyAnswer(q: string, place: string, now: Date): Promise<LiveAnswer> {
   if (!place) return none(q, "Say where: a town or a hospital in Puerto Rico, for example \"pharmacy near Hospital Auxilio Mutuo\" or \"farmacia en Bayamón\".");
   const at = await locate(place, now);
   if (!at) return none(q, "That place could not be found in Puerto Rico. Pharmacy answers cover Puerto Rico only.");
+  const registry = at.town ? registryPharmacies(at.town, now) : Promise.resolve(null);
   let list: any[] = [];
   for (const d of [0.035, 0.08]) {
     const box = [at.lon - d, at.lat + d, at.lon + d, at.lat - d].map((n) => n.toFixed(4)).join(",");
@@ -492,15 +531,29 @@ async function pharmacyAnswer(q: string, place: string, now: Date): Promise<Live
       map: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
     };
   }).filter((p) => Number.isFinite(p.distanceKm)).sort((x, y) => x.distanceKm - y.distanceKm).slice(0, 8);
-  if (!pharmacies.length) return searchedNothing(q, `No pharmacy is listed on the map near ${at.name}.`);
-  const withPhone = pharmacies.filter((p) => p.phone).length, open = pharmacies.filter((p) => p.openNow === true).length, known = pharmacies.filter((p) => p.openNow !== null).length;
+  const listed = (await registry) ?? [];
+  // A map entry and a registry entry are the same pharmacy when the phone or the name matches; the registry then fills a
+  // missing phone, and registry entries the map lacks are listed apart, without a distance (the registry gives none).
+  const used = new Set<RegistryPharmacy>();
+  for (const p of pharmacies) {
+    const hit = listed.find((r) => !used.has(r) && ((digits(p.phone) && digits(p.phone) === digits(r.phone)) || (core(r.name).length > 3 && (core(p.name).includes(core(r.name)) || core(r.name).includes(core(p.name))))));
+    if (!hit) continue;
+    used.add(hit);
+    if (!p.phone && hit.phone) p.phone = hit.phone;
+  }
+  const alsoInTown = listed.filter((r) => !used.has(r)).slice(0, 12);
+  if (!pharmacies.length && !alsoInTown.length) return searchedNothing(q, `No pharmacy is listed on the map near ${at.name}${at.town ? ` or in the federal registry for ${at.town}` : ""}.`);
+  const withPhone = pharmacies.filter((p) => p.phone).length + alsoInTown.filter((p) => p.phone).length, open = pharmacies.filter((p) => p.openNow === true).length, known = pharmacies.filter((p) => p.openNow !== null).length;
   return {
-    status: 200, results: pharmacies.length, summary: "live/pharmacy", words: q.toLowerCase(),
+    status: 200, results: pharmacies.length + alsoInTown.length, summary: "live/pharmacy", words: q.toLowerCase(),
     body: {
-      q, place: at, source: "OpenStreetMap contributors (ODbL), via Nominatim", asOf: now.toISOString(), pharmacies,
+      q, place: at, source: "OpenStreetMap contributors (ODbL), via Nominatim",
+      sources: ["OpenStreetMap contributors (ODbL), via Nominatim", ...(listed.length ? ["NPI Registry, CMS (US Department of Health and Human Services)"] : [])],
+      asOf: now.toISOString(), pharmacies, alsoInTown,
+      alsoInTownNote: "Licensed retail pharmacies in the same town from the federal NPI registry that the map does not show. The registry gives no hours and no position, so there is no distance or open-now for these; call first.",
       stock: null,
       stockNote: "Whether an item is in stock is not published in a form we may read automatically. Call the pharmacy (numbers above, where the map has one), or ask Safehubby for a Checked today answer: a person goes and looks, and the answer says when and who.",
-      summary: `${pharmacies.length} pharmac${pharmacies.length === 1 ? "y" : "ies"} near ${at.name}, the nearest ${pharmacies[0]!.distanceKm} km away. ${withPhone} list a phone number. ${known ? `${open} of the ${known} with published hours are open now.` : "None publishes its hours on the map."}`,
+      summary: `${pharmacies.length ? `${pharmacies.length} pharmac${pharmacies.length === 1 ? "y" : "ies"} near ${at.name} on the map, the nearest ${pharmacies[0]!.distanceKm} km away` : `None on the map near ${at.name}`}${alsoInTown.length ? `, plus ${alsoInTown.length} more licensed in ${at.town} from the federal registry` : ""}. ${withPhone} list a phone number. ${known ? `${open} of the ${known} with published hours are open now.` : "None publishes its hours on the map."}`,
       note: "Map data from OpenStreetMap contributors, read when you asked. Names, phones and hours are what volunteers recorded and can be out of date; call before going.",
     },
   };
