@@ -7,7 +7,7 @@ import { PageRateTracker, classifyVisitor, verifySearchEngine, visitorLabel } fr
 import { noteSignal } from "./signals.ts";
 
 /**
- * The site pass: an AI crawler or agent that identifies itself as one pays (default $0.10 in USDC) for one visit, which
+ * The site pass: an AI crawler or agent that identifies itself as one pays (default $0.25 in USDC) for one visit, which
  * lasts an hour by default, to read the website's pages. It can read as many pages as it likes within the visit. People, search engines and everyone else read the site free, and the blog, the store,
  * the API, robots.txt, the sitemap, the chat box script and files such as scripts and images are never charged.
  *

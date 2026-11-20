@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 import { checkRequest } from "../src/request-check.ts";
 import { noticesSince, seasonOn } from "../src/notices.ts";
 import { buildApprovalPack } from "../src/approval-pack.ts";
+import { sitePassInfo } from "../src/site-pass-info.ts";
+
+describe("the site pass price as it is shown", () => {
+  it("reads a price typed without the dollar sign as dollars, and keeps one typed with it", () => {
+    const before = process.env.X402_SITE_PASS_PRICE;
+    try {
+      process.env.X402_SITE_PASS_PRICE = "0.25";
+      expect(sitePassInfo().price).toBe("$0.25");
+      process.env.X402_SITE_PASS_PRICE = "$1.00";
+      expect(sitePassInfo().price).toBe("$1.00");
+      process.env.X402_SITE_PASS_PRICE = "";
+      expect(sitePassInfo().price).toBe("$0.25");
+    } finally {
+      process.env.X402_SITE_PASS_PRICE = before ?? "";
+    }
+  });
+});
 
 const good = {
   task: "Pick up the prescription for Garcia at the pharmacy on Main Street",

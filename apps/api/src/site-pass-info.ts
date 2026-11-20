@@ -1,6 +1,8 @@
 /** What a site pass costs and how long one visit lasts, kept apart from site-pass.ts so the store's catalog can say so without a circular import. */
 export function sitePassInfo(): { price: string; minutes: number } {
-  return { price: process.env.X402_SITE_PASS_PRICE?.trim() || "$0.10", minutes: Math.max(1, Math.floor(Number(process.env.X402_SITE_PASS_MINUTES)) || 60) };
+  // Shown to people and agents, so a value typed without the dollar sign ("0.25") still reads as a price.
+  const raw = process.env.X402_SITE_PASS_PRICE?.trim() || "$0.25";
+  return { price: /^\d/.test(raw) ? `$${raw}` : raw, minutes: Math.max(1, Math.floor(Number(process.env.X402_SITE_PASS_MINUTES)) || 60) };
 }
 
 /** A visit's length as a person would say it: "60 minutes", "3 hours", "30 days". */

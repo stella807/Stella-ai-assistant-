@@ -36,9 +36,9 @@ export const NOTICES: Notice[] = [
   },
   {
     id: "site-pass-price", at: "2026-11-20T03:30:00Z", kind: "new",
-    title: w("The site pass is now $0.10", "El pase del sitio ahora cuesta $0.10"),
-    text: w("The site pass, which covers the website's pages, facts, articles, checklists, the request check and this feed, now costs $0.10 instead of $2.99. Books, live answers and Checked today answers are still charged separately.",
-      "El pase del sitio, que cubre las páginas, los datos, los artículos, las listas, la revisión de pedidos y estos avisos, ahora cuesta $0.10 en vez de $2.99. Los libros, las respuestas en vivo y las de Checked today se siguen cobrando aparte."),
+    title: w("The site pass is now $0.25", "El pase del sitio ahora cuesta $0.25"),
+    text: w("The site pass, which covers the website's pages, facts, articles, checklists, the request check and this feed, now costs $0.25 for 30 days instead of $2.99. Books, live answers and Checked today answers are still charged separately.",
+      "El pase del sitio, que cubre las páginas, los datos, los artículos, las listas, la revisión de pedidos y estos avisos, ahora cuesta $0.25 por 30 días en vez de $2.99. Los libros, las respuestas en vivo y las de Checked today se siguen cobrando aparte."),
   },
 ];
 
