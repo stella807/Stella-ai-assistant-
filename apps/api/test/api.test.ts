@@ -2985,6 +2985,9 @@ describe("biweekly payroll", () => {
       expect(body.results).toBeUndefined();
       expect(body.accepts[0]).toMatchObject({ scheme: "exact", network: "eip155:84532", amount: "10000", payTo: PAY_TO });
       expect(res.headers.get("payment-required")).toBeTruthy();
+      // What the x402 directories read: the service's name, and how to ask with an example.
+      expect(body.resource).toMatchObject({ serviceName: "Safehubby" });
+      expect(body.extensions.bazaar.info.input).toMatchObject({ type: "http", method: "GET", queryParams: { q: expect.any(String) } });
       expect((await (await raw({}, "?info")).json())).toMatchObject({ price: "$0.01", testMoneyOnly: true });
     });
 

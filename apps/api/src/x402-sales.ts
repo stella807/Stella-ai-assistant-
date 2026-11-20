@@ -20,6 +20,7 @@ import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
+import { discoveryFor, serviceInfo } from "./x402-discovery.ts";
 
 /**
  * What Safehubby sells to other AI agents, paid per request with x402 (USDC).
@@ -412,6 +413,8 @@ function catalog(origin: string, store: StoreLike) {
 export async function takePayment(
   req: IncomingMessage, res: ServerResponse, opts: {
     path: string; origin: string; price: string; description: string; beforeSettle?: () => { status: number; body: unknown } | null;
+    /** How to call this endpoint, for the x402 directories (see x402-discovery). */
+    discovery?: Record<string, unknown>;
     /** Called when the price is shown to someone who has not paid yet, and when a payment is settled. For the owner's numbers only. */
     onAsk?: () => void; onPaid?: () => void;
   },
@@ -428,9 +431,9 @@ export async function takePayment(
     [{ scheme: "exact", price: opts.price, network: config.network as `${string}:${string}`, payTo: config.payTo }], {},
   );
   // Agents can send email but not WhatsApp, so every request for payment says where to write.
-  const resource = { url: `${opts.origin}${opts.path}`, description: `${opts.description} Questions: ${CONTACT_EMAIL}.`, mimeType: "application/json" };
+  const resource = { url: `${opts.origin}${opts.path}`, description: `${opts.description} Questions: ${CONTACT_EMAIL}.`, mimeType: "application/json", ...serviceInfo(opts.origin) };
   const ask = async (error?: string) => {
-    const required = await server.createPaymentRequiredResponse(requirements, resource, error);
+    const required = await server.createPaymentRequiredResponse(requirements, resource, error, opts.discovery);
     json(res, 402, required, { "PAYMENT-REQUIRED": encodePaymentRequiredHeader(required), ...expose });
     return null;
   };
@@ -511,7 +514,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
   if (holdsPass && answer.status === 200 && !product.requiresPass && !product.alwaysPaid) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file, product.id);
   const paid = await takePayment(req, res, {
-    path: url.pathname, origin, price, description: product.description,
+    path: url.pathname, origin, price, description: product.description, discovery: discoveryFor(product.id),
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
     // A request that can never be answered (no question, no such article) says nothing about demand, so it is not counted.
     onAsk: () => {
