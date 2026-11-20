@@ -20,7 +20,7 @@ import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
-import { FreeSamples, nextFreeAt } from "./free-sample.ts";
+import { FreeSamples, freeSamplesOn, nextFreeAt } from "./free-sample.ts";
 import { discoveryFor, llmsTxt, openApiDoc, serviceInfo, wellKnownX402, type Listed } from "./x402-discovery.ts";
 
 /**
@@ -254,7 +254,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "live", title: "Live answers",
-    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map, and pharmacies near any town or hospital in Puerto Rico (nearest first, with phone numbers and hours where the map has them, and whether each is open now) from OpenStreetMap. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise ships in San Juan are left out until the port operator gives permission to use its schedule; history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass. One answer a day is free to try at /api/agent/sample?q=your question.",
+    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map, and pharmacies near any town or hospital in Puerto Rico (nearest first, with phone numbers and hours where the map has them, and whether each is open now) from OpenStreetMap. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise ships in San Juan are left out until the port operator gives permission to use its schedule; history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass.",
     includes: [
       "Weather alerts for Puerto Rico (National Weather Service)",
       "GOES-East satellite: when its latest pictures of Puerto Rico were made, and their official addresses (NOAA)",
@@ -316,8 +316,8 @@ export function discoveryFile(pathname: string, getOrigin: () => string): { type
   if ("error" in x402Config()) return null;
   const items = listing();
   const origin = getOrigin();
-  if (pathname === "/llms.txt") return { type: "text/plain; charset=utf-8", body: llmsTxt(origin, items) };
-  const doc = pathname === "/openapi.json" ? openApiDoc(origin, items) : wellKnownX402(origin, items);
+  if (pathname === "/llms.txt") return { type: "text/plain; charset=utf-8", body: llmsTxt(origin, items, { freeSample: freeSamplesOn() }) };
+  const doc = pathname === "/openapi.json" ? openApiDoc(origin, items, { freeSample: freeSamplesOn() }) : wellKnownX402(origin, items);
   return { type: "application/json", body: JSON.stringify(doc) };
 }
 
@@ -417,10 +417,10 @@ function catalog(origin: string, store: StoreLike) {
     available: on, note: on ? undefined : config.error,
     checkedNow: freshCount(store.data.localChecks ?? [], new Date()),
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, ...(p.includes ? { includes: p.includes } : {}), ...(p.limits ? { limits: p.limits } : {}), endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
-    freeSample: {
+    freeSample: freeSamplesOn() ? {
       endpoint: `${origin}/api/agent/sample?q=`, perDay: 1, covers: "live answers",
       how: "Ask your own question once a day free, signed like a paid answer, to see what you would be paying for. A question with no answer does not use it up. After that, the same answers are paid at the live answers address.",
-    },
+    } : undefined,
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
       includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Checked-today answers (what a person saw on the ground) and live answers (official storm and airport status, read when you ask) are charged for each answer, with or without a pass. Not included: errands, visits and other work that needs a person.",
@@ -535,6 +535,7 @@ async function freeSample(req: IncomingMessage, res: ServerResponse, url: URL, s
   const q = (url.searchParams.get("q") ?? "").trim();
   const paidUrl = new URL(`/api/agent/live?q=${encodeURIComponent(q)}`, origin);
   const price = priceOf(live, paidUrl);
+  if (!freeSamplesOn()) return json(res, 410, { error: `The free daily answer has ended: every live answer is now paid. The same answer is ${price} at the paid address, signed, and nothing is charged when there is no answer.`, paid: paidUrl.toString(), price });
   if (!q) return json(res, 400, { error: "Ask with ?q= and a few words, for example ?q=SJU delays or ?q=storm warnings puerto rico. One free answer a day; after that each answer is paid at /api/agent/live." });
   const samples = samplesFor(store);
   const verdict = samples.take(asker, now());

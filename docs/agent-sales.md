@@ -322,7 +322,9 @@ answers are cached five minutes; the data is ODbL and the answer credits OpenStr
 Not used, on purpose: Google Maps (its terms do not allow reselling its data to other companies' agents), and the Walgreens and CVS websites
 (their terms do not allow automated reading). Calling pharmacies automatically is not done either.
 
-## One free live answer a day
+## One free live answer a day (ended; off unless switched on)
+
+**Ended on 2026-11-20 by the owner's choice: every answer is now paid.** It is off unless `FREE_SAMPLES=on` is set in Railway. While off, `/api/agent/sample` answers 410 with the paid address and price, and the catalog, `/openapi.json` and `/llms.txt` say nothing about it. What follows is how it works when switched on.
 
 Agents rarely pay for something they have never seen. `GET /api/agent/sample?q=...` gives each asker one live answer a day free: their own question, the same answer and signature a paid one gets, plus a `freeSample` note with the paid price and when the next free one is.
 
@@ -331,7 +333,7 @@ Agents rarely pay for something they have never seen. `GET /api/agent/sample?q=.
 - **Fair.** A question with no answer does not use up the try, the same rule as never charging for no answer.
 - **Private.** The asker is kept only as a salted fingerprint in memory, forgotten when the day changes; a restart gives everyone their try again.
 - **Counted.** Each free answer shows in the owner's signals as product `sample`, with the words asked, and a pharmacy question still alerts the owner.
-- Shown in the catalog (`freeSample`), `/openapi.json`, `/llms.txt`, and the live answers description in every request for payment.
+- When on, shown in the catalog (`freeSample`), `/openapi.json` and `/llms.txt`.
 
 ## Telling the owner when a real request comes in
 

@@ -91,12 +91,12 @@ export function wellKnownX402(origin: string, items: Listed[]): { version: 1; re
 }
 
 /** /openapi.json: every endpoint, the paid ones with their x402 price in dollars, the free ones without. */
-export function openApiDoc(origin: string, items: Listed[]): Record<string, unknown> {
+export function openApiDoc(origin: string, items: Listed[], opts: { freeSample?: boolean } = {}): Record<string, unknown> {
   const paths: Record<string, unknown> = {};
   const free = (summary: string, description: string) => ({ get: { summary, description, responses: { 200: { description: "JSON", content: { "application/json": {} } } } } });
   paths["/api/agent/catalog"] = free("Catalog (free)", "Everything for sale, with prices, what each answer includes and leaves out, and how to ask.");
   paths["/api/agent/key"] = free("Signing key (free)", "The ed25519 public key that signs every paid answer, so an answer can be checked without trusting anything else.");
-  paths["/api/agent/sample"] = {
+  if (opts.freeSample) paths["/api/agent/sample"] = {
     get: {
       ...free("One free live answer a day", "Ask your own question once a day free, signed like a paid answer, to see what live answers give before paying. A question with no answer does not use it up. 429 with the paid address once it is used.").get,
       parameters: [{ in: "query", name: "q", required: true, description: PARAMS.live!.q!.about, schema: { type: "string" }, example: "SJU delays" }],
@@ -141,7 +141,7 @@ export function openApiDoc(origin: string, items: Listed[]): Record<string, unkn
 }
 
 /** /llms.txt: the same, in plain words, for a model reading the site. */
-export function llmsTxt(origin: string, items: Listed[]): string {
+export function llmsTxt(origin: string, items: Listed[], opts: { freeSample?: boolean } = {}): string {
   const price = (p: Listed) => (p.minPrice && p.minPrice !== p.price ? `${p.minPrice} to ${p.price}` : p.price);
   return [
     "# Safehubby",
@@ -155,7 +155,7 @@ export function llmsTxt(origin: string, items: Listed[]): string {
     "## How to start",
     "",
     `- [Catalog, free](${origin}/api/agent/catalog): every product, price, what is included and what is not.`,
-    `- [One free live answer a day](${origin}/api/agent/sample?q=SJU%20delays): try your own question before paying.`,
+    ...(opts.freeSample ? [`- [One free live answer a day](${origin}/api/agent/sample?q=SJU%20delays): try your own question before paying.`] : []),
     `- [OpenAPI](${origin}/openapi.json) and [x402 discovery](${origin}/.well-known/x402): the same, for software.`,
     `- [Approval page, free](${origin}/api/agent/approval): plain text for the person you work for.`,
     `- [Signing key, free](${origin}/api/agent/key): check that a paid answer came from Safehubby.`,

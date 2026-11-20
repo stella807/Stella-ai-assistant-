@@ -11,6 +11,9 @@ const prDay = (now: Date) => new Date(now.getTime() - PR_OFFSET_MS).toISOString(
 /** When the next free answer can be had: the next midnight in Puerto Rico. */
 export const nextFreeAt = (now: Date) => new Date(Date.parse(`${prDay(now)}T00:00:00Z`) + 24 * 60 * 60_000 + PR_OFFSET_MS).toISOString();
 
+/** Off unless the owner switches it on (FREE_SAMPLES=on in Railway): the owner chose on 2026-11-20 to charge for every answer. */
+export const freeSamplesOn = () => /^(1|true|on|yes)$/i.test(process.env.FREE_SAMPLES?.trim() ?? "");
+
 export type SampleVerdict = { ok: true } | { ok: false; reason: "used" | "full"; nextFreeAt: string };
 
 export class FreeSamples {

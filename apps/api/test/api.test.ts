@@ -2967,7 +2967,7 @@ describe("biweekly payroll", () => {
       process.env.X402_FACILITATOR_URL = `http://127.0.0.1:${(fac.address() as AddressInfo).port}`;
     });
     afterEach(async () => {
-      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE", "X402_SITE_PASS_PAGE_LIMIT"]) delete process.env[k];
+      for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE", "X402_SITE_PASS_PAGE_LIMIT", "FREE_SAMPLES"]) delete process.env[k];
       seen.length = 0;
       settleBodies.length = 0;
       await new Promise((r) => fac.close(r));
@@ -3401,7 +3401,21 @@ describe("biweekly payroll", () => {
           expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/live?q=${encodeURIComponent("storm warnings puerto rico")}`)).toBe(true);
         });
 
-        it("lets an agent try one live answer free a day, signed, and points to the paid one after", async () => {
+        it("has ended the free daily answer unless the owner switches it back on, and says so with the paid address", async () => {
+          delete process.env.FREE_SAMPLES;
+          const res = await fetch(`${base}/api/agent/sample?q=${encodeURIComponent("SJU delays")}`);
+          expect(res.status).toBe(410);
+          expect(await res.json()).toMatchObject({ error: expect.stringMatching(/ended/i), paid: expect.stringContaining("/api/agent/live?q=SJU%20delays"), price: "$0.25" });
+          const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+          expect(c.freeSample).toBeUndefined();
+          const api: any = await (await fetch(`${base}/openapi.json`)).json();
+          expect(api.paths["/api/agent/sample"]).toBeUndefined();
+          expect(await (await fetch(`${base}/llms.txt`)).text()).not.toMatch(/free live answer/i);
+          expect(((await (await fetch(liveUrl("SJU delays"))).json()) as any).resource.description).not.toMatch(/free to try/i);
+        });
+
+        it("lets an agent try one live answer free a day when switched on, signed, and points to the paid one after", async () => {
+          process.env.FREE_SAMPLES = "on";
           const { verifyResponse } = await import("../src/attestation.ts");
           const sample = (q: string) => fetch(`${base}/api/agent/sample?q=${encodeURIComponent(q)}`);
           // A question no source covers is not counted as the free try.
@@ -3422,7 +3436,7 @@ describe("biweekly payroll", () => {
           expect(c.freeSample).toMatchObject({ endpoint: expect.stringContaining("/api/agent/sample"), perDay: 1 });
           const api: any = await (await fetch(`${base}/openapi.json`)).json();
           expect(api.paths["/api/agent/sample"].get["x-payment-info"]).toBeUndefined();
-          expect(((await (await fetch(liveUrl("SJU delays"))).json()) as any).resource.description).toMatch(/free/i);
+          delete process.env.FREE_SAMPLES;
         });
 
         it("never charges when no source covers the question, and keeps the words as something agents wanted", async () => {
