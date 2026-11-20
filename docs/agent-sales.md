@@ -309,3 +309,15 @@ and run `node apps/api/scripts/build-airport-history.mjs <zips>`.
 - **TSA checkpoint counts**: TSA's reading room refuses automated downloads from here, so security-line hours still use scheduled departures.
 - **Price**: live answers are $0.25 for weather and airport questions (they read up to ten sources plus a year of history) and $0.10 for a
   power question alone (`priceFor`). `X402_PRICE_LIVE` overrides the $0.25. The change is announced in the alerts feed (`live-answers-price`).
+
+### Pharmacies near a place in Puerto Rico
+
+`pharmacyAnswer` in `src/live-feeds.ts`. A question with "pharmacy", "farmacia", "Walgreens", "CVS" or "drugstore" names a place: the rest of the
+question minus filler words. The place is found with OpenStreetMap's Nominatim (the whole phrase first, then the town in it, from the 78 towns),
+and must be inside Puerto Rico. Pharmacies around it come from the same search (about 4 km, widened to about 9 km if fewer than three), nearest
+first, with phone and hours where volunteers recorded them and `openNow` read from the hours in Puerto Rico time (`openNow`; unreadable hours give
+null, never a guess). Stock is always `null`, with a note to call or buy a Checked today answer. Nominatim is called at most once a second and
+answers are cached five minutes; the data is ODbL and the answer credits OpenStreetMap contributors.
+
+Not used, on purpose: Google Maps (its terms do not allow reselling its data to other companies' agents), and the Walgreens and CVS websites
+(their terms do not allow automated reading). Calling pharmacies automatically is not done either.

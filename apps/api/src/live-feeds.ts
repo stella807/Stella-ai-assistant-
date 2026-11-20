@@ -59,6 +59,23 @@ async function madeAt(url: string, now: Date): Promise<string | null> {
   } finally { clearTimeout(timer); }
 }
 
+/** OpenStreetMap's search (Nominatim): free, ODbL data, at most one request a second, so calls wait their turn. */
+const NOMINATIM = "https://nominatim.openstreetmap.org/search";
+let nominatimGapMs = 1100;
+let nominatimLast = 0;
+/** For tests: no waiting between calls. */
+export const setNominatimGap = (ms: number) => { nominatimGapMs = ms; };
+async function nominatim(params: string, now: Date): Promise<string | null> {
+  const url = `${NOMINATIM}?${params}&format=jsonv2`;
+  const hit = cache.get(url);
+  if (!hit || now.getTime() - hit.at >= FRESH_MS) {
+    const wait = nominatimLast + nominatimGapMs - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    nominatimLast = Date.now();
+  }
+  return read(url, { "user-agent": "safehubby.com", "accept-language": "es,en" }, now);
+}
+
 const NWS_URL = "https://api.weather.gov/alerts/active?area=PR";
 const FAA_URL = "https://nasstatus.faa.gov/api/airport-status-information";
 const PLAN_URL = "https://nasstatus.faa.gov/api/operations-plan";
@@ -240,6 +257,47 @@ async function cruiseReport(now: Date) {
   return { enabled: true as const, source: "San Juan Cruise Port schedule", days, note: "Ships in port each day, Puerto Rico time. On busy cruise days passengers fly in and out of SJU and the roads near the piers fill up." };
 }
 
+/** Puerto Rico's 78 towns, for finding the place in a question when the rest of it is not a place. */
+const PR_TOWNS = ["adjuntas", "aguada", "aguadilla", "aguas buenas", "aibonito", "anasco", "arecibo", "arroyo", "barceloneta", "barranquitas", "bayamon", "cabo rojo", "caguas", "camuy", "canovanas", "carolina", "catano", "cayey", "ceiba", "ciales", "cidra", "coamo", "comerio", "corozal", "culebra", "dorado", "fajardo", "florida", "guanica", "guayama", "guayanilla", "guaynabo", "gurabo", "hatillo", "hormigueros", "humacao", "isabela", "jayuya", "juana diaz", "juncos", "lajas", "lares", "las marias", "las piedras", "loiza", "luquillo", "manati", "maricao", "maunabo", "mayaguez", "moca", "morovis", "naguabo", "naranjito", "orocovis", "patillas", "penuelas", "ponce", "quebradillas", "rincon", "rio grande", "sabana grande", "salinas", "san german", "san juan", "san lorenzo", "san sebastian", "santa isabel", "toa alta", "toa baja", "trujillo alto", "utuado", "vega alta", "vega baja", "vieques", "villalba", "yabucoa", "yauco"];
+const inPR = (lat: number, lon: number) => lat > 17.8 && lat < 18.6 && lon > -67.4 && lon < -65.2;
+
+/**
+ * Whether an OpenStreetMap opening_hours value says open at this moment, in Puerto Rico time. Understands the common forms
+ * ("24/7", "Mo-Fr 08:00-21:00; Sa 09:00-18:00; Su off", hours past midnight); anything else is null, never a guess.
+ */
+export function openNow(hours: string | undefined, now: Date): boolean | null {
+  if (!hours) return null;
+  const h = hours.trim();
+  if (h === "24/7") return true;
+  const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+  const local = new Date(now.getTime() - 4 * 3_600_000);
+  const day = (local.getUTCDay() + 6) % 7, minute = local.getUTCHours() * 60 + local.getUTCMinutes();
+  const rules: { days: Set<number>; spans: [number, number][] }[] = [];
+  for (const part of h.split(";").map((x) => x.trim()).filter(Boolean)) {
+    const m = /^((?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:[-,](?:Mo|Tu|We|Th|Fr|Sa|Su|PH))*)\s+(off|closed|(?:\d{1,2}:\d{2}-\d{1,2}:\d{2}(?:,\s*)?)+)$/.exec(part);
+    if (!m) return null;
+    const days = new Set<number>();
+    for (const piece of m[1]!.split(",")) {
+      if (piece === "PH") continue;
+      const [a, b] = piece.split("-");
+      const from = DAYS.indexOf(a!), to = b ? DAYS.indexOf(b) : from;
+      for (let d = from; ; d = (d + 1) % 7) { days.add(d); if (d === to) break; }
+    }
+    const spans: [number, number][] = /off|closed/.test(m[2]!) ? [] : m[2]!.split(",").map((r) => r.trim()).map((r) => {
+      const [a, b] = r.split("-"); const t = (x: string) => Number(x.split(":")[0]) * 60 + Number(x.split(":")[1]);
+      return [t(a!), t(b!)];
+    });
+    rules.push({ days, spans });
+  }
+  // A later rule for the same day replaces an earlier one, as in OpenStreetMap.
+  const spansFor = (d: number) => rules.filter((r) => r.days.has(d)).pop()?.spans ?? [];
+  if (spansFor(day).some(([a, b]) => (b > a ? minute >= a && minute < b : minute >= a))) return true;
+  const yesterday = (day + 6) % 7;
+  return spansFor(yesterday).some(([a, b]) => b <= a && minute < b);
+}
+
+export interface Pharmacy { name: string; address: string; distanceKm: number; phone: string | null; hours: string | null; openNow: boolean | null; map: string }
+
 export interface PlanItem { when: string; what: string }
 
 /** The FAA's operations plan for the day: what it expects or calls possible. Its link is left out. */
@@ -293,17 +351,23 @@ const CITY_CODES: [string, string[]][] = [
   ...AIRPORTS.filter((e) => e.country === "United States").map((e): [string, string[]] => [plain(e.city), e.airports.map((a) => a.code.toUpperCase())]),
 ];
 const WEATHER = /\b(satellites?|satelites?|clouds?|nubes|cyclones?|ciclon(?:es)?|storms?|hurricanes?|tropical|weather|floods?|flooding|alerts?|warnings?|advisor(?:y|ies)|rain|tormentas?|huracan(?:es)?|inundacion(?:es)?|lluvia|alertas?|avisos?|clima)\b/;
+const PHARMACY = /\b(pharmac(?:y|ies)|farmacias?|walgreens|cvs|drugstores?|boticas?)\b/;
+const FILLER = new Set(["near", "nearest", "closest", "close", "in", "at", "by", "to", "the", "a", "an", "is", "are", "any", "open", "opened", "now", "today", "tonight", "right", "which", "what", "where", "around", "of", "cerca", "mas", "de", "del", "en", "la", "el", "los", "las", "un", "una", "abierta", "abiertas", "abierto", "abiertos", "hoy", "ahora", "hay", "esta", "estan", "que", "cual", "donde", "alrededor", "puerto", "rico", "pr"]);
 const POWER = /\b(power|outages?|electricity|blackouts?|luma|luz|apagon(?:es)?|energia|electrica|sin servicio)\b/;
 const AIRPORT_WORD = /\b(airports?|aeropuertos?|flights?|vuelos?|delays?|delayed|retrasos?|retrasado|ground (stop|delay)|closure|closed)\b/;
 
 /** Power alone is one source, so it costs less than the weather bundle or an airport answer. */
 export const isPowerOnly = (q: string) => routeLive(q)?.source === "power";
 
-export type Route = { source: "weather" } | { source: "power" } | { source: "airport"; codes: string[] };
+export type Route = { source: "weather" } | { source: "power" } | { source: "pharmacy"; place: string } | { source: "airport"; codes: string[] };
 
 export function routeLive(q: string): Route | null {
   const text = plain(q.trim().slice(0, 100));
   if (!text) return null;
+  if (PHARMACY.test(text)) {
+    const place = text.replace(new RegExp(PHARMACY.source, "g"), " ").split(/[^a-z0-9]+/).filter((w) => w && !FILLER.has(w)).join(" ");
+    return { source: "pharmacy", place };
+  }
   if (POWER.test(text)) return { source: "power" };
   const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
   const found = tokens.filter((t) => t.length === 3 && KNOWN.has(t)).map((t) => KNOWN.get(t)!);
@@ -386,6 +450,59 @@ async function airportReport(codes: string[], now: Date) {
   };
 }
 
+/** Where a place in Puerto Rico is: the whole phrase first, then the town in it. Null when nothing found is in Puerto Rico. */
+async function locate(place: string, now: Date): Promise<{ name: string; lat: number; lon: number } | null> {
+  const town = PR_TOWNS.find((t) => new RegExp(`\\b${t}\\b`).test(place));
+  for (const query of [place, town].filter((x, i, a): x is string => !!x && a.indexOf(x) === i)) {
+    const text = await nominatim(`q=${encodeURIComponent(`${query}, Puerto Rico`)}&limit=1`, now);
+    let found: any;
+    try { found = text ? JSON.parse(text)?.[0] : null; } catch { found = null; }
+    const lat = Number(found?.lat), lon = Number(found?.lon);
+    if (found && Number.isFinite(lat) && Number.isFinite(lon) && inPR(lat, lon)) return { name: scrub(found.name || query, 80), lat, lon };
+  }
+  return null;
+}
+
+async function pharmacyAnswer(q: string, place: string, now: Date): Promise<LiveAnswer> {
+  if (!place) return none(q, "Say where: a town or a hospital in Puerto Rico, for example \"pharmacy near Hospital Auxilio Mutuo\" or \"farmacia en Bayamón\".");
+  const at = await locate(place, now);
+  if (!at) return none(q, "That place could not be found in Puerto Rico. Pharmacy answers cover Puerto Rico only.");
+  let list: any[] = [];
+  for (const d of [0.035, 0.08]) {
+    const box = [at.lon - d, at.lat + d, at.lon + d, at.lat - d].map((n) => n.toFixed(4)).join(",");
+    const text = await nominatim(`q=%5Bpharmacy%5D&limit=40&extratags=1&addressdetails=1&bounded=1&viewbox=${box}`, now);
+    if (text === null) return none(q, "The map search could not be reached just now.");
+    try { list = JSON.parse(text); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    if (list.length >= 3) break;
+  }
+  const pharmacies: Pharmacy[] = list.map((e: any): Pharmacy => {
+    const x = e.extratags ?? {}, a = e.address ?? {};
+    const lat = Number(e.lat), lon = Number(e.lon);
+    const hours = x.opening_hours ? scrub(x.opening_hours, 120) : null;
+    return {
+      name: scrub(e.name || x.brand || "Pharmacy", 80),
+      address: [a.road, a.city || a.town || a.village || a.suburb || a.county].filter(Boolean).map((v: unknown) => scrub(v, 80)).join(", "),
+      distanceKm: Math.round(km({ lat: at.lat, lng: at.lon }, { lat, lng: lon }) * 10) / 10 || Math.round(Math.hypot((lat - at.lat) * 111, (lon - at.lon) * 105) * 10) / 10,
+      phone: x.phone || x["contact:phone"] ? String(x.phone || x["contact:phone"]).slice(0, 40) : null,
+      hours, openNow: openNow(hours ?? undefined, now),
+      map: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
+    };
+  }).filter((p) => Number.isFinite(p.distanceKm)).sort((x, y) => x.distanceKm - y.distanceKm).slice(0, 8);
+  if (!pharmacies.length) return none(q, `No pharmacy is listed on the map near ${at.name}.`);
+  const withPhone = pharmacies.filter((p) => p.phone).length, open = pharmacies.filter((p) => p.openNow === true).length, known = pharmacies.filter((p) => p.openNow !== null).length;
+  return {
+    status: 200, results: pharmacies.length, summary: "live/pharmacy", words: q.toLowerCase(),
+    body: {
+      q, place: at, source: "OpenStreetMap contributors (ODbL), via Nominatim", asOf: now.toISOString(), pharmacies,
+      stock: null,
+      stockNote: "Whether an item is in stock is not published in a form we may read automatically. Call the pharmacy (numbers above, where the map has one), or ask Safehubby for a Checked today answer: a person goes and looks, and the answer says when and who.",
+      summary: `${pharmacies.length} pharmac${pharmacies.length === 1 ? "y" : "ies"} near ${at.name}, the nearest ${pharmacies[0]!.distanceKm} km away. ${withPhone} list a phone number. ${known ? `${open} of the ${known} with published hours are open now.` : "None publishes its hours on the map."}`,
+      note: "Map data from OpenStreetMap contributors, read when you asked. Names, phones and hours are what volunteers recorded and can be out of date; call before going.",
+    },
+  };
+}
+
 const AIRPORT_NOTE = "The FAA lists only airports with something to report, so an airport that is not listed has no reported delay at the time shown. Conditions can change at any time. Not a forecast, and not a promise about any flight.";
 const OUTLOOK_NOTE = "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook and a year of on-time history by hour (US DOT) with the busy hours for security lines. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.";
 const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
@@ -393,7 +510,8 @@ const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
 export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
   const q = rawQ.trim().slice(0, 100);
   const route = routeLive(q);
-  if (!route) return none(q, "No live source covers this. Live answers cover weather in Puerto Rico (alerts, satellite, storms, power, airports), power outages, and US airport delays, such as SJU delays.");
+  if (!route) return none(q, "No live source covers this. Live answers cover weather in Puerto Rico (alerts, satellite, storms, power, airports), power outages, pharmacies near a place in Puerto Rico, and US airport delays, such as SJU delays.");
+  if (route.source === "pharmacy") return pharmacyAnswer(q, route.place, now);
   if (route.source === "power") {
     const power = await powerReport(now);
     if (!power) return none(q, "The power company's outage map could not be read just now.");

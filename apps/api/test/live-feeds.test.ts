@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { answerLive, clearLiveCache, icaoFor, parseCruise, parseFaa, parseNws, routeLive, setLiveFetcher } from "../src/live-feeds.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { answerLive, clearLiveCache, icaoFor, openNow, parseCruise, parseFaa, parseNws, routeLive, setLiveFetcher, setNominatimGap } from "../src/live-feeds.ts";
 
 const NWS = JSON.stringify({ features: [
   { properties: { id: "a1", event: "Flash Flood Warning", severity: "Severe", headline: "Flash Flood Warning issued for Naguabo", areaDesc: "Naguabo, PR", sent: "2026-11-19T21:00:00+00:00", expires: "2026-11-19T22:00:00+00:00", senderName: "NWS San Juan PR", instruction: "Move to higher ground. Call 555-123-4567 or see https://x.example", description: "Heavy rain." } },
@@ -40,7 +40,8 @@ describe("working out what is being asked", () => {
     expect(routeLive("flight delay Ponce")).toEqual({ source: "airport", codes: ["PSE"] });
   });
   it("has no live source for what it does not cover", () => {
-    expect(routeLive("is the pharmacy open")).toBeNull();
+    expect(routeLive("best pizza in town")).toBeNull();
+    expect(routeLive("is the pharmacy open")).toEqual({ source: "pharmacy", place: "" });
     expect(routeLive("")).toBeNull();
   });
 });
@@ -80,7 +81,7 @@ describe("answering", () => {
     expect((await answerLive("flood", now)).status).toBe(404);
     expect((await answerLive("SJU delays", now)).status).toBe(404);
     setLiveFetcher(fake({ "weather.gov": NWS }));
-    expect((await answerLive("is the pharmacy open", now)).status).toBe(404);
+    expect((await answerLive("best pizza in town", now)).status).toBe(404);
   });
 
   it("never serves a copy older than fifteen minutes when the source is down", async () => {
@@ -359,5 +360,71 @@ describe("cruise ships in San Juan, only with the port's permission", () => {
     setLiveFetcher(fake({ "airport-status-information": FAA, "sanjuancruiseport.com": PAGE }));
     const o = ((await answerLive("BQN delays", now)).body as any).airports[0].outlook;
     expect(o.cruise).toBeNull();
+  });
+});
+
+describe("pharmacies near a place in Puerto Rico", () => {
+  const GEO = JSON.stringify([{ name: "Hospital Auxilio Mutuo", lat: "18.4096", lon: "-66.0510", type: "hospital" }]);
+  const FAR = JSON.stringify([{ name: "Miami", lat: "25.76", lon: "-80.19", type: "city" }]);
+  const LIST = JSON.stringify([
+    { name: "Walgreens", lat: "18.4100", lon: "-66.0520", extratags: { phone: "+1 787-292-2050", opening_hours: "24/7", brand: "Walgreens" }, address: { road: "Avenida La Sierra", city: "San Juan" } },
+    { name: "Farmacia Caridad", lat: "18.4300", lon: "-66.0700", extratags: { opening_hours: "Mo-Sa 08:00-20:00; Su off" }, address: { road: "Avenida Juan Ponce de León", suburb: "Río Piedras" } },
+    { name: "Medical Pharmacy", lat: "18.4000", lon: "-66.0400", extratags: {}, address: { road: "Calle Georgetti" } },
+  ]);
+  const src = (geo = GEO) => async (url: string) => {
+    if (url.includes("nominatim") && url.includes("%5Bpharmacy%5D")) return new Response(LIST);
+    if (url.includes("nominatim")) return new Response(geo);
+    return new Response("no", { status: 503 });
+  };
+  beforeEach(() => setNominatimGap(0));
+
+  it("sends pharmacy questions here, in English or Spanish, and finds the place in them", () => {
+    expect(routeLive("pharmacy near Hospital Auxilio Mutuo")).toEqual({ source: "pharmacy", place: "hospital auxilio mutuo" });
+    expect(routeLive("farmacia abierta en Bayamón")).toEqual({ source: "pharmacy", place: "bayamon" });
+    expect(routeLive("is the walgreens in ponce open now")).toEqual({ source: "pharmacy", place: "ponce" });
+  });
+
+  it("lists the nearest pharmacies first, with phone, hours and whether they are open now in Puerto Rico time", async () => {
+    setLiveFetcher(src());
+    const thursdayNight = new Date("2026-11-20T01:30:00Z"); // Thursday 21:30 in Puerto Rico
+    const r = await answerLive("pharmacy near Hospital Auxilio Mutuo", thursdayNight);
+    expect(r.status).toBe(200);
+    const b: any = r.body;
+    expect(b.place.name).toBe("Hospital Auxilio Mutuo");
+    expect(b.pharmacies.map((p: any) => p.name)).toEqual(["Walgreens", "Medical Pharmacy", "Farmacia Caridad"]);
+    expect(b.pharmacies[0]).toMatchObject({ phone: "+1 787-292-2050", hours: "24/7", openNow: true, address: "Avenida La Sierra, San Juan" });
+    expect(b.pharmacies[2]).toMatchObject({ openNow: false });
+    expect(b.pharmacies[1]).toMatchObject({ phone: null, openNow: null });
+    expect(b.pharmacies[0].distanceKm).toBeLessThan(0.3);
+    expect(b.source).toMatch(/OpenStreetMap/);
+  });
+
+  it("says plainly that stock is not something it can see, and how to find out", async () => {
+    setLiveFetcher(src());
+    const b: any = (await answerLive("farmacia en Bayamón con insulina", now)).body;
+    expect(b.stock).toBeNull();
+    expect(b.stockNote).toMatch(/call/i);
+    expect(b.stockNote).toMatch(/Checked today/);
+  });
+
+  it("refuses, and so does not charge, a place outside Puerto Rico or no place at all", async () => {
+    setLiveFetcher(src(FAR));
+    expect((await answerLive("pharmacy near Miami", now)).status).toBe(404);
+    setLiveFetcher(src());
+    expect((await answerLive("pharmacy", now)).status).toBe(404);
+  });
+});
+
+describe("reading opening hours", () => {
+  const at = (iso: string) => new Date(iso);
+  it("understands the common forms, in Puerto Rico time, and says nothing when it cannot tell", () => {
+    expect(openNow("24/7", at("2026-11-20T07:00:00Z"))).toBe(true);
+    expect(openNow("Mo-Fr 08:00-21:00; Sa 09:00-18:00; Su off", at("2026-11-20T13:00:00Z"))).toBe(true);  // Fri 09:00
+    expect(openNow("Mo-Fr 08:00-21:00; Sa 09:00-18:00; Su off", at("2026-11-22T15:00:00Z"))).toBe(false); // Sun 11:00
+    expect(openNow("Mo-Su 07:00-23:00", at("2026-11-20T15:30:00Z"))).toBe(true);                         // Fri 11:30
+    expect(openNow("Mo-Su 07:00-23:00", at("2026-11-20T04:30:00Z"))).toBe(false);                        // Fri 00:30
+    expect(openNow("Mo-Su 22:00-02:00", at("2026-11-20T04:30:00Z"))).toBe(true);                         // Fri 00:30, still Thursday's late shift
+    expect(openNow("by appointment", at("2026-11-20T13:00:00Z"))).toBeNull();
+    expect(openNow(undefined, at("2026-11-20T13:00:00Z"))).toBeNull();
   });
 });
