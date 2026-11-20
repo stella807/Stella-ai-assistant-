@@ -12,6 +12,7 @@ import { noticesSince, seasonOn } from "./notices.ts";
 import { freshCount, searchChecks } from "./local-checks.ts";
 import { answerLive, isPowerOnly } from "./live-feeds.ts";
 import { noteSignal } from "./signals.ts";
+import { alertOwner } from "./owner-alerts.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { createHash } from "node:crypto";
 import { keyFromSeed, newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
@@ -514,6 +515,12 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
     // A request that can never be answered (no question, no such article) says nothing about demand, so it is not counted.
     onAsk: () => {
+      // A request a person could go and fulfil is worth telling the owner about right away: a Checked today question, or pharmacies.
+      const words = (answer.words ?? "").trim();
+      const pharmacy = product.id === "live" && answer.summary.startsWith("live/pharmacy");
+      if (words && (product.id === "checked" || pharmacy || (product.id === "live" && /pharmac|farmacia|walgreens|cvs/i.test(words)))) {
+        alertOwner(store, now(), `request:${product.id}:${words.toLowerCase()}`, { kind: "request", product: product.id === "checked" ? "Checked today" : "pharmacies (live answers)", words, answered: answer.status === 200 });
+      }
       // A question nobody could answer is still a want: keep its words, so the owner sees what agents ask for.
       if (answer.status === 404 && answer.words) { noteSignal(store, now(), { kind: "unanswered", text: answer.words }); return; }
       if (answer.status !== 200) return;
@@ -521,7 +528,10 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
       if (!answer.words) return;
       noteSignal(store, now(), answer.results === 0 ? { kind: "unanswered", text: answer.words } : { kind: "query", product: product.id, text: answer.words });
     },
-    onPaid: () => noteSignal(store, now(), { kind: "paid", product: product.id }),
+    onPaid: () => {
+      noteSignal(store, now(), { kind: "paid", product: product.id });
+      alertOwner(store, now(), `sale:${newId("alert")}`, { kind: "sale", product: product.title, amount: price, words: (answer.words ?? "").slice(0, 100) });
+    },
   });
   if (!paid) return;
   const sale: AgentSale = {

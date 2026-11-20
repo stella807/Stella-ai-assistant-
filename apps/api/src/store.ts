@@ -279,6 +279,8 @@ export interface Db {
   localChecks?: import("./local-checks.ts").LocalCheck[];
   /** Sofía's calls through Vapi (adapters/vapi.ts): who was called, about what, and what came of it. */
   phoneChecks?: PhoneCheck[];
+  /** When the owner was last told about a request or a sale (owner-alerts.ts), to keep alerts from repeating. */
+  ownerAlerts?: import("./owner-alerts.ts").SentAlert[];
   /** What visitors do, as counts by day (no addresses, no names); see signals.ts. Days older than 90 are forgotten. */
   signals?: import("./signals.ts").SignalsDb["signals"];
   /** The key that signs every answer the agent store gives (attestation.ts); made on first use, the private half never leaves. */

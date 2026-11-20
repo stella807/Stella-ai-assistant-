@@ -321,3 +321,10 @@ answers are cached five minutes; the data is ODbL and the answer credits OpenStr
 
 Not used, on purpose: Google Maps (its terms do not allow reselling its data to other companies' agents), and the Walgreens and CVS websites
 (their terms do not allow automated reading). Calling pharmacies automatically is not done either.
+
+## Telling the owner when a real request comes in
+
+`src/owner-alerts.ts`. When an agent asks for a Checked today answer or about pharmacies (paid or not yet), and on every settled sale, the
+owner is emailed (`OWNER_ALERT_EMAIL`, else contact@safehubby.com, when an email provider is set up) and texted (`OWNER_ALERT_PHONE`, when
+set and texts are set up). The same request is told once in six hours and requests at most twenty times a day, so repeated asking cannot
+flood the owner; sales are always told. What was told is remembered in `ownerAlerts` (keys and times only).

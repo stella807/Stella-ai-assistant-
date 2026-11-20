@@ -3399,6 +3399,15 @@ describe("biweekly payroll", () => {
           expect(body.whatYouGet.limits.join(" ")).toMatch(/not a forecast|not a prediction/i);
         });
 
+        it("tells the owner when an agent asks about pharmacies, once, and about every sale", async () => {
+          await fetch(liveUrl("farmacia en bayamon"));
+          await fetch(liveUrl("farmacia en bayamon"));
+          const keys = (store.data.ownerAlerts ?? []).map((a) => a.key);
+          expect(keys.filter((k) => k === "request:live:farmacia en bayamon")).toHaveLength(1);
+          await payFor(liveUrl("storm warnings puerto rico"));
+          expect((store.data.ownerAlerts ?? []).some((a) => a.key.startsWith("sale:"))).toBe(true);
+        });
+
         it("never charges when the official source is down", async () => {
           const settles = seen.filter((u) => u.endsWith("/settle")).length;
           const { res } = await payFor(liveUrl("SJU delays"));
