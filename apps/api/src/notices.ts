@@ -34,6 +34,12 @@ export const NOTICES: Notice[] = [
     text: w("Weather answers now bundle the satellite, tropical storms, power across the island and Puerto Rico's airports; airport answers add signs of delays before they are posted and a year of on-time history. Weather and airport answers are $0.25; a power question alone stays $0.10. You are still not charged when there is no answer.",
       "Las respuestas del tiempo ahora incluyen el satélite, las tormentas tropicales, la luz en toda la isla y los aeropuertos de Puerto Rico; las de aeropuertos añaden señales de retrasos antes de que se anuncien y un año de historial de puntualidad. Tiempo y aeropuertos cuestan $0.25; una pregunta solo de luz sigue a $0.10. Si no hay respuesta, no se cobra."),
   },
+  {
+    id: "site-pass-price", at: "2026-11-20T03:30:00Z", kind: "new",
+    title: w("The site pass is now $0.10", "El pase del sitio ahora cuesta $0.10"),
+    text: w("The site pass, which covers the website's pages, facts, articles, checklists, the request check and this feed, now costs $0.10 instead of $2.99. Books, live answers and Checked today answers are still charged separately.",
+      "El pase del sitio, que cubre las páginas, los datos, los artículos, las listas, la revisión de pedidos y estos avisos, ahora cuesta $0.10 en vez de $2.99. Los libros, las respuestas en vivo y las de Checked today se siguen cobrando aparte."),
+  },
 ];
 
 const day = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));

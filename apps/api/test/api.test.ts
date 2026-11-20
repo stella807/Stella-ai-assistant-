@@ -3025,7 +3025,7 @@ describe("biweekly payroll", () => {
       }
     });
 
-    describe("the $2.99 site pass for AI crawlers", () => {
+    describe("the $0.10 site pass for AI crawlers", () => {
       const GPT = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
       const page = (path: string, headers: Record<string, string> = {}) => fetch(`${base}${path}`, { headers });
       /** Sends exactly the headers given and nothing else, as a script would. (fetch adds its own language and Sec-Fetch headers.) */
@@ -3041,7 +3041,7 @@ describe("biweekly payroll", () => {
         return page(path, { ...headers, "payment-signature": sig });
       };
 
-      it("asks a named AI crawler for $2.99 to read a page, and nobody else", async () => {
+      it("asks a named AI crawler for $0.10 to read a page, and nobody else", async () => {
         const { dnsFor } = await import("../src/visitor-kind.ts");
         const realDns = dnsFor.current;
         dnsFor.current = { reverse: async () => ["crawl-1.googlebot.com", "msnbot-1.search.msn.com"], lookup: async () => ["::1", "127.0.0.1", "::ffff:127.0.0.1", "66.249.66.1"] };
@@ -3049,7 +3049,7 @@ describe("biweekly payroll", () => {
         const res = await page("/careers", GPT);
         expect(res.status).toBe(402);
         const body: any = await res.json();
-        expect(body.accepts[0].amount).toBe("2990000");
+        expect(body.accepts[0].amount).toBe("100000");
         expect(body.accepts[0].payTo).toBeTruthy();
         for (const ua of ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "Mozilla/5.0 (compatible; bingbot/2.0)", "Mozilla/5.0 (iPhone) Safari/604.1", "curl/8.4.0"]) {
           expect((await page("/careers", { "user-agent": ua })).status, ua).not.toBe(402);
@@ -3066,7 +3066,7 @@ describe("biweekly payroll", () => {
         expect((await page(`/blog/${list.articles[0].slug}`, GPT)).status).not.toBe(402);
       });
 
-      it("sells one visit for $2.99, lets the same crawler read freely during it, and refuses a forged one", async () => {
+      it("sells one visit for $0.10, lets the same crawler read freely during it, and refuses a forged one", async () => {
         const paid = await payFor("/careers", GPT);
         expect(paid.status).not.toBe(402);
         const pass = paid.headers.get("x-safehubby-pass")!;
@@ -3084,7 +3084,7 @@ describe("biweekly payroll", () => {
         const old = makePass(store.data.sitePassSecret!, "0xbuyer", new Date(clock.getTime() - 2 * 3_600_000), 60);
         expect((await page("/careers", { ...GPT, "x-safehubby-pass": old })).status).toBe(402);
         const sales: any = (await callAdmin("GET", "/api/master/agent-sales")).json;
-        expect(sales.byProduct["site-pass"]).toEqual({ count: 1, units: 2_990_000 });
+        expect(sales.byProduct["site-pass"]).toEqual({ count: 1, units: 100_000 });
       });
 
       it("also asks the ones that pretend: scripts, a browser with no browser headers, and a fake Googlebot", async () => {
@@ -3136,7 +3136,7 @@ describe("biweekly payroll", () => {
           expect(body.accepts[0].amount).toBe("12500000");
         } finally { delete process.env.X402_SITE_PASS_PRICE; }
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.sitePass).toMatchObject({ price: "$2.99", perVisit: true, minutesPerVisit: 60 });
+        expect(c.sitePass).toMatchObject({ price: "$0.10", perVisit: true, minutesPerVisit: 60 });
         expect(c.sitePass.excludes).toMatch(/blog/i);
       });
     });
@@ -3320,7 +3320,7 @@ describe("biweekly payroll", () => {
 
         it("gives the person an agent works for a free page with the real prices, in English and Spanish", async () => {
           const en: any = await (await fetch(`${base}/api/agent/approval`)).json();
-          expect(en.forPerson).toContain("$2.99");
+          expect(en.forPerson).toContain("$0.10");
           expect(en.forPerson).toContain("$0.03");
           expect(en.forPerson).toContain("contact@safehubby.com");
           expect(en.forPerson).not.toMatch(/939/);
@@ -3336,7 +3336,7 @@ describe("biweekly payroll", () => {
         const cheap: any = await (await fetch(`${base}/api/agent/books/visiting-puerto-rico`, { headers: { "x-safehubby-pass": pass } })).json();
         expect(cheap.accepts[0].amount).toBe("500000");
         const noPass: any = await (await fetch(`${base}/api/agent/books/building-a-local-concierge-business`)).json();
-        expect(noPass.accepts[0].amount).toBe("2990000");
+        expect(noPass.accepts[0].amount).toBe("100000");
         expect(noPass.resource.description).toMatch(/\$0\.05/);
       });
 
@@ -3588,7 +3588,7 @@ describe("biweekly payroll", () => {
         const url = `${base}/api/agent/books/${one.slug}`;
         // No pass: what is asked for is the pass, not the book.
         const noPass: any = await (await fetch(url)).json();
-        expect(noPass.accepts[0].amount).toBe("2990000");
+        expect(noPass.accepts[0].amount).toBe("100000");
         expect(noPass.resource.description).toMatch(/books/i);
         expect(noPass.resource.description).not.toMatch(/\d{3,} minutes/);
         // A pass alone does not give the book: with it, the book itself is charged for.
