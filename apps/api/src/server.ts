@@ -214,7 +214,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
       return;
     }
     // Where x402 directories and models look for what is for sale. Before the site pass, so reading them is never charged.
-    const discovery = method === "GET" || method === "HEAD" ? discoveryFile(url.pathname, seoFactsFor(base).origin) : null;
+    const discovery = method === "GET" || method === "HEAD" ? discoveryFile(url.pathname, () => seoFactsFor(base).origin) : null;
     if (discovery) {
       res.writeHead(200, { "content-type": discovery.type, "cache-control": "public, max-age=300", "access-control-allow-origin": "*" });
       return void res.end(method === "HEAD" ? undefined : discovery.body);

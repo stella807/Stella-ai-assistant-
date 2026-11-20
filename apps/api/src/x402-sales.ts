@@ -310,10 +310,11 @@ export function listing(): Listed[] {
 }
 
 /** The discovery files, built from today's prices; null for any other address, or while the store is switched off. */
-export function discoveryFile(pathname: string, origin: string): { type: string; body: string } | null {
+export function discoveryFile(pathname: string, getOrigin: () => string): { type: string; body: string } | null {
   if (!["/.well-known/x402", "/.well-known/x402.json", "/openapi.json", "/llms.txt"].includes(pathname)) return null;
   if ("error" in x402Config()) return null;
   const items = listing();
+  const origin = getOrigin();
   if (pathname === "/llms.txt") return { type: "text/plain; charset=utf-8", body: llmsTxt(origin, items) };
   const doc = pathname === "/openapi.json" ? openApiDoc(origin, items) : wellKnownX402(origin, items);
   return { type: "application/json", body: JSON.stringify(doc) };
