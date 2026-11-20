@@ -355,3 +355,11 @@ Agents that pay with x402 often find what to buy in a directory instead of on th
 - **x402scan** registered the store on 2026-11-20 from `/openapi.json` (`public.resources.registerFromOrigin` with the origin): 12 paid endpoints registered, 0 failed, 3 skipped (the free catalog, key and approval page, which ask for no payment). Run it again after adding a product.
 - Not done: AgentIndex (x402looker.com) and the x402.org ecosystem page take pull requests on GitHub, and the MCP Registry needs an MCP server published from the owner's GitHub account.
 - Nothing in a listing is new: it is the same name, prices and examples the free catalog at `/api/agent` already shows. No phone number is given.
+
+## When a request is charged (changed 2026-11-20)
+
+The owner chose to charge for a search that was really made, even when it finds nothing.
+
+- **Charged, answer says `found: false`:** a Checked today question with no fresh check; a pharmacy search near a real place in Puerto Rico where the map lists none.
+- **Not charged, refused before the payment settles:** a request that cannot be read, a question outside what the store covers, a place that cannot be found, a source that is down, an article, checklist or book slug that does not exist, and a currency check on an answer the store never issued.
+- The rule is stated before payment in the product descriptions (every 402), the approval page, `/openapi.json` and `/llms.txt`.

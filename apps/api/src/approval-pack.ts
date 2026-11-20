@@ -16,8 +16,8 @@ export function buildApprovalPack({ origin, lang, pass, items }: ApprovalInput) 
   const limits = [
     t("Set a spending limit on the wallet or payment tool the agent uses: a per-request maximum and a daily maximum. A few dollars a day is plenty for everything listed here.",
       "Ponga un límite de gasto en la cartera o herramienta de pago que usa el agente: un máximo por pedido y un máximo por día. Unos pocos dólares al día alcanzan para todo lo que aparece aquí."),
-    t("A request that cannot be answered is refused before any money moves, so you are not charged for it.",
-      "Un pedido que no se puede responder se rechaza antes de mover dinero, así que no se cobra."),
+    t("A request that cannot be read, is outside what the store covers, or whose source is down is refused before any money moves, so you are not charged for it. A search that is made and finds nothing is charged, and the answer says so.",
+      "Un pedido que no se puede leer, que no cubrimos, o cuya fuente no responde se rechaza antes de mover dinero, así que no se cobra. Una búsqueda que se hace y no encuentra nada sí se cobra, y la respuesta lo dice."),
     t("Every payment is small, in USDC on the Base network, and visible on the public record of that network.",
       "Cada pago es pequeño, en USDC en la red Base, y se ve en el registro público de esa red."),
   ];

@@ -3584,6 +3584,17 @@ describe("biweekly payroll", () => {
           expect(list.freshNow).toBe(1);
         });
 
+        it("charges for a Checked today search that finds nothing fresh, and says found: false", async () => {
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const need: any = await (await fetch(checkedUrl("bakery open in vieques"))).json();
+          const settles = seen.filter((u) => u.endsWith("/settle")).length;
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: need.resource, accepted: need.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          const res = await fetch(checkedUrl("bakery open in vieques"), { headers: { "payment-signature": sig } });
+          expect(res.status).toBe(200);
+          expect(await res.json()).toMatchObject({ found: false, message: expect.stringMatching(/charged/i) });
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles + 1);
+        });
+
         it("sells a fresh check for five cents even to someone who holds a pass, signed and dated", async () => {
           const { verifyResponse } = await import("../src/attestation.ts");
           await record();
@@ -3604,7 +3615,7 @@ describe("biweekly payroll", () => {
           expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/checked?q=${encodeURIComponent("pharmacy open santurce")}`)).toBe(true);
         });
 
-        it("never charges when nothing fresh matches, and remembers what was asked for so the owner can see it", async () => {
+        it("charges when nothing fresh matches, says found: false, and remembers what was asked for so the owner can see it", async () => {
           const { encodePaymentSignatureHeader } = await import("@x402/core/http");
           await record();
           const q = "clinic open sunday";
@@ -3612,8 +3623,9 @@ describe("biweekly payroll", () => {
           const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
           const settles = seen.filter((u) => u.endsWith("/settle")).length;
           const res = await fetch(checkedUrl(q), { headers: { "payment-signature": sig } });
-          expect(res.status).toBe(404);
-          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+          expect(res.status).toBe(200);
+          expect(((await res.json()) as any).found).toBe(false);
+          expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles + 1);
           const signals: any = (await callAdmin("GET", "/api/master/signals")).json;
           expect(signals.unanswered.map((u: any) => u.text)).toContain(q);
         });
@@ -3624,8 +3636,11 @@ describe("biweekly payroll", () => {
           const required: any = await (await fetch(checkedUrl("airport checkpoint line"))).json();
           const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
           const res = await fetch(checkedUrl("airport checkpoint line"), { headers: { "payment-signature": sig } });
-          expect(res.status).toBe(404);
-          expect(((await res.json()) as any).error).toMatch(/not fresh|expired|too old|newest/i);
+          expect(res.status).toBe(200);
+          const body: any = await res.json();
+          expect(body.found).toBe(false);
+          expect(body.message).toMatch(/not fresh|expired|too old|newest/i);
+          expect(body.checks).toBeUndefined();
         });
 
         it("lets the owner delete a check", async () => {

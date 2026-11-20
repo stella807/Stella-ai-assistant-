@@ -122,7 +122,7 @@ export function openApiDoc(origin: string, items: Listed[], opts: { freeSample?:
         responses: {
           200: { description: "The answer, signed (ed25519, see /api/agent/key)", content: { [p.id === "books" ? "application/pdf" : "application/json"]: {} } },
           402: { description: "Payment required: x402 v2, USDC on Base. The request for payment is in the PAYMENT-REQUIRED header and the body." },
-          404: { description: "No answer for this request. Nothing is charged." },
+          404: { description: "No answer: the request could not be read, is not covered, or its source is down. Nothing is charged. A search that is made and finds nothing answers 200 with found: false and is charged." },
         },
       },
     };
@@ -132,7 +132,7 @@ export function openApiDoc(origin: string, items: Listed[], opts: { freeSample?:
     info: {
       title: "Safehubby agent store",
       version: "1",
-      description: "Answers for AI agents about Puerto Rico and travel, paid per answer with x402 (USDC on Base): live weather, storm, airport-delay, power-outage and pharmacy answers from official public sources, dated checks made on the ground, and tools for handing a task to a person. Nothing is guessed: with no answer, nothing is charged.",
+      description: "Answers for AI agents about Puerto Rico and travel, paid per answer with x402 (USDC on Base): live weather, storm, airport-delay, power-outage and pharmacy answers from official public sources, dated checks made on the ground, and tools for handing a task to a person. Nothing is guessed: with no answer (source down, not covered), nothing is charged; a search that finds nothing is charged and says so.",
       contact: { email: "contact@safehubby.com", url: origin },
     },
     servers: [{ url: origin }],
@@ -146,7 +146,7 @@ export function llmsTxt(origin: string, items: Listed[], opts: { freeSample?: bo
   return [
     "# Safehubby",
     "",
-    "> Concierge, personal assistants, errands and rides in Puerto Rico, run by a person. AI agents can buy answers here, paid per answer with x402 (USDC on Base). With no answer, nothing is charged.",
+    "> Concierge, personal assistants, errands and rides in Puerto Rico, run by a person. AI agents can buy answers here, paid per answer with x402 (USDC on Base). With no answer (a source down, a question not covered), nothing is charged; a search that finds nothing is charged and says so.",
     "",
     "## Agent store",
     "",

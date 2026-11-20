@@ -407,6 +407,19 @@ describe("pharmacies near a place in Puerto Rico", () => {
     expect(b.stockNote).toMatch(/Checked today/);
   });
 
+  it("charges for a real search that finds nothing near a real place, and says so plainly", async () => {
+    setLiveFetcher(async (url: string) => (url.includes("%5Bpharmacy%5D") ? new Response("[]") : url.includes("nominatim") ? new Response(GEO) : new Response("no", { status: 503 })));
+    const a = await answerLive("pharmacy near Hospital Auxilio Mutuo", now);
+    expect(a.status).toBe(200);
+    expect(a.results).toBe(0);
+    expect(a.body).toMatchObject({ found: false, message: expect.stringMatching(/charged/i) });
+  });
+
+  it("does not charge when the map cannot be reached", async () => {
+    setLiveFetcher(async (url: string) => (url.includes("%5Bpharmacy%5D") ? new Response("down", { status: 503 }) : url.includes("nominatim") ? new Response(GEO) : new Response("no", { status: 503 })));
+    expect((await answerLive("pharmacy near Hospital Auxilio Mutuo", now)).status).toBe(404);
+  });
+
   it("refuses, and so does not charge, a place outside Puerto Rico or no place at all", async () => {
     setLiveFetcher(src(FAR));
     expect((await answerLive("pharmacy near Miami", now)).status).toBe(404);

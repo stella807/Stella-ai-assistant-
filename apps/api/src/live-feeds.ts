@@ -7,6 +7,7 @@
  * latest observation (METAR): lightning near the field stops ground crews, which stalls departures before any delay is posted. And it
  * answers power questions for Puerto Rico from LUMA's public outage map, including load shedding (planned rolling cuts). Every answer names its source and says when it
  * was read. An answer is never made up: a source that is down, or a question no source covers, gives no answer and no charge.
+ * A real search that finds nothing (no pharmacy on the map near a real place) is charged, and says so (found: false).
  * A copy is kept for five minutes so many agents asking at once do not hammer the sources; if a source is down, a copy up to
  * fifteen minutes old may still be served, and no older one.
  */
@@ -380,6 +381,8 @@ export function routeLive(q: string): Route | null {
 }
 
 export interface LiveAnswer { status: 200 | 404; body: unknown; results: number; summary: string; words: string }
+// The owner's choice (2026-11-20): a search that was really made is charged even when it finds nothing.
+const searchedNothing = (q: string, message: string): LiveAnswer => ({ status: 200, body: { found: false, message: `${message} The search was made, so this answer is charged.`, asOf: new Date().toISOString() }, results: 0, summary: "live/none-found", words: q.trim().toLowerCase().slice(0, 100) });
 const none = (q: string, error: string): LiveAnswer => ({ status: 404, body: { error: `${error} You are not charged.` }, results: 0, summary: "live/none", words: q.trim().toLowerCase().slice(0, 100) });
 
 /** Power across Puerto Rico from LUMA's public outage map, or null when it cannot be read. */
@@ -489,7 +492,7 @@ async function pharmacyAnswer(q: string, place: string, now: Date): Promise<Live
       map: `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`,
     };
   }).filter((p) => Number.isFinite(p.distanceKm)).sort((x, y) => x.distanceKm - y.distanceKm).slice(0, 8);
-  if (!pharmacies.length) return none(q, `No pharmacy is listed on the map near ${at.name}.`);
+  if (!pharmacies.length) return searchedNothing(q, `No pharmacy is listed on the map near ${at.name}.`);
   const withPhone = pharmacies.filter((p) => p.phone).length, open = pharmacies.filter((p) => p.openNow === true).length, known = pharmacies.filter((p) => p.openNow !== null).length;
   return {
     status: 200, results: pharmacies.length, summary: "live/pharmacy", words: q.toLowerCase(),
