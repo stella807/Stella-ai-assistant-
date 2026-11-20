@@ -328,3 +328,12 @@ Not used, on purpose: Google Maps (its terms do not allow reselling its data to 
 owner is emailed (`OWNER_ALERT_EMAIL`, else contact@safehubby.com, when an email provider is set up) and texted (`OWNER_ALERT_PHONE`, when
 set and texts are set up). The same request is told once in six hours and requests at most twenty times a day, so repeated asking cannot
 flood the owner; sales are always told. What was told is remembered in `ownerAlerts` (keys and times only).
+
+## Being found: the x402 directories
+
+Agents that pay with x402 often find what to buy in a directory instead of on the web.
+
+- **Every request for payment describes the store.** The 402 carries the service name (Safehubby), five tags (puerto-rico, weather, airport-delays, travel, concierge) and the site icon, and for each product how to call it with an example (`?q=SJU delays` for live answers). This is the Bazaar discovery field in `apps/api/src/x402-discovery.ts`. Products sold at one address per item (an article, a checklist, a book, a currency check) declare a route template, so a directory lists `/api/agent/blog/:slug` once and not once per article.
+- **PayAI's directory** lists an endpoint by itself, but only after a real paid call from a client that sends the field back. Nothing to sign up for; no listing exists until the first sale.
+- **x402-list.com** got a manual submission on 2026-11-20 (Data category, contact@safehubby.com, the live, check, alerts, checked, facts, digest, brief and checklists endpoints). It is reviewed by a person before it appears.
+- Nothing in a listing is new: it is the same name, prices and examples the free catalog at `/api/agent` already shows. No phone number is given.

@@ -514,7 +514,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
   if (holdsPass && answer.status === 200 && !product.requiresPass && !product.alwaysPaid) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file, product.id);
   const paid = await takePayment(req, res, {
-    path: url.pathname, origin, price, description: product.description, discovery: discoveryFor(product.id),
+    path: url.pathname, origin, price, description: product.description, discovery: discoveryFor(product, url.pathname),
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
     // A request that can never be answered (no question, no such article) says nothing about demand, so it is not counted.
     onAsk: () => {

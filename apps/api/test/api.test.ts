@@ -2942,6 +2942,8 @@ describe("biweekly payroll", () => {
     let fac: ReturnType<typeof createHttpServer>;
     let settleOk = true;
     const seen: string[] = [];
+    // What the facilitator was sent at settle, to see what a directory would be able to list.
+    const settleBodies: any[] = [];
     const PAY_TO = "0x1111111111111111111111111111111111111111";
     beforeEach(async () => {
       settleOk = true;
@@ -2952,6 +2954,7 @@ describe("biweekly payroll", () => {
           rs.setHeader("content-type", "application/json");
           if (rq.url?.endsWith("/supported")) return rs.end(JSON.stringify({ kinds: [{ x402Version: 2, scheme: "exact", network: "eip155:84532" }], extensions: [], signers: {} }));
           if (rq.url?.endsWith("/verify")) return rs.end(JSON.stringify({ isValid: true, payer: "0xbuyer" }));
+          if (rq.url?.endsWith("/settle")) settleBodies.push(JSON.parse(raw || "{}"));
           if (rq.url?.endsWith("/settle")) return rs.end(JSON.stringify(settleOk
             ? { success: true, transaction: "0xtx", network: "eip155:84532", payer: "0xbuyer" }
             : { success: false, errorReason: "insufficient_funds", transaction: "", network: "eip155:84532" }));
@@ -2966,6 +2969,7 @@ describe("biweekly payroll", () => {
     afterEach(async () => {
       for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE", "X402_SITE_PASS_PAGE_LIMIT"]) delete process.env[k];
       seen.length = 0;
+      settleBodies.length = 0;
       await new Promise((r) => fac.close(r));
     });
     const raw = (headers: Record<string, string> = {}, q = "?q=How%20much%20is%20Premium%20per%20month%3F") => fetch(`${base}/api/agent/facts${q}`, { headers });
@@ -2994,13 +2998,16 @@ describe("biweekly payroll", () => {
     it("answers once the payment is verified and settled, and records the sale for the owner", async () => {
       const { encodePaymentSignatureHeader } = await import("@x402/core/http");
       const required: any = await (await raw()).json();
-      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+      // A client sends back what the request for payment declared, as x402 clients do.
+      const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} }, extensions: required.extensions } as any);
       const res = await raw({ "payment-signature": sig });
       expect(res.status).toBe(200);
       const body: any = await res.json();
       expect(body.facts.length).toBeGreaterThan(0);
       expect(res.headers.get("payment-response")).toBeTruthy();
       expect(seen.some((u) => u.endsWith("/settle"))).toBe(true);
+      // The facilitator gets the name and how to call it, which is what it lists.
+      expect(settleBodies[0].paymentPayload).toMatchObject({ resource: { serviceName: "Safehubby" }, extensions: { bazaar: { info: { input: { method: "GET" } } } } });
       const sales = (await callAdmin("GET", "/api/master/agent-sales")).json;
       expect(sales).toMatchObject({ enabled: true, count: 1, totalUnits: 10000 });
       expect(sales.recent[0]).toMatchObject({ payer: "0xbuyer", transaction: "0xtx" });
