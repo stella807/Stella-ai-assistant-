@@ -2995,6 +2995,31 @@ describe("biweekly payroll", () => {
       expect((await (await raw({}, "?info")).json())).toMatchObject({ price: "$0.01", testMoneyOnly: true });
     });
 
+    it("publishes where to find every paid endpoint, free even to an AI crawler, and each one listed asks a probe for payment", async () => {
+      const gpt = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
+      process.env.X402_SITE_PASS = "true";
+      for (const path of ["/.well-known/x402", "/.well-known/x402.json"]) {
+        const res = await fetch(`${base}${path}`, { headers: gpt });
+        expect(res.status, path).toBe(200);
+        expect(res.headers.get("access-control-allow-origin")).toBe("*");
+        const doc: any = await res.json();
+        expect(doc.version).toBe(1);
+        expect(doc.resources.length).toBeGreaterThan(5);
+        // What a directory does next: ask each one without paying, and expect a request for payment it can read.
+        for (const r of doc.resources) {
+          const probe = await fetch(`${base}${new URL(r).pathname}`);
+          expect(probe.status, r).toBe(402);
+          expect(((await probe.json()) as any).extensions?.bazaar, r).toBeTruthy();
+        }
+      }
+      const api: any = await (await fetch(`${base}/openapi.json`, { headers: gpt })).json();
+      expect(api.paths["/api/agent/live"].get["x-payment-info"].protocols).toEqual(["x402"]);
+      const llms = await fetch(`${base}/llms.txt`, { headers: gpt });
+      expect(llms.status).toBe(200);
+      expect(llms.headers.get("content-type")).toMatch(/text\/plain/);
+      expect(await llms.text()).toContain("/api/agent/live");
+    });
+
     it("answers once the payment is verified and settled, and records the sale for the owner", async () => {
       const { encodePaymentSignatureHeader } = await import("@x402/core/http");
       const required: any = await (await raw()).json();

@@ -65,3 +65,96 @@ export const serviceInfo = (origin: string) => ({
   tags: ["puerto-rico", "weather", "airport-delays", "travel", "concierge"],
   iconUrl: `${origin}/apple-touch-icon.png`,
 });
+
+/** A product as the discovery files show it: its price now, and an address a probe can ask for when the path names an item. */
+export interface Listed {
+  id: string; title: string; description: string; path: string; usage: string;
+  price: string;
+  /** Set when some requests cost less than `price` (power alone, a cheaper book). */
+  minPrice?: string;
+  /** A real address for a path with a name in it (an article that exists), so a directory's probe gets a 402 and not a 404. */
+  example?: string;
+  /** Sold only after a site pass: a probe would be asked for the pass, so it is described but not offered to probes. */
+  requiresPass?: boolean;
+}
+
+const dollars = (price: string) => price.replace(/^\$/, "").trim();
+
+/** /.well-known/x402: the addresses a directory such as x402scan probes and lists. */
+export function wellKnownX402(origin: string, items: Listed[]): { version: 1; resources: string[] } {
+  const resources = items.flatMap((p) => {
+    if (p.requiresPass) return [];
+    if (!p.path.includes("{")) return [`${origin}${p.path}`];
+    return p.example ? [`${origin}${p.example}`] : [];
+  });
+  return { version: 1, resources };
+}
+
+/** /openapi.json: every endpoint, the paid ones with their x402 price in dollars, the free ones without. */
+export function openApiDoc(origin: string, items: Listed[]): Record<string, unknown> {
+  const paths: Record<string, unknown> = {};
+  const free = (summary: string, description: string) => ({ get: { summary, description, responses: { 200: { description: "JSON", content: { "application/json": {} } } } } });
+  paths["/api/agent/catalog"] = free("Catalog (free)", "Everything for sale, with prices, what each answer includes and leaves out, and how to ask.");
+  paths["/api/agent/key"] = free("Signing key (free)", "The ed25519 public key that signs every paid answer, so an answer can be checked without trusting anything else.");
+  paths["/api/agent/approval"] = free("Approval page (free)", "Plain text for the person an agent works for: the prices, how to cap spending, how to check an answer, how to reach a person. Add ?lang=es for Spanish.");
+  for (const p of items) {
+    const params = PARAMS[p.id] ?? {};
+    const pathNames = [...p.path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
+    const price = p.minPrice && p.minPrice !== p.price
+      ? { mode: "dynamic", currency: "USD", min: dollars(p.minPrice), max: dollars(p.price) }
+      : { mode: "fixed", currency: "USD", amount: dollars(p.price) };
+    paths[p.path] = {
+      get: {
+        operationId: p.id,
+        summary: p.title,
+        description: `${p.description} Usage: ${p.usage}`,
+        parameters: [
+          ...pathNames.map((name) => ({ in: "path", name, required: true, description: PATH_PARAMS[name] ?? name, schema: { type: "string" } })),
+          ...Object.entries(params).map(([name, q]) => ({ in: "query", name, required: false, description: q.about, schema: { type: "string" }, ...(q.example ? { example: q.example } : {}) })),
+        ],
+        "x-payment-info": { protocols: ["x402"], price },
+        responses: {
+          200: { description: "The answer, signed (ed25519, see /api/agent/key)", content: { [p.id === "books" ? "application/pdf" : "application/json"]: {} } },
+          402: { description: "Payment required: x402 v2, USDC on Base. The request for payment is in the PAYMENT-REQUIRED header and the body." },
+          404: { description: "No answer for this request. Nothing is charged." },
+        },
+      },
+    };
+  }
+  return {
+    openapi: "3.1.0",
+    info: {
+      title: "Safehubby agent store",
+      version: "1",
+      description: "Answers for AI agents about Puerto Rico and travel, paid per answer with x402 (USDC on Base): live weather, storm, airport-delay, power-outage and pharmacy answers from official public sources, dated checks made on the ground, and tools for handing a task to a person. Nothing is guessed: with no answer, nothing is charged.",
+      contact: { email: "contact@safehubby.com", url: origin },
+    },
+    servers: [{ url: origin }],
+    paths,
+  };
+}
+
+/** /llms.txt: the same, in plain words, for a model reading the site. */
+export function llmsTxt(origin: string, items: Listed[]): string {
+  const price = (p: Listed) => (p.minPrice && p.minPrice !== p.price ? `${p.minPrice} to ${p.price}` : p.price);
+  return [
+    "# Safehubby",
+    "",
+    "> Concierge, personal assistants, errands and rides in Puerto Rico, run by a person. AI agents can buy answers here, paid per answer with x402 (USDC on Base). With no answer, nothing is charged.",
+    "",
+    "## Agent store",
+    "",
+    ...items.map((p) => `- [${p.title}](${origin}${p.path}): ${price(p)} per answer. ${p.usage}`),
+    "",
+    "## How to start",
+    "",
+    `- [Catalog, free](${origin}/api/agent/catalog): every product, price, what is included and what is not.`,
+    `- [OpenAPI](${origin}/openapi.json) and [x402 discovery](${origin}/.well-known/x402): the same, for software.`,
+    `- [Approval page, free](${origin}/api/agent/approval): plain text for the person you work for.`,
+    `- [Signing key, free](${origin}/api/agent/key): check that a paid answer came from Safehubby.`,
+    `- [Blog](${origin}/blog): free articles for people.`,
+    "",
+    "Questions: contact@safehubby.com",
+    "",
+  ].join("\n");
+}

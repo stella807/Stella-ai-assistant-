@@ -20,7 +20,7 @@ import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
-import { discoveryFor, serviceInfo } from "./x402-discovery.ts";
+import { discoveryFor, llmsTxt, openApiDoc, serviceInfo, wellKnownX402, type Listed } from "./x402-discovery.ts";
 
 /**
  * What Safehubby sells to other AI agents, paid per request with x402 (USDC).
@@ -283,6 +283,41 @@ export const PRODUCTS: Product[] = [
     },
   },
 ];
+
+/** The products as the discovery files list them (/openapi.json, /.well-known/x402, /llms.txt), with today's prices. */
+export function listing(): Listed[] {
+  const books = PRODUCTS.find((p) => p.id === "books")!;
+  const bookPrices = BOOKS.map((b) => Number((b.price ?? priceOf(books)).replace(/^\$/, "")));
+  const money = (n: number) => `$${n.toFixed(2)}`;
+  const article = articleIndex("en")[0];
+  const checklist = checklistIndex("en")[0];
+  const examples: Record<string, string | undefined> = {
+    blog: article && `/api/agent/blog/${article.slug}`,
+    checklists: checklist && `/api/agent/checklists/${checklist.slug}`,
+  };
+  const minPrices: Record<string, string | undefined> = { live: "$0.10", books: bookPrices.length ? money(Math.min(...bookPrices)) : undefined };
+  return PRODUCTS.map((p) => {
+    const price = p.id === "books" && bookPrices.length ? money(Math.max(...bookPrices)) : priceOf(p);
+    const min = minPrices[p.id];
+    const example = examples[p.id];
+    return {
+      id: p.id, title: p.title, description: p.description, path: p.path, usage: p.usage, price,
+      ...(min && min !== price ? { minPrice: min } : {}),
+      ...(example ? { example } : {}),
+      ...(p.requiresPass ? { requiresPass: true } : {}),
+    };
+  });
+}
+
+/** The discovery files, built from today's prices; null for any other address, or while the store is switched off. */
+export function discoveryFile(pathname: string, origin: string): { type: string; body: string } | null {
+  if (!["/.well-known/x402", "/.well-known/x402.json", "/openapi.json", "/llms.txt"].includes(pathname)) return null;
+  if ("error" in x402Config()) return null;
+  const items = listing();
+  if (pathname === "/llms.txt") return { type: "text/plain; charset=utf-8", body: llmsTxt(origin, items) };
+  const doc = pathname === "/openapi.json" ? openApiDoc(origin, items) : wellKnownX402(origin, items);
+  return { type: "application/json", body: JSON.stringify(doc) };
+}
 
 export const priceOf = (p: Product, u?: URL) => (u && p.priceFor?.(u)) || process.env[`X402_PRICE_${p.id.toUpperCase()}`]?.trim() || p.defaultPrice;
 

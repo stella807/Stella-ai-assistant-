@@ -1,4 +1,4 @@
-import { handleAgentStore, isAgentPath, priceOf, PRODUCTS, refuseBrowser } from "./x402-sales.ts";
+import { discoveryFile, handleAgentStore, isAgentPath, priceOf, PRODUCTS, refuseBrowser } from "./x402-sales.ts";
 import { WIDGET_JS } from "./widget.ts";
 import { gateSitePage, holdsPass, requirePass } from "./site-pass.ts";
 import { setIncludedHours, setPlanSwitches, setMonthlyFreebies, setPayDeltas, payDeltasFrom } from "@safehubby/core";
@@ -212,6 +212,12 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
         if (!res.headersSent) send(res, 500, { error: "Something went wrong on our end." });
       }
       return;
+    }
+    // Where x402 directories and models look for what is for sale. Before the site pass, so reading them is never charged.
+    const discovery = method === "GET" || method === "HEAD" ? discoveryFile(url.pathname, seoFactsFor(base).origin) : null;
+    if (discovery) {
+      res.writeHead(200, { "content-type": discovery.type, "cache-control": "public, max-age=300", "access-control-allow-origin": "*" });
+      return void res.end(method === "HEAD" ? undefined : discovery.body);
     }
     // AI crawlers and agents that name themselves as such pay once for the website's pages; everyone else reads free.
     if ((method === "GET" || method === "HEAD") && await gateSitePage(req, res, url.pathname, base.store, base.now, () => seoFactsFor(base).origin, clientKey(req))) return;
