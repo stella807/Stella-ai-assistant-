@@ -339,6 +339,6 @@ Agents that pay with x402 often find what to buy in a directory instead of on th
 - **x402-list.com** got a manual submission on 2026-11-20 (Data category, contact@safehubby.com, the live, check, alerts, checked, facts, digest, brief and checklists endpoints). It is reviewed by a person before it appears.
 - **agent-tools.cloud** listed live answers, Checked today and the request check on 2026-11-20 (its probe confirmed the 402 itself; listed at once, grouped under safehubby.com).
 - **Decixa** (decixa.ai) indexed live answers, Checked today, the request check and the alerts feed on 2026-11-20 after its own live probe, under the provider name Safehubby with the store's receiving address and contact@safehubby.com.
-- **x402scan** reads `/.well-known/x402` and registers every address in it (`public.resources.registerFromOrigin` with the origin). It finds nothing until the discovery files are deployed; register right after.
+- **x402scan** registered the store on 2026-11-20 from `/openapi.json` (`public.resources.registerFromOrigin` with the origin): 12 paid endpoints registered, 0 failed, 3 skipped (the free catalog, key and approval page, which ask for no payment). Run it again after adding a product.
 - Not done: AgentIndex (x402looker.com) and the x402.org ecosystem page take pull requests on GitHub, and the MCP Registry needs an MCP server published from the owner's GitHub account.
 - Nothing in a listing is new: it is the same name, prices and examples the free catalog at `/api/agent` already shows. No phone number is given.
