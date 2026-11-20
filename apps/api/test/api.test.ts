@@ -3401,6 +3401,30 @@ describe("biweekly payroll", () => {
           expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/live?q=${encodeURIComponent("storm warnings puerto rico")}`)).toBe(true);
         });
 
+        it("lets an agent try one live answer free a day, signed, and points to the paid one after", async () => {
+          const { verifyResponse } = await import("../src/attestation.ts");
+          const sample = (q: string) => fetch(`${base}/api/agent/sample?q=${encodeURIComponent(q)}`);
+          // A question no source covers is not counted as the free try.
+          expect((await sample("is the pharmacy open")).status).toBe(404);
+          expect((await fetch(`${base}/api/agent/sample`)).status).toBe(400);
+          const res = await sample("storm warnings puerto rico");
+          expect(res.status).toBe(200);
+          const text = await res.text();
+          expect(JSON.parse(text)).toMatchObject({ source: "National Weather Service", freeSample: { free: true, nextFreeAt: expect.any(String), paidPrice: "$0.25" } });
+          const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+          expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/sample?q=${encodeURIComponent("storm warnings puerto rico")}`)).toBe(true);
+          const again = await sample("SJU delays");
+          expect(again.status).toBe(429);
+          expect(await again.json()).toMatchObject({ paid: expect.stringContaining("/api/agent/live?q=SJU%20delays"), price: "$0.25", nextFreeAt: expect.any(String) });
+          // The paid address still asks for payment, so directories that probe it still see a store.
+          expect((await fetch(liveUrl("storm warnings puerto rico"))).status).toBe(402);
+          const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+          expect(c.freeSample).toMatchObject({ endpoint: expect.stringContaining("/api/agent/sample"), perDay: 1 });
+          const api: any = await (await fetch(`${base}/openapi.json`)).json();
+          expect(api.paths["/api/agent/sample"].get["x-payment-info"]).toBeUndefined();
+          expect(((await (await fetch(liveUrl("SJU delays"))).json()) as any).resource.description).toMatch(/free/i);
+        });
+
         it("never charges when no source covers the question, and keeps the words as something agents wanted", async () => {
           const settles = seen.filter((u) => u.endsWith("/settle")).length;
           const { res } = await payFor(liveUrl("is the pharmacy open"));

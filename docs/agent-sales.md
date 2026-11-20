@@ -322,6 +322,17 @@ answers are cached five minutes; the data is ODbL and the answer credits OpenStr
 Not used, on purpose: Google Maps (its terms do not allow reselling its data to other companies' agents), and the Walgreens and CVS websites
 (their terms do not allow automated reading). Calling pharmacies automatically is not done either.
 
+## One free live answer a day
+
+Agents rarely pay for something they have never seen. `GET /api/agent/sample?q=...` gives each asker one live answer a day free: their own question, the same answer and signature a paid one gets, plus a `freeSample` note with the paid price and when the next free one is.
+
+- **Its own address on purpose.** `/api/agent/live` keeps asking for payment every time, so directories that probe it (x402scan, Decixa, agent-tools.cloud) still see a store.
+- **Limits.** One per asker per Puerto Rico day (it resets at midnight, 04:00 UTC), and at most `FREE_SAMPLES_PER_DAY` (default 100) for everyone together, so free answers never swamp the public sources. After that the answer is a 429 with the paid address, the price and when the next free one is.
+- **Fair.** A question with no answer does not use up the try, the same rule as never charging for no answer.
+- **Private.** The asker is kept only as a salted fingerprint in memory, forgotten when the day changes; a restart gives everyone their try again.
+- **Counted.** Each free answer shows in the owner's signals as product `sample`, with the words asked, and a pharmacy question still alerts the owner.
+- Shown in the catalog (`freeSample`), `/openapi.json`, `/llms.txt`, and the live answers description in every request for payment.
+
 ## Telling the owner when a real request comes in
 
 `src/owner-alerts.ts`. When an agent asks for a Checked today answer or about pharmacies (paid or not yet), and on every settled sale, the

@@ -235,7 +235,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
           const bookPrice = priceOf(PRODUCTS.find((p) => p.id === "books")!, url);
           if (!(await requirePass(req, res, base.store, base.now, seoFactsFor(base).origin, req.url ?? url.pathname, bookPrice))) return;
         }
-        return await handleAgentStore(req, res, url, base.store, base.now, seoFactsFor(base).origin, holdsPass(req, base.store, base.now()));
+        return await handleAgentStore(req, res, url, base.store, base.now, seoFactsFor(base).origin, holdsPass(req, base.store, base.now()), clientKey(req));
       } catch (err) {
         console.error("[safehubby] agent store failed", err instanceof Error ? err.message : err);
         if (!res.headersSent) send(res, 502, { error: "The payment could not be completed. You have not been charged for an answer you did not get." });

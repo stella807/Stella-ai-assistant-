@@ -96,6 +96,12 @@ export function openApiDoc(origin: string, items: Listed[]): Record<string, unkn
   const free = (summary: string, description: string) => ({ get: { summary, description, responses: { 200: { description: "JSON", content: { "application/json": {} } } } } });
   paths["/api/agent/catalog"] = free("Catalog (free)", "Everything for sale, with prices, what each answer includes and leaves out, and how to ask.");
   paths["/api/agent/key"] = free("Signing key (free)", "The ed25519 public key that signs every paid answer, so an answer can be checked without trusting anything else.");
+  paths["/api/agent/sample"] = {
+    get: {
+      ...free("One free live answer a day", "Ask your own question once a day free, signed like a paid answer, to see what live answers give before paying. A question with no answer does not use it up. 429 with the paid address once it is used.").get,
+      parameters: [{ in: "query", name: "q", required: true, description: PARAMS.live!.q!.about, schema: { type: "string" }, example: "SJU delays" }],
+    },
+  };
   paths["/api/agent/approval"] = free("Approval page (free)", "Plain text for the person an agent works for: the prices, how to cap spending, how to check an answer, how to reach a person. Add ?lang=es for Spanish.");
   for (const p of items) {
     const params = PARAMS[p.id] ?? {};
@@ -149,6 +155,7 @@ export function llmsTxt(origin: string, items: Listed[]): string {
     "## How to start",
     "",
     `- [Catalog, free](${origin}/api/agent/catalog): every product, price, what is included and what is not.`,
+    `- [One free live answer a day](${origin}/api/agent/sample?q=SJU%20delays): try your own question before paying.`,
     `- [OpenAPI](${origin}/openapi.json) and [x402 discovery](${origin}/.well-known/x402): the same, for software.`,
     `- [Approval page, free](${origin}/api/agent/approval): plain text for the person you work for.`,
     `- [Signing key, free](${origin}/api/agent/key): check that a paid answer came from Safehubby.`,

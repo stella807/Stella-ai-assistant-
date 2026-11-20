@@ -20,6 +20,7 @@ import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
+import { FreeSamples, nextFreeAt } from "./free-sample.ts";
 import { discoveryFor, llmsTxt, openApiDoc, serviceInfo, wellKnownX402, type Listed } from "./x402-discovery.ts";
 
 /**
@@ -253,7 +254,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     id: "live", title: "Live answers",
-    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map, and pharmacies near any town or hospital in Puerto Rico (nearest first, with phone numbers and hours where the map has them, and whether each is open now) from OpenStreetMap. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise ships in San Juan are left out until the port operator gives permission to use its schedule; history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass.",
+    description: "Right-now answers from official public sources, read when you ask and dated. A weather question gets the Puerto Rico weather bundle for one price: active storm and flood alerts for Puerto Rico (National Weather Service) with the time and official address of the GOES-East weather satellite's latest pictures of Puerto Rico (NOAA) and any active tropical storms with their distance from Puerto Rico (National Hurricane Center), plus power outages across the island and the status and delay outlook for SJU, BQN and PSE. Airport questions get delays, ground programs and closures at US and Puerto Rico airports (FAA), for example SJU delays, with an outlook of signs that often come before delays: lightning or low cloud at the field right now from its latest observation (lightning stops ground crews before any delay is posted), the arrival rate the FAA has set, the airport's official forecast for the next 24 hours (thunderstorms, low cloud, poor visibility, strong wind), what the FAA's plan for the day calls possible, big airports delayed now, and for Puerto Rico the hurricane center's chances of a storm forming and a year of on-time history by hour and day from the US DOT (how often each hour runs late, taxi times, the busiest departure hours, when security lines usually build). Also power outages across Puerto Rico by region, with load shedding, from the power company's public outage map, and pharmacies near any town or hospital in Puerto Rico (nearest first, with phone numbers and hours where the map has them, and whether each is open now) from OpenStreetMap. Each answer names its source and the time it was read. Nothing is guessed: if the source cannot be reached or no source covers your question, there is no answer and you are not charged. Not a forecast. Limits: security-line hours use scheduled departures as a stand-in for TSA checkpoint counts, which could not be read; cruise ships in San Juan are left out until the port operator gives permission to use its schedule; history covers only carriers that report to the US DOT. Charged for each answer, even with a site pass. One answer a day is free to try at /api/agent/sample?q=your question.",
     includes: [
       "Weather alerts for Puerto Rico (National Weather Service)",
       "GOES-East satellite: when its latest pictures of Puerto Rico were made, and their official addresses (NOAA)",
@@ -360,7 +361,7 @@ const productFor = (pathname: string): Product | undefined =>
                   : undefined;
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
-export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/approval" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || productFor(pathname) !== undefined;
+export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/approval" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || pathname === "/api/agent/sample" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
 /**
@@ -416,6 +417,10 @@ function catalog(origin: string, store: StoreLike) {
     available: on, note: on ? undefined : config.error,
     checkedNow: freshCount(store.data.localChecks ?? [], new Date()),
     products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, ...(p.includes ? { includes: p.includes } : {}), ...(p.limits ? { limits: p.limits } : {}), endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
+    freeSample: {
+      endpoint: `${origin}/api/agent/sample?q=`, perDay: 1, covers: "live answers",
+      how: "Ask your own question once a day free, signed like a paid answer, to see what you would be paying for. A question with no answer does not use it up. After that, the same answers are paid at the live answers address.",
+    },
     sitePass: {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
       includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Checked-today answers (what a person saw on the ground) and live answers (official storm and airport status, read when you ask) are charged for each answer, with or without a pass. Not included: errands, visits and other work that needs a person.",
@@ -505,9 +510,65 @@ export function refuseBrowser(req: IncomingMessage, res: ServerResponse): boolea
   return true;
 }
 
+/** A request a person could go and fulfil is worth telling the owner about right away: a Checked today question, or pharmacies. */
+function alertIfPersonCould(store: StoreLike, now: Date, productId: string, answer: ProductAnswer) {
+  const words = (answer.words ?? "").trim();
+  const pharmacy = productId === "live" && (answer.summary.startsWith("live/pharmacy") || /pharmac|farmacia|walgreens|cvs/i.test(words));
+  if (!words || (productId !== "checked" && !pharmacy)) return;
+  alertOwner(store, now, `request:${productId}:${words.toLowerCase()}`, { kind: "request", product: productId === "checked" ? "Checked today" : "pharmacies (live answers)", words, answered: answer.status === 200 });
+}
+
+// One ledger per store, so each running server (and each test server) keeps its own day.
+const samplesByStore = new WeakMap<StoreLike, FreeSamples>();
+const samplesFor = (store: StoreLike) => {
+  let s = samplesByStore.get(store);
+  if (!s) { s = new FreeSamples(Number(process.env.FREE_SAMPLES_PER_DAY) || 100); samplesByStore.set(store, s); }
+  return s;
+};
+
+/**
+ * One free live answer a day for each asker, at its own address so the paid one keeps asking for payment (directories
+ * probe it). Signed like a paid answer. A question with no answer does not use up the try.
+ */
+async function freeSample(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, asker: string): Promise<void> {
+  const live = PRODUCTS.find((p) => p.id === "live")!;
+  const q = (url.searchParams.get("q") ?? "").trim();
+  const paidUrl = new URL(`/api/agent/live?q=${encodeURIComponent(q)}`, origin);
+  const price = priceOf(live, paidUrl);
+  if (!q) return json(res, 400, { error: "Ask with ?q= and a few words, for example ?q=SJU delays or ?q=storm warnings puerto rico. One free answer a day; after that each answer is paid at /api/agent/live." });
+  const samples = samplesFor(store);
+  const verdict = samples.take(asker, now());
+  if (!verdict.ok) {
+    const why = verdict.reason === "used" ? "Your free answer for today is used." : "Today's free answers are all given out.";
+    return json(res, 429, { error: `${why} The same answer is ${price} at the paid address.`, paid: paidUrl.toString(), price, nextFreeAt: verdict.nextFreeAt }, { "retry-after": String(Math.max(60, Math.round((Date.parse(verdict.nextFreeAt) - now().getTime()) / 1000))) });
+  }
+  const answer = await live.respond(paidUrl, origin, store, now());
+  alertIfPersonCould(store, now(), "live", answer);
+  if (answer.status !== 200) {
+    samples.release(asker, now());
+    if (answer.status === 404 && answer.words) noteSignal(store, now(), { kind: "unanswered", text: answer.words });
+    return json(res, answer.status, answer.body);
+  }
+  noteSignal(store, now(), { kind: "ask", product: "sample" });
+  if (answer.words) noteSignal(store, now(), { kind: "query", product: "sample", text: answer.words });
+  const body = {
+    ...(answer.body as object),
+    freeSample: {
+      free: true, paidPrice: price, paid: paidUrl.toString(),
+      nextFreeAt: nextFreeAt(now()),
+      note: "This answer was free: one a day to try. The same question and any other cost the price above at the paid address, signed the same way, and nothing is charged when there is no answer.",
+    },
+  };
+  return sendSigned(res, body, {}, store, now(), req.url ?? url.pathname + url.search);
+}
+
 /** GET handler for everything under /api/agent: the free catalog and blog list, and the paid products. */
-export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false): Promise<void> {
+export async function handleAgentStore(req: IncomingMessage, res: ServerResponse, url: URL, store: StoreLike, now: () => Date, origin: string, holdsPass = false, asker = "unknown"): Promise<void> {
   if (url.pathname === "/api/agent/catalog") return json(res, 200, catalog(origin, store));
+  if (url.pathname === "/api/agent/sample") {
+    if ("error" in x402Config()) return json(res, 503, { error: (x402Config() as { error: string }).error });
+    return freeSample(req, res, url, store, now, origin, asker);
+  }
   // The public key, free, so an agent can check an answer without trusting anything else.
   if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, {
       alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how,
@@ -554,12 +615,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
     // A request that can never be answered (no question, no such article) says nothing about demand, so it is not counted.
     onAsk: () => {
-      // A request a person could go and fulfil is worth telling the owner about right away: a Checked today question, or pharmacies.
-      const words = (answer.words ?? "").trim();
-      const pharmacy = product.id === "live" && answer.summary.startsWith("live/pharmacy");
-      if (words && (product.id === "checked" || pharmacy || (product.id === "live" && /pharmac|farmacia|walgreens|cvs/i.test(words)))) {
-        alertOwner(store, now(), `request:${product.id}:${words.toLowerCase()}`, { kind: "request", product: product.id === "checked" ? "Checked today" : "pharmacies (live answers)", words, answered: answer.status === 200 });
-      }
+      alertIfPersonCould(store, now(), product.id, answer);
       // A question nobody could answer is still a want: keep its words, so the owner sees what agents ask for.
       if (answer.status === 404 && answer.words) { noteSignal(store, now(), { kind: "unanswered", text: answer.words }); return; }
       if (answer.status !== 200) return;
