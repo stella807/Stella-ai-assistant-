@@ -32,7 +32,7 @@ const PARAMS: Record<string, Record<string, Param>> = {
     q: { example: "pharmacy open Condado", about: "A place, a thing or a question in Puerto Rico, in a few words" },
     limit: { about: "How many checks, up to 25" },
   },
-  live: { q: { example: "SJU delays", about: "A few words: weather or storm warnings in Puerto Rico or in a named US city, an airport code with delays, power outage in Puerto Rico, or pharmacy near a town, city or hospital in Puerto Rico or the US" } },
+  live: { q: { example: "SJU delays", about: "A few words: weather or storm warnings in Puerto Rico or in a named US city, an airport code with delays, power outage in Puerto Rico, pharmacy near a town, city or hospital in Puerto Rico or the US, earthquakes, waves or tide at San Juan, river levels in Puerto Rico, a travel advisory for a country, or CDC travel health notices" } },
 };
 
 /** What goes in the address itself, for the products sold at one address per item. */

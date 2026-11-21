@@ -282,6 +282,11 @@ export const PRODUCTS: Product[] = [
       "For SJU, BQN and PSE: a year of on-time history by hour and day, busiest departure hours, when security lines usually build, and the causes of delay (US DOT)",
       "For SJU, cruise ships in San Juan today and the next two days, once the port operator allows it",
       "Pharmacies near a town, city or hospital in Puerto Rico or the United States: nearest first, phone numbers and hours where the map has them, and whether each is open now (OpenStreetMap)",
+      "Earthquakes of magnitude 2.5 and up near Puerto Rico in the last 7 days, with time, place and depth (USGS)",
+      "The sea at San Juan: water level at the tide station, and waves, wind and water temperature at the offshore buoy (NOAA)",
+      "River and stream levels across Puerto Rico, with the gauges rising fastest in the last three hours (USGS)",
+      "US State Department travel advisory for a country, or the destinations at Level 4",
+      "CDC travel health notices, all of them or for a named country",
     ],
     limits: [
       "Not a forecast and not a prediction about any flight: it shows official data and signs that often come before delays.",
@@ -291,7 +296,7 @@ export const PRODUCTS: Product[] = [
       "Pharmacy stock is not included: pharmacies do not publish it in a form that may be read automatically. Call the pharmacy, or buy a Checked today answer. Map phone numbers and hours are recorded by volunteers and can be out of date.",
       "A part is null when its source could not be reached; with no weather service or FAA status, there is no answer and no charge.",
     ],
-    path: "/api/agent/live", usage: "GET ?q=storm warnings puerto rico | satellite puerto rico | hurricane | SJU delays | power outage puerto rico | pharmacy near Hospital Auxilio Mutuo (a few words). $0.25 for weather and airport answers, $0.10 for power alone.", defaultPrice: "$0.25", alwaysPaid: true,
+    path: "/api/agent/live", usage: "GET ?q=storm warnings puerto rico | satellite puerto rico | hurricane | SJU delays | power outage puerto rico | pharmacy near Hospital Auxilio Mutuo | earthquakes | waves san juan | river levels | travel advisory Dominican Republic | cdc notices (a few words). $0.25 for weather and airport answers, $0.10 for power alone.", defaultPrice: "$0.25", alwaysPaid: true,
     // A power question reads one source; weather and airport answers read up to ten, so they cost more.
     priceFor: (u) => (isPowerOnly(u.searchParams.get("q") ?? "") ? "$0.10" : undefined),
     async respond(u, _origin, _store, at) {

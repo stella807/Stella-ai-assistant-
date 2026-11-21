@@ -266,6 +266,15 @@ The record of what agents said they would pay for is in `docs/agent-demand.md`.
 
 ## Live answers (nobody has to do anything)
 
+**Six more official sources (2026-11-21), `src/live-sources.ts`, one source per answer, $0.25:** earthquakes of magnitude 2.5 and up
+near Puerto Rico in the last 7 days (USGS; "earthquakes", "temblor"); the sea at San Juan, the tide station's water level and the
+offshore buoy's waves, wind and water temperature (NOAA; "tides", "waves", "olas"); river and stream gauges across Puerto Rico with
+the fastest rises over about three hours (USGS; "river levels"; no bare "rio", because it is part of town names; the statewide file
+takes USGS several seconds, so this read waits up to 15 s); the State Department's travel advisory for a named country, or the
+Level 4 list ("travel advisory Dominican Republic"; routed before weather, since "advisory" is also a weather word); and the CDC's
+travel health notices, all or for a named country ("cdc notices"). Each part keeps the time the source measured or issued it. A
+source that cannot be read means no answer and no charge.
+
 `src/live-feeds.ts`. Free public sources, read on request: the National Weather Service's active alerts for Puerto Rico, NOAA's GOES-East
 (GOES-19) satellite pictures of Puerto Rico (the time each latest picture was made, from its Last-Modified header, and its official address;
 the picture is not downloaded), the National Hurricane Center's active storms (with distance from Puerto Rico; advisory links left out), and

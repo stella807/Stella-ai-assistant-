@@ -26,11 +26,11 @@ const cache = new Map<string, { at: number; text: string }>();
 export const clearLiveCache = () => cache.clear();
 
 /** The source's text: a copy under five minutes old, else a new read, else (source down) a copy under fifteen minutes old. */
-async function read(url: string, headers: Record<string, string>, now: Date): Promise<string | null> {
+async function read(url: string, headers: Record<string, string>, now: Date, timeoutMs = TIMEOUT_MS): Promise<string | null> {
   const hit = cache.get(url);
   if (hit && now.getTime() - hit.at < FRESH_MS) return hit.text;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetcher(url, { headers, signal: controller.signal });
     if (!res.ok) throw new Error(String(res.status));
@@ -61,6 +61,8 @@ async function madeAt(url: string, now: Date): Promise<string | null> {
 }
 
 /** OpenStreetMap's search (Nominatim): free, ODbL data, at most one request a second, so calls wait their turn. */
+import { ADVISORY_URL, BUOY_URL, CDC_URL, QUAKE_URL, RIVER_URL, TIDE_URL, noticesFor, parseBuoy, parseNotices, parseQuakes, parseRivers, parseTide } from "./live-sources.ts";
+
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 let nominatimGapMs = 1100;
 let nominatimLast = 0;
@@ -360,7 +362,17 @@ const AIRPORT_WORD = /\b(airports?|aeropuertos?|flights?|vuelos?|delays?|delayed
 /** Power alone is one source, so it costs less than the weather bundle or an airport answer. */
 export const isPowerOnly = (q: string) => routeLive(q)?.source === "power";
 
-export type Route = { source: "weather"; place?: string } | { source: "power" } | { source: "pharmacy"; place: string } | { source: "airport"; codes: string[] };
+export type Route = { source: "weather"; place?: string } | { source: "power" } | { source: "pharmacy"; place: string } | { source: "airport"; codes: string[] }
+  | { source: "quake" } | { source: "sea" } | { source: "river" } | { source: "advisory"; place: string } | { source: "health"; place: string };
+
+const QUAKE = /\b(earthquakes?|quakes?|seismic|sismos?|temblor(?:es)?|terremotos?)\b/;
+const SEA = /\b(tides?|mareas?|waves?|olas|oleaje|surf|swells?|marejadas?|buoys?|boyas?)\b/;
+// No bare "rio": it is part of town names (Rio Grande).
+const RIVER = /\b(rivers?|river levels?|streams?|stream gauges?|quebradas?|niveles? de (?:los )?rios?|rios? crecidos?)\b/;
+const ADVISORY = /\b(travel advisor(?:y|ies)|state department|advertencias? de viaje|alertas? de viaje|safe to travel)\b/;
+const HEALTH = /\b(cdc|travel health|health notices?|outbreaks?|brotes?|travel vaccines?|vacunas para viajar)\b/;
+const NOTICE_FILLER = new Set([...FILLER, "travel", "advisory", "advisories", "state", "department", "safe", "it", "for", "cdc", "health", "notice", "notices", "outbreak", "outbreaks", "level", "viaje", "advertencia", "alerta", "brote", "brotes", "about", "going", "trip"]);
+const placeAfter = (text: string, word: RegExp) => text.replace(new RegExp(word.source, "g"), " ").split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !NOTICE_FILLER.has(w)).join(" ");
 
 export function routeLive(q: string): Route | null {
   const text = plain(q.trim().slice(0, 100));
@@ -370,6 +382,12 @@ export function routeLive(q: string): Route | null {
     return { source: "pharmacy", place };
   }
   if (POWER.test(text)) return { source: "power" };
+  // Before weather, because "advisory" is also a weather word.
+  if (ADVISORY.test(text)) return { source: "advisory", place: placeAfter(text, ADVISORY) };
+  if (HEALTH.test(text)) return { source: "health", place: placeAfter(text, HEALTH) };
+  if (QUAKE.test(text)) return { source: "quake" };
+  if (SEA.test(text)) return { source: "sea" };
+  if (RIVER.test(text)) return { source: "river" };
   const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
   const found = tokens.filter((t) => t.length === 3 && KNOWN.has(t)).map((t) => KNOWN.get(t)!);
   if (found.length) return { source: "airport", codes: [...new Set(found.filter((f) => f.us).map((f) => f.code))] };
@@ -592,6 +610,72 @@ async function pharmacyAnswer(q: string, place: string, now: Date): Promise<Live
   };
 }
 
+const UA = { "user-agent": "safehubby.com" };
+type MoreRoute = Extract<Route, { source: "quake" | "sea" | "river" | "advisory" | "health" }>;
+
+/** Earthquakes, the sea at San Juan, river gauges, travel advisories and travel health notices: one official source each. */
+async function moreAnswer(q: string, route: MoreRoute, now: Date): Promise<LiveAnswer> {
+  const words = q.toLowerCase();
+  const asOf = now.toISOString();
+  if (route.source === "quake") {
+    const text = await read(QUAKE_URL, UA, now);
+    const quakes = text === null ? null : parseQuakes(text, now);
+    if (!quakes) return none(q, "The USGS earthquake feed could not be read just now.");
+    const big = quakes.reduce<number | null>((m, x) => (x.magnitude !== null && (m === null || x.magnitude > m) ? x.magnitude : m), null);
+    return {
+      status: 200, results: quakes.length || 1, summary: "live/quake", words,
+      body: { q, source: "USGS Earthquake Hazards Program (Puerto Rico Seismic Network)", area: "Puerto Rico and nearby waters", window: "last 7 days, magnitude 2.5 and up", asOf, quakes,
+        summary: quakes.length ? `${quakes.length} earthquake${quakes.length === 1 ? "" : "s"} of magnitude 2.5 or more near Puerto Rico in the last 7 days; the largest was ${big}.` : "No earthquakes of magnitude 2.5 or more near Puerto Rico in the last 7 days.",
+        note: "Each time is when the quake happened. Small quakes are common here and most are not felt. For tsunami warnings follow the National Tsunami Warning Center and local officials." },
+    };
+  }
+  if (route.source === "sea") {
+    const [tideText, buoyText] = await Promise.all([read(TIDE_URL, UA, now), read(BUOY_URL, UA, now)]);
+    const tide = tideText === null ? null : parseTide(tideText);
+    const buoy = buoyText === null ? null : parseBuoy(buoyText);
+    if (!tide && !buoy) return none(q, "NOAA's San Juan tide station and buoy could not be read just now.");
+    const parts = [
+      tide?.waterLevelFeet != null ? `Water level at ${tide.station}: ${tide.waterLevelFeet} ft above mean lower low water.` : "",
+      buoy?.waveHeightFeet != null ? `Waves offshore: ${buoy.waveHeightFeet} ft${buoy.dominantPeriodSec != null ? ` every ${buoy.dominantPeriodSec} s` : ""}.` : "",
+      buoy?.windKnots != null ? `Wind offshore: ${buoy.windKnots} kt${buoy.gustKnots != null ? `, gusts ${buoy.gustKnots} kt` : ""}.` : "",
+    ].filter(Boolean);
+    return {
+      status: 200, results: 1, summary: "live/sea", words,
+      body: { q, source: "NOAA Tides and Currents and the National Data Buoy Center", asOf, tide, buoy, summary: parts.join(" ") || "The station answered with no reading.",
+        note: "observedAt on each part is when NOAA measured it, which can be up to an hour before you asked. The buoy is a few miles off San Juan, so beaches can differ. Not a surf or marine forecast; for rip currents and small craft follow the National Weather Service. A part is null when its source could not be read." },
+    };
+  }
+  if (route.source === "river") {
+    // The statewide gauge file is large and USGS takes several seconds to build it.
+    const text = await read(RIVER_URL, UA, now, 15_000);
+    const gauges = text === null ? null : parseRivers(text);
+    if (!gauges) return none(q, "The USGS river gauges could not be read just now.");
+    const rising = gauges.filter((g) => (g.changeFeet3h ?? 0) >= 0.5);
+    return {
+      status: 200, results: gauges.length || 1, summary: "live/river", words,
+      body: { q, source: "USGS Water Data, Puerto Rico", asOf, gauges: gauges.length, risingFast: rising, top: gauges.slice(0, 10),
+        summary: rising.length ? `${rising.length} of ${gauges.length} river gauges in Puerto Rico rose half a foot or more in about three hours; the most was ${rising[0]!.site} (+${rising[0]!.changeFeet3h} ft).` : `None of ${gauges.length} river gauges in Puerto Rico rose half a foot or more in about three hours.`,
+        note: "Height is the water level at each gauge in feet (its own scale, not depth), with how much it changed over about three hours. A fast rise can come before flooding downstream. Not a flood warning: for those follow the National Weather Service." },
+    };
+  }
+  const isAdvisory = route.source === "advisory";
+  const text = await read(isAdvisory ? ADVISORY_URL : CDC_URL, UA, now);
+  const all = text === null ? null : parseNotices(text);
+  const who = isAdvisory ? "The State Department's travel advisories" : "The CDC's travel health notices";
+  if (!all) return none(q, `${who} could not be read just now.`);
+  const match = noticesFor(all, route.place);
+  const named = Boolean(route.place);
+  // With no place named, the advisories are many: give the highest levels only.
+  const notices = named ? match : isAdvisory ? all.filter((n) => (n.level ?? 0) >= 4) : all;
+  const label = isAdvisory ? "advisory" : "notice";
+  return {
+    status: 200, results: notices.length || 1, summary: isAdvisory ? "live/advisory" : "live/health", words,
+    body: { q, source: isAdvisory ? "U.S. Department of State, Travel Advisories" : "CDC Travelers' Health, Travel Notices", page: isAdvisory ? "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html" : "https://wwwnc.cdc.gov/travel/notices", asOf, place: route.place || null, notices,
+      summary: named ? (notices.length ? notices.map((n) => n.title).join("; ") : `No ${label} names "${route.place}" right now.`) : isAdvisory ? `${notices.length} destinations at Level 4 (Do Not Travel), out of ${all.length} advisories listed.` : `${all.length} travel health notices listed.`,
+      note: `Read from the official feed when you asked; published is when each was issued. ${isAdvisory ? "Level 1 is normal precautions, 4 is do not travel. Puerto Rico and US territories have no advisory." : "Level 1 is usual precautions, 4 is avoid nonessential travel."} Read the full ${label} on the official page before deciding.` },
+  };
+}
+
 const AIRPORT_NOTE = "The FAA lists only airports with something to report, so an airport that is not listed has no reported delay at the time shown. Conditions can change at any time. Not a forecast, and not a promise about any flight.";
 const OUTLOOK_NOTE = "The outlook reads the airport's latest observation and official forecast (Aviation Weather Center), the arrival rate the FAA has set, the FAA's plan for the day, big airports delayed now and, for Puerto Rico, the hurricane center's outlook and a year of on-time history by hour (US DOT) with the busy hours for security lines. It shows signs that often come before delays. It is not a prediction about any flight. A part is null when its source could not be reached.";
 const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
@@ -599,8 +683,9 @@ const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
 export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
   const q = rawQ.trim().slice(0, 100);
   const route = routeLive(q);
-  if (!route) return none(q, "No live source covers this. Live answers cover weather alerts for a place in the United States, the Puerto Rico weather bundle (alerts, satellite, storms, power, airports), power outages in Puerto Rico, pharmacies near a place in Puerto Rico or the United States, and US airport delays, such as 'SJU delays' or 'flood warning in Houston'.");
+  if (!route) return none(q, "No live source covers this. Live answers cover weather alerts for a place in the United States, the Puerto Rico weather bundle (alerts, satellite, storms, power, airports), power outages in Puerto Rico, pharmacies near a place in Puerto Rico or the United States, US airport delays, earthquakes near Puerto Rico, the tide and waves at San Juan, Puerto Rico river levels, State Department travel advisories and CDC travel health notices, such as 'SJU delays' or 'flood warning in Houston'.");
   if (route.source === "pharmacy") return pharmacyAnswer(q, route.place, now);
+  if (route.source === "quake" || route.source === "sea" || route.source === "river" || route.source === "advisory" || route.source === "health") return moreAnswer(q, route, now);
   if (route.source === "power") {
     const power = await powerReport(now);
     if (!power) return none(q, "The power company's outage map could not be read just now.");
