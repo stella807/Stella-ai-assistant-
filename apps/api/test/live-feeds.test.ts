@@ -484,3 +484,45 @@ describe("reading opening hours", () => {
     expect(openNow(undefined, at("2026-11-20T13:00:00Z"))).toBeNull();
   });
 });
+
+describe("live answers outside Puerto Rico, anywhere in the United States", () => {
+  const MIAMI = JSON.stringify([{ name: "Miami", lat: "25.7617", lon: "-80.1918", address: { city: "Miami", country_code: "us", "ISO3166-2-lvl4": "US-FL" } }]);
+  const LONDON = JSON.stringify([{ name: "London", lat: "51.5", lon: "-0.12", address: { city: "London", country_code: "gb" } }]);
+  const MAP = JSON.stringify([{ name: "CVS Pharmacy", lat: "25.7620", lon: "-80.1920", extratags: { opening_hours: "24/7" }, address: { road: "Biscayne Blvd", city: "Miami" } }]);
+  const seen: string[] = [];
+  const src = (geo: string) => async (url: string) => {
+    seen.push(url);
+    if (url.includes("npiregistry")) return new Response(JSON.stringify({ results: [] }));
+    if (url.includes("%5Bpharmacy%5D")) return new Response(MAP);
+    if (url.includes("countrycodes=us")) return new Response(geo);
+    if (url.includes("nominatim")) return new Response("[]");
+    if (url.includes("alerts/active?point=")) return new Response(NWS);
+    return new Response("no", { status: 503 });
+  };
+  beforeEach(() => { setNominatimGap(0); seen.length = 0; });
+
+  it("finds pharmacies near a US city and asks the federal registry for that state", async () => {
+    setLiveFetcher(src(MIAMI));
+    const r: any = await answerLive("pharmacy near Miami", now);
+    expect(r.status).toBe(200);
+    expect(r.body.pharmacies[0].name).toBe("CVS Pharmacy");
+    expect(seen.some((u) => u.includes("npiregistry") && u.includes("state=FL") && u.includes("city=MIAMI"))).toBe(true);
+  });
+
+  it("gives the weather service's alerts for a named US place, not the Puerto Rico bundle", async () => {
+    setLiveFetcher(src(MIAMI));
+    expect(routeLive("flood warning in Miami")).toEqual({ source: "weather", place: "miami" });
+    const r: any = await answerLive("flood warning in Miami", now);
+    expect(r.status).toBe(200);
+    expect(r.summary).toBe("live/weather-us");
+    expect(r.body.place).toMatchObject({ name: "Miami", state: "FL" });
+    expect(r.body.alerts).toHaveLength(2);
+    expect(seen.some((u) => u.includes("point=25.7617,-80.1918"))).toBe(true);
+  });
+
+  it("refuses, and so does not charge, a place outside the United States", async () => {
+    setLiveFetcher(src(LONDON));
+    expect((await answerLive("pharmacy near London", now)).status).toBe(404);
+    expect((await answerLive("weather in London", now)).status).toBe(404);
+  });
+});

@@ -377,3 +377,11 @@ Products are now found by their address rather than their position in the list, 
 ## The site pass is removed (2026-11-21)
 
 The owner removed the site pass. AI crawlers read the website free; every item, books included, is sold on its own at its own price, with no pass step in front. The numbers that led to it: the pass was asked for 106 times and never paid (almost all AI crawlers), and books were asked for 52 times, every one stopped at the pass. While the pass is off, the catalog, the approval page and every product description say nothing about it. `X402_SITE_PASS=on` in Railway brings it back as it was.
+
+## Live answers outside Puerto Rico
+
+`locate` in `src/live-feeds.ts` looks for the place in Puerto Rico first, then anywhere in the United States (Nominatim with `countrycodes=us`, state from `ISO3166-2-lvl4`).
+- **Pharmacies** near a US city or hospital use the same map search and the NPI registry for that state.
+- **Weather**: a question naming a place after "in", "near", "at" or "for" ("flood warning in Houston") gets the National Weather Service's active alerts for that point (`alerts/active?point=`), summary `live/weather-us`. With no place, or a Puerto Rico place, it is the Puerto Rico bundle as before.
+- **Airports** already covered every US airport.
+- A place outside the US and Puerto Rico is not found, so it is answered 404 and not charged. Power stays Puerto Rico only (LUMA).

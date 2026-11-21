@@ -360,7 +360,7 @@ const AIRPORT_WORD = /\b(airports?|aeropuertos?|flights?|vuelos?|delays?|delayed
 /** Power alone is one source, so it costs less than the weather bundle or an airport answer. */
 export const isPowerOnly = (q: string) => routeLive(q)?.source === "power";
 
-export type Route = { source: "weather" } | { source: "power" } | { source: "pharmacy"; place: string } | { source: "airport"; codes: string[] };
+export type Route = { source: "weather"; place?: string } | { source: "power" } | { source: "pharmacy"; place: string } | { source: "airport"; codes: string[] };
 
 export function routeLive(q: string): Route | null {
   const text = plain(q.trim().slice(0, 100));
@@ -377,7 +377,28 @@ export function routeLive(q: string): Route | null {
     const codes = [...new Set(CITY_CODES.filter(([city]) => text.includes(city)).flatMap(([, c]) => c))];
     if (codes.length) return { source: "airport", codes };
   }
-  return WEATHER.test(text) ? { source: "weather" } : null;
+  if (!WEATHER.test(text)) return null;
+  // A place is named after "in", "near", "at" or "for" ("flood warning in Houston"); other leftover words are not guessed at.
+  const after = /\b(?:in|near|at|for|en|para|cerca de)\s+(.+)$/.exec(text)?.[1] ?? "";
+  const place = after.replace(new RegExp(WEATHER.source, "g"), " ").split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !FILLER.has(w) && !WEATHER_FILLER.has(w)).join(" ");
+  return place ? { source: "weather", place } : { source: "weather" };
+}
+
+const WEATHER_FILLER = new Set(["will", "it", "there", "tomorrow", "this", "week", "weekend", "me", "for", "how", "show", "get", "check", "current", "latest", "active", "live", "report", "forecast", "severe", "national", "service", "nws", "us", "usa", "and", "or", "my", "area", "here", "be", "going", "do", "does", "have", "has", "news", "info", "status", "update", "updates", "pronostico", "tiempo", "para", "manana", "semana", "mi", "aqui", "va", "hacer", "island", "isla"]);
+
+/** Active weather alerts for one point in the United States from the National Weather Service. */
+async function usWeather(q: string, at: { name: string; lat: number; lon: number; state: string }, now: Date): Promise<LiveAnswer> {
+  const text = await read(`https://api.weather.gov/alerts/active?point=${at.lat.toFixed(4)},${at.lon.toFixed(4)}`, { "user-agent": "safehubby.com", accept: "application/geo+json" }, now);
+  if (text === null) return none(q, "The National Weather Service could not be reached just now.");
+  const alerts = parseNws(text);
+  return {
+    status: 200, results: alerts.length || 1, summary: "live/weather-us", words: q.toLowerCase(),
+    body: {
+      q, place: { name: at.name, state: at.state, lat: at.lat, lon: at.lon }, source: "National Weather Service", asOf: now.toISOString(), alerts,
+      summary: alerts.length ? `${alerts.length} active alert${alerts.length === 1 ? "" : "s"} for ${at.name}, ${at.state}.` : `No active weather alerts for ${at.name}, ${at.state}.`,
+      note: "Active alerts for that exact point, read from the National Weather Service when you asked. Alerts change quickly; follow the weather service and local officials. Not a forecast.",
+    },
+  };
 }
 
 export interface LiveAnswer { status: 200 | 404; body: unknown; results: number; summary: string; words: string }
@@ -453,8 +474,11 @@ async function airportReport(codes: string[], now: Date) {
   };
 }
 
-/** Where a place in Puerto Rico is: the whole phrase first, then the town in it. Null when nothing found is in Puerto Rico. */
-async function locate(place: string, now: Date): Promise<{ name: string; lat: number; lon: number; town?: string } | null> {
+/**
+ * Where a place is: Puerto Rico first (the whole phrase, then the town in it), then anywhere in the United States, because
+ * the federal pharmacy registry and the weather service cover the whole country. Null when nothing found is in either.
+ */
+async function locate(place: string, now: Date): Promise<{ name: string; lat: number; lon: number; town?: string; state: string } | null> {
   const town = PR_TOWNS.find((t) => new RegExp(`\\b${t}\\b`).test(place));
   for (const query of [place, town].filter((x, i, a): x is string => !!x && a.indexOf(x) === i)) {
     const text = await nominatim(`q=${encodeURIComponent(`${query}, Puerto Rico`)}&limit=1&addressdetails=1`, now);
@@ -463,9 +487,18 @@ async function locate(place: string, now: Date): Promise<{ name: string; lat: nu
     const lat = Number(found?.lat), lon = Number(found?.lon);
     const a = found?.address ?? {};
     const townName = a.city || a.town || a.municipality || a.village || (town && query === town ? query : undefined);
-    if (found && Number.isFinite(lat) && Number.isFinite(lon) && inPR(lat, lon)) return { name: scrub(found.name || query, 80), lat, lon, ...(townName ? { town: scrub(townName, 60) } : {}) };
+    if (found && Number.isFinite(lat) && Number.isFinite(lon) && inPR(lat, lon)) return { name: scrub(found.name || query, 80), lat, lon, state: "PR", ...(townName ? { town: scrub(townName, 60) } : {}) };
   }
-  return null;
+  if (town) return null;
+  const text = await nominatim(`q=${encodeURIComponent(place)}&countrycodes=us&limit=1&addressdetails=1`, now);
+  let found: any;
+  try { found = text ? JSON.parse(text)?.[0] : null; } catch { found = null; }
+  const lat = Number(found?.lat), lon = Number(found?.lon);
+  const a = found?.address ?? {};
+  const state = /^US-([A-Z]{2})$/.exec(String(a["ISO3166-2-lvl4"] ?? ""))?.[1];
+  if (!found || a.country_code !== "us" || !state || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const townName = a.city || a.town || a.village || a.hamlet;
+  return { name: scrub(found.name || place, 80), lat, lon, state, ...(townName ? { town: scrub(townName, 60) } : {}) };
 }
 
 export interface RegistryPharmacy { name: string; address: string; town: string; phone: string | null }
@@ -477,12 +510,12 @@ const core = (v: string) => fold(v).replace(/#?\s*\d+$/, "").replace(/\b(INC|LLC
 const digits = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-10);
 
 /**
- * Licensed retail pharmacies in a Puerto Rico town from the federal NPI registry (CMS, public domain): name, street and
+ * Licensed retail pharmacies in a town in Puerto Rico or any US state from the federal NPI registry (CMS, public domain): name, street and
  * phone, no hours and no position. Read at the same time as the map, so it costs no extra wait. Null when unreachable.
  */
-export async function registryPharmacies(town: string, now: Date): Promise<RegistryPharmacy[] | null> {
+export async function registryPharmacies(town: string, now: Date, state = "PR"): Promise<RegistryPharmacy[] | null> {
   const city = fold(town);
-  const text = await read(`https://npiregistry.cms.hhs.gov/api/?version=2.1&taxonomy_description=pharmacy&city=${encodeURIComponent(city)}&state=PR&enumeration_type=NPI-2&limit=200`, { "user-agent": "safehubby.com" }, now);
+  const text = await read(`https://npiregistry.cms.hhs.gov/api/?version=2.1&taxonomy_description=pharmacy&city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&enumeration_type=NPI-2&limit=200`, { "user-agent": "safehubby.com" }, now);
   if (text === null) return null;
   let data: any;
   try { data = JSON.parse(text); } catch { return null; }
@@ -505,10 +538,10 @@ export async function registryPharmacies(town: string, now: Date): Promise<Regis
 }
 
 async function pharmacyAnswer(q: string, place: string, now: Date): Promise<LiveAnswer> {
-  if (!place) return none(q, "Say where: a town or a hospital in Puerto Rico, for example \"pharmacy near Hospital Auxilio Mutuo\" or \"farmacia en Bayamón\".");
+  if (!place) return none(q, "Say where: a town, a city or a hospital in Puerto Rico or the United States, for example \"pharmacy near Hospital Auxilio Mutuo\" or \"farmacia en Bayamón\".");
   const at = await locate(place, now);
-  if (!at) return none(q, "That place could not be found in Puerto Rico. Pharmacy answers cover Puerto Rico only.");
-  const registry = at.town ? registryPharmacies(at.town, now) : Promise.resolve(null);
+  if (!at) return none(q, "That place could not be found in Puerto Rico or the United States. Pharmacy answers cover those only.");
+  const registry = at.town ? registryPharmacies(at.town, now, at.state) : Promise.resolve(null);
   let list: any[] = [];
   for (const d of [0.035, 0.08]) {
     const box = [at.lon - d, at.lat + d, at.lon + d, at.lat - d].map((n) => n.toFixed(4)).join(",");
@@ -566,7 +599,7 @@ const PR_AIRPORTS = ["SJU", "BQN", "PSE"];
 export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
   const q = rawQ.trim().slice(0, 100);
   const route = routeLive(q);
-  if (!route) return none(q, "No live source covers this. Live answers cover weather in Puerto Rico (alerts, satellite, storms, power, airports), power outages, pharmacies near a place in Puerto Rico, and US airport delays, such as SJU delays.");
+  if (!route) return none(q, "No live source covers this. Live answers cover weather alerts for a place in the United States, the Puerto Rico weather bundle (alerts, satellite, storms, power, airports), power outages in Puerto Rico, pharmacies near a place in Puerto Rico or the United States, and US airport delays, such as 'SJU delays' or 'flood warning in Houston'.");
   if (route.source === "pharmacy") return pharmacyAnswer(q, route.place, now);
   if (route.source === "power") {
     const power = await powerReport(now);
@@ -575,6 +608,11 @@ export async function answerLive(rawQ: string, now: Date): Promise<LiveAnswer> {
       status: 200, results: power.regions.length, summary: "live/power", words: q.toLowerCase(),
       body: { q, asOf: now.toISOString(), ...power, note: "Read from the power company's public outage map when you asked, by region. A shop or pharmacy in a region with many customers out may be closed or running on a generator; check before sending someone." },
     };
+  }
+  if (route.source === "weather" && route.place) {
+    const at = await locate(route.place, now);
+    if (!at) return none(q, "That place could not be found in Puerto Rico or the United States. Weather alerts cover those only.");
+    if (at.state !== "PR") return usWeather(q, at, now);
   }
   if (route.source === "weather") {
     // The weather bundle: the weather service is the answer; the satellite, the hurricane center, power and Puerto Rico's airports
