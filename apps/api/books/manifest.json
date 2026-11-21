@@ -7,7 +7,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138554,
-    "sha256": "4c1dd96e548a0e45bdf57f41add867ac3fa419a2eb1ded9bd22c3addee16f839",
+    "sha256": "eb137ef05469693ecbdceec047a7de52c4642621846cf00413ff444548a7a4db",
     "sourceSha256": "b28b6fdcc4d684e1aac30d033c20df2cf83e503cad9d8eaa56f28fba0ff0dbdb",
     "file": "building-a-local-concierge-business.pdf",
     "price": "$0.05"
@@ -20,10 +20,10 @@
     "language": "en",
     "pages": 15,
     "bytes": 97474,
-    "sha256": "cf614aae16fa20d11ffe750a1944f6227f5fc976bce3ffc28e87e1ca131677ac",
-    "sourceSha256": "ccee6cfa19c8d9deb01bacf831cea7d9dc650f16d1b13482823a6fe17adf1427",
+    "sha256": "d60e4dba74ef5a24e32c59ac2216d8ea857f9f8b3b87e9a23e748c42e2969a9b",
+    "sourceSha256": "c8e02a05ec4663023c8447a2d388e2f81424edf29ce0a5459a6a6d53bdb0d8ea",
     "file": "building-for-agents.pdf",
-    "price": "$0.25"
+    "price": "$0.05"
   },
   {
     "slug": "delegating-real-world-tasks",
@@ -33,7 +33,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120739,
-    "sha256": "f17341ae2fa41111e88cf4c8bf881c722ed37fb900cb95dc9f30d1026a5ed05f",
+    "sha256": "ee349eeea1b3e30f35449caf5fdf5ce8150fbeaade19b0f0e95e8e36e5ab097c",
     "sourceSha256": "2a046ca19eb07a8f8f58dd77dca55c6ef41df604f4185c953221a4f3814fadfd",
     "file": "delegating-real-world-tasks.pdf"
   },
@@ -45,7 +45,7 @@
     "language": "en",
     "pages": 20,
     "bytes": 126152,
-    "sha256": "10253ea649937a17b8ae28cebb7b456b5c098a162cf2240f9ba46ddad83c074f",
+    "sha256": "0e5ff5b4676f45db4fdc98f0c92308add142fd402dcd1f1f96e47d2e1fdb7a69",
     "sourceSha256": "73b7c6b1459f899ef5c940369e059d6483ef07907fea7dae5bb7ba245b7e1d90",
     "file": "hiring-and-working-with-a-concierge.pdf"
   },
@@ -57,7 +57,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138015,
-    "sha256": "ae4012b10475619b48aef965476788d558c41ec28f8edeb1add461adf1cc8768",
+    "sha256": "a953228fafb8c5cd6113ddbfad50e9d850870674333d9cec9f01ead2ad846736",
     "sourceSha256": "ae1047e9c7791528fd116bcadc989f7615378a19086400ec5394f67f16985be2",
     "file": "traveling-with-an-older-parent.pdf"
   },
@@ -69,7 +69,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120812,
-    "sha256": "72017566560eaf9632e1ed497a7bfd45e85f4c67a8582977883113be20580f24",
+    "sha256": "6dbd26ac89d017c60956f93b433146edf68e2d0ac4c75d8268855a2de3e80a70",
     "sourceSha256": "a7f339d3491cd6d471290165ce385a16c5da32ea464e28342ec7f14c358554c7",
     "file": "visiting-puerto-rico.pdf"
   }

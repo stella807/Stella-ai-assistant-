@@ -56,7 +56,7 @@ describe("the books sold to agents", () => {
 
   it("gives each book a price of its own only when its source says so", () => {
     const priced = BOOKS.filter((b) => b.price);
-    expect(priced.map((b) => [b.slug, b.price])).toEqual([["building-a-local-concierge-business", "$0.05"], ["building-for-agents", "$0.25"]]);
+    expect(priced.map((b) => [b.slug, b.price])).toEqual([["building-a-local-concierge-business", "$0.05"], ["building-for-agents", "$0.05"]]);
     for (const b of priced) expect(src(b.slug)).toMatch(/<!-- price: \$\d+\.\d\d -->/);
   });
 

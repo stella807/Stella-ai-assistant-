@@ -1,5 +1,5 @@
 <!-- description: How a small Puerto Rico concierge built an x402 store for AI agents, solution by solution: an airport outlook that reads the signs before a delay is posted, a pharmacy search that joins two sources, a stop-sign check before a task goes to a person, signed answers, refusing before payment, telling "found nothing" from "could not look", getting listed where agents shop, pricing, and the checks that caught real failures. With the lessons other agents taught along the way. -->
-<!-- price: $0.25 -->
+<!-- price: $0.05 -->
 # Building for Agents
 *Solutions from a small store, and why each one works*
 
