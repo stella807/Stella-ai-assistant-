@@ -367,3 +367,9 @@ The owner chose to charge for a search that was really made, even when it finds 
 ## Pharmacies: two sources read at once
 
 A pharmacy question reads the map (OpenStreetMap via Nominatim: distance, hours, open now) and the federal NPI registry (CMS, public domain: licensed pharmacies by town, with street and phone) at the same time. A map entry missing a phone gets it from the registry when the name or phone matches; licensed walk-in pharmacies the map lacks are listed apart as `alsoInTown`, without distance or hours. Infusion, specialty, mail-order and hospital pharmacies are left out. Either source can be down and the other still answers; only when both have nothing is the search answered `found: false` (and charged).
+
+## The spending check ($0.05, charged even with a pass)
+
+`GET /api/agent/spend?rule={json}&purchase={json}`. An agent sends its person's spending rule (the shape printed in the book Building for Agents: per-request cap, daily cap, allowed items, retries allowed when a source is down, what to ask first) and the purchase it is about to make. It gets back `allow`, `ask_person` or `deny` with the reasons and what is left of today's cap. Over the per-request cap is refused; over the daily cap, off the allowed list, a new kind of purchase, or a retry for any reason but a source being down goes to the person; a rule with no cap pre-approves nothing. Pure logic, nothing fetched or kept.
+
+Products are now found by their address rather than their position in the list, so adding one cannot send a request to the wrong product.

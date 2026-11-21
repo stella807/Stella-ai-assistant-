@@ -23,6 +23,10 @@ const PARAMS: Record<string, Record<string, Param>> = {
   books: {},
   currency: {},
   check: { request: { example: '{"task":"Pick up a prescription","needed_by":"today 17:00","spend_cap":"$15"}', about: "The request as JSON (task, needed_by, from, to, spend_cap, if_unavailable, proof_wanted, contact, private_details_shared), under 2,000 characters" } },
+  spend: {
+    rule: { example: '{"max_per_request_usd":0.25,"max_per_day_usd":2,"allowed":["live answers"]}', about: "Your person's spending rule as JSON: max_per_request_usd, max_per_day_usd, allowed[], retry_if_source_down, ask_first_for[]" },
+    purchase: { example: '{"item":"live answers","price_usd":0.25,"spent_today_usd":1,"seen_before":true}', about: "The purchase you are about to make as JSON: item, price_usd, spent_today_usd, seen_before, retry {count, because}" },
+  },
   alerts: { since: { about: "ISO time of the last answer you got (its asOf); leave out to get everything" }, lang: LANG },
   checked: {
     q: { example: "pharmacy open Condado", about: "A place, a thing or a question in Puerto Rico, in a few words" },

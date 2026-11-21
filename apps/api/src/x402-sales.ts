@@ -20,6 +20,7 @@ import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
 import { payaiAuthHeaders } from "./payai-auth.ts";
+import { checkSpend } from "./spend-check.ts";
 import { FreeSamples, freeSamplesOn, nextFreeAt } from "./free-sample.ts";
 import { discoveryFor, llmsTxt, openApiDoc, serviceInfo, wellKnownX402, type Listed } from "./x402-discovery.ts";
 
@@ -217,6 +218,17 @@ export const PRODUCTS: Product[] = [
     },
   },
   {
+    id: "spend", title: "Spending check",
+    description: "Before you pay for something, send your person's spending rule and the purchase you are about to make, both as JSON. You get back allow, ask_person or deny, with the reasons and what is left of today's cap: over the per-request cap is refused, over the daily cap or not on the allowed list or a new kind of purchase goes to the person, and a retry is allowed only when the source was down and the rule permits it. A rule with no cap pre-approves nothing. Nothing you send is kept. The rule's shape is the one in the book Building for Agents. Charged for each check, even with a site pass.",
+    path: "/api/agent/spend", usage: "GET ?rule={url-encoded JSON}&purchase={url-encoded JSON}, each under 2,000 characters. rule: max_per_request_usd, max_per_day_usd, allowed[], retry_if_source_down, ask_first_for[]. purchase: item, price_usd, spent_today_usd, seen_before, retry {count, because}", defaultPrice: "$0.05", alwaysPaid: true,
+    respond(u) {
+      const read = (k: string) => { const raw = u.searchParams.get(k) ?? ""; try { return raw.length > 0 && raw.length <= 2000 ? JSON.parse(raw) : undefined; } catch { return undefined; } };
+      const result = checkSpend(read("rule"), read("purchase"));
+      if ("error" in result) return { status: 400, body: result, results: 0, summary: "spend/unreadable" };
+      return { status: 200, body: result, results: 1, summary: `spend/${result.decision}`, words: "" };
+    },
+  },
+  {
     id: "alerts", title: "Alerts feed",
     description: "What changed at Safehubby since the time you last asked (new books and products), and where the Atlantic hurricane-season calendar stands. Every agent keeps its own place: pass the asOf from your last answer as since. Not a weather forecast and not an official warning. English or Spanish. Free with a site pass.",
     path: "/api/agent/alerts", usage: "GET ?since=ISO time&lang=en|es (leave since out to get everything)", defaultPrice: "$0.02",
@@ -345,20 +357,15 @@ const json = (res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(JSON.stringify(body));
 };
 
+// Found by address, not by position, so adding a product can never send a request to the wrong one. A path with
+// {name} in it matches any non-empty item at that place.
 const productFor = (pathname: string): Product | undefined =>
-  pathname === "/api/agent/facts" ? PRODUCTS[0]
-    : pathname.startsWith("/api/agent/blog/") && pathname.length > "/api/agent/blog/".length ? PRODUCTS[1]
-      : pathname === "/api/agent/digest" ? PRODUCTS[2]
-        : pathname === "/api/agent/brief" ? PRODUCTS[3]
-          : pathname === "/api/agent/airports" ? PRODUCTS[4]
-            : pathname.startsWith("/api/agent/checklists/") && pathname.length > "/api/agent/checklists/".length ? PRODUCTS[5]
-              : pathname.startsWith("/api/agent/books/") && pathname.length > "/api/agent/books/".length ? PRODUCTS[6]
-                : pathname.startsWith("/api/agent/currency/") && pathname.length > "/api/agent/currency/".length ? PRODUCTS[7]
-                  : pathname === "/api/agent/check" ? PRODUCTS[8]
-                    : pathname === "/api/agent/alerts" ? PRODUCTS[9]
-                      : pathname === "/api/agent/checked" ? PRODUCTS[10]
-                        : pathname === "/api/agent/live" ? PRODUCTS[11]
-                  : undefined;
+  PRODUCTS.find((p) => {
+    const at = p.path.indexOf("{");
+    if (at < 0) return pathname === p.path;
+    const head = p.path.slice(0, at);
+    return pathname.startsWith(head) && pathname.length > head.length && !pathname.slice(head.length).includes("/");
+  });
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
 export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/approval" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || pathname === "/api/agent/sample" || productFor(pathname) !== undefined;

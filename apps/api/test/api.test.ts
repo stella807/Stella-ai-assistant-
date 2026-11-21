@@ -3179,7 +3179,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "spend"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3327,6 +3327,19 @@ describe("biweekly payroll", () => {
             expect((await fetch(url, { headers: { "payment-signature": sig } })).status, url).toBe(400);
           }
           expect(seen.filter((u) => u.endsWith("/settle")).length).toBe(settles);
+        });
+
+        it("sells the spending check for five cents and answers allow, ask_person or deny with the reasons", async () => {
+          const rule = encodeURIComponent(JSON.stringify({ max_per_request_usd: 0.25, max_per_day_usd: 2, allowed: ["live answers"] }));
+          const purchase = encodeURIComponent(JSON.stringify({ item: "live answers", price_usd: 0.25, spent_today_usd: 1, seen_before: true }));
+          const url = `${base}/api/agent/spend?rule=${rule}&purchase=${purchase}`;
+          const need: any = await (await fetch(url)).json();
+          expect(need.accepts[0].amount).toBe("50000");
+          const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+          const sig = encodePaymentSignatureHeader({ x402Version: 2, resource: need.resource, accepted: need.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+          const res = await fetch(url, { headers: { "payment-signature": sig } });
+          expect(res.status).toBe(200);
+          expect(await res.json()).toMatchObject({ decision: "allow", leftTodayUsd: 0.75 });
         });
 
         it("tells many agents what is new since each last asked, and the hurricane calendar, for two cents", async () => {
@@ -3824,7 +3837,7 @@ describe("biweekly payroll", () => {
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "spend"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);
