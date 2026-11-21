@@ -8,16 +8,16 @@ Each file is a 900 x 1200 crop (the card is 3 to 4) with one shared warm color g
 
 | Card | File in `apps/web/public/img/` | Source |
 |---|---|---|
-| Hospital stays | `showcase-hospital.jpg` | Pexels photo 3934328 |
-| Medical appointments | `showcase-appt.jpg` | Pexels photo 20850801 |
-| Groceries | `showcase-groceries.jpg` | Pexels photo 7262870 |
-| Food delivery | `showcase-food.jpg` | Pexels photo 6839661 |
-| Appointments and bookings | `showcase-booking.jpg` | Pexels photo 7821339 |
-| Parties and events | `showcase-events.jpg` | Pexels photo 5834736 |
-| Personal security | `showcase-security.jpg` | Pexels photo 38094471 |
+| Hospital stays | `showcase-hospital.jpg` | Pexels photo 6129689 (a nurse beside a patient in a hospital bed) |
+| Medical appointments | `showcase-appt.jpg` | Pexels photo 20850801 (a caregiver pushing a wheelchair) |
+| Groceries | `showcase-groceries.jpg` | Pexels photo 6868788 (a delivery man with a crate of fresh vegetables) |
+| Food delivery | `showcase-food.jpg` | Two photos stacked, ordering above and delivery below: Pexels photo 13432284 and Unsplash image `photo-1617347454431-f49d7ff5c3b1` |
+| Appointments and bookings | `showcase-booking.jpg` | Unsplash image `photo-1713947505562-299114c58523` (an assistant on the phone with a laptop and notebook) |
+| Parties and events | `showcase-events.jpg` | Pexels photo 14581440 (a planner arranging flowers at an event) |
+| Personal security | `showcase-security.jpg` | Pexels photo 24286057 (a bodyguard in a suit checking a pistol) |
 | Rides, hotels, lounges, venues, jets, yachts | `showcase-ride.jpg` and the others | Unsplash |
 
-A Pexels page is at `https://www.pexels.com/photo/<number>/`.
+A Pexels page is at `https://www.pexels.com/photo/<number>/`; an Unsplash image is at `https://images.unsplash.com/<name>`.
 
 ## Replacing a photo with your own
 
@@ -25,4 +25,4 @@ Save it as a JPEG of about 900 x 1200 (portrait) under the same file name and re
 
 ## Personal security card
 
-The photo shows a suited bodyguard with no weapon on purpose. Say "armed" on the site only when every bodyguard sent holds both a security license and a firearms license in Puerto Rico.
+The photo shows an armed bodyguard in a suit, as the owner asked. The card text does not say "armed" or "licensed": add either word only when it is true for every bodyguard sent (a security license and a firearms license in Puerto Rico).
