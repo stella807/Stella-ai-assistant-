@@ -7,7 +7,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138554,
-    "sha256": "eb137ef05469693ecbdceec047a7de52c4642621846cf00413ff444548a7a4db",
+    "sha256": "644c935a4cb3318739e202746fb644d765e7eeb4daab9b1e276b6f9104fb5564",
     "sourceSha256": "b28b6fdcc4d684e1aac30d033c20df2cf83e503cad9d8eaa56f28fba0ff0dbdb",
     "file": "building-a-local-concierge-business.pdf",
     "price": "$0.05"
@@ -20,7 +20,7 @@
     "language": "en",
     "pages": 15,
     "bytes": 97474,
-    "sha256": "d60e4dba74ef5a24e32c59ac2216d8ea857f9f8b3b87e9a23e748c42e2969a9b",
+    "sha256": "7faf07155445587971e130789b6d482e69c2df9ca3a7036f1975d3b15207f1c6",
     "sourceSha256": "c8e02a05ec4663023c8447a2d388e2f81424edf29ce0a5459a6a6d53bdb0d8ea",
     "file": "building-for-agents.pdf",
     "price": "$0.05"
@@ -33,9 +33,21 @@
     "language": "en",
     "pages": 18,
     "bytes": 120739,
-    "sha256": "ee349eeea1b3e30f35449caf5fdf5ce8150fbeaade19b0f0e95e8e36e5ab097c",
+    "sha256": "5440295693843cce20851f708bac259fd73e894ffca6dbb2663fe67d0f762a50",
     "sourceSha256": "2a046ca19eb07a8f8f58dd77dca55c6ef41df604f4185c953221a4f3814fadfd",
     "file": "delegating-real-world-tasks.pdf"
+  },
+  {
+    "slug": "ethical-hacking-for-concierge-services",
+    "title": "Ethical Hacking for Concierge Services",
+    "subtitle": "Find your weak spots first, and turn trust into revenue",
+    "description": "Ethical hacking for a concierge, errands and rides business: testing your own systems with permission, finding the weak spots criminals use against services that hold keys, cards, schedules and the trust of older people, fixing them, and turning visible safety into revenue, longer customers and partners. Defensive only: nothing here explains how to break into anything you do not own.",
+    "language": "en",
+    "pages": 15,
+    "bytes": 99403,
+    "sha256": "a3e65b56f32577aea6fb276598c0d2e52626eccc7148b339c11afadb10151d13",
+    "sourceSha256": "a5563ffbbf440520a6c5dc93d6676a508e0413d43d3acbf3a9ababe00354d3d3",
+    "file": "ethical-hacking-for-concierge-services.pdf"
   },
   {
     "slug": "hiring-and-working-with-a-concierge",
@@ -45,7 +57,7 @@
     "language": "en",
     "pages": 20,
     "bytes": 126152,
-    "sha256": "0e5ff5b4676f45db4fdc98f0c92308add142fd402dcd1f1f96e47d2e1fdb7a69",
+    "sha256": "b86a9ceae13efedc77df80549a41cf403afe34124bcc665f27b452fc71637915",
     "sourceSha256": "73b7c6b1459f899ef5c940369e059d6483ef07907fea7dae5bb7ba245b7e1d90",
     "file": "hiring-and-working-with-a-concierge.pdf"
   },
@@ -57,7 +69,7 @@
     "language": "en",
     "pages": 21,
     "bytes": 138015,
-    "sha256": "a953228fafb8c5cd6113ddbfad50e9d850870674333d9cec9f01ead2ad846736",
+    "sha256": "6640c25b209238f1612da0c6993ea1467193763e69d0a472379e621f605e10cc",
     "sourceSha256": "ae1047e9c7791528fd116bcadc989f7615378a19086400ec5394f67f16985be2",
     "file": "traveling-with-an-older-parent.pdf"
   },
@@ -69,7 +81,7 @@
     "language": "en",
     "pages": 18,
     "bytes": 120812,
-    "sha256": "6dbd26ac89d017c60956f93b433146edf68e2d0ac4c75d8268855a2de3e80a70",
+    "sha256": "6c84daebe0ff15594062d44e5864baabc9528f471d76892f8a2990524944b68f",
     "sourceSha256": "a7f339d3491cd6d471290165ce385a16c5da32ea464e28342ec7f14c358554c7",
     "file": "visiting-puerto-rico.pdf"
   }
