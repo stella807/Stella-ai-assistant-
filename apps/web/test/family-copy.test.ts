@@ -33,11 +33,12 @@ describe("the order of the landing page", () => {
     expect(show).toBeGreaterThan(family);
   });
 
-  it("shows trust before what we arrange, and jets and yachts last among the photos", () => {
+  it("shows trust before what we arrange, care for people first, and jets and yachts last", () => {
     const show = read("LandingShowcase.tsx");
     expect(show.indexOf('aria-labelledby="show-trust"')).toBeLessThan(show.indexOf('aria-labelledby="show-title"'));
-    const order = [...show.matchAll(/\{ photo: "(\w+)"/g)].map((m) => m[1]);
+    const order = [...show.matchAll(/\{ id: "(\w+)"/g)].map((m) => m[1]);
     expect(order.slice(-2)).toEqual(["jet", "yacht"]);
-    expect(order[0]).toBe("ride");
+    expect(order.slice(0, 2)).toEqual(["hospital", "appt"]);
+    expect(order).toEqual(expect.arrayContaining(["groceries", "food", "booking", "events", "security"]));
   });
 });

@@ -5,13 +5,21 @@ import { useLanguage, type TranslationKey } from "../i18n.tsx";
 // The people-first services lead; jets and yachts come last.
 const MARQUEE: TranslationKey[] = ["show.marq7", "show.marq5", "show.marq6", "show.marq4", "show.marq3", "show.marq2", "show.marq1"];
 
-const CARDS: { photo: string; service?: ServiceId; title: TranslationKey; text: TranslationKey; tag: TranslationKey }[] = [
-  { photo: "ride", title: "show.ride", text: "show.rideText", tag: "show.rideTag" },
-  { photo: "hotel", title: "show.hotel", text: "show.hotelText", tag: "show.hotelTag" },
-  { photo: "lounge", service: "lounges", title: "show.lounge", text: "show.loungeText", tag: "show.loungeTag" },
-  { photo: "venue", title: "show.venue", text: "show.venueText", tag: "show.venueTag" },
-  { photo: "jet", service: "jets", title: "show.jet", text: "show.jetText", tag: "show.jetTag" },
-  { photo: "yacht", title: "show.yacht", text: "show.yachtText", tag: "show.yachtTag" },
+// Cards without a photo yet show a drawn icon on a dark gradient until the owner sends a real one.
+const CARDS: { id: string; photo?: string; icon?: string; service?: ServiceId; title: TranslationKey; text: TranslationKey; tag: TranslationKey }[] = [
+  { id: "hospital", icon: "🏥", title: "show.hospital", text: "show.hospitalText", tag: "show.hospitalTag" },
+  { id: "appt", icon: "🩺", title: "show.appt", text: "show.apptText", tag: "show.apptTag" },
+  { id: "groceries", icon: "🛒", title: "show.groceries", text: "show.groceriesText", tag: "show.groceriesTag" },
+  { id: "food", icon: "🍲", title: "show.food", text: "show.foodText", tag: "show.foodTag" },
+  { id: "booking", icon: "📅", title: "show.booking", text: "show.bookingText", tag: "show.bookingTag" },
+  { id: "events", icon: "🎉", title: "show.events", text: "show.eventsText", tag: "show.eventsTag" },
+  { id: "security", icon: "🛡️", title: "show.security", text: "show.securityText", tag: "show.securityTag" },
+  { id: "ride", photo: "ride", title: "show.ride", text: "show.rideText", tag: "show.rideTag" },
+  { id: "hotel", photo: "hotel", title: "show.hotel", text: "show.hotelText", tag: "show.hotelTag" },
+  { id: "lounge", photo: "lounge", service: "lounges", title: "show.lounge", text: "show.loungeText", tag: "show.loungeTag" },
+  { id: "venue", photo: "venue", title: "show.venue", text: "show.venueText", tag: "show.venueTag" },
+  { id: "jet", photo: "jet", service: "jets", title: "show.jet", text: "show.jetText", tag: "show.jetTag" },
+  { id: "yacht", photo: "yacht", title: "show.yacht", text: "show.yachtText", tag: "show.yachtTag" },
 ];
 
 /**
@@ -77,8 +85,10 @@ export function LandingShowcase() {
         <h2 id="show-title" className="show-title">{t("show.title")}</h2>
         <div className="show-grid">
           {CARDS.map((c, i) => (
-            <article key={c.photo} id={c.service ? `show-${c.service}` : undefined} className="show-card show-spot" style={{ "--i": i } as CSSProperties}>
-              <img src={`/img/showcase-${c.photo}.jpg`} alt={t(c.title)} loading="lazy" width={1100} height={825} />
+            <article key={c.id} id={c.service ? `show-${c.service}` : undefined} className={`show-card show-spot${c.photo ? "" : " show-card-icon"}`} style={{ "--i": i } as CSSProperties}>
+              {c.photo
+                ? <img src={`/img/showcase-${c.photo}.jpg`} alt={t(c.title)} loading="lazy" width={1100} height={825} />
+                : <span className="show-icon" aria-hidden="true">{c.icon}</span>}
               <span className="show-tag">{t(c.tag)}</span>
               <div className="show-card-text">
                 <h3>{t(c.title)}</h3>
