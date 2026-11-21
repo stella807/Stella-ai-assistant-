@@ -7,8 +7,8 @@ import { BOOKS, readBook } from "../src/books.ts";
 const src = (slug: string) => readFileSync(new URL(`../books/src/${slug}.md`, import.meta.url), "utf8");
 
 describe("the books sold to agents", () => {
-  it("has the five we offer, each a real PDF of a real length", () => {
-    expect(BOOKS.map((b) => b.slug).sort()).toEqual(["building-a-local-concierge-business", "delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+  it("has the six we offer, each a real PDF of a real length", () => {
+    expect(BOOKS.map((b) => b.slug).sort()).toEqual(["building-a-local-concierge-business", "building-for-agents", "delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
     for (const b of BOOKS) {
       const pdf = readBook(b.slug)!;
       expect(pdf.subarray(0, 5).toString(), b.slug).toBe("%PDF-");
@@ -56,7 +56,7 @@ describe("the books sold to agents", () => {
 
   it("gives each book a price of its own only when its source says so", () => {
     const priced = BOOKS.filter((b) => b.price);
-    expect(priced.map((b) => [b.slug, b.price])).toEqual([["building-a-local-concierge-business", "$0.05"]]);
+    expect(priced.map((b) => [b.slug, b.price])).toEqual([["building-a-local-concierge-business", "$0.05"], ["building-for-agents", "$0.25"]]);
     for (const b of priced) expect(src(b.slug)).toMatch(/<!-- price: \$\d+\.\d\d -->/);
   });
 

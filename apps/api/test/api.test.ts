@@ -3666,7 +3666,7 @@ describe("biweekly payroll", () => {
         const { createHash } = await import("node:crypto");
         const { encodePaymentSignatureHeader } = await import("@x402/core/http");
         const list: any = await (await fetch(`${base}/api/agent/books`)).json();
-        expect(list.books.map((b: any) => b.slug).sort()).toEqual(["building-a-local-concierge-business", "delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
+        expect(list.books.map((b: any) => b.slug).sort()).toEqual(["building-a-local-concierge-business", "building-for-agents", "delegating-real-world-tasks", "hiring-and-working-with-a-concierge", "traveling-with-an-older-parent", "visiting-puerto-rico"]);
         expect(list.price).toBe("$0.50");
         expect(list.books.find((b: any) => b.slug === "building-a-local-concierge-business").price).toBe("$0.05");
         expect(list.books.find((b: any) => b.slug === "visiting-puerto-rico").price).toBe("$0.50");
