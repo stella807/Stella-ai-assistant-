@@ -2965,6 +2965,8 @@ describe("biweekly payroll", () => {
       process.env.X402_ENABLED = "true";
       process.env.X402_PAY_TO = PAY_TO;
       process.env.X402_FACILITATOR_URL = `http://127.0.0.1:${(fac.address() as AddressInfo).port}`;
+      // The pass is off by default since the owner removed it; these tests still cover it working when switched on.
+      process.env.X402_SITE_PASS = "true";
     });
     afterEach(async () => {
       for (const k of ["X402_ENABLED", "X402_PAY_TO", "X402_FACILITATOR_URL", "X402_NETWORK", "X402_ALLOW_MAINNET", "X402_SITE_PASS", "X402_SITE_PASS_PRICE", "X402_SITE_PASS_PAGE_LIMIT", "FREE_SAMPLES"]) delete process.env[k];
@@ -3154,6 +3156,20 @@ describe("biweekly payroll", () => {
           expect(codes.slice(0, 3)).not.toContain(402);
           expect(codes.slice(3)).toContain(402);
         } finally { delete process.env.X402_SITE_PASS_PAGE_LIMIT; }
+      });
+
+      it("has no site pass unless the owner switches it back on: crawlers read free, books sell on their own, nothing mentions a pass", async () => {
+        delete process.env.X402_SITE_PASS;
+        expect((await page("/careers", GPT)).status).not.toBe(402);
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.sitePass).toBeUndefined();
+        expect(JSON.stringify(c.products)).not.toMatch(/site pass/i);
+        const book = await fetch(`${base}/api/agent/books/visiting-puerto-rico`);
+        expect(book.status).toBe(402);
+        expect(((await book.json()) as any).accepts[0].amount).toBe("500000");
+        const approval: any = await (await fetch(`${base}/api/agent/approval`)).json();
+        expect(approval.forPerson).not.toMatch(/site pass/i);
+        expect(approval.forPerson).toMatch(/Each item is sold on its own/);
       });
 
       it("charges nothing at all when paid access is off or the pass is switched off", async () => {

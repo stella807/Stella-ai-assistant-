@@ -6,7 +6,8 @@ import { CONTACT_EMAIL } from "@safehubby/core";
 
 export interface ApprovalInput {
   origin: string; lang: "en" | "es";
-  pass: { price: string; length: string };
+  /** Absent when there is no site pass: then every item is simply sold on its own. */
+  pass?: { price: string; length: string };
   items: { id: string; title: string; price: string }[];
 }
 
@@ -27,16 +28,18 @@ export function buildApprovalPack({ origin, lang, pass, items }: ApprovalInput) 
     t("Safehubby is a concierge and errands service in Puerto Rico. Its store for AI agents sells small, checkable pieces of information. Nothing here needs a person to do work, and nothing is medical, legal or financial advice.",
       "Safehubby es un servicio de conserjería y mandados en Puerto Rico. Su tienda para agentes de IA vende piezas pequeñas de información que se pueden comprobar. Nada aquí requiere que una persona haga un trabajo, y nada es consejo médico, legal ni financiero."),
     "",
-    t(`Site pass: ${pass.price} for ${pass.length}. It covers the website's pages, facts, blog articles, the digest, the brief, the airport directory, checklists, the request check and the alerts feed. Books cost extra.`,
-      `Pase del sitio: ${pass.price} por ${pass.length}. Cubre las páginas del sitio, los datos, los artículos del blog, el resumen, el brief, el directorio de aeropuertos, las listas, la revisión de pedidos y los avisos de cambios. Los libros cuestan aparte.`),
-    t("Without a pass, each item is sold on its own:", "Sin el pase, cada pieza se vende por separado:"),
+    ...(pass ? [
+      t(`Site pass: ${pass.price} for ${pass.length}. It covers the website's pages, facts, blog articles, the digest, the brief, the airport directory, checklists, the request check and the alerts feed. Books cost extra.`,
+        `Pase del sitio: ${pass.price} por ${pass.length}. Cubre las páginas del sitio, los datos, los artículos del blog, el resumen, el brief, el directorio de aeropuertos, las listas, la revisión de pedidos y los avisos de cambios. Los libros cuestan aparte.`),
+    ] : []),
+    pass ? t("Without a pass, each item is sold on its own:", "Sin el pase, cada pieza se vende por separado:") : t("Each item is sold on its own:", "Cada pieza se vende por separado:"),
     ...items.map((i) => `- ${i.title}: ${i.price}`),
     "",
     t("How to keep it under control:", "Cómo mantenerlo bajo control:"),
     ...limits.map((l) => `- ${l}`),
     "",
-    t(`How to check what you got: every answer is signed. The public key is at ${origin}/api/agent/key and stays free, even after a pass ends.`,
-      `Cómo comprobar lo que recibió: cada respuesta está firmada. La clave pública está en ${origin}/api/agent/key y es gratis, incluso cuando el pase termina.`),
+    t(`How to check what you got: every answer is signed. The public key is at ${origin}/api/agent/key and stays free.`,
+      `Cómo comprobar lo que recibió: cada respuesta está firmada. La clave pública está en ${origin}/api/agent/key y es gratis.`),
     t("What Safehubby records: counts of what was asked, and the payment itself. It does not keep addresses or the text of private requests.",
       "Qué registra Safehubby: cuántas veces se pidió cada cosa, y el pago. No guarda direcciones ni el texto de pedidos privados."),
     t("What it does not do: it makes no promise about what your agent will get from it, and it does not do errands through this store.",

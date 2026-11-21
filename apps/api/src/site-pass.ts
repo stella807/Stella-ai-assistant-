@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { takePayment, x402Config, type AgentSale } from "./x402-sales.ts";
 import { newId, type StoreLike } from "./store.ts";
-import { passLength, sitePassInfo } from "./site-pass-info.ts";
+import { passLength, sitePassEnabled, sitePassInfo } from "./site-pass-info.ts";
 import { PageRateTracker, classifyVisitor, verifySearchEngine, visitorLabel } from "./visitor-kind.ts";
 import { noteSignal } from "./signals.ts";
 
@@ -53,7 +53,7 @@ const sitePassPrice = () => sitePassInfo().price;
 const passMinutes = () => sitePassInfo().minutes;
 
 /** Whether the pass is in force at all: paid access is on, and it was not switched off. */
-export const sitePassOn = (): boolean => !("error" in x402Config()) && process.env.X402_SITE_PASS?.trim().toLowerCase() !== "off";
+export const sitePassOn = (): boolean => !("error" in x402Config()) && sitePassEnabled();
 
 function secretFor(store: StoreLike): string {
   let secret = store.data.sitePassSecret;

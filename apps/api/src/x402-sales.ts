@@ -5,7 +5,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { CONTACT_EMAIL, WHATSAPP_DISPLAY, buildKnowledge, lookupAirports, retrieveKnowledge, type SiteLang } from "@safehubby/core";
 import { articleIndex, articleText, findArticle } from "./blog.ts";
 import { newId, type StoreLike } from "./store.ts";
-import { sitePassInfo, passLength } from "./site-pass-info.ts";
+import { sitePassInfo, passLength, sitePassEnabled, shownDescription } from "./site-pass-info.ts";
 import { buildApprovalPack } from "./approval-pack.ts";
 import { checkRequest } from "./request-check.ts";
 import { noticesSince, seasonOn } from "./notices.ts";
@@ -314,10 +314,10 @@ export function listing(): Listed[] {
     const min = minPrices[p.id];
     const example = examples[p.id];
     return {
-      id: p.id, title: p.title, description: p.description, path: p.path, usage: p.usage, price,
+      id: p.id, title: p.title, description: shownDescription(p.description), path: p.path, usage: p.usage, price,
       ...(min && min !== price ? { minPrice: min } : {}),
       ...(example ? { example } : {}),
-      ...(p.requiresPass ? { requiresPass: true } : {}),
+      ...(p.requiresPass && sitePassEnabled() ? { requiresPass: true } : {}),
     };
   });
 }
@@ -423,18 +423,18 @@ function catalog(origin: string, store: StoreLike) {
     seller: "Safehubby", site: origin, payment: on ? { protocol: "x402", version: 2, network: config.network, testMoneyOnly: !config.live, currency: "USDC" } : null,
     available: on, note: on ? undefined : config.error,
     checkedNow: freshCount(store.data.localChecks ?? [], new Date()),
-    products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: p.description, ...(p.includes ? { includes: p.includes } : {}), ...(p.limits ? { limits: p.limits } : {}), endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
+    products: PRODUCTS.map((p) => ({ id: p.id, title: p.title, description: shownDescription(p.description), ...(p.includes ? { includes: p.includes } : {}), ...(p.limits ? { limits: p.limits } : {}), endpoint: `${origin}${p.path}`, usage: p.usage, price: priceOf(p), info: `${origin}${p.path.replace("{slug}", "example")}?info` })),
     freeSample: freeSamplesOn() ? {
       endpoint: `${origin}/api/agent/sample?q=`, perDay: 1, covers: "live answers",
       how: "Ask your own question once a day free, signed like a paid answer, to see what you would be paying for. A question with no answer does not use it up. After that, the same answers are paid at the live answers address.",
     } : undefined,
-    sitePass: {
+    sitePass: sitePassEnabled() ? {
       price: sitePassInfo().price, perVisit: true, minutesPerVisit: sitePassInfo().minutes,
       includes: "During the visit: the website's pages, plus plans and prices facts, blog articles as clean text, the weekly digest, the brief to forward to a person, the airport directory, the checklists (English and Spanish), the request check and the alerts feed, all with no further payment, and every answer is signed. The books (PDF) are sold separately: the pass is the access to buy them, and each book costs extra. Checked-today answers (what a person saw on the ground) and live answers (official storm and airport status, read when you ask) are charged for each answer, with or without a pass. Not included: errands, visits and other work that needs a person.",
       appliesTo: "The website's pages, to visitors that identify themselves as AI crawlers or agents (for example GPTBot, ClaudeBot, PerplexityBot). People and search engines read the site free.",
       excludes: "The blog, this store, the API, robots.txt, the sitemap and files such as scripts and images are never charged.",
       how: "Request a page, pay the amount the 402 response asks for, and keep the X-Safehubby-Pass header from the answer. Send it back on every request during the visit. After the visit ends you pay again.",
-    },
+    } : undefined,
     // The owner's NFT collection on Rarible. Sold there, never through this server: it holds no wallet and moves no money.
     nfts: {
       url: NFT_COLLECTION.soldAt, gallery: `${origin}/api/agent/nfts`,
@@ -586,7 +586,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   // For the person an agent works for: free, and built from the live prices.
   if (url.pathname === "/api/agent/approval") {
     const info = sitePassInfo();
-    return json(res, 200, buildApprovalPack({ origin, lang: langOf(url), pass: { price: info.price, length: passLength(info.minutes) }, items: PRODUCTS.filter((p) => !p.requiresPass).map((p) => ({ id: p.id, title: p.id === "live" ? `${p.title} (power alone $0.10)` : p.title, price: priceOf(p) })) }));
+    return json(res, 200, buildApprovalPack({ origin, lang: langOf(url), ...(sitePassEnabled() ? { pass: { price: info.price, length: passLength(info.minutes) } } : {}), items: PRODUCTS.filter((p) => !p.requiresPass || !sitePassEnabled()).map((p) => ({ id: p.id, title: p.id === "live" ? `${p.title} (power alone $0.10)` : p.title, price: priceOf(p) })) }));
   }
   if ((url.pathname === "/api/agent/books" || url.pathname.startsWith("/api/agent/books/")) && refuseBrowser(req, res)) return;
   if (url.pathname === "/api/agent/books") {
@@ -613,13 +613,13 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   const config = x402Config();
   if ("error" in config) return json(res, 503, { error: config.error });
   const price = priceOf(product, url);
-  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: product.description, ...(product.includes ? { includes: product.includes } : {}), ...(product.limits ? { limits: product.limits } : {}), usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
+  if (url.searchParams.has("info")) return json(res, 200, { id: product.id, description: shownDescription(product.description), ...(product.includes ? { includes: product.includes } : {}), ...(product.limits ? { limits: product.limits } : {}), usage: product.usage, price, network: config.network, testMoneyOnly: !config.live });
 
   const answer = await product.respond(url, origin, store, now());
   // A visitor with a valid site pass already paid for the visit: the store is part of it.
   if (holdsPass && answer.status === 200 && !product.requiresPass && !product.alwaysPaid) return sendSigned(res, answer.body, {}, store, now(), req.url ?? url.pathname, answer.file, product.id);
   const paid = await takePayment(req, res, {
-    path: url.pathname, origin, price, description: product.description, discovery: discoveryFor(product, url.pathname),
+    path: url.pathname, origin, price, description: shownDescription(product.description), discovery: discoveryFor(product, url.pathname),
     beforeSettle: () => (answer.status !== 200 ? { status: answer.status, body: answer.body } : null),
     // A request that can never be answered (no question, no such article) says nothing about demand, so it is not counted.
     onAsk: () => {

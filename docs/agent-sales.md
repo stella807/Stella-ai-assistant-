@@ -373,3 +373,7 @@ A pharmacy question reads the map (OpenStreetMap via Nominatim: distance, hours,
 `GET /api/agent/spend?rule={json}&purchase={json}`. An agent sends its person's spending rule (the shape printed in the book Building for Agents: per-request cap, daily cap, allowed items, retries allowed when a source is down, what to ask first) and the purchase it is about to make. It gets back `allow`, `ask_person` or `deny` with the reasons and what is left of today's cap. Over the per-request cap is refused; over the daily cap, off the allowed list, a new kind of purchase, or a retry for any reason but a source being down goes to the person; a rule with no cap pre-approves nothing. Pure logic, nothing fetched or kept.
 
 Products are now found by their address rather than their position in the list, so adding one cannot send a request to the wrong product.
+
+## The site pass is removed (2026-11-21)
+
+The owner removed the site pass. AI crawlers read the website free; every item, books included, is sold on its own at its own price, with no pass step in front. The numbers that led to it: the pass was asked for 106 times and never paid (almost all AI crawlers), and books were asked for 52 times, every one stopped at the pass. While the pass is off, the catalog, the approval page and every product description say nothing about it. `X402_SITE_PASS=on` in Railway brings it back as it was.

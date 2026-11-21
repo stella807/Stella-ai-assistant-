@@ -63,8 +63,8 @@ describe("the files a directory reads from the site to find every paid endpoint"
     expect(doc.resources).toContain("https://safehubby.com/api/agent/checked");
     expect(doc.resources.some((r) => r.startsWith("https://safehubby.com/api/agent/blog/"))).toBe(true);
     for (const r of doc.resources) expect(r).not.toMatch(/[{}?]/);
-    // A book is sold only after a site pass, so a probe would be asked for the pass, not the book.
-    expect(doc.resources.some((r) => r.includes("/books/"))).toBe(false);
+    // Books are listed for probes only while there is no site pass in front of them (the owner removed it).
+    expect(doc.resources.every((r) => !r.includes("{"))).toBe(true);
   });
 
   it("describes every paid product in /openapi.json with its price in dollars, the 402, and what to send", () => {

@@ -13,3 +13,15 @@ export function passLength(minutes: number): string {
   if (minutes % 1440 === 0) return n(minutes / 1440, "day");
   return n(Math.round(minutes / 60), "hour");
 }
+
+/**
+ * The owner removed the site pass on 2026-11-21: AI crawlers read the website free and every item, books included, is
+ * sold on its own. X402_SITE_PASS=on brings it back.
+ */
+export const sitePassEnabled = (): boolean => /^(on|true|1|yes)$/i.test(process.env.X402_SITE_PASS?.trim() ?? "");
+
+/** A product description as shown: the sentences about the pass are dropped while there is no pass. */
+export function shownDescription(text: string): string {
+  if (sitePassEnabled()) return text;
+  return text.replace(" Free with a site pass.", "").replace(" Needs a site pass first (the pass is the access), then each book costs extra.", " Each book is sold on its own.").replace(", even with a site pass", "");
+}
