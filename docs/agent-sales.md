@@ -113,11 +113,36 @@ an agent can pass a PDF on to a human.
 
 Every answer from the paid items (facts, blog copies, digest, brief, airports, checklists), whether paid for or covered by
 a pass, carries an `X-Safehubby-Signature` header: `keyId`, `alg="ed25519"`, `created` and `sig`. The public key is free at
-`/api/agent/key` (and its fingerprint is in the catalog under `signing`). The signed message is four lines: `safehubby-v1`,
-the path and query that were asked, the `created` time, and the SHA-256 (hex) of the exact response bytes. An agent that checks it
-knows the answer is unchanged, was made at that time, and answers the question it asked. This proves where an answer came
-from; it does not make the content true beyond what Safehubby publishes. The private key is made on first use, kept in the
-database (`signingKey`) and never sent. If the database is lost a new key is made and the key id changes, so verifiers notice.
+`/api/agent/key` (and its fingerprint is in the catalog under `signing`). The signed message is lines joined by a newline:
+`safehubby-v1`, the path and query that were asked, the `created` time, and the SHA-256 (hex) of the exact response bytes. An
+agent that checks it knows the answer is unchanged, was made at that time, and answers the question it asked. This proves where
+an answer came from; it does not make the content true beyond what Safehubby publishes. The private key is made on first use,
+kept in the database (`signingKey`) and never sent. If the database is lost a new key is made and the key id changes, so
+verifiers notice.
+
+**A paid answer names its payment.** When an answer was paid for, the header also has `v="2"` and `payment` (the network and the
+transaction id the facilitator settled, for example `eip155:8453:0x…`), and the signed message starts with `safehubby-v2` and
+adds the payment as a fifth line. So the buyer's payment and our signed record of what it bought join on one id. The payment is
+in the signature only, never in the body, because the currency check compares the body's hash. An answer that was not paid for
+(covered by a pass, or a free sample) keeps the version 1 format byte for byte; a test pins one such header exactly
+(`attestation.test.ts`). If a facilitator ever returns a transaction id that is not plain letters, digits and `:._-`, the
+answer is still sent, signed in version 1, because the money has already moved. Hash the bytes as they arrived, before any
+parsing: that is the whole canonicalization rule. Each header field is read by its exact name (`headerField`).
+
+**A ready script.** `/api/agent/verify.mjs` (free) is a short Node script with no dependencies:
+`node verify.mjs answer.json '<X-Safehubby-Signature header>' '<path and query asked>' [public key file]`. It prints `VALID`
+(exit 0) or `INVALID` (exit 1). Without a key file it fetches `/api/agent/key` and picks the key by `keyId`, current or
+retired (`SAFEHUBBY_KEY_URL` points it at a mirror or a test server). The script's text lives in `verify-script.ts`, so it
+ships with the server.
+
+**Each key's window.** `/api/agent/key` gives `validFrom` for the key in use and `validFrom` and `retiredAt` for each retired key,
+so a reader can reject a signature dated outside the time a key was in use; the script does. A start is recorded only for keys
+made from 2026-11-21 on (`signingKeySince`); a key made before that shows `null` ("not recorded"), never a guessed date, because
+a guessed start would make older answers look forged.
+
+**The clock.** `created` is this server's UTC clock at signing, not a chain or third-party timestamp (`clock` in the key and the
+catalog says so). On a paid answer, the payment named in the signature has its own block time on the chain: an independent
+clock to compare with.
 
 ### After the pass ends, and when the key changes
 
@@ -129,7 +154,9 @@ that secret like a password and never paste it in chat.
 
 **The currency check** is the one paid part of this. A signature proves where an answer came from and when. It cannot say
 whether it is still what we publish. Give `/api/agent/currency/{sha256}` the SHA-256 (hex) of the exact bytes you were sent and
-the reply, itself signed, says `current` (the same request gives the same answer today) or `changed`. The store keeps, for each
+the reply, itself signed, says `current` (the same request gives the same answer today) or `changed`. A `changed` reply also has
+`supersededBy` with the address to ask for the current answer (a new answer, priced as before); the old one stays signed and
+checkable, because authentic and stale are different things. The store keeps, for each
 answer it signs, only a fingerprint, the product, the address asked and the time (`receipts`, the latest 20,000), never a payer or
 an address. A fingerprint it never issued, or that is not 64 hex characters, is answered 404 and not charged. Price:
 `X402_PRICE_CURRENCY` (default $0.02), free with a pass. Verifying a signature stays free and always will: a check that cost
@@ -137,7 +164,9 @@ money could not be trusted.
 
 ```js
 import { createHash, createPublicKey, verify } from "node:crypto";
-const msg = `safehubby-v1\n${path}\n${created}\n${createHash("sha256").update(bodyText).digest("hex")}`;
+const hash = createHash("sha256").update(bodyBytes).digest("hex");
+// v="2" with a payment field: a paid answer. Otherwise version 1.
+const msg = v === "2" ? `safehubby-v2\n${path}\n${created}\n${hash}\n${payment}` : `safehubby-v1\n${path}\n${created}\n${hash}`;
 const ok = verify(null, Buffer.from(msg), createPublicKey(publicKeyPem), Buffer.from(sig, "base64"));
 ```
 

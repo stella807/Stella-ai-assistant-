@@ -15,7 +15,8 @@ import { noteSignal } from "./signals.ts";
 import { alertOwner } from "./owner-alerts.ts";
 import { NFT_COLLECTION, NFT_PIECES } from "./nfts.ts";
 import { createHash } from "node:crypto";
-import { keyFromSeed, newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
+import { isPaymentRef, keyFromSeed, newSigningKey, signResponse, type SigningKeyRecord } from "./attestation.ts";
+import { verifyScript } from "./verify-script.ts";
 import { checklistIndex, checklistText, findChecklist } from "./checklists.ts";
 import { BOOKS, readBook } from "./books.ts";
 import { looksLikePersonInBrowser } from "./visitor-kind.ts";
@@ -199,7 +200,11 @@ export const PRODUCTS: Product[] = [
       }
       return {
         status: 200, results: 1, summary: `currency/${receipt.product}`, words: "",
-        body: { sha256: hash, found: true, product: receipt.product, issuedAt: receipt.at, keyId: receipt.keyId, status, checkedAt: (at ?? new Date()).toISOString() },
+        body: {
+          sha256: hash, found: true, product: receipt.product, issuedAt: receipt.at, keyId: receipt.keyId, status, checkedAt: (at ?? new Date()).toISOString(),
+          // Authentic and stale are different states: the old answer stays signed and checkable, and this says where the current one is.
+          ...(status === "changed" ? { supersededBy: { request: `${origin}${receipt.target}`, note: "The same request gives a different answer today. Ask again at this address for the current one: that is a new answer, priced as before. The answer you hold is still signed and checkable." } } : {}),
+        },
       };
     },
   },
@@ -368,7 +373,7 @@ const productFor = (pathname: string): Product | undefined =>
   });
 
 /** Whether a path belongs to the agent store, so the server can route it here. */
-export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/approval" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || pathname === "/api/agent/sample" || productFor(pathname) !== undefined;
+export const isAgentPath = (pathname: string): boolean => pathname === "/api/agent/catalog" || pathname === "/api/agent/blog" || pathname === "/api/agent/nfts" || pathname === "/api/agent/key" || pathname === "/api/agent/verify.mjs" || pathname === "/api/agent/approval" || pathname === "/api/agent/checklists" || pathname === "/api/agent/books" || pathname === "/api/agent/sample" || productFor(pathname) !== undefined;
 
 /** The free catalog: what is for sale, at what price, and how to ask. Nothing here costs anything. */
 /**
@@ -382,23 +387,29 @@ export function signingKeyFor(store: StoreLike): SigningKeyRecord {
   if (seed && seed.length >= 32) {
     const key = keyFromSeed(seed);
     if (current?.keyId !== key.keyId) {
+      const at = new Date().toISOString();
       store.update((db) => {
-        if (current) db.signingKeyHistory = [...(db.signingKeyHistory ?? []), { keyId: current.keyId, publicKeyPem: current.publicKeyPem, retiredAt: new Date().toISOString() }];
+        // The retired key keeps the start it had; a key from before starts were recorded keeps none rather than a guess.
+        if (current) db.signingKeyHistory = [...(db.signingKeyHistory ?? []), { keyId: current.keyId, publicKeyPem: current.publicKeyPem, validFrom: db.signingKeySince ?? null, retiredAt: at }];
         db.signingKey = key;
+        db.signingKeySince = at;
       });
     }
     return key;
   }
   if (current) return current;
   const made = newSigningKey();
-  store.update((db) => { db.signingKey = made; });
+  store.update((db) => { db.signingKey = made; db.signingKeySince = new Date().toISOString(); });
   return made;
 }
+
+/** What "created" in a signature is, so nobody mistakes it for a stronger clock than it is. */
+const SIGNING_CLOCK = "created is this server's UTC clock at the moment of signing, not a chain or third-party timestamp. A paid answer also names its payment, whose transaction has its own block time on the chain: an independent clock to compare it with.";
 
 /** Sends a product's answer with a signature over the exact bytes and the address that was asked. */
 const RECEIPT_LIMIT = 20_000;
 
-function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string, file?: { data: Buffer; filename: string }, productId?: string) {
+function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, string>, store: StoreLike, now: Date, target: string, file?: { data: Buffer; filename: string }, productId?: string, payment?: string) {
   const text: string | Buffer = file ? file.data : JSON.stringify(body);
   // Only a fingerprint, what it was, the address asked and when: so the answer can later be checked for currency. Never a payer.
   if (productId && productId !== "currency") {
@@ -411,7 +422,7 @@ function sendSigned(res: ServerResponse, body: unknown, headers: Record<string, 
   const expose = [headers["access-control-expose-headers"], "X-Safehubby-Signature"].filter(Boolean).join(", ");
   res.writeHead(200, {
     "content-type": file ? "application/pdf" : "application/json", "cache-control": "no-store", ...(file ? { "x-robots-tag": "noindex, nofollow", "content-disposition": `attachment; filename="${file.filename}"`, "content-length": String(file.data.length) } : {}),
-    ...headers, "access-control-expose-headers": expose, "X-Safehubby-Signature": signResponse(signingKeyFor(store), text, target, now),
+    ...headers, "access-control-expose-headers": expose, "X-Safehubby-Signature": signResponse(signingKeyFor(store), text, target, now, payment),
   });
   res.end(text);
 }
@@ -443,7 +454,9 @@ function catalog(origin: string, store: StoreLike) {
     signing: {
       alg: "ed25519", keyId: signingKeyFor(store).keyId, key: `${origin}/api/agent/key`,
       afterExpiry: "A signature is still valid after your pass ends. Keep the answer and its X-Safehubby-Signature header, and check them any time with the public key, which stays free. Old keys stay listed at the key address. To ask whether an answer you hold is still current, use the currency check.",
-      how: "Every answer from the paid items has an X-Safehubby-Signature header. Check it with the public key at the key address: the signed message is the text 'safehubby-v1', the path and query you asked, the created time and the SHA-256 of the exact response body, each on its own line. If it checks, the answer is unchanged and was made at the created time.",
+      how: "Every answer from the paid items has an X-Safehubby-Signature header with keyId, alg, created and sig. Check it with the public key at the key address. The signed message is these lines joined by a newline: the text 'safehubby-v1', the path and query you asked, the created time and the SHA-256 of the exact response bytes. A paid answer's header also has v=\"2\" and payment (the network and the payment's transaction id); its message starts with 'safehubby-v2' and adds the payment as a fifth line, so the answer names the payment it was given for. Hash the bytes as they arrived, before any parsing. If it checks, the answer is unchanged and was made at the created time. The script at the verify address does all of this with node alone.",
+      verify: `${origin}/api/agent/verify.mjs`,
+      clock: SIGNING_CLOCK,
     },
     notForSale: `Errands, visits to check a place, appointments and other work that needs a person are not sold here. Email ${CONTACT_EMAIL} or message Safehubby on WhatsApp at ${WHATSAPP_DISPLAY} for those.`,
     contact: {
@@ -579,10 +592,20 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
   }
   // The public key, free, so an agent can check an answer without trusting anything else.
   if (url.pathname === "/api/agent/key") { const k = signingKeyFor(store); return json(res, 200, {
-      alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem, howToCheck: catalog(origin, store).signing.how,
-      // Earlier keys stay public so an old answer still verifies after the key changes.
-      retired: (store.data.signingKeyHistory ?? []).map((r) => ({ keyId: r.keyId, publicKeyPem: r.publicKeyPem, retiredAt: r.retiredAt })),
+      alg: "ed25519", keyId: k.keyId, publicKeyPem: k.publicKeyPem,
+      // When this key started signing; null for a key made before that was recorded.
+      validFrom: store.data.signingKeySince ?? null,
+      howToCheck: catalog(origin, store).signing.how, clock: SIGNING_CLOCK,
+      verify: { script: `${origin}/api/agent/verify.mjs`, command: `node verify.mjs answer.json '<X-Safehubby-Signature header>' '<path and query you asked>'` },
+      // Earlier keys stay public so an old answer still verifies after the key changes, with the window each was used in.
+      retired: (store.data.signingKeyHistory ?? []).map((r) => ({ keyId: r.keyId, publicKeyPem: r.publicKeyPem, validFrom: r.validFrom ?? null, retiredAt: r.retiredAt })),
     }); }
+  // A script to check a saved answer with node alone. Free, like the key: a check that cost money could not be trusted.
+  if (url.pathname === "/api/agent/verify.mjs") {
+    res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" });
+    res.end(verifyScript(origin));
+    return;
+  }
   // For the person an agent works for: free, and built from the live prices.
   if (url.pathname === "/api/agent/approval") {
     const info = sitePassInfo();
@@ -642,5 +665,8 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
     payer: paid.payer, transaction: paid.transaction, query: answer.summary.slice(0, 300), results: answer.results,
   };
   store.update((db) => { db.agentSales = [...(db.agentSales ?? []), sale].slice(-5000); });
-  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname, answer.file, product.id);
+  // The money has moved by now, so an odd transaction id from the facilitator must never stop the answer: it is then signed
+  // without the payment, as an unpaid answer is, rather than not sent.
+  const ref = paid.transaction ? `${paid.network}:${paid.transaction}` : "";
+  return sendSigned(res, answer.body, paid.headers, store, now(), req.url ?? url.pathname, answer.file, product.id, isPaymentRef(ref) ? ref : undefined);
 }

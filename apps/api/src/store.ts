@@ -285,8 +285,10 @@ export interface Db {
   signals?: import("./signals.ts").SignalsDb["signals"];
   /** The key that signs every answer the agent store gives (attestation.ts); made on first use, the private half never leaves. */
   signingKey?: import("./attestation.ts").SigningKeyRecord;
+  /** When the current signing key started signing. Absent for a key made before starts were recorded: never guessed. */
+  signingKeySince?: string;
   /** Earlier signing keys, public halves only, kept so an old answer still verifies after the key changes (see attestation.ts). */
-  signingKeyHistory?: { keyId: string; publicKeyPem: string; retiredAt: string }[];
+  signingKeyHistory?: { keyId: string; publicKeyPem: string; retiredAt: string; validFrom?: string | null }[];
   /** A fingerprint of every answer the agent store has signed, so it can later be asked whether the answer is still current. */
   receipts?: { sha256: string; product: string; target: string; at: string; keyId: string }[];
   /** Signs the visit passes sold to AI crawlers; made on first use and never shown. */

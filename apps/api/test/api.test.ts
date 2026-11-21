@@ -3275,6 +3275,8 @@ describe("biweekly payroll", () => {
           const sig = res.headers.get("x-safehubby-signature")!;
           const text = await res.text();
           expect(sig, path).toContain(`keyId="${k.keyId}"`);
+          // Not paid for (covered by the pass): the old format, with no payment in it.
+          expect(sig, path).not.toContain("payment=");
           expect(verifyResponse(k.publicKeyPem, sig, text, path), path).toBe(true);
           expect(verifyResponse(k.publicKeyPem, sig, text + " ", path), path).toBe(false);
         }
@@ -3292,8 +3294,55 @@ describe("biweekly payroll", () => {
         const res = await fetch(url, { headers: { "payment-signature": sig } });
         const header = res.headers.get("x-safehubby-signature")!;
         expect(verifyResponse(k.publicKeyPem, header, await res.text(), "/api/agent/facts?q=How%20much%20is%20Premium%20per%20month%3F")).toBe(true);
+        // The paid answer names the payment it was given for, inside what is signed.
+        expect(header).toContain('v="2"');
+        expect(header).toContain('payment="eip155:84532:0xtx"');
         const again: any = await (await fetch(`${base}/api/agent/key`)).json();
         expect(again.keyId).toBe(k.keyId);
+      });
+
+      it("serves a small script that checks a saved answer with node alone, and it fails on a changed answer", async () => {
+        const { encodePaymentSignatureHeader } = await import("@x402/core/http");
+        const { execFile } = await import("node:child_process");
+        const { mkdtempSync, writeFileSync } = await import("node:fs");
+        const { tmpdir } = await import("node:os");
+        const { join } = await import("node:path");
+        const served = await fetch(`${base}/api/agent/verify.mjs`);
+        expect(served.status).toBe(200);
+        expect(served.headers.get("content-type")).toMatch(/javascript/);
+        const dir = mkdtempSync(join(tmpdir(), "safehubby-verify-"));
+        const script = join(dir, "verify.mjs");
+        writeFileSync(script, await served.text());
+        const path = "/api/agent/facts?q=How%20much%20is%20Premium%20per%20month%3F";
+        const required: any = await (await fetch(`${base}${path}`)).json();
+        const pay = encodePaymentSignatureHeader({ x402Version: 2, resource: required.resource, accepted: required.accepts[0], payload: { signature: "0xsig", authorization: {} } } as any);
+        const res = await fetch(`${base}${path}`, { headers: { "payment-signature": pay } });
+        const header = res.headers.get("x-safehubby-signature")!;
+        writeFileSync(join(dir, "answer.json"), Buffer.from(await res.arrayBuffer()));
+        writeFileSync(join(dir, "changed.json"), "{}");
+        // Run asynchronously: the script asks this same server for the key, so the server must keep answering meanwhile.
+        // SAFEHUBBY_KEY_URL points it here instead of the public site its key address names.
+        const env = { ...process.env, SAFEHUBBY_KEY_URL: `${base}/api/agent/key` };
+        const run = (...args: string[]) => new Promise<{ code: number; out: string }>((resolve) =>
+          execFile(process.execPath, [script, ...args], { env }, (err, stdout) => resolve({ code: err ? Number((err as any).code ?? 1) : 0, out: String(stdout) })));
+        const ok = await run(join(dir, "answer.json"), header, path);
+        expect(ok.code, ok.out).toBe(0);
+        expect(ok.out).toMatch(/^VALID/);
+        expect(ok.out).toContain("eip155:84532:0xtx");
+        const bad = await run(join(dir, "changed.json"), header, path);
+        expect(bad.code).toBe(1);
+        expect(bad.out).toMatch(/^INVALID/);
+        // With the public key saved locally it needs nothing from the network.
+        const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+        writeFileSync(join(dir, "key.pem"), k.publicKeyPem);
+        expect((await run(join(dir, "answer.json"), header, path, join(dir, "key.pem"))).code).toBe(0);
+        // The key address and the catalog point to it, and say what clock "created" is.
+        expect(k.verify.script).toMatch(/\/api\/agent\/verify\.mjs$/);
+        expect(k.clock).toMatch(/server/i);
+        const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
+        expect(c.signing.verify).toBe(k.verify.script);
+        expect(c.signing.how).toMatch(/safehubby-v2/);
+        expect(c.signing.how).toMatch(/payment/);
       });
 
       it("sells three checklists in English and Spanish, lists them free, and is free with the pass", async () => {
@@ -3800,6 +3849,7 @@ describe("biweekly payroll", () => {
           expect(res.status).toBe(200);
           const text = await res.text();
           expect(JSON.parse(text)).toMatchObject({ sha256: hash, found: true, product: "facts", status: "current", keyId: expect.stringMatching(/^[0-9a-f]{16}$/) });
+          expect(JSON.parse(text).supersededBy).toBeUndefined();
           const k: any = await (await fetch(`${base}/api/agent/key`)).json();
           expect(verifyResponse(k.publicKeyPem, res.headers.get("x-safehubby-signature")!, text, `/api/agent/currency/${hash}`)).toBe(true);
         });
@@ -3811,6 +3861,8 @@ describe("biweekly payroll", () => {
           store.update((db) => { db.receipts = [...(db.receipts ?? []), { sha256: old, product: "facts", target: `/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`, at: clock.toISOString(), keyId: "x" }]; });
           const body: any = await (await fetch(`${base}/api/agent/currency/${old}`, { headers: { "x-safehubby-pass": pass } })).json();
           expect(body).toMatchObject({ found: true, status: "changed", product: "facts" });
+          // A changed answer points to where the current one is; the old one stays signed and checkable.
+          expect(body.supersededBy.request.endsWith(`/api/agent/facts?q=${encodeURIComponent("How much is Premium per month?")}`)).toBe(true);
         });
 
         it("never charges for an answer it never issued, nor for something that is not a fingerprint", async () => {
@@ -3849,6 +3901,19 @@ describe("biweekly payroll", () => {
         expect(two.retired.map((r: any) => r.keyId)).toContain(one.keyId);
         expect(two.retired.find((r: any) => r.keyId === one.keyId).publicKeyPem).toBe(one.publicKeyPem);
         expect(JSON.stringify(two)).not.toMatch(/PRIVATE/);
+        // Each key made from here on says when it started and, once retired, when it stopped, so a reader can reject a
+        // signature made outside a key's window.
+        const window = two.retired.find((r: any) => r.keyId === one.keyId);
+        expect(window.validFrom).toEqual(expect.stringMatching(/^\d{4}-\d\d-\d\dT/));
+        expect(window.retiredAt >= window.validFrom).toBe(true);
+        expect(two.validFrom).toEqual(expect.stringMatching(/^\d{4}-\d\d-\d\dT/));
+      });
+
+      it("says 'not recorded' for when a key started rather than guess a date that would reject older answers", async () => {
+        await fetch(`${base}/api/agent/key`);
+        store.update((db) => { delete db.signingKeySince; });
+        const k: any = await (await fetch(`${base}/api/agent/key`)).json();
+        expect(k.validFrom).toBeNull();
       });
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {

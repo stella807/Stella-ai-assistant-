@@ -57,3 +57,42 @@ describe("a signing key that survives losing the database", () => {
     expect(() => keyFromSeed("short")).toThrow(/at least 32/);
   });
 });
+
+describe("a paid answer names the payment it was given for, inside what is signed", () => {
+  const key = keyFromSeed("golden-seed-for-the-format-test-0123456789abcdef");
+  const at = new Date("2026-11-18T12:00:00Z");
+  const body = JSON.stringify({ facts: [{ title: "Premium plan", text: "Premium costs $93.99 a month." }] });
+  const path = "/api/agent/facts?q=premium";
+  const payment = "eip155:8453:0xabc123";
+
+  it("keeps an answer that was not paid in the old format, byte for byte, so every signature already given checks the same way", () => {
+    // Made by the code as it was before payments were signed: this exact header must never change.
+    expect(signResponse(key, body, path, at)).toBe('keyId="5416b96417193936"; alg="ed25519"; created="2026-11-18T12:00:00.000Z"; sig="z39VjQujHgqE4RRNnPBRcpyw3buhz7SIDWNGlJW3KmQZt27t9MJrdk4RiRI6jgoxfVLsFd/778iigvl3OKsvCA=="');
+  });
+
+  it("puts the payment in the header and in the signed message, and checks with the public key alone", () => {
+    const header = signResponse(key, body, path, at, payment);
+    expect(header).toContain('v="2"');
+    expect(header).toContain(`payment="${payment}"`);
+    expect(verifyResponse(key.publicKeyPem, header, body, path)).toBe(true);
+    expect(verifyResponse(key.publicKeyPem, header, body + " ", path)).toBe(false);
+  });
+
+  it("fails if the payment is changed or removed, or the header is passed off as the old format or an unknown one", () => {
+    const header = signResponse(key, body, path, at, payment);
+    expect(verifyResponse(key.publicKeyPem, header.replace("0xabc123", "0xabc124"), body, path)).toBe(false);
+    expect(verifyResponse(key.publicKeyPem, header.replace(/; payment="[^"]*"/, ""), body, path)).toBe(false);
+    expect(verifyResponse(key.publicKeyPem, header.replace(/; v="2"/, "").replace(/; payment="[^"]*"/, ""), body, path)).toBe(false);
+    expect(verifyResponse(key.publicKeyPem, header.replace('v="2"', 'v="9"'), body, path)).toBe(false);
+  });
+
+  it("reads each field by its own name, so a field that merely ends in the same letters is never taken for it", () => {
+    const header = signResponse(key, body, path, at);
+    expect(verifyResponse(key.publicKeyPem, `xsig="AAAA"; ${header}`, body, path)).toBe(true);
+    expect(verifyResponse(key.publicKeyPem, header.replace("sig=", "xsig="), body, path)).toBe(false);
+  });
+
+  it("refuses to sign a payment reference that could break the header", () => {
+    for (const bad of ['x"; sig="AAAA', "a;b", "", "has space"]) expect(() => signResponse(key, body, path, at, bad)).toThrow(/payment/);
+  });
+});

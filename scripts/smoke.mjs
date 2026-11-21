@@ -118,6 +118,8 @@ check("robots.txt points at the sitemap and hides the private areas", robots.tex
 // ---- the API
 const health = await get("/api/health");
 check("health check passes", health.status === 200 && health.text.includes('"ok":true'));
+const verifier = await get("/api/agent/verify.mjs");
+check("the script that checks a signed answer is served with the server", verifier.status === 200 && (verifier.res.headers.get("content-type") ?? "").includes("javascript") && verifier.text.includes("safehubby-v2") && verifier.text.includes("/api/agent/key"), String(verifier.status));
 const api404 = await get("/api/nope");
 check("an unknown API path is JSON, not a web page", api404.status === 404 && (api404.res.headers.get("content-type") ?? "").includes("json"));
 check("signed-out requests to account data are refused", (await get("/api/account/export")).status === 401);
