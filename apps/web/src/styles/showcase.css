@@ -56,6 +56,13 @@
   .show-tile { min-height: 230px; }
   .show-sos { width: 150px; height: 150px; margin: 10px auto 40px; }
 }
+/* An odd count leaves the last card alone on its row (two columns, or three): it stretches across the row as a wide banner instead. */
+@media (min-width: 600px) and (max-width: 899px) {
+  .show-card:last-child:nth-child(odd) { grid-column: 1 / -1; aspect-ratio: 16 / 7; }
+}
+@media (min-width: 900px) {
+  .show-card:last-child:nth-child(3n + 1) { grid-column: 1 / -1; aspect-ratio: 21 / 8; }
+}
 @media (prefers-reduced-motion: reduce) {
   .show-marq-track, .show-card, .show-langs span, .show-sos::before, .show-sos::after { animation: none !important; }
   .show-langs span:first-child { background: linear-gradient(100deg, #c9a05a, #f1dba4); color: #1a1208; }
@@ -91,5 +98,3 @@
   .family-cta { grid-template-columns: repeat(2, minmax(0, 260px)); }
 }
 :root[data-theme="light"] .family-list li { border-color: rgba(0, 0, 0, .1); background: rgba(0, 0, 0, .02); }
-.show-card-icon { background: radial-gradient(120% 90% at 30% 20%, #2a3350 0%, #0b0e17 70%); }
-.show-icon { position: absolute; inset: 0 0 35% 0; display: grid; place-items: center; font-size: clamp(56px, 7vw, 88px); filter: saturate(.85); }
