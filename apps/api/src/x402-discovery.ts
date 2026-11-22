@@ -13,6 +13,7 @@ const PARAMS: Record<string, Record<string, Param>> = {
   facts: { q: { example: "How much is Premium per month?", about: "A question about Safehubby's plans, prices, the Wingman Club, secure transport or safety rules" } },
   blog: { lang: LANG },
   digest: {},
+  ops: {},
   brief: {},
   airports: {
     q: { example: "San Juan", about: "City, country, airport name or three-letter code" },

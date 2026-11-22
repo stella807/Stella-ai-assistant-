@@ -305,6 +305,56 @@ export const PRODUCTS: Product[] = [
       return answer.status === 200 ? { ...answer, body: { ...(answer.body as object), whatYouGet: { includes: self.includes, limits: self.limits } } } : answer;
     },
   },
+  {
+    id: "ops", title: "Business conditions check, Puerto Rico",
+    description: "For agents that work for a business in Puerto Rico (deliveries, hotels, tours, clinics, shops, events): one call gives everything that can stop work on the island today, each part read from its official source when you ask and dated. Weather and flood alerts (National Weather Service), active tropical storms (National Hurricane Center), power outages by region with load shedding (LUMA), status and delay outlook for SJU, BQN and PSE (FAA), earthquakes in the last 7 days (USGS), river gauges rising fastest (USGS) and waves and wind off San Juan (NOAA), with a short list of what to watch. Not a forecast. With no weather service there is no answer and no charge; any other part is null when its source could not be read. Charged for each check, even with a site pass.",
+    includes: [
+      "Weather and flood alerts for Puerto Rico, and active tropical storms",
+      "Power outages by region, with load shedding",
+      "SJU, BQN and PSE: delays now and signs of delays ahead",
+      "Earthquakes near Puerto Rico in the last 7 days",
+      "River gauges rising fastest in about three hours",
+      "Waves and wind off San Juan",
+      "watch: the parts that need attention today, in one list",
+    ],
+    limits: ["Not a forecast and not an official warning; follow the National Weather Service and local officials.", "A part is null when its source could not be read."],
+    path: "/api/agent/ops", usage: "GET (no parameters). One snapshot of Puerto Rico conditions for business operations.", defaultPrice: "$0.50", alwaysPaid: true,
+    async respond(_u, _origin, _store, at) {
+      const now = at ?? new Date();
+      // The extra parts wait at most 6 seconds, so a directory probing this address is never kept waiting on the slow river file;
+      // a late part is null now and comes from the cache on the next call.
+      const late = new Promise<null>((r) => setTimeout(() => r(null), 6000).unref?.());
+      const extra = (q: string) => Promise.race([answerLive(q, now), late]);
+      const [weather, quake, river, sea] = await Promise.all([answerLive("weather puerto rico", now), extra("earthquakes"), extra("river levels"), extra("waves san juan")]);
+      if (weather!.status !== 200) return { status: 404, body: { error: "The National Weather Service could not be reached just now. You are not charged." }, results: 0, summary: "ops/none" };
+      const part = (a: Awaited<ReturnType<typeof answerLive>> | null) => (a?.status === 200 ? a.body as Record<string, unknown> : null);
+      const w = part(weather!)!, qk = part(quake ?? null), rv = part(river ?? null), se = part(sea ?? null);
+      const alerts = (w.alerts as unknown[]) ?? [];
+      const storms = ((w.tropical as { storms?: unknown[] } | null)?.storms) ?? [];
+      const power = w.power as { island?: { percentWithoutPower?: number; loadShed?: number } } | null;
+      const rising = (rv?.risingFast as unknown[] | undefined) ?? [];
+      const bigQuake = ((qk?.quakes as { magnitude: number | null }[] | undefined) ?? []).some((x) => (x.magnitude ?? 0) >= 4.5);
+      const watch = [
+        alerts.length ? `${alerts.length} weather alert${alerts.length === 1 ? "" : "s"} active` : "",
+        storms.length ? `${storms.length} tropical storm${storms.length === 1 ? "" : "s"} active` : "",
+        (power?.island?.percentWithoutPower ?? 0) >= 5 ? `${power!.island!.percentWithoutPower}% of customers without power` : "",
+        (power?.island?.loadShed ?? 0) > 0 ? "load shedding (rolling cuts) under way" : "",
+        rising.length ? `${rising.length} river gauge${rising.length === 1 ? "" : "s"} rising fast` : "",
+        bigQuake ? "an earthquake of magnitude 4.5 or more this week" : "",
+      ].filter(Boolean);
+      return {
+        status: 200, results: 1, summary: "ops", words: "",
+        body: {
+          area: "Puerto Rico", asOf: now.toISOString(), watch, summary: watch.length ? `Watch today: ${watch.join("; ")}.` : "Nothing in the official sources needs attention right now.",
+          weather: { source: w.source, alerts, summary: w.summary }, tropical: w.tropical, power: w.power, airports: w.puertoRicoAirports,
+          earthquakes: qk && { source: qk.source, window: qk.window, quakes: qk.quakes, summary: qk.summary },
+          rivers: rv && { source: rv.source, risingFast: rising, summary: rv.summary },
+          sea: se && { source: se.source, tide: se.tide, buoy: se.buoy, summary: se.summary },
+          note: "Each part was read from its official source when you asked and names it. Not a forecast and not an official warning. A part is null when its source could not be read.",
+        },
+      };
+    },
+  },
 ];
 
 /** The products as the discovery files list them (/openapi.json, /.well-known/x402, /llms.txt), with today's prices. */

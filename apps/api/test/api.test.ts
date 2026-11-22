@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -3000,6 +3000,10 @@ describe("biweekly payroll", () => {
     it("publishes where to find every paid endpoint, free even to an AI crawler, and each one listed asks a probe for payment", async () => {
       const gpt = { "user-agent": "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)" };
       process.env.X402_SITE_PASS = "true";
+      // Probing the business check reads its sources; keep the test off the network.
+      const live = await import("../src/live-feeds.ts");
+      live.setLiveFetcher(async () => new Response("no", { status: 503 }));
+      onTestFinished(() => { live.setLiveFetcher(undefined); live.clearLiveCache(); });
       for (const path of ["/.well-known/x402", "/.well-known/x402.json"]) {
         const res = await fetch(`${base}${path}`, { headers: gpt });
         expect(res.status, path).toBe(200);
@@ -3195,7 +3199,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "spend"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "ops", "spend"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3464,6 +3468,27 @@ describe("biweekly payroll", () => {
         };
         beforeEach(async () => { const m = await import("../src/live-feeds.ts"); m.clearLiveCache(); m.setLiveFetcher(async (u: string) => (u.includes("weather.gov") ? new Response(NWS) : new Response("no", { status: 503 }))); });
         afterEach(async () => { const m = await import("../src/live-feeds.ts"); m.setLiveFetcher(undefined); m.clearLiveCache(); });
+
+        it("sells the business conditions check for fifty cents: every part named, and what to watch in one list", async () => {
+          const { required, res } = await payFor(`${base}/api/agent/ops`);
+          expect(required.accepts[0].amount).toBe("500000");
+          expect(res.status).toBe(200);
+          const body: any = await res.json();
+          expect(body.watch).toEqual(["1 weather alert active"]);
+          expect(body.weather.alerts[0].event).toBe("Flash Flood Warning");
+          // Sources that could not be read are null, never guessed.
+          expect(body.earthquakes).toBeNull();
+          expect(body.rivers).toBeNull();
+        });
+
+        it("charges nothing for the business check when the weather service cannot be read", async () => {
+          const m = await import("../src/live-feeds.ts");
+          m.setLiveFetcher(async () => new Response("no", { status: 503 }));
+          const { res } = await payFor(`${base}/api/agent/ops`);
+          expect(res.status).toBe(404);
+          expect(res.headers.get("payment-response")).toBeNull();
+          expect(JSON.stringify(await res.json())).toContain("not charged");
+        });
 
         it("sells a live answer for ten cents, signed, naming the source, and charges a pass holder too", async () => {
           const { verifyResponse } = await import("../src/attestation.ts");
@@ -3918,7 +3943,7 @@ describe("biweekly payroll", () => {
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "spend"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "ops", "spend"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);

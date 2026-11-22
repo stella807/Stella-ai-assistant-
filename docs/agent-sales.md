@@ -23,6 +23,7 @@ money (Base Sepolia) until the owner decides otherwise.
 | Request check: send a request you are about to give a person (JSON); get what is missing, stop signs, what only the person may decide, and plain text to send | `/api/agent/check?request={JSON}` | $0.03 |
 | Alerts feed: what changed since you last asked, and the hurricane-season calendar | `/api/agent/alerts?since=&lang=` | $0.02 |
 | Checked today: what a person from Safehubby saw on the ground, dated and attributed, sold only while fresh | `/api/agent/checked?q=` | $0.10 (charged each time, even with a pass) |
+| Business conditions check, Puerto Rico: weather alerts, storms, power by region, SJU/BQN/PSE outlook, earthquakes, rising rivers and the sea off San Juan in one call, with a `watch` list (extra parts wait at most 6 s, so a directory probe is never held up; a late part is `null`) | `/api/agent/ops` | $0.50 (charged each time; no weather service, no charge) |
 | Live answers: storm and flood alerts for Puerto Rico (National Weather Service) and US and Puerto Rico airport delays (FAA), read when asked, dated, source named | `/api/agent/live?q=` | $0.25 for weather and airport answers, $0.10 for a power question alone (charged each time, even with a pass) |
 | Approval page: plain text an agent shows the person it works for, with the live prices (free, no pass needed) | `/api/agent/approval?lang=en\|es` | free |
 
