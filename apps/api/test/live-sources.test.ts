@@ -12,9 +12,11 @@ const BUOY = `#YY  MM DD hh mm WDIR WSPD GST  WVHT   DPD   APD MWD   PRES  ATMP 
 #yr  mo dy hr mn degT m/s  m/s     m   sec   sec degT   hPa  degC  degC  degC  nmi  hPa    ft
 2026 11 21 23 00 170  3.0  4.0    MM    MM    MM  MM 1013.9  27.4    MM    MM   MM +0.8    MM
 2026 11 21 22 40 160  3.5  4.5   1.6     9   6.1  70 1013.8  27.5  28.1    MM   MM    MM    MM`;
-const series = (name: string, id: string, values: string[]) => ({ sourceInfo: { siteName: name, siteCode: [{ value: id }] }, variable: { noDataValue: -999999 }, values: [{ value: values.map((v, i) => ({ dateTime: `2026-11-21T1${6 + i}:00:00.000-04:00`, value: v })) }] });
-const RIVERS = JSON.stringify({ value: { timeSeries: [series("RIO A, PR", "1", ["2.0", "2.1"]), series("RIO B, PR", "2", ["5.0", "6.2", "8.3"]), series("BROKEN, PR", "3", ["-999999"])] } });
-const RSS = `<rss><channel><item><title>Dominican Republic - Level 2: Exercise Increased Caution</title><pubDate>Fri, 23 Oct 2026</pubDate><description><![CDATA[<p>Exercise <b>increased caution</b>. See https://x.example</p>]]></description></item>
+const reading = (id: string, time: string, value: string) => ({ properties: { monitoring_location_id: id, time, value } });
+const RIVERS = JSON.stringify({ features: [reading("USGS-1", "2026-11-21T20:00:00Z", "2.0"), reading("USGS-1", "2026-11-21T22:00:00Z", "2.1"), reading("USGS-2", "2026-11-21T23:00:00Z", "8.3"), reading("USGS-2", "2026-11-21T20:00:00Z", "5.0"), reading("USGS-3", "2026-11-21T20:00:00Z", "bad")] });
+const SITES = JSON.stringify({ features: [{ id: "USGS-1", properties: { monitoring_location_name: "RIO A, PR" } }, { id: "USGS-2", properties: { monitoring_location_name: "RIO B, PR" } }] });
+const RSS = `<rss><channel><item><title>Nigeria - Level 3: Reconsider Travel</title><pubDate>Fri, 23 Oct 2026</pubDate><description>x</description></item>
+<item><title>Dominican Republic - Level 2: Exercise Increased Caution</title><pubDate>Fri, 23 Oct 2026</pubDate><description><![CDATA[<p>Exercise <b>increased caution</b>. See https://x.example</p>]]></description></item>
 <item><title>Iran - Level 4: Do Not Travel</title><pubDate>Fri, 23 Oct 2026</pubDate><description>Do not travel.</description></item></channel></rss>`;
 
 afterEach(() => { setLiveFetcher(undefined); clearLiveCache(); });
@@ -36,17 +38,25 @@ describe("the extra official sources", () => {
   });
 
   it("puts the river rising fastest first and skips gauges with no reading", () => {
-    const r = parseRivers(RIVERS)!;
+    const r = parseRivers(RIVERS, SITES)!;
     expect(r.map((g) => g.site)).toEqual(["RIO B, PR", "RIO A, PR"]);
-    expect(r[0]).toMatchObject({ heightFeet: 8.3, changeFeet3h: 3.3 });
+    expect(r[0]).toMatchObject({ id: "2", heightFeet: 8.3, changeFeet3h: 3.3, observedAt: "2026-11-21T23:00:00.000Z" });
+    // Without the names the site id stands in.
+    expect(parseRivers(RIVERS, null)![0]!.site).toBe("USGS-2");
   });
 
   it("reads advisories with their level, without links, and finds a country by name", () => {
-    const n = parseNotices(RSS)!;
+    const n = parseNotices(RSS)!.slice(1);
     expect(n[0]).toMatchObject({ title: "Dominican Republic - Level 2: Exercise Increased Caution", level: 2 });
     expect(JSON.stringify(n)).not.toMatch(/https?:/);
     expect(noticesFor(n, "dominican republic")).toHaveLength(1);
     expect(noticesFor(n, "")).toHaveLength(2);
+    // Exact names: Niger is not Nigeria, Dominica is not the Dominican Republic.
+    const all = parseNotices(RSS)!;
+    expect(noticesFor(all, "niger")).toHaveLength(0);
+    expect(noticesFor(all, "nigeria")).toHaveLength(1);
+    expect(noticesFor(all, "dominica")).toHaveLength(0);
+    expect(noticesFor([{ title: "Level 1 - Typhoid Fever in Senegal", level: 1, published: null, summary: "" }], "senegal")).toHaveLength(1);
   });
 
   it("routes questions in English and Spanish to the right source, and keeps town names out of the river route", () => {
@@ -58,6 +68,11 @@ describe("the extra official sources", () => {
     expect(routeLive("travel advisory Dominican Republic")).toEqual({ source: "advisory", place: "dominican republic" });
     expect(routeLive("flood advisory in Aguada")?.source).toBe("weather");
     expect(routeLive("cdc outbreak Senegal")).toEqual({ source: "health", place: "senegal" });
+    // A warning or advisory is the weather service's, and a heat wave is weather.
+    expect(routeLive("river flood warning in Houston")?.source).toBe("weather");
+    expect(routeLive("high surf advisory")?.source).toBe("weather");
+    expect(routeLive("heat wave in Miami")?.source).toBe("weather");
+    expect(routeLive("tsunami warning")?.source).toBe("weather");
   });
 
   it("answers from the source, and charges nothing when the source cannot be read", async () => {
@@ -67,6 +82,8 @@ describe("the extra official sources", () => {
     expect((a.body as { summary: string }).summary).toBe("Dominican Republic - Level 2: Exercise Increased Caution");
     const all = await answerLive("travel advisory", now);
     expect((all.body as { notices: unknown[] }).notices).toHaveLength(1);
+    // A name the list does not use is not "no advisory": no answer, no charge.
+    expect((await answerLive("travel advisory Turkey", now)).status).toBe(404);
     const down = await answerLive("earthquakes", now);
     expect(down.status).toBe(404);
     expect(JSON.stringify(down.body)).toContain("not charged");

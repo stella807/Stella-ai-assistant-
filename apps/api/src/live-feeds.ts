@@ -61,7 +61,7 @@ async function madeAt(url: string, now: Date): Promise<string | null> {
 }
 
 /** OpenStreetMap's search (Nominatim): free, ODbL data, at most one request a second, so calls wait their turn. */
-import { ADVISORY_URL, BUOY_URL, CDC_URL, QUAKE_URL, RIVER_URL, TIDE_URL, noticesFor, parseBuoy, parseNotices, parseQuakes, parseRivers, parseTide } from "./live-sources.ts";
+import { ADVISORY_URL, BUOY_URL, CDC_URL, QUAKE_URL, RIVER_READINGS_URL, RIVER_SITES_URL, TIDE_URL, noticesFor, parseBuoy, parseNotices, parseQuakes, parseRivers, parseTide } from "./live-sources.ts";
 
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 let nominatimGapMs = 1100;
@@ -353,7 +353,7 @@ const CITY_CODES: [string, string[]][] = [
   ...Object.entries(PR_NAMES).map(([code, city]): [string, string[]] => [city, [code.toUpperCase()]]),
   ...AIRPORTS.filter((e) => e.country === "United States").map((e): [string, string[]] => [plain(e.city), e.airports.map((a) => a.code.toUpperCase())]),
 ];
-const WEATHER = /\b(satellites?|satelites?|clouds?|nubes|cyclones?|ciclon(?:es)?|storms?|hurricanes?|tropical|weather|floods?|flooding|alerts?|warnings?|advisor(?:y|ies)|rain|tormentas?|huracan(?:es)?|inundacion(?:es)?|lluvia|alertas?|avisos?|clima)\b/;
+const WEATHER = /\b(satellites?|satelites?|clouds?|nubes|cyclones?|ciclon(?:es)?|storms?|hurricanes?|tropical|weather|floods?|flooding|alerts?|warnings?|advisor(?:y|ies)|rain|heat|calor|tormentas?|huracan(?:es)?|inundacion(?:es)?|lluvia|alertas?|avisos?|clima)\b/;
 const PHARMACY = /\b(pharmac(?:y|ies)|farmacias?|walgreens|cvs|drugstores?|boticas?)\b/;
 const FILLER = new Set(["near", "nearest", "closest", "close", "in", "at", "by", "to", "the", "a", "an", "is", "are", "any", "open", "opened", "now", "today", "tonight", "right", "which", "what", "where", "around", "of", "cerca", "mas", "de", "del", "en", "la", "el", "los", "las", "un", "una", "abierta", "abiertas", "abierto", "abiertos", "hoy", "ahora", "hay", "esta", "estan", "que", "cual", "donde", "alrededor", "puerto", "rico", "pr"]);
 const POWER = /\b(power|outages?|electricity|blackouts?|luma|luz|apagon(?:es)?|energia|electrica|sin servicio)\b/;
@@ -366,7 +366,10 @@ export type Route = { source: "weather"; place?: string } | { source: "power" } 
   | { source: "quake" } | { source: "sea" } | { source: "river" } | { source: "advisory"; place: string } | { source: "health"; place: string };
 
 const QUAKE = /\b(earthquakes?|quakes?|seismic|sismos?|temblor(?:es)?|terremotos?)\b/;
-const SEA = /\b(tides?|mareas?|waves?|olas|oleaje|surf|swells?|marejadas?|buoys?|boyas?)\b/;
+// "waves", not "wave": a heat wave is a weather question.
+const SEA = /\b(tides?|mareas?|waves|olas|oleaje|surf|swells?|marejadas?|buoys?|boyas?)\b/;
+// A warning, watch or advisory is the weather service's, whatever it is about ("river flood warning in Houston", "high surf advisory").
+const ALERTISH = /\b(warnings?|watch(?:es)?|advisor(?:y|ies)|alerts?|avisos?|alertas?|advertencias?)\b/;
 // No bare "rio": it is part of town names (Rio Grande).
 const RIVER = /\b(rivers?|river levels?|streams?|stream gauges?|quebradas?|niveles? de (?:los )?rios?|rios? crecidos?)\b/;
 const ADVISORY = /\b(travel advisor(?:y|ies)|state department|advertencias? de viaje|alertas? de viaje|safe to travel)\b/;
@@ -385,9 +388,11 @@ export function routeLive(q: string): Route | null {
   // Before weather, because "advisory" is also a weather word.
   if (ADVISORY.test(text)) return { source: "advisory", place: placeAfter(text, ADVISORY) };
   if (HEALTH.test(text)) return { source: "health", place: placeAfter(text, HEALTH) };
-  if (QUAKE.test(text)) return { source: "quake" };
-  if (SEA.test(text)) return { source: "sea" };
-  if (RIVER.test(text)) return { source: "river" };
+  if (!ALERTISH.test(text)) {
+    if (QUAKE.test(text)) return { source: "quake" };
+    if (SEA.test(text)) return { source: "sea" };
+    if (RIVER.test(text)) return { source: "river" };
+  }
   const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
   const found = tokens.filter((t) => t.length === 3 && KNOWN.has(t)).map((t) => KNOWN.get(t)!);
   if (found.length) return { source: "airport", codes: [...new Set(found.filter((f) => f.us).map((f) => f.code))] };
@@ -646,9 +651,8 @@ async function moreAnswer(q: string, route: MoreRoute, now: Date): Promise<LiveA
     };
   }
   if (route.source === "river") {
-    // The statewide gauge file is large and USGS takes several seconds to build it.
-    const text = await read(RIVER_URL, UA, now, 15_000);
-    const gauges = text === null ? null : parseRivers(text);
+    const [readings, sites] = await Promise.all([read(RIVER_READINGS_URL(now), UA, now), read(RIVER_SITES_URL, UA, now)]);
+    const gauges = readings === null ? null : parseRivers(readings, sites);
     if (!gauges) return none(q, "The USGS river gauges could not be read just now.");
     const rising = gauges.filter((g) => (g.changeFeet3h ?? 0) >= 0.5);
     return {
@@ -665,6 +669,8 @@ async function moreAnswer(q: string, route: MoreRoute, now: Date): Promise<LiveA
   if (!all) return none(q, `${who} could not be read just now.`);
   const match = noticesFor(all, route.place);
   const named = Boolean(route.place);
+  // A name that matches nothing may be a spelling the source does not use (Turkey, Türkiye): never answer it as "no advisory".
+  if (named && !match.length) return none(q, `${who} list nothing under the name "${route.place}". Use the country's name as the official list spells it.`);
   // With no place named, the advisories are many: give the highest levels only.
   const notices = named ? match : isAdvisory ? all.filter((n) => (n.level ?? 0) >= 4) : all;
   const label = isAdvisory ? "advisory" : "notice";

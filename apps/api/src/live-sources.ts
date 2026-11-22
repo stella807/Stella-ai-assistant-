@@ -11,7 +11,6 @@ const iso = (v: unknown) => { const d = new Date(typeof v === "number" ? v : Str
 export const QUAKE_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=50&minlatitude=17&maxlatitude=19.5&minlongitude=-68.5&maxlongitude=-64.5&minmagnitude=2.5";
 export const TIDE_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=9755371&product=water_level&date=latest&datum=MLLW&units=english&time_zone=gmt&format=json";
 export const BUOY_URL = "https://www.ndbc.noaa.gov/data/realtime2/41053.txt";
-export const RIVER_URL = "https://waterservices.usgs.gov/nwis/iv/?format=json&stateCd=pr&parameterCd=00065&siteStatus=active&period=PT3H";
 export const ADVISORY_URL = "https://travel.state.gov/_res/rss/TAsTWs.xml";
 export const CDC_URL = "https://wwwnc.cdc.gov/travel/rss/notices.xml";
 
@@ -62,22 +61,32 @@ export function parseBuoy(text: string): Buoy | null {
 
 export interface RiverGauge { site: string; id: string; heightFeet: number; changeFeet3h: number | null; observedAt: string | null }
 
+/** USGS's newer water-data service: readings in the last three hours, and the names of the stream sites (both answer in about a second). */
+export const RIVER_READINGS_URL = (now: Date) => `https://api.waterdata.usgs.gov/ogcapi/v0/collections/continuous/items?f=json&state_name=Puerto%20Rico&parameter_code=00065&limit=5000&properties=monitoring_location_id,time,value&datetime=${new Date(Math.floor((now.getTime() - 3 * 3_600_000) / 300_000) * 300_000).toISOString().slice(0, 16)}:00Z/..`;
+export const RIVER_SITES_URL = "https://api.waterdata.usgs.gov/ogcapi/v0/collections/monitoring-locations/items?f=json&state_name=Puerto%20Rico&site_type_code=ST&limit=2000&properties=monitoring_location_name";
+
 /** River and stream gauges in Puerto Rico: the latest height and how much it changed over about three hours, biggest rise first. */
-export function parseRivers(text: string): RiverGauge[] | null {
+export function parseRivers(readings: string, sites: string | null): RiverGauge[] | null {
   try {
-    const d = JSON.parse(text) as { value?: { timeSeries?: { sourceInfo?: { siteName?: string; siteCode?: { value?: string }[] }; variable?: { noDataValue?: number }; values?: { value?: { dateTime?: string; value?: string }[] }[] }[] } };
-    const series = d.value?.timeSeries;
-    if (!Array.isArray(series)) return null;
-    const out: RiverGauge[] = [];
-    for (const s of series) {
-      const missing = s.variable?.noDataValue ?? -999999;
-      const pts = (s.values?.[0]?.value ?? []).map((v) => ({ at: v.dateTime, h: num(v.value) })).filter((p): p is { at: string; h: number } => p.h !== null && p.h !== missing && Boolean(p.at));
-      const last = pts.at(-1);
-      if (!last) continue;
-      const first = pts[0]!;
-      out.push({ site: scrub(s.sourceInfo?.siteName, 100), id: scrub(s.sourceInfo?.siteCode?.[0]?.value, 20), heightFeet: last.h, changeFeet3h: pts.length > 1 ? Math.round((last.h - first.h) * 100) / 100 : null, observedAt: iso(last.at) });
+    const d = JSON.parse(readings) as { features?: { properties?: { monitoring_location_id?: string; time?: string; value?: string } }[] };
+    if (!Array.isArray(d.features)) return null;
+    const names = new Map<string, string>();
+    if (sites) {
+      try { for (const f of (JSON.parse(sites) as { features?: { id?: string; properties?: { monitoring_location_name?: string } }[] }).features ?? []) if (f.id) names.set(f.id, scrub(f.properties?.monitoring_location_name, 100)); } catch { /* names are optional */ }
     }
-    return out.sort((a, b) => (b.changeFeet3h ?? -Infinity) - (a.changeFeet3h ?? -Infinity));
+    const by = new Map<string, { at: string; h: number }[]>();
+    for (const f of d.features) {
+      const id = f.properties?.monitoring_location_id, at = f.properties?.time, h = num(f.properties?.value);
+      if (!id || !at || h === null) continue;
+      (by.get(id) ?? by.set(id, []).get(id)!).push({ at, h });
+    }
+    const out: RiverGauge[] = [];
+    for (const [id, pts] of by) {
+      pts.sort((x, y) => x.at.localeCompare(y.at));
+      const first = pts[0]!, last = pts.at(-1)!;
+      out.push({ site: names.get(id) || id, id: id.replace(/^USGS-/, ""), heightFeet: last.h, changeFeet3h: pts.length > 1 ? Math.round((last.h - first.h) * 100) / 100 : null, observedAt: iso(last.at) });
+    }
+    return out.sort((x, y) => (y.changeFeet3h ?? -Infinity) - (x.changeFeet3h ?? -Infinity));
   } catch { return null; }
 }
 
@@ -100,9 +109,18 @@ export function parseNotices(xml: string): Notice[] | null {
 
 const plain = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-/** The notices whose title names the place asked about (the whole phrase, accents ignored); every notice when none is named. */
+/**
+ * The notices for the place asked about. A State Department title is "Country - Level N: ...", so the country must match exactly
+ * (Niger is not Nigeria, Dominica is not the Dominican Republic). A CDC title ends "... in Place", matched the same way.
+ * Every notice when no place is named.
+ */
 export const noticesFor = (notices: Notice[], place: string) => {
-  const p = plain(place).trim();
+  const p = plain(place).replace(/[^a-z0-9]+/g, " ").trim();
   if (!p) return notices;
-  return notices.filter((n) => plain(n.title).includes(p));
+  const nameOf = (title: string) => {
+    const t = plain(title);
+    const advisory = /^(.+?)\s+-\s+level\s*\d/.exec(t)?.[1];
+    return (advisory ?? / in (.+)$/.exec(t)?.[1] ?? "").replace(/[^a-z0-9]+/g, " ").trim();
+  };
+  return notices.filter((n) => { const name = nameOf(n.title); return name === p || name === `the ${p}` || `the ${name}` === p; });
 };
