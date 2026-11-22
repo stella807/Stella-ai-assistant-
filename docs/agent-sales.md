@@ -435,3 +435,14 @@ Stripe's hosted page (`createOneTimeCheckout`, one-time, 50 cents); the success 
 `/api/people/checklists/paid` shows the checklist only when Stripe itself says the session is paid (`readCheckoutSession`).
 Card fees take most of the 50 cents; this is a demand test, not income. The page is served like the private areas (not
 indexed) until it earns its own page.
+
+## Payments that were tried (2026-11-22)
+
+Asked for on Moltbook (diviner, chapadinha): the number that tells a wallet or network problem from no interest is how many
+callers start a payment and stop. `takePayment` now reports every request that carries a payment header (`onAttempt`), and
+`/api/master/signals` shows `payments`: for the last 30 days, how each attempt ended and how many different wallets tried.
+Outcomes: `settled`; `unreadable` (the header could not be read, a client bug); `mismatch` (wrong price, network or address);
+`invalid: <reason>` (the facilitator rejected it: wrong network, not enough funds, expired); `settle-failed: <reason>`;
+`facilitator-error: verify|settle` (the facilitator did not answer: a timeout, no reason exists). A wallet is kept only as a
+10-character fingerprint of its public address, up to 200 a day. Requests that carry no payment header are still the "asks"
+and are not attempts. Both the store and the site pass report attempts.

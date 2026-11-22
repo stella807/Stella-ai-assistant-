@@ -7,6 +7,28 @@ const fakeStore = () => {
 };
 const D = (s: string) => new Date(s);
 
+describe("payments that were tried", () => {
+  it("counts how each attempt ended and how many different wallets tried, keeping only a short fingerprint of a wallet", () => {
+    const s = fakeStore();
+    const now = D("2026-11-22T12:00:00Z");
+    const a = "0xAbC0000000000000000000000000000000000001", b = "0xdef0000000000000000000000000000000000002";
+    recordSignal(s, now, { kind: "attempt", outcome: "invalid: insufficient_funds", wallet: a });
+    recordSignal(s, now, { kind: "attempt", outcome: "Invalid: insufficient_funds", wallet: a.toLowerCase() });
+    recordSignal(s, now, { kind: "attempt", outcome: "settled", wallet: b });
+    recordSignal(s, now, { kind: "attempt", outcome: "unreadable" });
+    const sum = summarizeSignals(s, now);
+    expect(sum.payments).toEqual({ attempts: { "invalid: insufficient_funds": 2, settled: 1, unreadable: 1 }, wallets: 2 });
+    expect(JSON.stringify(s.data)).not.toMatch(/0xabc|0xdef/i);
+    expect(insightsFor(sum).join(" ")).toMatch(/4 payments tried by 2 different wallets; 3 did not settle/);
+  });
+
+  it("is quiet when nobody has tried to pay", () => {
+    const sum = summarizeSignals(fakeStore(), D("2026-11-22T12:00:00Z"));
+    expect(sum.payments).toEqual({ attempts: {}, wallets: 0 });
+    expect(insightsFor(sum).join(" ")).not.toMatch(/payments? tried/);
+  });
+});
+
 describe("recording what visitors do", () => {
   it("counts asks and payments per product and per crawler, by day", () => {
     const s = fakeStore();

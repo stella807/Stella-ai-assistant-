@@ -3507,6 +3507,18 @@ describe("biweekly payroll", () => {
         beforeEach(async () => { const m = await import("../src/live-feeds.ts"); m.clearLiveCache(); m.setLiveFetcher(async (u: string) => (u.includes("weather.gov") ? new Response(NWS) : new Response("no", { status: 503 }))); });
         afterEach(async () => { const m = await import("../src/live-feeds.ts"); m.setLiveFetcher(undefined); m.clearLiveCache(); });
 
+        it("counts a payment that was tried and failed, with its reason, so a wallet problem is visible", async () => {
+          // A header that cannot be read, and one that reads but names a different price.
+          const garbage = await fetch(`${base}/api/agent/ops`, { headers: { "payment-signature": "not-a-payment" } });
+          expect(garbage.status).toBe(402);
+          const { required } = await payFor(`${base}/api/agent/ops`);
+          const signals: any = (await callAdmin("GET", "/api/master/signals")).json;
+          expect(signals.payments.attempts.unreadable).toBeGreaterThanOrEqual(1);
+          expect(signals.payments.attempts.settled).toBeGreaterThanOrEqual(1);
+          expect(required.accepts[0].amount).toBe("500000");
+          expect(signals.insights.join(" ")).toMatch(/payments? tried by \d+ different wallet/);
+        });
+
         it("sells the business conditions check for fifty cents: every part named, and what to watch in one list", async () => {
           const { required, res } = await payFor(`${base}/api/agent/ops`);
           expect(required.accepts[0].amount).toBe("500000");

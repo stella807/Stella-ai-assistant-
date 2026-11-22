@@ -594,6 +594,8 @@ export async function takePayment(
     discovery?: Record<string, unknown>;
     /** Called when the price is shown to someone who has not paid yet, and when a payment is settled. For the owner's numbers only. */
     onAsk?: () => void; onPaid?: () => void;
+    /** A payment header arrived and it ended this way, with the paying wallet where it could be read. For the owner's numbers only. */
+    onAttempt?: (outcome: string, wallet?: string) => void;
   },
 ): Promise<{ amount: string; payer?: string; transaction?: string; network: string; headers: Record<string, string> } | null> {
   const config = x402Config();
@@ -619,18 +621,24 @@ export async function takePayment(
   const signature = Array.isArray(header) ? header[0] : header;
   if (!signature) { opts.onAsk?.(); return ask(); }
   let payload;
-  try { payload = decodePaymentSignatureHeader(signature); } catch { return ask("The payment header could not be read."); }
+  try { payload = decodePaymentSignatureHeader(signature); } catch { opts.onAttempt?.("unreadable"); return ask("The payment header could not be read."); }
+  // The wallet is the public address in the signed authorization; only a short fingerprint of it is ever kept.
+  const wallet = (payload as { payload?: { authorization?: { from?: unknown } } }).payload?.authorization?.from;
+  const who = typeof wallet === "string" ? wallet : undefined;
   const match = server.findMatchingRequirements(requirements, payload);
-  if (!match) return ask("That payment does not match the price, network or address asked for.");
-  const verified = await server.verifyPayment(payload, match);
-  if (!verified.isValid) return ask(`Payment not valid: ${verified.invalidReason ?? "unknown reason"}`);
+  if (!match) { opts.onAttempt?.("mismatch", who); return ask("That payment does not match the price, network or address asked for."); }
+  let verified;
+  try { verified = await server.verifyPayment(payload, match); } catch (err) { opts.onAttempt?.("facilitator-error: verify", who); throw err; }
+  if (!verified.isValid) { opts.onAttempt?.(`invalid: ${verified.invalidReason ?? "unknown"}`, who); return ask(`Payment not valid: ${verified.invalidReason ?? "unknown reason"}`); }
 
   // A request that cannot be answered (an unknown article, a missing question) is refused before any money moves.
   const refusal = opts.beforeSettle?.();
   if (refusal) { json(res, refusal.status, refusal.body); return null; }
   // Settled before anything is given, so nothing is given away on a payment that fails.
-  const settled = await server.settlePayment(payload, match);
-  if (!settled.success) return ask(`Payment could not be settled: ${settled.errorReason ?? "unknown reason"}`);
+  let settled;
+  try { settled = await server.settlePayment(payload, match); } catch (err) { opts.onAttempt?.("facilitator-error: settle", who); throw err; }
+  if (!settled.success) { opts.onAttempt?.(`settle-failed: ${settled.errorReason ?? "unknown"}`, who); return ask(`Payment could not be settled: ${settled.errorReason ?? "unknown reason"}`); }
+  opts.onAttempt?.("settled", who);
   opts.onPaid?.();
   return { amount: match.amount, payer: settled.payer, transaction: settled.transaction, network: config.network, headers: { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled), ...expose } };
 }
@@ -770,6 +778,7 @@ export async function handleAgentStore(req: IncomingMessage, res: ServerResponse
       if (!answer.words) return;
       noteSignal(store, now(), answer.results === 0 ? { kind: "unanswered", text: answer.words } : { kind: "query", product: product.id, text: answer.words });
     },
+    onAttempt: (outcome, wallet) => noteSignal(store, now(), { kind: "attempt", outcome, wallet }),
     onPaid: () => {
       noteSignal(store, now(), { kind: "paid", product: product.id });
       alertOwner(store, now(), `sale:${newId("alert")}`, { kind: "sale", product: product.title, amount: price, words: (answer.words ?? "").slice(0, 100) });

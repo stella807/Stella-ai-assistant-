@@ -74,6 +74,7 @@ async function sellPass(req: IncomingMessage, res: ServerResponse, store: StoreL
     path, origin, price: sitePassPrice(), description,
     onAsk: () => noteSignal(store, now(), { kind: "ask", product: "site-pass", crawler: label }),
     onPaid: () => noteSignal(store, now(), { kind: "paid", product: "site-pass", crawler: label }),
+    onAttempt: (outcome, wallet) => noteSignal(store, now(), { kind: "attempt", outcome, wallet }),
   });
   if (!paid) return false;
   const sale: AgentSale = {

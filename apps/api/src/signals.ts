@@ -7,6 +7,8 @@
  * (like "gptbot"), and the words that were searched for, trimmed and capped. Days older than 90 are forgotten.
  */
 
+import { createHash } from "node:crypto";
+
 export interface DayCounts {
   products?: Record<string, { asked: number; paid: number }>;
   crawlers?: Record<string, { asked: number; paid: number }>;
@@ -14,6 +16,10 @@ export interface DayCounts {
   unanswered?: Record<string, number>;
   /** The site chat box: how many questions, and how many it sent to a person. The words typed are never kept. */
   chat?: { asked: number; handoff: number };
+  /** Payments that were actually tried (a payment header arrived), by how each ended. */
+  attempts?: Record<string, number>;
+  /** A short fingerprint of each wallet that tried (up to 200 a day), so a count of different wallets is possible. */
+  attemptWallets?: string[];
 }
 export interface SignalsDb { signals?: { days: Record<string, DayCounts> } }
 
@@ -21,7 +27,9 @@ export type SignalEvent =
   | { kind: "ask" | "paid"; product: string; crawler?: string }
   | { kind: "query"; product: string; text: string }
   | { kind: "unanswered"; text: string }
-  | { kind: "chat"; answered: boolean };
+  | { kind: "chat"; answered: boolean }
+  /** A payment header arrived. outcome is "settled", "unreadable", "mismatch", "invalid: <reason>", "settle-failed: <reason>" or "facilitator-error". */
+  | { kind: "attempt"; outcome: string; wallet?: string };
 
 interface StoreLike<T> { data: T; update(fn: (db: T) => void): void; save?(): void }
 
@@ -29,6 +37,7 @@ const MAX_TEXT = 100;
 const MAX_KEYS = 200;
 const KEEP_DAYS = 90;
 const day = (d: Date) => d.toISOString().slice(0, 10);
+const fingerprint = (wallet: string) => createHash("sha256").update(wallet.toLowerCase()).digest("hex").slice(0, 10);
 const clean = (t: string) => t.toLowerCase().replace(/\s+/g, " ").trim().slice(0, MAX_TEXT);
 
 function bump(map: Record<string, number>, key: string) {
@@ -57,6 +66,13 @@ function apply(db: SignalsDb, now: Date, e: SignalEvent): void {
     const c = (d.chat ??= { asked: 0, handoff: 0 });
     c.asked += 1;
     if (!e.answered) c.handoff += 1;
+  } else if (e.kind === "attempt") {
+    bump((d.attempts ??= {}), clean(e.outcome) || "unknown");
+    if (e.wallet) {
+      const f = fingerprint(e.wallet);
+      const list = (d.attemptWallets ??= []);
+      if (!list.includes(f) && list.length < 200) list.push(f);
+    }
   } else if (e.kind === "query") {
     const t = clean(e.text);
     if (t) bump((d.queries ??= {}), t);
@@ -96,6 +112,8 @@ export interface SignalsSummary {
   unanswered: { text: string; count: number }[];
   buyers: { total: number; repeat: number };
   chat: { asked: number; handoff: number };
+  /** Last 30 days: payments that were actually tried, by how each ended, and how many different wallets tried. */
+  payments: { attempts: Record<string, number>; wallets: number };
 }
 
 type SalesDb = { agentSales?: { payer?: string }[] };
@@ -110,8 +128,12 @@ export function summarizeSignals<T extends SignalsDb & SalesDb>(store: { data: T
   const queries: Record<string, number> = {};
   const unanswered: Record<string, number> = {};
   const chat = { asked: 0, handoff: 0 };
+  const attempts: Record<string, number> = {};
+  const wallets = new Set<string>();
   for (const [k, d] of Object.entries(days)) {
     if (k < from30 || k > day(now)) continue;
+    for (const [o, n] of Object.entries(d.attempts ?? {})) attempts[o] = (attempts[o] ?? 0) + n;
+    for (const w of d.attemptWallets ?? []) wallets.add(w);
     for (const [p, c] of Object.entries(d.products ?? {})) {
       const t = (products[p] ??= { asked: 0, paid: 0 }); t.asked += c.asked; t.paid += c.paid;
       if (k >= from7) { const w = (last7[p] ??= { asked: 0, paid: 0 }); w.asked += c.asked; w.paid += c.paid; }
@@ -128,7 +150,7 @@ export function summarizeSignals<T extends SignalsDb & SalesDb>(store: { data: T
   const atLeastPaid = (m: Record<string, { asked: number; paid: number }>) => { for (const c of Object.values(m)) c.asked = Math.max(c.asked, c.paid); };
   atLeastPaid(products); atLeastPaid(last7); atLeastPaid(crawlers);
   return {
-    products, last7, chat,
+    products, last7, chat, payments: { attempts, wallets: wallets.size },
     crawlers: Object.entries(crawlers).map(([name, c]) => ({ name, ...c })).sort((a, b) => b.asked - a.asked || a.name.localeCompare(b.name)).slice(0, 15),
     queries: top(queries), unanswered: top(unanswered),
     buyers: { total: byPayer.size, repeat: [...byPayer.values()].filter((n) => n > 1).length },
@@ -146,6 +168,9 @@ export function insightsFor(s: SignalsSummary): string[] {
   }
   if (s.chat.asked >= 5) out.push(`The chat box was asked ${s.chat.asked} questions and sent ${s.chat.handoff} to a person (${Math.round((s.chat.handoff / s.chat.asked) * 100)}%).`);
   if (s.unanswered.length) out.push(`The most common question with no answer: "${s.unanswered[0]!.text}" (${s.unanswered[0]!.count}x). Each one is a missing fact.`);
+  const tried = Object.values(s.payments.attempts).reduce((a, n) => a + n, 0);
+  const failed = tried - (s.payments.attempts["settled"] ?? 0);
+  if (tried > 0) out.push(`${tried} payment${tried === 1 ? "" : "s"} tried by ${s.payments.wallets} different wallet${s.payments.wallets === 1 ? "" : "s"}; ${failed} did not settle. ${failed ? "Read the reasons: a rejected payment is a wallet or network problem, not a lack of interest." : ""}`.trim());
   if (s.buyers.total > 0) out.push(`${s.buyers.total} different buyer${s.buyers.total === 1 ? "" : "s"}, ${s.buyers.repeat} that came back.`);
   return out;
 }
