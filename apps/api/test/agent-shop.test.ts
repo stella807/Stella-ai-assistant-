@@ -51,7 +51,8 @@ beforeAll(async () => {
   store.reset(structuredClone(SEED));
   const charger = createX402Charger({ network: "solana", payTo: WALLET, facilitator: proxy });
   const paywall = createAgentPaywall({ network: "solana", payTo: WALLET, facilitator: proxy, accessKey: null }, charger);
-  const shop = createAgentShop({ store, charger, cipher, origin: () => "https://safehubby.com", now: () => clock, isOwner: (key) => key === ADMIN });
+  const shop = createAgentShop({ store, charger, cipher, origin: () => "https://safehubby.com", now: () => clock, isOwner: (key) => key === ADMIN,
+    hourlyLimits: { quotes: 1_000, pay: 1_000, orders: 1_000 } });
   server = createApp(makeCtx(store), null, paywall, shop);
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -72,8 +73,9 @@ const call = (method: string, path: string, body?: unknown, headers: Record<stri
 const owner = (method: string, path: string, body?: unknown) => call(method, path, body, { ...AGENT, "x-admin-key": ADMIN });
 const json = async (res: Response) => (await res.json()) as Record<string, any>;
 const decode = (v: string) => JSON.parse(Buffer.from(v, "base64").toString("utf8"));
-const paymentFor = (accepted: PaymentRequirements, resourceUrl?: string): PaymentPayload =>
-  ({ x402Version: 2, accepted, payload: { transaction: "base64tx" }, ...(resourceUrl ? { resource: { url: resourceUrl } } : {}) });
+/** A payment for a price. Each is a new signed transaction unless one is given, as a real client's would be. */
+const paymentFor = (accepted: PaymentRequirements, resourceUrl?: string, signed = randomBytes(8).toString("hex")): PaymentPayload =>
+  ({ x402Version: 2, accepted, payload: { transaction: signed }, ...(resourceUrl ? { resource: { url: resourceUrl } } : {}) });
 
 async function quote(items: unknown = [{ productId: "travel-mug", qty: 2 }]) {
   const res = await call("POST", "/api/shop/quotes", { items, shipTo: ADDRESS });
@@ -237,6 +239,30 @@ describe("paying", () => {
     expect(facilitator.settle).toHaveBeenCalledTimes(1);
   });
 
+  it("lets one signed payment pay one quote, even shown to two quotes of the same total", async () => {
+    const first = await quote(), second = await quote();
+    const { accepted } = await priceOf(first.payUrl);
+    const signed = "the-same-signed-transaction";
+    expect((await pay(first.payUrl, paymentFor(accepted, undefined, signed))).status).toBe(201);
+    const twice = await pay(second.payUrl, paymentFor(accepted, undefined, signed));
+    expect(twice.status).toBe(409);
+    expect((await json(twice)).error).toMatch(/already been used/);
+    expect(store.data.shopOrders).toHaveLength(1);
+    expect(facilitator.settle).toHaveBeenCalledTimes(1);
+    expect(store.data.shopProducts!.find((p) => p.id === "travel-mug")!.stock).toBe(3);
+  });
+
+  it("holds a payment the facilitator settles without naming a transaction, rather than inventing an order", async () => {
+    facilitator.settle.mockResolvedValueOnce({ success: true, network: MAINNET.caip2 });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const q = await quote();
+    const { accepted } = await priceOf(q.payUrl);
+    expect((await pay(q.payUrl, paymentFor(accepted))).status).toBe(502);
+    error.mockRestore();
+    expect(store.data.shopOrders).toHaveLength(0);
+    expect(store.data.shopQuotes!.find((x) => x.id === q.quoteId)!.status).toBe("settling");
+  });
+
   it("will not take payment on an expired quote", async () => {
     const q = await quote();
     clock = new Date("2026-11-22T12:15:00Z");
@@ -273,12 +299,47 @@ describe("the owner", () => {
     expect((await owner("POST", `/api/shop/admin/orders/${order.orderId}`, { status: "cancelled" })).status).toBe(409);
   });
 
+  it("puts the stock back when an order is refunded before it ships", async () => {
+    const order = await paidOrder();
+    await owner("POST", `/api/shop/admin/orders/${order.orderId}`, { status: "refunded" });
+    expect(store.data.shopProducts!.find((p) => p.id === "travel-mug")!.stock).toBe(5);
+  });
+
+  it("will not fill a stuck payment with a transaction another order already has", async () => {
+    const order = await paidOrder();
+    facilitator.settle.mockRejectedValueOnce(new Error("timeout"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const q = await quote([{ productId: "last-one" }]);
+    const { accepted } = await priceOf(q.payUrl);
+    await pay(q.payUrl, paymentFor(accepted));
+    error.mockRestore();
+    const res = await owner("POST", `/api/shop/admin/quotes/${q.quoteId}`, { outcome: "paid", transaction: order.transaction });
+    expect(res.status).toBe(409);
+  });
+
   it("puts the stock back when an order is cancelled before it ships, and then refunds it", async () => {
     const order = await paidOrder();
     await owner("POST", `/api/shop/admin/orders/${order.orderId}`, { status: "cancelled" });
     expect(store.data.shopProducts!.find((p) => p.id === "travel-mug")!.stock).toBe(5);
     const refunded = await json(await owner("POST", `/api/shop/admin/orders/${order.orderId}`, { status: "refunded", note: "Refunded, transaction 3abc" }));
     expect(refunded).toMatchObject({ status: "refunded", note: "Refunded, transaction 3abc" });
+  });
+});
+
+describe("rate limits", () => {
+  it("slows an address that asks for too many quotes", async () => {
+    const tight = createAgentShop({
+      store, charger: createX402Charger({ network: "solana", payTo: WALLET, facilitator: proxy }), cipher,
+      origin: () => "https://safehubby.com", isOwner: () => false, hourlyLimits: { quotes: 1, pay: 1, orders: 1 },
+    });
+    const statuses: number[] = [];
+    for (let i = 0; i < 2; i++) {
+      let status = 0;
+      const res = { writeHead: (s: number) => { status = s; return res; }, end: () => res, headersSent: false } as unknown as import("node:http").ServerResponse;
+      await tight.handle({ req: { headers: {} } as import("node:http").IncomingMessage, res, url: new URL("http://x/api/shop/quotes"), method: "POST", body: { items: [{ productId: "travel-mug" }], shipTo: ADDRESS }, clientKey: "1.2.3.4", adminKey: null });
+      statuses.push(status);
+    }
+    expect(statuses).toEqual([201, 429]);
   });
 });
 

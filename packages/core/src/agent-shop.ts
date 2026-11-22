@@ -97,6 +97,8 @@ export interface ShopQuote extends Omit<PricedQuote, "shipTo"> {
   settlingSince?: string;
   /** The wallet that paid, as the facilitator saw it: where a refund goes. */
   payer?: string;
+  /** A fingerprint of the signed payment, so one payment can only ever pay one quote. */
+  paymentHash?: string;
   orderId?: string;
 }
 

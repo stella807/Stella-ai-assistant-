@@ -54,7 +54,8 @@ that costs more.
   stock is reserved, and only then is the payment put on chain. If it is
   refused there, the stock goes back and the quote can be paid again.
 - **Never charged twice.** Paying a quote that is already paid returns the
-  same order without settling anything.
+  same order without settling anything. One signed payment pays one quote: the
+  same payment shown to a second quote is refused.
 - **A payment whose result is unknown** (the facilitator stopped answering
   mid-way) is held: the quote stays "settling", its stock stays reserved, and
   the agent is told not to pay again. It shows in the owner's
@@ -62,8 +63,10 @@ that costs more.
   explorer, then either
   `POST /api/shop/admin/quotes/<quoteId>` `{ "outcome": "paid", "transaction": "<signature>" }`
   to make the order, or `{ "outcome": "failed" }` to release the stock.
-- **Every paid order is logged** before it is saved:
-  `Shop: $38.00 paid for quote q_..., transaction ...`. If anything is ever
+- **Every payment is logged** twice: `Shop: settling $38.00 for quote q_...,
+  payer ...` before money moves, and `Shop: $38.00 paid for quote q_...,
+  transaction ...` before the order is saved. The database saves in the
+  background, so these lines are the record if the server stops mid-payment. If anything is ever
   missing, search Railway's logs for `Shop:`.
 - **Refunds are by hand.** The server holds no keys and cannot send money. To
   refund, send the USDC from your wallet to the order's `payer`, then mark the
@@ -103,7 +106,7 @@ curl -X POST $SITE/api/shop/admin/orders/<orderId> -H "x-admin-key: $KEY" -H 'co
 ```
 
 An order goes `paid` → `shipped` → `delivered`. `paid` can also become
-`cancelled`, which puts the stock back. A cancelled order still has the
+`cancelled` or `refunded`, which puts the stock back. A cancelled order still has the
 buyer's money, so refund it and mark it `refunded`. Any order can be
 refunded.
 

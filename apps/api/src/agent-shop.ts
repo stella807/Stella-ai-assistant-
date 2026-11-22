@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   SHOP_MAX_LINES, SHOP_MAX_ORDER_CENTS, SHOP_MAX_QTY, SHOP_QUOTE_TTL_MINUTES, ShopError, canMoveOrder, centsToUsdcMicros,
@@ -8,7 +8,7 @@ import {
 import { encodeHeader, type Respond, type Resource, type X402Charger } from "./agent-paywall.ts";
 import { RateLimiter } from "./auth.ts";
 import type { Cipher } from "./crypto.ts";
-import type { StoreLike } from "./store.ts";
+import type { Db, StoreLike } from "./store.ts";
 
 /**
  * The agent shop: AI agents buy physical goods for their people, paying USDC
@@ -50,6 +50,8 @@ export interface AgentShopDeps {
   now?: () => Date;
   /** Whether a request carries the owner's admin key. */
   isOwner: (adminKey: string | null) => boolean;
+  /** Requests per address per hour. The defaults suit an agent placing a few orders; tests raise them. */
+  hourlyLimits?: { quotes: number; pay: number; orders: number };
 }
 
 export interface ShopRequest {
@@ -93,7 +95,8 @@ const publicOrder = (o: ShopOrder, origin: string) => ({
 
 export function createAgentShop(deps: AgentShopDeps) {
   const now = deps.now ?? (() => new Date());
-  const limits = { quotes: new RateLimiter(30, 60 * 60_000), pay: new RateLimiter(30, 60 * 60_000), orders: new RateLimiter(240, 60 * 60_000) };
+  const hourly = deps.hourlyLimits ?? { quotes: 30, pay: 30, orders: 240 };
+  const limits = { quotes: new RateLimiter(hourly.quotes, 60 * 60_000), pay: new RateLimiter(hourly.pay, 60 * 60_000), orders: new RateLimiter(hourly.orders, 60 * 60_000) };
   const data = () => deps.store.data;
   const seal = (shipTo: ShipTo) => deps.cipher.encrypt(JSON.stringify(shipTo));
   const open = (sealed: string | null): ShipTo | null => {
@@ -179,11 +182,18 @@ export function createAgentShop(deps: AgentShopDeps) {
     const verified = await deps.charger.verify(r.req.headers, accepts, resource);
     if (!verified.ok) return respond(r.res, verified.response);
 
-    // Set the stock aside before any money moves, so a settled payment always has its goods.
-    // Checked again here, after the awaits: another request may have paid this quote, or taken the last one, meanwhile.
+    // Set the stock aside before any money moves, so a settled payment always has its goods. Checked
+    // again here, after the awaits: another request may have paid this quote, or taken the last one,
+    // meanwhile. Nothing below awaits until the update, so no other request can come between.
     const current = find();
     if (!current || current.status !== "open") throw new Answer(409, "This quote changed while the payment was checked. Look it up again before paying.");
     if (quoteExpired(current, now())) throw new Answer(410, "This quote has expired. Ask for a new one.");
+    // One signed payment pays one quote. Without this, the same payment shown to two quotes of the
+    // same total could become two orders, and only the facilitator would stand in the way.
+    const paymentHash = createHash("sha256").update(JSON.stringify(verified.payment.payload ?? null)).digest("hex");
+    if ((data().shopQuotes ?? []).some((q) => q.id !== quoteId && q.paymentHash === paymentHash && q.status !== "open")) {
+      throw new Answer(409, "This payment has already been used for another order.");
+    }
     let reserved;
     try {
       reserved = reserveStock(data().shopProducts ?? [], current.lines);
@@ -191,44 +201,59 @@ export function createAgentShop(deps: AgentShopDeps) {
       if (err instanceof ShopError) throw new Answer(409, `${err.message} Ask for a new quote.`);
       throw err;
     }
+    const payer = verified.payer;
     deps.store.update((db) => {
+      const q = quoteIn(db, quoteId)!;
       db.shopProducts = reserved;
-      Object.assign(current, { status: "settling", settlingSince: now().toISOString(), ...(verified.payer ? { payer: verified.payer } : {}) });
+      Object.assign(q, { status: "settling", settlingSince: now().toISOString(), paymentHash, ...(payer ? { payer } : {}) });
     });
+    // Written to the log before money moves: the database saves in the background, so if the server
+    // stops mid-payment this line is how the owner finds who paid for what.
+    console.log(`[safehubby] Shop: settling ${money(current.totalCents)} for quote ${quoteId}, payer ${payer ?? "unknown"}`);
 
     const done = await deps.charger.settle(verified.payment, accepts, resource);
-    if (!done.ok) {
-      if (done.failed === "refused") {
-        // Nothing moved: give the stock back and let the quote be paid again.
-        deps.store.update((db) => {
-          db.shopProducts = releaseStock(db.shopProducts ?? [], current.lines);
-          current.status = "open";
-          delete current.settlingSince;
-        });
-        return respond(r.res, done.response);
-      }
-      console.error(`[safehubby] Shop: payment for quote ${current.id} may or may not have gone through (payer ${current.payer ?? "unknown"}). It is held for the owner.`);
+    if (!done.ok && done.failed === "refused") {
+      // Nothing moved: give the stock back and let the quote be paid again.
+      deps.store.update((db) => {
+        const q = quoteIn(db, quoteId)!;
+        db.shopProducts = releaseStock(db.shopProducts ?? [], q.lines);
+        q.status = "open";
+        delete q.settlingSince;
+        delete q.paymentHash;
+      });
+      return respond(r.res, done.response);
+    }
+    const transaction = done.ok ? done.settled.transaction?.trim() : undefined;
+    const reused = transaction ? (data().shopOrders ?? []).find((o) => o.transaction === transaction) : undefined;
+    if (!done.ok || !transaction || reused) {
+      // The money may have moved and there is nothing safe to make an order from: hold it for the owner.
+      const why = !done.ok ? "the facilitator stopped answering" : !transaction ? "the facilitator gave no transaction" : `its transaction is already order ${reused!.id}'s`;
+      console.error(`[safehubby] Shop: payment for quote ${quoteId} is held for the owner: ${why} (payer ${payer ?? "unknown"}).`);
       throw new Answer(502, "The payment's result is unknown. Do not pay again: the shop will check it and fill or cancel the order. Ask with this quote id.", { quoteId });
     }
 
-    // Logged before it is written: if the write failed, this line is the record that money arrived.
-    console.log(`[safehubby] Shop: ${money(current.totalCents)} paid for quote ${current.id}, transaction ${done.settled.transaction ?? "?"}`);
-    const order = placeOrder(current, done.settled.transaction ?? "", done.settled.payer ?? current.payer, done.settled.network ?? deps.charger.network);
+    // Logged before it is written: if the write were lost, this line is the record that money arrived.
+    console.log(`[safehubby] Shop: ${money(current.totalCents)} paid for quote ${quoteId}, transaction ${transaction}`);
+    const order = placeOrder(quoteId, transaction, done.settled.payer ?? payer, done.settled.network ?? deps.charger.network);
     console.log(`[safehubby] Shop: new order ${order.id} (${order.lines.map((l) => `${l.qty} × ${l.name}`).join(", ")}), to be shipped`);
     sendJson(r.res, 201, publicOrder(order, origin), { "PAYMENT-RESPONSE": encodeHeader(done.settled) });
   }
 
-  function placeOrder(quote: ShopQuote, transaction: string, payer: string | undefined, network: string): ShopOrder {
+  const quoteIn = (db: Db, quoteId: string) => (db.shopQuotes ?? []).find((q) => q.id === quoteId);
+
+  function placeOrder(quoteId: string, transaction: string, payer: string | undefined, network: string): ShopOrder {
+    const quote = quoteIn(data(), quoteId)!;
     const at = now().toISOString();
     const order: ShopOrder = {
-      id: newId("ord", 18), quoteId: quote.id, lines: quote.lines,
+      id: newId("ord", 18), quoteId, lines: quote.lines,
       subtotalCents: quote.subtotalCents, shippingCents: quote.shippingCents, totalCents: quote.totalCents,
       shipTo: quote.shipTo, status: "paid", network, transaction, ...(payer ? { payer } : {}), paidAt: at, updatedAt: at,
     };
     deps.store.update((db) => {
+      const q = quoteIn(db, quoteId)!;
       (db.shopOrders ??= []).push(order);
-      Object.assign(quote, { status: "paid", orderId: order.id, ...(payer ? { payer } : {}) });
-      delete quote.settlingSince;
+      Object.assign(q, { status: "paid", orderId: order.id, ...(payer ? { payer } : {}) });
+      delete q.settlingSince;
     });
     return order;
   }
@@ -283,8 +308,8 @@ export function createAgentShop(deps: AgentShopDeps) {
     };
     const trackingText = text(tracking, "tracking"), noteText = text(note, "note");
     deps.store.update((db) => {
-      // Cancelled before it shipped: the goods are still here to sell.
-      if (order.status === "paid" && to === "cancelled") db.shopProducts = releaseStock(db.shopProducts ?? [], order.lines);
+      // Cancelled or refunded before it shipped: the goods are still here to sell.
+      if (order.status === "paid" && (to === "cancelled" || to === "refunded")) db.shopProducts = releaseStock(db.shopProducts ?? [], order.lines);
       order.status = to;
       order.updatedAt = now().toISOString();
       if (trackingText) order.tracking = trackingText;
@@ -300,14 +325,18 @@ export function createAgentShop(deps: AgentShopDeps) {
     if (!quote || quote.status !== "settling") throw new Answer(404, "No payment is stuck on that quote.");
     if (outcome === "paid") {
       if (typeof transaction !== "string" || !transaction.trim()) throw new Answer(400, "Give the transaction that paid it.");
-      return placeOrder(quote, transaction.trim(), quote.payer, deps.charger.network);
+      const reused = (data().shopOrders ?? []).find((o) => o.transaction === transaction.trim());
+      if (reused) throw new Answer(409, `That transaction already paid order ${reused.id}.`);
+      return placeOrder(quoteId, transaction.trim(), quote.payer, deps.charger.network);
     }
     if (outcome === "failed") {
       deps.store.update((db) => {
-        db.shopProducts = releaseStock(db.shopProducts ?? [], quote.lines);
-        quote.status = "open";
-        quote.expiresAt = now().toISOString();
-        delete quote.settlingSince;
+        const q = quoteIn(db, quoteId)!;
+        db.shopProducts = releaseStock(db.shopProducts ?? [], q.lines);
+        q.status = "open";
+        q.expiresAt = now().toISOString();
+        delete q.settlingSince;
+        delete q.paymentHash;
       });
       return { quoteId, status: "released" };
     }
