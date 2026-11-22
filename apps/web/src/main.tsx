@@ -12,6 +12,7 @@ import { installMotionLevel } from "./app/motion.ts";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/map.css";
+import "./styles/checklist-shop.css";
 import "./styles/carousel.css";
 import "./styles/popup-cards.css";
 import "./styles/home.css";
@@ -41,12 +42,14 @@ import "./styles/intro.css";
 // the home page; it is most of what made the first load heavy.
 const EmployeePortal = lazyWithReload(() => import("./components/EmployeePortal.tsx").then((m) => ({ default: m.EmployeePortal })));
 const BusinessScreen = lazyWithReload(() => import("./components/BusinessScreen.tsx").then((m) => ({ default: m.BusinessScreen })));
+const ChecklistShop = lazyWithReload(() => import("./components/ChecklistShop.tsx").then((m) => ({ default: m.ChecklistShop })));
 const MasterScreen = lazyWithReload(() => import("./components/MasterScreen.tsx").then((m) => ({ default: m.MasterScreen })));
 
 const path = window.location.pathname.replace(/\/$/, "");
 const isEmployeeArea = path === "/employee";
 const isMasterArea = path === "/master";
 const isBusinessArea = path === "/business";
+const isChecklistShop = path === "/checklists";
 
 // Vite fires this when a code chunk the page asked for no longer exists (a deploy replaced it): fetch the new version.
 window.addEventListener("vite:preloadError", (e) => {
@@ -73,7 +76,7 @@ createRoot(document.getElementById("root")!).render(
     <Suspense fallback={null}>
       {isBusinessArea ? <BusinessScreen /> : isMasterArea ? <MasterScreen /> : (
         <LanguageProvider>
-          {isEmployeeArea ? <EmployeePortal /> : <App />}
+          {isEmployeeArea ? <EmployeePortal /> : isChecklistShop ? <ChecklistShop /> : <App />}
         </LanguageProvider>
       )}
     </Suspense>

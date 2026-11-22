@@ -1,3 +1,4 @@
+import { handlePeopleChecklists, isPeopleChecklistPath } from "./people-checklists.ts";
 import { discoveryFile, handleAgentStore, isAgentPath, priceOf, PRODUCTS, refuseBrowser } from "./x402-sales.ts";
 import { WIDGET_JS } from "./widget.ts";
 import { gateSitePage, holdsPass, requirePass } from "./site-pass.ts";
@@ -225,6 +226,14 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null) {
     if (url.pathname === "/widget.js" && (method === "GET" || method === "HEAD")) {
       res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" });
       return void res.end(method === "HEAD" ? undefined : WIDGET_JS);
+    }
+    // The checklists sold to people by card, $0.50 each.
+    if (isPeopleChecklistPath(url.pathname)) {
+      try { return await handlePeopleChecklists(req, res, url, seoFactsFor(base).origin); } catch (err) {
+        console.error("[safehubby] checklist checkout failed", err instanceof Error ? err.message : err);
+        res.writeHead(502, { "content-type": "application/json; charset=utf-8" });
+        return void res.end(JSON.stringify({ error: "The card page could not be opened just now. Try again in a minute." }));
+      }
     }
     // The agent store: a free catalog, and paid lookups for other AI agents. x402 reads and writes its own payment headers.
     if (isAgentPath(url.pathname) && method === "GET") {

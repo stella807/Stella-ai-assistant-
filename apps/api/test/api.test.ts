@@ -2647,6 +2647,44 @@ describe("biweekly payroll", () => {
     });
   });
 
+  describe("checklists sold to people by card", () => {
+    const realFetch = globalThis.fetch;
+    const created: string[] = [];
+    let paid = "unpaid";
+    beforeEach(() => {
+      created.length = 0; paid = "unpaid";
+      process.env.STRIPE_SECRET_KEY = "sk_test_people"; process.env.STRIPE_API_BASE = "http://stripe.fake";
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const u = String(url);
+        if (!u.startsWith("http://stripe.fake")) return realFetch(url as never, init);
+        const path = u.replace("http://stripe.fake", "");
+        if (path === "/v1/checkout/sessions") { created.push(String(init?.body)); return Response.json({ id: "cs_test_1", url: "https://checkout.stripe.fake/pay" }); }
+        if (path === "/v1/checkout/sessions/cs_test_1") return Response.json({ payment_status: paid, metadata: { kind: "checklist", slug: "hospital-day-with-a-parent" } });
+        return new Response("{}", { status: 404 });
+      }) as typeof fetch;
+    });
+    afterEach(() => { globalThis.fetch = realFetch; delete process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_API_BASE; });
+
+    it("opens a one-time card page for fifty cents and unlocks the checklist only once Stripe says it is paid", async () => {
+      const list: any = await (await fetch(`${base}/api/people/checklists`)).json();
+      expect(list).toMatchObject({ price: "$0.50", canPay: true });
+      const out = await fetch(`${base}/api/people/checklists/checkout?slug=hospital-day-with-a-parent`, { method: "POST" });
+      expect(await out.json()).toEqual({ url: "https://checkout.stripe.fake/pay" });
+      const sent = new URLSearchParams(created[0]);
+      expect(sent.get("mode")).toBe("payment");
+      expect(sent.get("line_items[0][price_data][unit_amount]")).toBe("50");
+      expect(sent.get("success_url")).toContain("/checklists?paid={CHECKOUT_SESSION_ID}");
+      // Coming back on the success address is not proof of payment.
+      expect((await fetch(`${base}/api/people/checklists/paid?session_id=cs_test_1`)).status).toBe(402);
+      paid = "paid";
+      const got: any = await (await fetch(`${base}/api/people/checklists/paid?session_id=cs_test_1&lang=es`)).json();
+      expect(got.title).toMatch(/hospital/i);
+      expect(got.text).toContain("- [ ] ");
+      expect((await fetch(`${base}/api/people/checklists/paid?session_id=not-a-session`)).status).toBe(404);
+      expect((await fetch(`${base}/api/people/checklists/checkout?slug=nope`, { method: "POST" })).status).toBe(404);
+    });
+  });
+
   describe("paying through Stripe Connect", () => {
     const calls: { path: string; body: string; idem?: string }[] = [];
     const realFetch = globalThis.fetch;

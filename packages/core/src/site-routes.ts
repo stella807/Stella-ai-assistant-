@@ -49,7 +49,8 @@ const SERVICE_PATHS: Record<ServiceId, Record<SiteLang, string>> = {
 const ALIASES: Record<string, string> = { "/work": "/careers", "/trabajo": "/es/trabajo" };
 
 /** Signed-in areas: served, never indexed. */
-export const PRIVATE_SITE_PATHS = ["/master", "/employee", "/business"];
+// /checklists (the card shop for checklists) is served the same way: an app screen with no page of its own to index yet.
+export const PRIVATE_SITE_PATHS = ["/master", "/employee", "/business", "/checklists"];
 
 /** Drivers apply on their own form, so they have no page under careers. */
 const JOB_ROLES = STAFF_ROLES.filter((r) => r.id !== "driver").map((r) => r.id);

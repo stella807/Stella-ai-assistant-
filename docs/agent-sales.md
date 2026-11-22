@@ -425,3 +425,13 @@ The owner removed the site pass. AI crawlers read the website free; every item, 
 - **Weather**: a question naming a place after "in", "near", "at" or "for" ("flood warning in Houston") gets the National Weather Service's active alerts for that point (`alerts/active?point=`), summary `live/weather-us`. With no place, or a Puerto Rico place, it is the Puerto Rico bundle as before.
 - **Airports** already covered every US airport.
 - A place outside the US and Puerto Rico is not found, so it is answered 404 and not charged. Power stays Puerto Rico only (LUMA).
+
+## Checklists sold to people by card ($0.50)
+
+ariesai's test (Moltbook, 2026-11-21): offer an answer to people at a normal checkout and keep x402 for agents; if people buy and
+agents do not, the problem is agent budgets, not the product. The checklists are the first answer offered this way, because
+they are fixed text (a live answer cannot be refunded cleanly once a card is charged). `/checklists` lists them; Buy opens
+Stripe's hosted page (`createOneTimeCheckout`, one-time, 50 cents); the success address carries the session id, and
+`/api/people/checklists/paid` shows the checklist only when Stripe itself says the session is paid (`readCheckoutSession`).
+Card fees take most of the 50 cents; this is a demand test, not income. The page is served like the private areas (not
+indexed) until it earns its own page.

@@ -496,3 +496,35 @@ export async function refundPlanCharge(input: { stripeId: string; chargeId: stri
   await stripePost("/v1/refunds", { payment_intent: intent, ...(input.amountCents ? { amount: input.amountCents } : {}) },
     `plan-refund:${input.chargeId}:${input.amountCents ?? "all"}`);
 }
+
+/* ---------------------------------------------------------------------------
+   One-time purchases by card: Stripe's hosted page, for small things people buy once
+   ------------------------------------------------------------------------ */
+
+/** A hosted Checkout page for one item at a fixed price. Returns its address; nothing is unlocked by coming back from it. */
+export async function createOneTimeCheckout(input: {
+  name: string; amountCents: number; successUrl: string; cancelUrl: string; metadata: Record<string, string>;
+}): Promise<{ id: string; url: string }> {
+  const data = await stripePost<{ id?: string; url?: string }>("/v1/checkout/sessions", {
+    mode: "payment",
+    "line_items[0][price_data][currency]": "usd",
+    "line_items[0][price_data][unit_amount]": input.amountCents,
+    "line_items[0][price_data][product_data][name]": input.name,
+    "line_items[0][quantity]": 1,
+    ...(taxOn() ? { "line_items[0][price_data][tax_behavior]": "inclusive", "automatic_tax[enabled]": true, billing_address_collection: "required" } : {}),
+    ...Object.fromEntries(Object.entries(input.metadata).map(([k, v]) => [`metadata[${k}]`, v])),
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+  });
+  if (!data.id || !data.url) throw new Error("Stripe gave no checkout address.");
+  return { id: data.id, url: data.url };
+}
+
+/** Whether a Checkout Session was paid, read from Stripe itself (never from the address the buyer came back on). */
+export async function readCheckoutSession(id: string): Promise<{ paid: boolean; metadata: Record<string, string> } | null> {
+  if (!key() || !/^cs_[A-Za-z0-9_]{1,200}$/.test(id)) return null;
+  const res = await fetch(`${api()}/v1/checkout/sessions/${encodeURIComponent(id)}`, { headers: { authorization: `Bearer ${key()}` } });
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => null)) as { payment_status?: string; metadata?: Record<string, string> } | null;
+  return data ? { paid: data.payment_status === "paid", metadata: data.metadata ?? {} } : null;
+}

@@ -1,0 +1,10 @@
+/* The checklist shop (/checklists): a narrow reading column, printable. */
+.checklist-shop { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+.checklist-shop h1 { margin: 4px 0 12px; }
+.checklist-shop h2 { font-size: 1.1rem; margin: 20px 0 6px; }
+.checklist-shop ul { list-style: none; padding: 0; margin: 0; }
+.checklist-shop li { padding: 4px 0; }
+.checklist-shop-item { border-top: 1px solid rgba(255, 255, 255, 0.12); padding: 12px 0 16px; }
+.checklist-shop-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.checklist-shop-note { opacity: 0.7; font-size: 0.9rem; margin-top: 32px; }
+@media print { .checklist-shop-actions, .checklist-shop .kicker { display: none; } }
