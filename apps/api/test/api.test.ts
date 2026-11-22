@@ -3199,7 +3199,7 @@ describe("biweekly payroll", () => {
     it("lists what is for sale for free, and never offers work that needs a person", async () => {
       const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
       expect(c.available).toBe(true);
-      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "ops", "spend"]);
+      expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "errand", "facts", "live", "ops", "spend", "trip"]);
       expect(c.payment).toMatchObject({ protocol: "x402", testMoneyOnly: true });
       expect(c.notForSale).toMatch(/person/i);
       expect(c.products.find((p: any) => p.id === "blog").price).toBe("$0.01");
@@ -3479,6 +3479,23 @@ describe("biweekly payroll", () => {
           // Sources that could not be read are null, never guessed.
           expect(body.earthquakes).toBeNull();
           expect(body.rivers).toBeNull();
+        });
+
+        it("sells a trip check and an errand go-check for eighty cents, and refuses a question with nothing to check", async () => {
+          const bad = await fetch(`${base}/api/agent/trip?from=SJU`);
+          expect(bad.status).toBe(402);
+          const { required, res } = await payFor(`${base}/api/agent/errand?place=Naguabo`);
+          expect(required.accepts[0].amount).toBe("800000");
+          const body: any = await res.json();
+          // The fake weather service has a severe flash flood warning for Naguabo.
+          expect(body).toMatchObject({ place: "Naguabo", decision: "wait" });
+          expect(body.reasons[0]).toMatch(/severe weather alert names Naguabo/);
+          const unpaid: any = await (await payFor(`${base}/api/agent/trip?from=SJU`)).res.json();
+          expect(unpaid.error).toMatch(/Give from/);
+          // No source for the trip can be read in this test: no answer, no charge.
+          const none = await payFor(`${base}/api/agent/trip?from=SJU&to=Narnia`);
+          expect(none.res.status).toBe(404);
+          expect(none.res.headers.get("payment-response")).toBeNull();
         });
 
         it("charges nothing for the business check when the weather service cannot be read", async () => {
@@ -3943,7 +3960,7 @@ describe("biweekly payroll", () => {
 
       it("lists the digest and the brief in the free catalog, with the pass as the cheap way in", async () => {
         const c: any = await (await fetch(`${base}/api/agent/catalog`)).json();
-        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "facts", "live", "ops", "spend"]);
+        expect(c.products.map((p: any) => p.id).sort()).toEqual(["airports", "alerts", "blog", "books", "brief", "check", "checked", "checklists", "currency", "digest", "errand", "facts", "live", "ops", "spend", "trip"]);
         expect(c.sitePass.includes).toMatch(/facts/i);
         expect(c.sitePass.includes).toMatch(/digest/i);
         expect(c.sitePass.includes).toMatch(/checklists/i);

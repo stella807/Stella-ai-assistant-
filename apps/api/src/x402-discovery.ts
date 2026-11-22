@@ -14,6 +14,8 @@ const PARAMS: Record<string, Record<string, Param>> = {
   blog: { lang: LANG },
   digest: {},
   ops: {},
+  trip: { from: { example: "SJU", about: "Departure airport code in the US or Puerto Rico" }, to: { example: "Dominican Republic", about: "Destination airport code, or a country as the State Department spells it" } },
+  errand: { place: { example: "Bayamon", about: "A town, city or hospital in Puerto Rico" } },
   brief: {},
   airports: {
     q: { example: "San Juan", about: "City, country, airport name or three-letter code" },
