@@ -12,6 +12,8 @@ session. Send it as the `sh_session` cookie (set automatically by signup and
 login) or as `Authorization: Bearer <token>`. Identity always comes from the
 session; a `travelerId` in a request body is ignored.
 
+The agent shop (`/api/shop`) takes no session: see `docs/agent-shop.md`.
+
 ## Accounts
 
 | Method | Path | Notes |

@@ -82,3 +82,4 @@ export * from "./vendors.ts";
 export * from "./pnl.ts";
 export * from "./partners.ts";
 export * from "./whatsapp.ts";
+export * from "./agent-shop.ts";

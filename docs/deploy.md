@@ -60,6 +60,7 @@ railway variables --set "SAFEHUBBY_PUBLIC_URL=https://app.yourdomain.com"
 | `LSC_URI_PRIMARY`, `LSC_URI_BACKUP` | optional, for crypto | A swap provider, so customers can pay in USDT, USDC, SOL or ETH and you still receive Bitcoin. |
 | `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET` | for the blog paywall | A Coinbase Developer Platform API key. Turns on the paywall that has AI agents pay in USDC to read blog articles, checked by Coinbase's x402 facilitator — see `docs/blog-paywall.md`. Without it the blog is free to everyone. |
 | `BLOG_ACCESS_KEY` | with the paywall | 24+ random characters. A visitor sending it (`?access=` or the `x-safehubby-access` header) reads every article free, so you, or Claude working for you, can check a live post. |
+| `AGENT_SHOP` | for the agent shop | `on` opens the shop where AI agents buy physical goods for their people, paid in USDC (`/api/shop`). Also needs the CDP key above and `SAFEHUBBY_ENCRYPTION_KEY`. See `docs/agent-shop.md`. |
 | `X402_NETWORK`, `X402_PAY_TO`, `X402_FACILITATOR_URL` | optional | `solana-devnet` to test with free test money; a different Solana wallet than the owner's; another facilitator (`https://x402.org/facilitator` tests on devnet without a CDP key). |
 | `PORT` | no | Railway injects it. |
 | `WEB_ROOT` | no | Set by the Dockerfile. |

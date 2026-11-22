@@ -97,8 +97,12 @@ export function createHttpFacilitator(options: HttpFacilitatorOptions): Facilita
       return payer;
     },
     async verify(payment, requirements) {
-      const data = await call("POST", "/verify", send(payment, requirements)) as { isValid?: unknown; invalidReason?: unknown };
-      return { isValid: data?.isValid === true, invalidReason: typeof data?.invalidReason === "string" ? data.invalidReason : undefined };
+      const data = await call("POST", "/verify", send(payment, requirements)) as { isValid?: unknown; invalidReason?: unknown; payer?: unknown };
+      return {
+        isValid: data?.isValid === true,
+        invalidReason: typeof data?.invalidReason === "string" ? data.invalidReason : undefined,
+        payer: typeof data?.payer === "string" ? data.payer : undefined,
+      };
     },
     async settle(payment, requirements) {
       const data = await call("POST", "/settle", send(payment, requirements)) as Record<string, unknown> | null;

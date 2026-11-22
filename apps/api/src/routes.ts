@@ -1306,7 +1306,7 @@ function ownerAccrualFor(
 /** Whether a typed key is the server's SAFEHUBBY_ADMIN_KEY. Compared in
  *  constant time, and trimmed, because a key pasted from a password manager
  *  or a hosting dashboard often carries a stray space or newline. */
-function adminKeyMatches(typed: string): boolean {
+export function adminKeyMatches(typed: string): boolean {
   const expected = process.env.SAFEHUBBY_ADMIN_KEY?.trim();
   if (!expected) return false;
   const a = Buffer.from(typed.trim());

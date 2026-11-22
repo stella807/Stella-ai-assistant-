@@ -8,6 +8,7 @@ import { applySeo, seoPageFor, sitemapXml, type SeoFacts } from "./seo.ts";
 import { seoFactsFor } from "./seo-facts.ts";
 import { blogPageFor, blogSitemapUrls, isBlogPath } from "./blog.ts";
 import type { AgentPaywall, Gate } from "./agent-paywall.ts";
+import type { AgentShop } from "./agent-shop.ts";
 import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
 import { cancelStripeSubscription } from "./adapters/stripe.ts";
 import {
@@ -188,7 +189,8 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 export type CryptoRoutes = (req: IncomingMessage, res: ServerResponse, body: string, travelerId: string | null) => Promise<void>;
 
 /** With a paywall, AI agents pay to read blog articles (agent-paywall.ts); without one, the blog is free to all. */
-export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null, agentPaywall: AgentPaywall | null = null) {
+/** With a shop, AI agents can buy the owner's goods under /api/shop (agent-shop.ts); without one, it answers that it is closed. */
+export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null, agentPaywall: AgentPaywall | null = null, agentShop: AgentShop | null = null) {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     // No other site may frame this one (clickjacking), and a file is never guessed to be a different type.
     res.setHeader("X-Frame-Options", "DENY");
@@ -248,6 +250,17 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null, a
     // old working version would be replaced by a site that shows nothing.
     if (url.pathname === "/api/health" && WEB_ROOT && !existsSync(join(WEB_ROOT, "index.html"))) {
       return send(res, 503, { ok: false, error: "The web app is missing from this build." });
+    }
+    // The agent shop answers for itself: paying needs the request's headers and sets its own.
+    if (url.pathname === "/api/shop" || url.pathname.startsWith("/api/shop/")) {
+      if (!agentShop) return send(res, 503, { error: "The agent shop is not open." });
+      try {
+        const body = method === "POST" || method === "PUT" ? await readBody(req) : undefined;
+        return await agentShop.handle({ req, res, url, method, body, clientKey: clientKey(req), adminKey: firstHeader(req.headers["x-admin-key"]) });
+      } catch (err) {
+        if (err instanceof HttpError) return send(res, err.status, { error: err.message });
+        throw err;
+      }
     }
     const found = match(method === "HEAD" ? "GET" : method, url.pathname);
     if (!found) {

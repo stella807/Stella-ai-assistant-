@@ -67,7 +67,7 @@ export interface SettleResult { success: boolean; errorReason?: string; transact
 export interface Facilitator {
   /** The facilitator's own address, which pays Solana's network fee and so has to be named in the price. */
   feePayer(network: string): Promise<string>;
-  verify(payment: PaymentPayload, requirements: PaymentRequirements): Promise<{ isValid: boolean; invalidReason?: string }>;
+  verify(payment: PaymentPayload, requirements: PaymentRequirements): Promise<{ isValid: boolean; invalidReason?: string; payer?: string }>;
   settle(payment: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResult>;
 }
 
@@ -156,41 +156,92 @@ export interface GateRequest {
 
 const DESCRIBE: Record<Priced, string> = { article: "Article:", preview: "Preview of", page: "Page:" };
 
-const dollars = (micros: number) => `$${(micros / 1_000_000).toFixed(micros % 10_000 === 0 ? 2 : 3)}`;
+export const dollars = (micros: number) => `$${(micros / 1_000_000).toFixed(micros % 10_000 === 0 ? 2 : 3)}`;
 
-export function createAgentPaywall(config: PaywallConfig) {
+export type Respond = Extract<Gate, { type: "respond" }>;
+
+export interface ChargerConfig { network: Network; payTo: string; facilitator: Facilitator }
+
+/** What a payment is for, as an agent is told it: the address it pays at, and in words. */
+export interface Resource { url: string; description: string; mimeType: string }
+
+/**
+ * The x402 exchange itself, for any price: the 402 that asks, the checks on
+ * what comes back, and the facilitator's verify and settle. The paywall and
+ * the agent shop both charge through this, so there is one place that decides
+ * whether a payment is good.
+ *
+ * Verify and settle are separate steps on purpose: the shop reserves stock
+ * between them, so a settled payment always has its goods set aside.
+ */
+export function createX402Charger(config: ChargerConfig) {
   const { caip2, usdc } = SOLANA_NETWORKS[config.network];
 
-  async function requirementsFor(kind: Priced): Promise<PaymentRequirements> {
-    return {
-      scheme: "exact", network: caip2, amount: String(PRICES[kind]), asset: usdc, payTo: config.payTo,
-      maxTimeoutSeconds: 60, extra: { feePayer: await config.facilitator.feePayer(caip2) },
-    };
-  }
+  const paymentRequired = (resource: Resource, accepts: PaymentRequirements, error: string, body: Record<string, unknown> = {}): Respond => ({
+    type: "respond", status: 402,
+    headers: { "PAYMENT-REQUIRED": encodeHeader({ x402Version: 2, error, resource, accepts: [accepts] }), "cache-control": "no-store" },
+    body: { error, price: `${dollars(Number(accepts.amount))} USDC on Solana`, ...body, howToPay: "x402 version 2: https://x402.org" },
+  });
 
-  function paymentRequired(req: GateRequest, accepts: PaymentRequirements, error: string): Gate {
-    const required = {
-      x402Version: 2, error,
-      resource: { url: req.resourceUrl, description: `${DESCRIBE[req.kind]} ${req.title}`, mimeType: "text/html" },
-      accepts: [accepts],
-    };
-    return {
-      type: "respond", status: 402,
-      headers: { "PAYMENT-REQUIRED": encodeHeader(required), "cache-control": "no-store" },
-      body: {
-        error,
-        price: `${dollars(PRICES[req.kind])} USDC on Solana`,
-        ...(req.previewUrl ? { preview: { url: req.previewUrl, price: `${dollars(PRICES.preview)} USDC on Solana` } } : {}),
-        howToPay: "x402 version 2: https://x402.org",
-      },
-    };
-  }
-
-  const unavailable = (): Gate => ({
+  const unavailable = (): Respond => ({
     type: "respond", status: 503, headers: { "retry-after": "30", "cache-control": "no-store" },
     body: { error: "Payments cannot be checked right now. Try again shortly." },
   });
 
+  return {
+    network: caip2,
+    paymentRequired,
+    unavailable,
+
+    /** The price in USDC millionths. Throws when the facilitator cannot be reached, since its fee payer is part of the price. */
+    async requirements(micros: number): Promise<PaymentRequirements> {
+      return {
+        scheme: "exact", network: caip2, amount: String(micros), asset: usdc, payTo: config.payTo,
+        maxTimeoutSeconds: 60, extra: { feePayer: await config.facilitator.feePayer(caip2) },
+      };
+    },
+
+    /** Reads the payment a request carries and has the facilitator verify it is good for exactly this price. Nothing is moved yet. */
+    async verify(headers: Record<string, string | string[] | undefined>, accepts: PaymentRequirements, resource: Resource):
+      Promise<{ ok: true; payment: PaymentPayload; payer?: string } | { ok: false; response: Respond }> {
+      const refuse = (error: string) => ({ ok: false as const, response: paymentRequired(resource, accepts, error) });
+      const payment = decodePayment(header(headers, "payment-signature") ?? header(headers, "x-payment") ?? "");
+      if (!payment) return refuse("The payment header could not be read.");
+      if (payment.x402Version !== 2) return refuse("Only x402 version 2 payments are accepted.");
+      if (!paysFor(payment, accepts)) return refuse("The payment is not for this price.");
+      // A v2 client says which address it is paying for; a payment meant for another page or order is not good here.
+      const said = (payment.resource as { url?: unknown } | undefined)?.url;
+      if (typeof said === "string" && said !== resource.url) return refuse("The payment is for a different address.");
+      try {
+        const verified = await config.facilitator.verify(payment, accepts);
+        if (!verified.isValid) return refuse(`The payment was not accepted: ${verified.invalidReason ?? "invalid"}.`);
+        return { ok: true, payment, payer: verified.payer };
+      } catch (err) {
+        console.error("[safehubby] x402: verify failed:", err instanceof Error ? err.message : err);
+        return { ok: false, response: unavailable() };
+      }
+    },
+
+    /** Puts a verified payment on chain. Only after this has the money moved. */
+    async settle(payment: PaymentPayload, accepts: PaymentRequirements, resource: Resource):
+      Promise<{ ok: true; settled: SettleResult } | { ok: false; response: Respond; failed: "refused" | "unreachable" }> {
+      try {
+        const settled = await config.facilitator.settle(payment, accepts);
+        if (!settled.success) {
+          return { ok: false, failed: "refused", response: paymentRequired(resource, accepts, `The payment did not go through: ${settled.errorReason ?? "failed"}.`) };
+        }
+        return { ok: true, settled };
+      } catch (err) {
+        console.error("[safehubby] x402: settle failed:", err instanceof Error ? err.message : err);
+        return { ok: false, failed: "unreachable", response: unavailable() };
+      }
+    },
+  };
+}
+
+export type X402Charger = ReturnType<typeof createX402Charger>;
+
+export function createAgentPaywall(config: PaywallConfig, charger: X402Charger = createX402Charger(config)) {
   return {
     async gate(req: GateRequest): Promise<Gate> {
       const visitor = classifyVisitor(req.headers, req.url, config.accessKey);
@@ -200,32 +251,23 @@ export function createAgentPaywall(config: PaywallConfig) {
 
       let accepts: PaymentRequirements;
       try {
-        accepts = await requirementsFor(req.kind);
+        accepts = await charger.requirements(PRICES[req.kind]);
       } catch (err) {
-        console.error("[safehubby] Blog paywall: the facilitator did not answer:", err instanceof Error ? err.message : err);
-        return unavailable();
+        console.error("[safehubby] Paywall: the facilitator did not answer:", err instanceof Error ? err.message : err);
+        return charger.unavailable();
       }
-      if (visitor === "agent") return paymentRequired(req, accepts, "Payment required to read this page.");
-      if (req.head) return paymentRequired(req, accepts, "Send the payment with a GET request.");
+      const resource: Resource = { url: req.resourceUrl, description: `${DESCRIBE[req.kind]} ${req.title}`, mimeType: "text/html" };
+      const extra = req.previewUrl ? { preview: { url: req.previewUrl, price: `${dollars(PRICES.preview)} USDC on Solana` } } : {};
+      if (visitor === "agent") return charger.paymentRequired(resource, accepts, "Payment required to read this page.", extra);
+      if (req.head) return charger.paymentRequired(resource, accepts, "Send the payment with a GET request.", extra);
 
-      const raw = header(req.headers, "payment-signature") ?? header(req.headers, "x-payment") ?? "";
-      const payment = decodePayment(raw);
-      if (!payment) return paymentRequired(req, accepts, "The payment header could not be read.");
-      if (payment.x402Version !== 2) return paymentRequired(req, accepts, "Only x402 version 2 payments are accepted.");
-      if (!paysFor(payment, accepts)) return paymentRequired(req, accepts, "The payment is not for this page's price.");
-
-      try {
-        const verified = await config.facilitator.verify(payment, accepts);
-        if (!verified.isValid) return paymentRequired(req, accepts, `The payment was not accepted: ${verified.invalidReason ?? "invalid"}.`);
-        // Settled before the page is sent: an agent never gets the page for a payment that later fails.
-        const settled = await config.facilitator.settle(payment, accepts);
-        if (!settled.success) return paymentRequired(req, accepts, `The payment did not go through: ${settled.errorReason ?? "failed"}.`);
-        console.log(`[safehubby] Agent paid ${dollars(PRICES[req.kind])} for ${req.url.pathname}${req.kind === "preview" ? " (preview)" : ""}, transaction ${settled.transaction ?? "?"}`);
-        return { type: "serve", headers: { "PAYMENT-RESPONSE": encodeHeader(settled), "cache-control": "private, no-store" } };
-      } catch (err) {
-        console.error("[safehubby] Blog paywall: payment check failed:", err instanceof Error ? err.message : err);
-        return unavailable();
-      }
+      const verified = await charger.verify(req.headers, accepts, resource);
+      if (!verified.ok) return verified.response;
+      // Settled before the page is sent: an agent never gets the page for a payment that later fails.
+      const done = await charger.settle(verified.payment, accepts, resource);
+      if (!done.ok) return done.response;
+      console.log(`[safehubby] Agent paid ${dollars(PRICES[req.kind])} for ${req.url.pathname}${req.kind === "preview" ? " (preview)" : ""}, transaction ${done.settled.transaction ?? "?"}`);
+      return { type: "serve", headers: { "PAYMENT-RESPONSE": encodeHeader(done.settled), "cache-control": "private, no-store" } };
     },
   };
 }

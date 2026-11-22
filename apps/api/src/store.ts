@@ -8,6 +8,7 @@ import type {
   ShareGrant, Subscription, VoiceMessage, PriceOverride, Vendor, VendorList, ClubSubscription, ClubRsvp, ClubMonthState,
 } from "@safehubby/core";
 import type { MonthlyFreebies, SeniorIdCheck, StaffRole } from "@safehubby/core";
+import type { ShopOrder, ShopProduct, ShopQuote, ShopShipping } from "@safehubby/core";
 import type { BalanceEntry, EmailContact, TextContact, EliteBooking, PickupRequest, PlanId, PointEntry, Redemption, Referral } from "@safehubby/core";
 
 /** One member's RSVP to one `EliteEvent` (elite.ts) — a flat list rather
@@ -210,6 +211,11 @@ export interface Db {
    *  ride-coordination.ts. Replaces the old Uber/Lyft hand-off entirely. */
   pickupRequests: PickupRequest[];
   clubRequests?: ClubRequest[];
+  /** The agent shop (agent-shop.ts): the owner's catalog and shipping rules, and agents' quotes and orders. Absent until first used. */
+  shopProducts?: ShopProduct[];
+  shopShipping?: ShopShipping;
+  shopQuotes?: ShopQuote[];
+  shopOrders?: ShopOrder[];
   referrals: Referral[];
   voiceMessages: VoiceMessage[];
   /** Typed messages on a task's thread. Sealed at rest alongside the voice

@@ -1,16 +1,18 @@
-import { LOCATION_RETENTION_DAYS, isEnabled, sweepExpiredHolds, sweepLocationHistory } from "@safehubby/core";
+import { LOCATION_RETENTION_DAYS, isEnabled, sweepExpiredHolds, sweepLocationHistory, sweepShop } from "@safehubby/core";
 import {
   SUBSCRIPTION_CHARGE_ATTEMPTS, collectSubscriptionCharges, renewDueSubscriptions, retryPastDueSubscriptions,
 } from "./billing.ts";
 import { chargeSaved, chargingReady } from "./adapters/charging.ts";
 import { createApp, makeCtx } from "./server.ts";
-import { createAgentPaywall, type AgentPaywall } from "./agent-paywall.ts";
+import { createAgentPaywall, createX402Charger, type AgentPaywall } from "./agent-paywall.ts";
+import { createAgentShop, type AgentShop } from "./agent-shop.ts";
+import { siteOrigin } from "./seo-facts.ts";
 import { agentPaywallConfigFromEnv } from "./adapters/x402-facilitator.ts";
 import { createCryptoRoutes } from "./adapters/openreceive.ts";
 import { emailMode } from "./adapters/email.ts";
 import { ensureStripeCardholder } from "./adapters/stripe-cards.ts";
 import { describeStripeAccount } from "./adapters/stripe.ts";
-import { runFlightSweep, runPayroll } from "./routes.ts";
+import { adminKeyMatches, runFlightSweep, runPayroll } from "./routes.ts";
 import { cipherFromEnv } from "./crypto.ts";
 import { SEED } from "./seed.ts";
 import { PostgresStore } from "./store-postgres.ts";
@@ -125,6 +127,14 @@ async function main(): Promise<void> {
       db.nights = result.nights;
       removed = result.removed;
 
+      // The agent shop's quotes, and the addresses of finished orders, are not kept past need.
+      if (db.shopQuotes?.length || db.shopOrders?.length) {
+        const shop = sweepShop({ quotes: db.shopQuotes ?? [], orders: db.shopOrders ?? [] }, now);
+        db.shopQuotes = shop.quotes;
+        db.shopOrders = shop.orders;
+        if (shop.erased > 0) console.log(`[safehubby] Retention: erased the address on ${shop.erased} finished shop order(s)`);
+      }
+
       /**
        * Release pre-authorizations that were never captured.
        *
@@ -216,14 +226,27 @@ async function main(): Promise<void> {
   if (cryptoRoutes) console.log("[safehubby] Crypto payments: set up (OpenReceive) — the wallet is checked on the first payment");
   // AI agents pay to read the blog once a facilitator is set; a bad key leaves the blog free rather than the site down.
   let agentPaywall: AgentPaywall | null = null;
+  let agentShop: AgentShop | null = null;
   try {
     const paywall = agentPaywallConfigFromEnv();
-    if (paywall) agentPaywall = createAgentPaywall(paywall);
+    const charger = paywall ? createX402Charger(paywall) : null;
+    if (paywall && charger) agentPaywall = createAgentPaywall(paywall, charger);
+
+    // The shop sells real goods for real money, so it opens only when asked to, and only with addresses encrypted.
+    const cipher = cipherFromEnv();
+    const shopWanted = process.env.AGENT_SHOP?.trim().toLowerCase() === "on";
+    if (shopWanted && charger && cipher) {
+      agentShop = createAgentShop({ store, charger, cipher, origin: siteOrigin, isOwner: (key) => Boolean(key && adminKeyMatches(key)) });
+    }
+    console.log(`[safehubby] Agent shop: ${agentShop ? "open at /api/shop"
+      : !shopWanted ? "closed (AGENT_SHOP is not on)"
+      : !charger ? "closed (needs the x402 facilitator: CDP_API_KEY_ID/CDP_API_KEY_SECRET or X402_FACILITATOR_URL)"
+      : "closed (needs SAFEHUBBY_ENCRYPTION_KEY to keep addresses encrypted)"}.`);
     console.log(`[safehubby] Blog paywall for AI agents: ${paywall ? paywall.describe : "off (no CDP_API_KEY_ID/CDP_API_KEY_SECRET or X402_FACILITATOR_URL)"}.`);
   } catch (err) {
     console.error("[safehubby] Blog paywall is off:", err instanceof Error ? err.message : err);
   }
-  const server = createApp(makeCtx(store), cryptoRoutes, agentPaywall);
+  const server = createApp(makeCtx(store), cryptoRoutes, agentPaywall, agentShop);
   server.listen(port, () => console.log(`[safehubby] Listening on ${port}`));
 
   // Railway sends SIGTERM on redeploy; finish in-flight writes before exiting
