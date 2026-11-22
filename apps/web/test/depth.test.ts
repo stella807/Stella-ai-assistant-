@@ -43,6 +43,25 @@ describe("the stylesheet agrees with the script", () => {
     expect(block).toMatch(/filter: none/);
   });
 
+  it("keeps every scroll-driven animation off phones and touch screens, where the hero photo and stars jumped", async () => {
+    const { readFileSync } = await import("node:fs");
+    let css = readFileSync(new URL("../src/styles/atmosphere.css", import.meta.url), "utf8");
+    const guard = "@media (hover: hover) and (min-width: 721px) {";
+    let guardedUses = 0;
+    // Take out each guarded block (found by matching its braces); what is left must not use the root scroll timeline.
+    for (let at = css.indexOf(guard); at !== -1; at = css.indexOf(guard)) {
+      let depth = 0, end = at;
+      for (let i = css.indexOf("{", at); i < css.length; i++) {
+        if (css[i] === "{") depth++;
+        if (css[i] === "}" && --depth === 0) { end = i + 1; break; }
+      }
+      guardedUses += (css.slice(at, end).match(/scroll\(root\)/g) ?? []).length;
+      css = css.slice(0, at) + css.slice(end);
+    }
+    expect(guardedUses).toBeGreaterThanOrEqual(5);
+    expect(css).not.toMatch(/scroll\(root\)/);
+  });
+
   it("lines up the scrambling copy with the text under it", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(new URL("../src/styles/atmosphere.css", import.meta.url), "utf8");

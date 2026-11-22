@@ -98,10 +98,13 @@ html::after {
   to   { transform: translate3d(-10px, 22px, 0); }
 }
 
-@supports (animation-timeline: scroll()) {
-  body::before { animation: atm-drift 38s ease-in-out infinite alternate, atm-far linear both; animation-timeline: auto, scroll(root); }
-  body::after  { animation: atm-twinkle 7s ease-in-out infinite alternate, atm-mid linear both; animation-timeline: auto, scroll(root); }
-  html::after  { animation: orb-float 16s ease-in-out infinite alternate, atm-near linear both; animation-timeline: auto, scroll(root); }
+/* The star layers drift with the scroll position, on mouse screens only (see the hero slide below for why not on phones). */
+@media (hover: hover) and (min-width: 721px) {
+  @supports (animation-timeline: scroll()) {
+    body::before { animation: atm-drift 38s ease-in-out infinite alternate, atm-far linear both; animation-timeline: auto, scroll(root); }
+    body::after  { animation: atm-twinkle 7s ease-in-out infinite alternate, atm-mid linear both; animation-timeline: auto, scroll(root); }
+    html::after  { animation: orb-float 16s ease-in-out infinite alternate, atm-near linear both; animation-timeline: auto, scroll(root); }
+  }
 }
 @keyframes atm-far  { to { translate: 0 -8vh; } }
 @keyframes atm-mid  { to { translate: 0 -22vh; } }
@@ -218,9 +221,14 @@ html.fog-on body::before { display: none; }
 
 .lux-btn:hover, .landing .btn:hover { animation: split-flash .5s ease; }
 
-@supports (animation-timeline: view()) {
-  .lux-copy { animation: lux-up 1s .15s ease both, lux-copy-rise linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 60vh; }
-  .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both, lux-hero-slide linear both; animation-timeline: auto, auto, scroll(root); animation-range: normal, normal, 0 60vh; }
+/* Tied to the scroll position, so only where there is a mouse and room for it. On an iPhone the root scroll timeline flipped the
+   photo between its two ends (a 28px jump, with a dark strip showing at the top of the card) while the page stood still, which a
+   screen recording caught. Phones keep the plain drift and fade-in above. */
+@media (hover: hover) and (min-width: 721px) {
+  @supports (animation-timeline: view()) {
+    .lux-copy { animation: lux-up 1s .15s ease both, lux-copy-rise linear both; animation-timeline: auto, scroll(root); animation-range: normal, 0 60vh; }
+    .lux-photo { animation: lux-drift 22s ease-in-out infinite alternate, lux-resolve 1.6s ease-out both, lux-hero-slide linear both; animation-timeline: auto, auto, scroll(root); animation-range: normal, normal, 0 60vh; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
