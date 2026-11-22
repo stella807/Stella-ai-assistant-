@@ -7,7 +7,7 @@ import { Store, type StoreLike } from "./store.ts";
 import { applySeo, seoPageFor, sitemapXml, type SeoFacts } from "./seo.ts";
 import { seoFactsFor } from "./seo-facts.ts";
 import { blogPageFor, blogSitemapUrls, isBlogPath } from "./blog.ts";
-import type { AgentPaywall } from "./agent-paywall.ts";
+import type { AgentPaywall, Gate } from "./agent-paywall.ts";
 import { WebhookRejected, handleStripeWebhook } from "./stripe-webhook.ts";
 import { cancelStripeSubscription } from "./adapters/stripe.ts";
 import {
@@ -67,7 +67,17 @@ function readIndexTemplate(path: string): string {
  * answered 404: the app still loads for a person, but a search engine is not
  * told that every mistyped link is a page.
  */
-function serveStatic(res: ServerResponse, pathname: string, headOnly: boolean, seoFacts: () => SeoFacts): boolean {
+/** Sends the paywall's own answer (402, or 503 when payments cannot be checked) in place of a page. */
+function sendGate(res: ServerResponse, gate: Extract<Gate, { type: "respond" }>, headOnly: boolean): void {
+  const json = JSON.stringify(gate.body);
+  res.writeHead(gate.status, { ...gate.headers, "content-type": "application/json; charset=utf-8", "content-length": String(Buffer.byteLength(json)) });
+  res.end(headOnly ? undefined : json);
+}
+
+/** Asks the paywall about a page, when there is one: an AI agent pays for it, a person does not. */
+type PageGate = (page: { title: string; kind: "page" }) => Promise<Gate>;
+
+async function serveStatic(res: ServerResponse, pathname: string, headOnly: boolean, seoFacts: () => SeoFacts, gate: PageGate | null = null): Promise<boolean> {
   if (!WEB_ROOT) return false;
 
   const relative = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
@@ -79,6 +89,7 @@ function serveStatic(res: ServerResponse, pathname: string, headOnly: boolean, s
   if (!isAsset) {
     let status = 200;
     let lang = "en";
+    let title = "Safehubby";
     let html = readIndexTemplate(file);
     try {
       const facts = seoFacts();
@@ -86,12 +97,23 @@ function serveStatic(res: ServerResponse, pathname: string, headOnly: boolean, s
       html = applySeo(html, page, facts.origin);
       status = page.status;
       lang = page.lang;
+      title = page.title;
     } catch (err) {
       // The page matters more than its search listing: serve the plain app.
       console.error("[safehubby] SEO tags not applied:", err instanceof Error ? err.message : err);
     }
     // index.html must never be cached or a deploy strands people on the old bundle.
-    res.writeHead(status, { "content-type": MIME[".html"]!, "content-language": lang, "cache-control": "no-cache" });
+    const headers: Record<string, string> = { "content-type": MIME[".html"]!, "content-language": lang, "cache-control": "no-cache" };
+    // A page the site does not have is not for sale.
+    if (gate && status === 200) {
+      const answer = await gate({ title, kind: "page" });
+      if (answer.type === "respond") {
+        sendGate(res, answer, headOnly);
+        return true;
+      }
+      Object.assign(headers, answer.headers);
+    }
+    res.writeHead(status, headers);
     res.end(headOnly ? undefined : html);
     return true;
   }
@@ -246,11 +268,7 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null, a
               resourceUrl: preview ? `${address}?preview=1` : address,
               previewUrl: preview ? undefined : `${address}?preview=1`,
             });
-            if (gate.type === "respond") {
-              const json = JSON.stringify(gate.body);
-              res.writeHead(gate.status, { ...gate.headers, "content-type": "application/json; charset=utf-8", "content-length": String(Buffer.byteLength(json)) });
-              return void res.end(method === "HEAD" ? undefined : json);
-            }
+            if (gate.type === "respond") return sendGate(res, gate, method === "HEAD");
             Object.assign(headers, gate.headers);
           }
           res.writeHead(page.status, headers);
@@ -263,7 +281,13 @@ export function createApp(base: Ctx, cryptoRoutes: CryptoRoutes | null = null, a
         res.writeHead(200, { "content-type": MIME[".xml"]!, "cache-control": "public, max-age=3600" });
         return void res.end(method === "HEAD" ? undefined : sitemapXml(facts, blogSitemapUrls(facts.origin)));
       }
-      if (isRead && !url.pathname.startsWith("/api/") && serveStatic(res, url.pathname, method === "HEAD", () => seoFactsFor(base))) return;
+      const pageGate: PageGate | null = agentPaywall && isRead
+        ? ({ title, kind }) => {
+          const facts = seoFactsFor(base);
+          return agentPaywall.gate({ headers: req.headers, url, head: method === "HEAD", kind, title, resourceUrl: `${facts.origin}${url.pathname}` });
+        }
+        : null;
+      if (isRead && !url.pathname.startsWith("/api/") && await serveStatic(res, url.pathname, method === "HEAD", () => seoFactsFor(base), pageGate)) return;
       return send(res, 404, { error: "Not found" });
     }
 

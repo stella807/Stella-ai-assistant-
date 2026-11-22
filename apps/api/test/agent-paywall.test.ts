@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync, verify as verifySignature, createPublicKey } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
@@ -376,8 +376,22 @@ describe("the paywall's settings", () => {
   });
 });
 
-describe("the blog, served with the paywall", () => {
-  const dir = mkdtempSync(join(tmpdir(), "safehubby-paywall-"));
+/**
+ * The server, with the built app beside it. WEB_ROOT is read when server.ts
+ * loads, so it is set here, before the server is imported below.
+ */
+const dir = mkdtempSync(join(tmpdir(), "safehubby-paywall-"));
+mkdirSync(join(dir, "assets"));
+writeFileSync(join(dir, "index.html"), [
+  `<!doctype html>`, `<html lang="en">`, `<head>`, `<!--seo:head--><title>placeholder</title><!--/seo:head-->`,
+  `<script type="module" src="/assets/app-AbCd1234.js"></script>`, `</head>`,
+  `<body><div id="root"><!--seo:body--><!--/seo:body--></div></body>`, `</html>`,
+].join("\n"));
+writeFileSync(join(dir, "assets", "app-AbCd1234.js"), "console.log('app')");
+writeFileSync(join(dir, "robots.txt"), "User-agent: *\nAllow: /\n");
+process.env.WEB_ROOT = dir;
+
+describe("the site, served with the paywall", () => {
   let base = "";
   let close: () => void = () => {};
   const slug = ARTICLES[0]!.slug.en;
@@ -441,5 +455,37 @@ describe("the blog, served with the paywall", () => {
     expect((await fetch(`${base}/blog`, { headers: { "user-agent": "GPTBot" } })).status).toBe(200);
     expect((await fetch(`${base}/es/blog`, { headers: { "user-agent": "curl/8" } })).status).toBe(200);
     expect((await fetch(`${base}/blog/not-an-article`, { headers: { "user-agent": "GPTBot" } })).status).toBe(404);
+  });
+
+  it("asks an agent $0.01 for any other page of the site, and lets people and Claude read it free", async () => {
+    const res = await fetch(`${base}/`, { headers: { "user-agent": "GPTBot/1.2" } });
+    expect(res.status).toBe(402);
+    const required = decode(res.headers.get("payment-required")!);
+    expect(required.accepts[0].amount).toBe(String(PRICES.page));
+    expect(required.resource.description).toMatch(/^Page: /);
+    expect((await fetch(`${base}/es/trabajo`, { headers: { "user-agent": "curl/8" } })).status).toBe(402);
+
+    const person = await fetch(`${base}/`, { headers: { "user-agent": BROWSER } });
+    expect(person.status).toBe(200);
+    expect(await person.text()).toContain("<html");
+    expect((await fetch(`${base}/`, { headers: { "user-agent": "Claude-User/1.0" } })).status).toBe(200);
+    expect((await fetch(`${base}/`, { headers: { "user-agent": "Googlebot/2.1" } })).status).toBe(200);
+  });
+
+  it("serves a site page to an agent that pays", async () => {
+    const accepted = decode((await fetch(`${base}/careers`, { headers: { "user-agent": "GPTBot" } })).headers.get("payment-required")!).accepts[0];
+    const res = await fetch(`${base}/careers`, { headers: { "user-agent": "GPTBot", "payment-signature": encodeHeader(paymentFor(accepted)) } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("never charges for what a page loads, robots.txt, the sitemap, the API or a page that does not exist", async () => {
+    const agent = { headers: { "user-agent": "GPTBot/1.2" } };
+    expect((await fetch(`${base}/assets/app-AbCd1234.js`, agent)).status).toBe(200);
+    expect((await fetch(`${base}/robots.txt`, agent)).status).toBe(200);
+    expect((await fetch(`${base}/sitemap.xml`, agent)).status).toBe(200);
+    expect((await fetch(`${base}/api/health`, { headers: { "user-agent": "okhttp/4.12.0" } })).status).not.toBe(402);
+    expect((await fetch(`${base}/no-such-page`, agent)).status).toBe(404);
   });
 });

@@ -1,7 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 
 /**
- * AI agents pay to read the blog; people do not.
+ * AI agents pay to read the site's pages, the blog's above all; people do not.
+ *
+ * Only pages are charged: the files a page loads (scripts, pictures), robots.txt,
+ * the sitemap and the app's API stay free, so the site and the apps keep working
+ * and an agent can still find what there is to buy.
  *
  * It uses x402 (https://x402.org), version 2. An agent asking for an article
  * gets `402 Payment Required` with a `PAYMENT-REQUIRED` header: the price, in
@@ -36,7 +40,8 @@ export const SOLANA_NETWORKS: Record<Network, { caip2: string; usdc: string }> =
 };
 
 /** USDC has 6 decimals: these are millionths of a dollar. */
-export const PRICES = { article: 50_000, preview: 1_000 } as const;
+/** An article, its preview, and any other page of the site (home, services, careers). */
+export const PRICES = { article: 50_000, preview: 1_000, page: 10_000 } as const;
 export type Priced = keyof typeof PRICES;
 
 export interface PaymentRequirements {
@@ -149,6 +154,8 @@ export interface GateRequest {
   head?: boolean;
 }
 
+const DESCRIBE: Record<Priced, string> = { article: "Article:", preview: "Preview of", page: "Page:" };
+
 const dollars = (micros: number) => `$${(micros / 1_000_000).toFixed(micros % 10_000 === 0 ? 2 : 3)}`;
 
 export function createAgentPaywall(config: PaywallConfig) {
@@ -164,7 +171,7 @@ export function createAgentPaywall(config: PaywallConfig) {
   function paymentRequired(req: GateRequest, accepts: PaymentRequirements, error: string): Gate {
     const required = {
       x402Version: 2, error,
-      resource: { url: req.resourceUrl, description: `${req.kind === "preview" ? "Preview of" : "Article:"} ${req.title}`, mimeType: "text/html" },
+      resource: { url: req.resourceUrl, description: `${DESCRIBE[req.kind]} ${req.title}`, mimeType: "text/html" },
       accepts: [accepts],
     };
     return {
@@ -213,7 +220,7 @@ export function createAgentPaywall(config: PaywallConfig) {
         // Settled before the page is sent: an agent never gets the page for a payment that later fails.
         const settled = await config.facilitator.settle(payment, accepts);
         if (!settled.success) return paymentRequired(req, accepts, `The payment did not go through: ${settled.errorReason ?? "failed"}.`);
-        console.log(`[safehubby] Blog: ${dollars(PRICES[req.kind])} paid for ${req.url.pathname}${req.kind === "preview" ? " (preview)" : ""}, transaction ${settled.transaction ?? "?"}`);
+        console.log(`[safehubby] Agent paid ${dollars(PRICES[req.kind])} for ${req.url.pathname}${req.kind === "preview" ? " (preview)" : ""}, transaction ${settled.transaction ?? "?"}`);
         return { type: "serve", headers: { "PAYMENT-RESPONSE": encodeHeader(settled), "cache-control": "private, no-store" } };
       } catch (err) {
         console.error("[safehubby] Blog paywall: payment check failed:", err instanceof Error ? err.message : err);

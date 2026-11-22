@@ -1,6 +1,6 @@
-# AI agents pay to read the blog
+# AI agents pay to read the site
 
-People read the blog free. AI crawlers and agents (GPTBot, PerplexityBot
+People read the site free. AI crawlers and agents (GPTBot, PerplexityBot
 and the rest, except Claude's, and plain tools like curl or python-requests) pay
 in USDC on Solana, through [x402](https://x402.org), to the owner's wallet:
 
@@ -8,7 +8,8 @@ in USDC on Solana, through [x402](https://x402.org), to the owner's wallet:
 |---|---|---|
 | A whole article | $0.05 | `/blog/<slug>`, `/es/blog/<slug>` |
 | A preview: title, summary, first paragraph | $0.001 | the same, with `?preview=1` |
-| The blog's index and the 404 page | free | `/blog`, `/es/blog` |
+| Any other page of the site: home, services, careers | $0.01 | `/`, `/es`, `/careers`... |
+| The blog's index, 404 pages, and everything a page loads (scripts, pictures), `robots.txt`, the sitemap, the API | free | |
 
 The code is `apps/api/src/agent-paywall.ts` (who pays, the price, the payment
 check) and `apps/api/src/adapters/x402-facilitator.ts` (Coinbase's facilitator).
@@ -25,7 +26,7 @@ check) and `apps/api/src/adapters/x402-facilitator.ts` (Coinbase's facilitator).
    with the receipt in `PAYMENT-RESPONSE`. The money goes straight to the
    wallet; the server never holds it.
 
-Each paid read writes one line to the log: `Blog: $0.05 paid for /blog/...,
+Each paid read writes one line to the log: `Agent paid $0.05 for /blog/...,
 transaction ...`. Look the transaction up on any Solana explorer.
 
 ## Who reads free
@@ -76,3 +77,6 @@ Everything" rule for `/blog`: a cached page would be handed to agents without
 the paywall. Cloudflare's own AI-crawler blocking ("Block AI bots", AI Crawl
 Control) should stay off, or crawlers are turned away before they ever see the
 price.
+
+An uptime monitor that checks a page (not `/api/health`) with a plain tool
+like curl is asked to pay too: point it at `/api/health`, or give it the key.
