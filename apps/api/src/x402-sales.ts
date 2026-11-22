@@ -360,7 +360,7 @@ export const PRODUCTS: Product[] = [
     description: "Before a person travels: give where they leave from (a US or Puerto Rico airport code) and where they go (another airport code, or a country). One answer gives delays now and signs of delays ahead at the departure airport (FAA), and at the destination either the same for its airport or the State Department's travel advisory and the CDC's travel health notices for that country. Each part names its source and when it was read. If no part can be read, there is no answer and no charge. Charged for each check, even with a site pass.",
     includes: ["Departure airport: delays now and signs of delays ahead (FAA)", "Destination airport, the same; or for a country: State Department travel advisory and CDC travel health notices"],
     limits: ["Not a prediction about any flight.", "A country must be spelled as the State Department lists it; a part is null when its source could not be read or names nothing."],
-    path: "/api/agent/trip", usage: "GET ?from=SJU&to=JFK or ?from=SJU&to=Dominican Republic", defaultPrice: "$0.80", alwaysPaid: true,
+    path: "/api/agent/trip", usage: "GET ?from=SJU&to=JFK or ?from=SJU&to=Dominican Republic", defaultPrice: "$0.05", alwaysPaid: true,
     async respond(u, _origin, _store, at) {
       const now = at ?? new Date();
       const from = (u.searchParams.get("from") ?? "").trim().toUpperCase().slice(0, 3);
@@ -389,7 +389,7 @@ export const PRODUCTS: Product[] = [
     description: "Before sending a person on an errand in Puerto Rico: give the town or place. One answer gives the pharmacies nearest it with phone numbers and whether each is open now (OpenStreetMap and the federal NPI registry), the weather alerts that name that town (National Weather Service), and power outages across the island (LUMA), with go or wait and the reasons. Not stock: whether an item is on the shelf is not published; call first. With no pharmacy search and no weather service, there is no answer and no charge. Charged for each check, even with a site pass.",
     includes: ["Nearest pharmacies: phone, hours, open now", "Weather alerts that name the town", "Power outages across Puerto Rico", "go or wait, with the reasons"],
     limits: ["Not stock and not a promise that a place is open: call first.", "Power is by region of the island, not by street."],
-    path: "/api/agent/errand", usage: "GET ?place=Bayamon (a town, city or hospital in Puerto Rico)", defaultPrice: "$0.80", alwaysPaid: true,
+    path: "/api/agent/errand", usage: "GET ?place=Bayamon (a town, city or hospital in Puerto Rico)", defaultPrice: "$0.05", alwaysPaid: true,
     async respond(u, _origin, _store, at) {
       const now = at ?? new Date();
       const place = (u.searchParams.get("place") ?? "").trim().slice(0, 60);

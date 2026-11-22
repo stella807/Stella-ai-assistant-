@@ -3519,11 +3519,11 @@ describe("biweekly payroll", () => {
           expect(body.rivers).toBeNull();
         });
 
-        it("sells a trip check and an errand go-check for eighty cents, and refuses a question with nothing to check", async () => {
+        it("sells a trip check and an errand go-check for five cents, and refuses a question with nothing to check", async () => {
           const bad = await fetch(`${base}/api/agent/trip?from=SJU`);
           expect(bad.status).toBe(402);
           const { required, res } = await payFor(`${base}/api/agent/errand?place=Naguabo`);
-          expect(required.accepts[0].amount).toBe("800000");
+          expect(required.accepts[0].amount).toBe("50000");
           const body: any = await res.json();
           // The fake weather service has a severe flash flood warning for Naguabo.
           expect(body).toMatchObject({ place: "Naguabo", decision: "wait" });
